@@ -3,85 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Driver - Ojek Lokal Kuningan</title>
+    <title>Driver Ojek Kuningan</title>
     <style>
         :root { --primary: #10b981; --bg: #f1f5f9; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; }
-        .order-card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 5px solid var(--primary); }
-        .price { font-size: 18px; font-weight: bold; color: var(--primary); margin: 10px 0; }
-        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 5px; }
-        .btn-lamar { background: var(--primary); color: white; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 15px; }
+        .card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; background: var(--primary); color: white; }
+        .order-item { border-left: 5px solid var(--primary); }
+        #profile-screen { display: block; text-align: center; }
+        #main-app { display: none; }
+        .photo-preview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; background: #ddd; margin: 10px auto; display: block; }
     </style>
 </head>
 <body>
 
-<div id="app">
-    <h2 style="text-align:center">🚖 Orderan Kuningan</h2>
-    <div id="order-list">Memuat orderan...</div>
+<div id="profile-screen" class="card">
+    <h2>🚖 Profil Driver</h2>
+    <p>Isi sekali, simpan selamanya</p>
+    <input type="text" id="reg-nama" placeholder="Nama Lengkap">
+    <input type="text" id="reg-plat" placeholder="Nomor Plat (Contoh: E 1234 YX)">
+    <input type="text" id="reg-foto" placeholder="Link Foto Muka (Opsional)">
+    <button onclick="simpanProfil()">MASUK & KERJA</button>
+</div>
+
+<div id="main-app">
+    <div class="card" style="display: flex; align-items: center; gap: 15px;">
+        <img id="my-photo" class="photo-preview" style="margin:0; width:50px; height:50px;">
+        <div style="text-align: left;">
+            <b id="my-name">Driver</b><br>
+            <small id="my-plat">-</small>
+        </div>
+        <button onclick="logout()" style="width: auto; background: #ef4444; padding: 5px 10px; font-size: 10px; margin-left: auto;">Ganti</button>
+    </div>
+
+    <h3 style="text-align: center;">📦 Orderan Tersedia</h3>
+    <div id="order-list">Mencari orderan...</div>
 </div>
 
 <script>
     const BASE_URL = "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/orders";
-    let myName = "";
+    let myData = JSON.parse(localStorage.getItem('driver_ojek_kuningan'));
 
+    // 1. CEK LOGIN
+    if (myData) tampilkanApp();
+
+    function simpanProfil() {
+        const nama = document.getElementById('reg-nama').value;
+        const plat = document.getElementById('reg-plat').value;
+        const foto = document.getElementById('reg-foto').value || "https://cdn-icons-png.flaticon.com/512/714/714424.png";
+        
+        if (!nama || !plat) return alert("Nama dan Plat wajib diisi!");
+        
+        myData = { nama, plat, foto };
+        localStorage.setItem('driver_ojek_kuningan', JSON.stringify(myData));
+        tampilkanApp();
+    }
+
+    function tampilkanApp() {
+        document.getElementById('profile-screen').style.display = 'none';
+        document.getElementById('main-app').style.display = 'block';
+        document.getElementById('my-name').innerText = myData.nama;
+        document.getElementById('my-plat').innerText = myData.plat;
+        document.getElementById('my-photo').src = myData.foto;
+        muatPesanan();
+        setInterval(muatPesanan, 5000);
+    }
+
+    function logout() {
+        localStorage.removeItem('driver_ojek_kuningan');
+        location.reload();
+    }
+
+    // 2. LOGIKA ANTI-REFRESH SAAT MENGETIK
     function muatPesanan() {
+        // Cek apakah driver sedang mengetik di input nego manapun
+        const inputs = document.querySelectorAll('input[type="number"]');
+        for (let i = 0; i < inputs.length; i++) {
+            if (document.activeElement === inputs[i]) return; // Stop update jika lagi ngetik
+        }
+
         fetch(`${BASE_URL}.json`)
             .then(res => res.json())
             .then(data => {
                 const list = document.getElementById('order-list');
-                list.innerHTML = "";
-                if (!data) return list.innerHTML = "<p style='text-align:center;'>Belum ada orderan.</p>";
+                let html = "";
+                if (!data) { list.innerHTML = "Belum ada orderan."; return; }
 
                 Object.keys(data).reverse().forEach(id => {
                     const o = data[id];
                     if (o.status !== "mencari_driver") return;
 
-                    list.innerHTML += `
-                        <div class="order-card">
-                            <p>🏁 <b>Tujuan:</b> ${o.tujuan} (${o.jarak}km)</p>
-                            <div class="price">Harga: Rp ${o.upah.toLocaleString()}</div>
-                            <input type="text" id="nama-${id}" placeholder="Nama Driver">
-                            <input type="number" id="nego-${id}" placeholder="Tawar Harga (Nego)">
-                            <button class="btn-lamar" onclick="lamarJob('${id}', ${o.upah})">LAMAR SEKARANG</button>
+                    html += `
+                        <div class="card order-item">
+                            <p>🏁 <b>Ke: ${o.tujuan}</b> (${o.jarak} km)</p>
+                            <p>💰 Harga User: <b>Rp ${o.upah.toLocaleString()}</b></p>
+                            <input type="number" id="nego-${id}" placeholder="Tawar harga baru...">
+                            <button onclick="lamarJob('${id}', ${o.upah})">AMBIL / NEGO</button>
                         </div>
                     `;
                 });
+                list.innerHTML = html;
             });
     }
 
     async function lamarJob(orderId, hargaAsli) {
-        const inputNama = document.getElementById(`nama-${orderId}`).value;
         const hargaNego = document.getElementById(`nego-${orderId}`).value || hargaAsli;
-        if (!inputNama) return alert("Isi nama kamu!");
-        myName = inputNama;
-
-        const tawaran = { nama_driver: myName, harga_tawar: parseInt(hargaNego) };
+        
+        const tawaran = {
+            nama_driver: myData.nama,
+            plat_nomor: myData.plat,
+            foto_driver: myData.foto,
+            harga_tawar: parseInt(hargaNego)
+        };
 
         try {
             await fetch(`${BASE_URL}/${orderId}/tawaran.json`, { method: 'POST', body: JSON.stringify(tawaran) });
-            alert("Tawaran dikirim! Menunggu dipilih user...");
+            alert("Tawaran dikirim! Mohon tunggu...");
             
-            // Pantau apakah dipilih
-            const check = setInterval(async () => {
+            // Pantau status
+            setInterval(async () => {
                 const res = await fetch(`${BASE_URL}/${orderId}.json`);
-                const data = await res.json();
-                if (!data) { alert("Orderan dibatalkan."); clearInterval(check); location.reload(); }
-                else if (data.status === "diambil" && data.driver_pilihan === myName) {
-                    alert("ANDA TERPILIH! Segera jemput.");
-                    clearInterval(check);
-                    window.location.href = `https://www.google.com/maps/search/?api=1&query=${data.jemput_lat},${data.jemput_lon}`;
-                } else if (data.status === "diambil") {
-                    alert("User memilih driver lain.");
-                    clearInterval(check);
-                    location.reload();
+                const d = await res.json();
+                if (d && d.status === "diambil" && d.driver_pilihan === myData.nama) {
+                    alert("ANDA TERPILIH!");
+                    window.location.href = `https://www.google.com/maps?q=${d.jemput_lat},${d.jemput_lon}`;
                 }
             }, 3000);
-        } catch (e) { alert("Gagal kirim tawaran."); }
+        } catch (e) { alert("Gagal kirim"); }
     }
-
-    setInterval(muatPesanan, 5000);
-    muatPesanan();
 </script>
 </body>
 </html>
