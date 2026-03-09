@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ojek Lokal - Driver Panel</title>
+    <style>
+        :root { --primary: #10b981; --bg: #f1f5f9; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .order-card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 5px solid var(--primary); }
+        .price { font-size: 20px; font-weight: bold; color: var(--primary); }
+        .btn-maps { background: #3b82f6; color: white; border: none; padding: 10px; width: 100%; border-radius: 8px; margin-top: 10px; font-weight: bold; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
+        .status-badge { background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 5px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🚖 Panel Driver</h1>
+    <p>Menunggu pesanan masuk...</p>
+</div>
+
+<div id="order-list">
+    </div>
+
+<script>
+    // URL DATABASE KAMU (ASIA-SOUTHEAST1)
+    const FIREBASE_URL = "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/orders.json";
+
+    function muatPesanan() {
+        fetch(FIREBASE_URL)
+            .then(res => res.json())
+            .then(data => {
+                const list = document.getElementById('order-list');
+                list.innerHTML = ""; // Kosongkan daftar sebelum update
+
+                if (!data) {
+                    list.innerHTML = "<p style='text-align:center;'>Belum ada pesanan aktif.</p>";
+                    return;
+                }
+
+                // Balik urutan agar pesanan terbaru di atas
+                Object.keys(data).reverse().forEach(id => {
+                    const order = data[id];
+                    if (order.status === "mencari_driver") {
+                        const card = `
+                            <div class="order-card">
+                                <div style="display:flex; justify-content:space-between;">
+                                    <span class="status-badge">PESANAN BARU</span>
+                                    <span>${order.jarak} km</span>
+                                </div>
+                                <p><strong>📍 Jemput:</strong> Lokasi Terdeteksi</p>
+                                <p><strong>🏁 Tujuan:</strong> ${order.tujuan}</p>
+                                <div class="price">Rp ${order.upah.toLocaleString()}</div>
+                                <a href="https://www.google.com/maps?q=${order.jemput_lat},${order.jemput_lon}" 
+                                   target="_blank" class="btn-maps">BUKA GOOGLE MAPS (JEMPUT)</a>
+                            </div>
+                        `;
+                        list.innerHTML += card;
+                    }
+                });
+            })
+            .catch(err => console.error("Gagal ambil data:", err));
+    }
+
+    // Cek data setiap 5 detik secara otomatis
+    setInterval(muatPesanan, 5000);
+    muatPesanan(); // Jalankan sekali saat pertama buka
+</script>
+</body>
+</html>
