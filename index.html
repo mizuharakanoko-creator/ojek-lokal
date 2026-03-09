@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ojek Lokal - User Pro</title>
+    <style>
+        :root { --primary: #6366f1; --bg: #f8fafc; --text: #1e293b; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 450px; }
+        .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h2 { font-size: 18px; color: var(--primary); margin-top: 0; }
+        select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 15px; }
+        .btn-loc { background: #e0e7ff; color: var(--primary); border: none; font-weight: bold; cursor: pointer; }
+        .btn-order { background: black; color: white; border: none; font-weight: bold; padding: 18px; margin-top: 20px; cursor: pointer; }
+        .price-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .price-card { border: 2px solid #eee; padding: 10px; border-radius: 12px; text-align: center; cursor: pointer; }
+        .price-card.active { border-color: var(--primary); background: #f5f7ff; }
+        #waiting-screen { display: none; text-align: center; margin-top: 50px; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="main-app">
+    <div id="input-screen">
+        <div class="card">
+            <h2>📍 Penjemputan</h2>
+            <button class="btn-loc" id="btn-gps" onclick="ambilLokasi()">KLIK UNTUK AMBIL LOKASI SAYA</button>
+            <p id="status-gps" style="font-size: 12px; color: grey;">Lokasi belum diambil</p>
+        </div>
+
+        <div class="card">
+            <h2>🏁 Tujuan</h2>
+            <select id="kota" onchange="updateKecamatan()">
+                <option value="">Pilih Kabupaten/Kota</option>
+                <option value="Kab. Bandung" data-lat="-7.025" data-lon="107.519">Kab. Bandung</option>
+                <option value="Kota Bandung" data-lat="-6.917" data-lon="107.619">Kota Bandung</option>
+            </select>
+            <select id="kecamatan" onchange="hitungSemua()">
+                <option value="">Pilih Kecamatan</option>
+            </select>
+            <p id="info-jarak" style="font-weight: bold; color: var(--primary); margin-top: 10px;"></p>
+        </div>
+
+        <div class="price-options" id="price-container" style="display: none;">
+            <div class="price-card" onclick="setPrice(this, 'hemat')"><span>Hemat (x3)</span><br><strong id="p1">-</strong></div>
+            <div class="price-card" onclick="setPrice(this, 'normal')"><span>Normal (x4)</span><br><strong id="p2">-</strong></div>
+            <div class="price-card" onclick="setPrice(this, 'cepat')"><span>Cepat (x5)</span><br><strong id="p3">-</strong></div>
+        </div>
+
+        <button class="btn-order" onclick="kirimOrder()">ORDER SEKARANG</button>
+    </div>
+
+    <div id="waiting-screen">
+        <h3>Mencari Driver...</h3>
+        <p>Mohon tunggu sebentar.</p>
+        <button onclick="location.reload()" style="background: red; color: white; border: none;">Batal</button>
+    </div>
+</div>
+
+<script>
+    let userLat, userLon;
+    let distKm = 0;
+    let finalPrice = 0;
+
+    // 1. Fungsi Ambil GPS Asli
+    function ambilLokasi() {
+    if (navigator.geolocation) {
+        document.getElementById('status-gps').innerText = "Sedang melacak...";
+        
+        const options = {
+            enableHighAccuracy: true, // Memaksa akurasi tinggi (GPS)
+            timeout: 10000,           // Tunggu maksimal 10 detik
+            maximumAge: 0             // Jangan gunakan data lokasi lama
+        };
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                userLat = pos.coords.latitude;
+                userLon = pos.coords.longitude;
+                document.getElementById('status-gps').innerText = "✅ Lokasi Berhasil Dikunci";
+                document.getElementById('btn-gps').style.background = "#dcfce7";
+                document.getElementById('btn-gps').innerText = "LOKASI TERDETEKSI";
+                hitungSemua();
+            }, 
+            (err) => {
+                console.warn(`ERROR(${err.code}): ${err.message}`);
+                document.getElementById('status-gps').innerText = "Gagal: " + err.message;
+                alert("Gagal ambil lokasi. Pastikan izin lokasi browser sudah aktif.");
+            },
+            options
+        );
+    } else {
+        alert("Browser kamu tidak mendukung GPS.");
+    }
+}
+
+
+    // 2. Database Dropdown (Contoh)
+    const dataWilayah = {
+        "Kab. Bandung": ["Cileunyi", "Jatinangor", "Rancaekek"],
+        "Kota Bandung": ["Cibiru", "Ujung Berung", "Arcamanik"]
+    };
+
+    function updateKecamatan() {
+        const kota = document.getElementById('kota').value;
+        const kecSelect = document.getElementById('kecamatan');
+        kecSelect.innerHTML = '<option value="">Pilih Kecamatan</option>';
+        if (kota) {
+            dataWilayah[kota].forEach(kec => {
+                kecSelect.innerHTML += `<option value="${kec}">${kec}</option>`;
+            });
+        }
+    }
+
+    // 3. Logika Hitung Jarak (Haversine Formula)
+    function hitungJarak(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Jari-jari bumi km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    function hitungSemua() {
+        const kotaSelect = document.getElementById('kota');
+        const selOption = kotaSelect.options[kotaSelect.selectedIndex];
+        const destLat = parseFloat(selOption.getAttribute('data-lat'));
+        const destLon = parseFloat(selOption.getAttribute('data-lon'));
+
+        if (userLat && destLat) {
+            distKm = hitungJarak(userLat, userLon, destLat, destLon).toFixed(1);
+            document.getElementById('info-jarak').innerText = `Jarak: ${distKm} km`;
+            
+            // Rekomendasi Ongkos (x3000, x4000, x5000)
+            document.getElementById('p1').innerText = "Rp " + (distKm * 3000).toLocaleString();
+            document.getElementById('p2').innerText = "Rp " + (distKm * 4000).toLocaleString();
+            document.getElementById('p3').innerText = "Rp " + (distKm * 5000).toLocaleString();
+            document.getElementById('price-container').style.display = 'grid';
+        }
+    }
+
+    function setPrice(el, type) {
+        document.querySelectorAll('.price-card').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        const multiplier = type === 'hemat' ? 3000 : (type === 'normal' ? 4000 : 5000);
+        finalPrice = distKm * multiplier;
+    }
+
+    async function kirimOrder() {
+        if (finalPrice === 0) return alert("Pilih tujuan dan upah!");
+        
+        document.getElementById('input-screen').style.display = 'none';
+        document.getElementById('waiting-screen').style.display = 'block';
+
+        const payload = {
+            jemput_lat: userLat,
+            jemput_lon: userLon,
+            tujuan: document.getElementById('kecamatan').value,
+            upah: finalPrice,
+            jarak: distKm,
+            status: "mencari_driver"
+        };
+
+        await fetch("https://ojeklokal-42b84-default-rtdb.firebaseio.com/orders.json", {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    }
+</script>
+</body>
+</html>
