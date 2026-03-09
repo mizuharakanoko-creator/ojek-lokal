@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ojek Lokal - User Pro</title>
+    <title>Ojek Lokal - User Panel</title>
     <style>
         :root { --primary: #6366f1; --bg: #f8fafc; --text: #1e293b; }
         body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; justify-content: center; color: var(--text); }
@@ -16,7 +16,8 @@
         .price-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
         .price-card { border: 2px solid #eee; padding: 10px; border-radius: 12px; text-align: center; cursor: pointer; background: white; font-size: 12px; }
         .price-card.active { border-color: var(--primary); background: #f5f7ff; }
-        #waiting-screen { display: none; text-align: center; margin-top: 50px; }
+        #waiting-screen { display: none; text-align: center; margin-top: 30px; }
+        .driver-item { background: #f0fdf4; padding: 15px; border-radius: 15px; border: 1px solid #bbf7d0; margin-top: 10px; text-align: left; }
         .loader { border: 5px solid #f3f3f3; border-top: 5px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
@@ -27,7 +28,7 @@
     <div id="input-screen">
         <div class="card">
             <h2>📍 Penjemputan</h2>
-            <button class="btn-loc" id="btn-gps" onclick="ambilLokasi()">KLIK UNTUK AMBIL LOKASI SAYA</button>
+            <button class="btn-loc" id="btn-gps" onclick="ambilLokasi()">KLIK AMBIL LOKASI SAYA</button>
             <p id="status-gps" style="font-size: 12px; color: grey; text-align: center;">Lokasi belum diambil</p>
         </div>
 
@@ -45,120 +46,123 @@
         </div>
 
         <div class="price-options" id="price-container" style="display: none;">
-            <div class="price-card" id="card-hemat" onclick="setPrice(this, 3000)"><span>Hemat</span><br><strong id="p1">-</strong></div>
-            <div class="price-card" id="card-normal" onclick="setPrice(this, 4000)"><span>Normal</span><br><strong id="p2">-</strong></div>
-            <div class="price-card" id="card-cepat" onclick="setPrice(this, 5000)"><span>Cepat</span><br><strong id="p3">-</strong></div>
+            <div class="price-card" onclick="setPrice(this, 3000)"><span>Hemat</span><br><strong id="p1">-</strong></div>
+            <div class="price-card" onclick="setPrice(this, 4000)"><span>Normal</span><br><strong id="p2">-</strong></div>
+            <div class="price-card" onclick="setPrice(this, 5000)"><span>Cepat</span><br><strong id="p3">-</strong></div>
         </div>
 
         <button class="btn-order" onclick="kirimOrder()">ORDER SEKARANG</button>
     </div>
 
     <div id="waiting-screen">
-        <div class="loader"></div>
-        <h3>Mencari Driver...</h3>
-        <p>Pesanan Anda sedang diproses.</p>
-        <button onclick="location.reload()" style="background: #fee2e2; color: #ef4444; border: none; padding: 10px; border-radius: 10px;">Batal</button>
+        <div class="loader" id="main-loader"></div>
+        <h3 id="wait-title">Mencari Driver...</h3>
+        <p id="wait-desc">Mohon tunggu, tawaran driver akan muncul di bawah ini.</p>
+        
+        <div id="list-driver-melamar">
+            </div>
+
+        <button onclick="location.reload()" style="background: #fee2e2; color: #ef4444; border: none; padding: 10px; border-radius: 10px; margin-top: 20px;">Batalkan</button>
     </div>
 </div>
 
 <script>
-    let userLat, userLon, distKm = 0, finalPrice = 0;
-    
-    // URL SESUAI SCREENSHOT NOMOR 3 (ASIA SOUTHEAST)
-    const FIREBASE_URL = "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/orders.json";
+    let userLat, userLon, distKm = 0, finalPrice = 0, currentOrderId = null;
+    const BASE_URL = "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/orders";
 
     function ambilLokasi() {
-        if (!navigator.geolocation) return alert("Browser tidak mendukung GPS");
-        document.getElementById('status-gps').innerText = "Sedang melacak...";
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                userLat = pos.coords.latitude;
-                userLon = pos.coords.longitude;
-                document.getElementById('status-gps').innerText = "✅ Lokasi Berhasil Dikunci";
-                document.getElementById('btn-gps').style.background = "#dcfce7";
-                document.getElementById('btn-gps').innerText = "LOKASI TERDETEKSI";
-                hitungSemua();
-            }, 
-            (err) => { alert("Gagal ambil lokasi. Pastikan GPS HP & Izin Browser Aktif!"); },
-            { enableHighAccuracy: true }
-        );
+        if (!navigator.geolocation) return alert("GPS tidak support");
+        navigator.geolocation.getCurrentPosition((pos) => {
+            userLat = pos.coords.latitude; userLon = pos.coords.longitude;
+            document.getElementById('status-gps').innerText = "✅ Lokasi Terkunci";
+            document.getElementById('btn-gps').style.background = "#dcfce7";
+            hitungSemua();
+        }, () => alert("Aktifkan Izin GPS!"), { enableHighAccuracy: true });
     }
 
-    const dataWilayah = {
-        "Kab. Bandung": ["Cileunyi", "Jatinangor", "Rancaekek"],
-        "Kota Bandung": ["Cibiru", "Ujung Berung", "Arcamanik"]
-    };
+    const dataWilayah = { "Kab. Bandung": ["Cileunyi", "Jatinangor", "Rancaekek"], "Kota Bandung": ["Cibiru", "Ujung Berung", "Arcamanik"] };
 
     function updateKecamatan() {
         const kota = document.getElementById('kota').value;
         const kecSelect = document.getElementById('kecamatan');
         kecSelect.innerHTML = '<option value="">Pilih Kecamatan</option>';
-        if (kota) {
-            dataWilayah[kota].forEach(kec => {
-                kecSelect.innerHTML += `<option value="${kec}">${kec}</option>`;
-            });
-        }
+        if (kota) dataWilayah[kota].forEach(kec => kecSelect.innerHTML += `<option value="${kec}">${kec}</option>`);
     }
 
     function hitungSemua() {
         const kotaSelect = document.getElementById('kota');
         const selOption = kotaSelect.options[kotaSelect.selectedIndex];
         if (!userLat || !selOption.getAttribute('data-lat')) return;
-
-        const lat2 = parseFloat(selOption.getAttribute('data-lat'));
-        const lon2 = parseFloat(selOption.getAttribute('data-lon'));
-        
+        const lat2 = parseFloat(selOption.getAttribute('data-lat')), lon2 = parseFloat(selOption.getAttribute('data-lon'));
         const R = 6371;
-        const dLat = (lat2 - userLat) * Math.PI / 180;
-        const dLon = (lon2 - userLon) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(userLat * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const dLat = (lat2 - userLat) * Math.PI / 180, dLon = (lon2 - userLon) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(userLat * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
         distKm = (R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)))).toFixed(1);
-        
         document.getElementById('info-jarak').innerText = `Jarak: ${distKm} km`;
-        document.getElementById('p1').innerText = "Rp " + (distKm * 3000).toLocaleString();
-        document.getElementById('p2').innerText = "Rp " + (distKm * 4000).toLocaleString();
-        document.getElementById('p3').innerText = "Rp " + (distKm * 5000).toLocaleString();
+        document.getElementById('p1').innerText = "Rp "+(distKm*3000).toLocaleString();
+        document.getElementById('p2').innerText = "Rp "+(distKm*4000).toLocaleString();
+        document.getElementById('p3').innerText = "Rp "+(distKm*5000).toLocaleString();
         document.getElementById('price-container').style.display = 'grid';
     }
 
-    function setPrice(el, multiplier) {
+    function setPrice(el, mult) {
         document.querySelectorAll('.price-card').forEach(c => c.classList.remove('active'));
         el.classList.add('active');
-        finalPrice = Math.round(distKm * multiplier);
+        finalPrice = Math.round(distKm * mult);
     }
 
     async function kirimOrder() {
         const kec = document.getElementById('kecamatan').value;
-        if (!userLat || finalPrice === 0 || !kec) return alert("Lengkapi data lokasi, tujuan, dan upah!");
+        if (!userLat || finalPrice === 0) return alert("Lengkapi data!");
 
         const payload = {
-            jemput_lat: userLat,
-            jemput_lon: userLon,
-            tujuan: kec,
-            upah: finalPrice,
-            jarak: distKm,
-            status: "mencari_driver",
-            waktu: new Date().getTime()
+            jemput_lat: userLat, jemput_lon: userLon,
+            tujuan: kec, upah: finalPrice, jarak: distKm,
+            status: "mencari_driver", waktu: new Date().getTime()
         };
 
-        try {
-            const response = await fetch(FIREBASE_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (response.ok) {
-                alert("BERHASIL! Pesanan Anda sudah masuk ke database.");
-                document.getElementById('input-screen').style.display = 'none';
-                document.getElementById('waiting-screen').style.display = 'block';
-            } else {
-                const errText = await response.text();
-                alert("Gagal Kirim: " + errText);
-            }
-        } catch (error) {
-            alert("Error Koneksi: " + error.message);
+        const res = await fetch(`${BASE_URL}.json`, { method: 'POST', body: JSON.stringify(payload) });
+        if (res.ok) {
+            const data = await res.json();
+            currentOrderId = data.name; // Simpan ID orderan dari Firebase
+            document.getElementById('input-screen').style.display = 'none';
+            document.getElementById('waiting-screen').style.display = 'block';
+            
+            // Mulai pantau tawaran driver setiap 3 detik
+            setInterval(() => pantauTawaran(currentOrderId), 3000);
         }
+    }
+
+    async function pantauTawaran(orderId) {
+        const res = await fetch(`${BASE_URL}/${orderId}/tawaran.json`);
+        const tawaran = await res.json();
+        if (tawaran) {
+            let html = "<h4>Driver Melamar:</h4>";
+            Object.keys(tawaran).forEach(id => {
+                const t = tawaran[id];
+                html += `
+                    <div class="driver-item">
+                        <b>👤 ${t.nama_driver}</b><br>
+                        💰 Harga: Rp ${t.harga_tawar.toLocaleString()}<br>
+                        <button onclick="pilihDriver('${orderId}', '${t.nama_driver}', ${t.harga_tawar})" 
+                                style="background:#10b981; color:white; border:none; margin-top:10px;">
+                            PILIH DRIVER INI
+                        </button>
+                    </div>`;
+            });
+            document.getElementById('list-driver-melamar').innerHTML = html;
+        }
+    }
+
+    async function pilihDriver(orderId, nama, harga) {
+        await fetch(`${BASE_URL}/${orderId}.json`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: "diambil", driver_pilihan: nama, upah_final: harga })
+        });
+        document.getElementById('main-loader').style.display = 'none';
+        document.getElementById('wait-title').innerText = "Driver Sedang Menuju Lokasi!";
+        document.getElementById('wait-desc').innerHTML = `Driver <b>${nama}</b> telah terpilih.<br>Siapkan uang pas: <b>Rp ${harga.toLocaleString()}</b>`;
+        document.getElementById('list-driver-melamar').innerHTML = "";
     }
 </script>
 </body>
