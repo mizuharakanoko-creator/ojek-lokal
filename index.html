@@ -6,18 +6,18 @@
     <title>Ojek Lokal - User Pro</title>
     <style>
         :root { --primary: #6366f1; --bg: #f8fafc; --text: #1e293b; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; justify-content: center; color: var(--text); }
         .container { width: 100%; max-width: 450px; }
         .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
         h2 { font-size: 18px; color: var(--primary); margin-top: 0; }
-        select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 15px; }
-        .btn-loc { background: #e0e7ff; color: var(--primary); border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .btn-order { background: black; color: white; border: none; font-weight: bold; padding: 18px; margin-top: 20px; cursor: pointer; width: 100%; }
-        .price-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-        .price-card { border: 2px solid #eee; padding: 10px; border-radius: 12px; text-align: center; cursor: pointer; background: white; }
+        select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 15px; box-sizing: border-box; }
+        .btn-loc { background: #e0e7ff; color: var(--primary); border: none; font-weight: bold; cursor: pointer; }
+        .btn-order { background: black; color: white; border: none; font-weight: bold; padding: 18px; margin-top: 20px; cursor: pointer; }
+        .price-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
+        .price-card { border: 2px solid #eee; padding: 10px; border-radius: 12px; text-align: center; cursor: pointer; background: white; font-size: 12px; }
         .price-card.active { border-color: var(--primary); background: #f5f7ff; }
         #waiting-screen { display: none; text-align: center; margin-top: 50px; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -45,9 +45,9 @@
         </div>
 
         <div class="price-options" id="price-container" style="display: none;">
-            <div class="price-card" id="card-hemat" onclick="setPrice(this, 3000)"><span>Hemat (x3)</span><br><strong id="p1">-</strong></div>
-            <div class="price-card" id="card-normal" onclick="setPrice(this, 4000)"><span>Normal (x4)</span><br><strong id="p2">-</strong></div>
-            <div class="price-card" id="card-cepat" onclick="setPrice(this, 5000)"><span>Cepat (x5)</span><br><strong id="p3">-</strong></div>
+            <div class="price-card" id="card-hemat" onclick="setPrice(this, 3000)"><span>Hemat</span><br><strong id="p1">-</strong></div>
+            <div class="price-card" id="card-normal" onclick="setPrice(this, 4000)"><span>Normal</span><br><strong id="p2">-</strong></div>
+            <div class="price-card" id="card-cepat" onclick="setPrice(this, 5000)"><span>Cepat</span><br><strong id="p3">-</strong></div>
         </div>
 
         <button class="btn-order" onclick="kirimOrder()">ORDER SEKARANG</button>
@@ -56,18 +56,19 @@
     <div id="waiting-screen">
         <div class="loader"></div>
         <h3>Mencari Driver...</h3>
-        <p>Pesanan Anda sedang disiarkan ke driver terdekat.</p>
-        <button onclick="location.reload()" style="background: #fee2e2; color: #ef4444; border: none; padding: 10px; border-radius: 10px; width: 100%;">Batalkan Pesanan</button>
+        <p>Pesanan Anda sedang diproses.</p>
+        <button onclick="location.reload()" style="background: #fee2e2; color: #ef4444; border: none; padding: 10px; border-radius: 10px;">Batal</button>
     </div>
 </div>
 
 <script>
     let userLat, userLon, distKm = 0, finalPrice = 0;
+    
+    // URL SESUAI SCREENSHOT NOMOR 3 (ASIA SOUTHEAST)
     const FIREBASE_URL = "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/orders.json";
 
     function ambilLokasi() {
-        if (!navigator.geolocation) return alert("Browser tidak support GPS");
-        
+        if (!navigator.geolocation) return alert("Browser tidak mendukung GPS");
         document.getElementById('status-gps').innerText = "Sedang melacak...";
         navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -78,11 +79,8 @@
                 document.getElementById('btn-gps').innerText = "LOKASI TERDETEKSI";
                 hitungSemua();
             }, 
-            (err) => {
-                alert("Gagal ambil lokasi. Pastikan GPS HP & Izin Browser menyala.");
-                document.getElementById('status-gps').innerText = "Gagal melacak";
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
+            (err) => { alert("Gagal ambil lokasi. Pastikan GPS HP & Izin Browser Aktif!"); },
+            { enableHighAccuracy: true }
         );
     }
 
@@ -102,22 +100,21 @@
         }
     }
 
-    function hitungJarak(lat1, lon1, lat2, lon2) {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-    }
-
     function hitungSemua() {
         const kotaSelect = document.getElementById('kota');
         const selOption = kotaSelect.options[kotaSelect.selectedIndex];
         if (!userLat || !selOption.getAttribute('data-lat')) return;
 
-        distKm = hitungJarak(userLat, userLon, parseFloat(selOption.getAttribute('data-lat')), parseFloat(selOption.getAttribute('data-lon'))).toFixed(1);
-        document.getElementById('info-jarak').innerText = `Jarak: ${distKm} km`;
+        const lat2 = parseFloat(selOption.getAttribute('data-lat'));
+        const lon2 = parseFloat(selOption.getAttribute('data-lon'));
         
+        const R = 6371;
+        const dLat = (lat2 - userLat) * Math.PI / 180;
+        const dLon = (lon2 - userLon) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(userLat * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        distKm = (R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)))).toFixed(1);
+        
+        document.getElementById('info-jarak').innerText = `Jarak: ${distKm} km`;
         document.getElementById('p1').innerText = "Rp " + (distKm * 3000).toLocaleString();
         document.getElementById('p2').innerText = "Rp " + (distKm * 4000).toLocaleString();
         document.getElementById('p3').innerText = "Rp " + (distKm * 5000).toLocaleString();
@@ -131,44 +128,38 @@
     }
 
     async function kirimOrder() {
-    const kec = document.getElementById('kecamatan').value;
-    if (!userLat) return alert("Ambil lokasi jemput dulu!");
-    if (!kec || finalPrice === 0) return alert("Pilih tujuan dan upah!");
+        const kec = document.getElementById('kecamatan').value;
+        if (!userLat || finalPrice === 0 || !kec) return alert("Lengkapi data lokasi, tujuan, dan upah!");
 
-    // Pastikan URL ini sesuai dengan yang tertulis di dashboard Firebase kamu!
-    // Jika di dashboard ada lokasi (misal: -europe-west1), tambahkan di sini.
-    const FIREBASE_URL = "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/orders.json";
+        const payload = {
+            jemput_lat: userLat,
+            jemput_lon: userLon,
+            tujuan: kec,
+            upah: finalPrice,
+            jarak: distKm,
+            status: "mencari_driver",
+            waktu: new Date().getTime()
+        };
 
+        try {
+            const response = await fetch(FIREBASE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-    const payload = {
-        jemput_lat: userLat,
-        jemput_lon: userLon,
-        tujuan: kec,
-        upah: finalPrice,
-        jarak: distKm,
-        status: "mencari_driver",
-        waktu: new Date().toISOString()
-    };
-
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-
-        if (response.ok) {
-            document.getElementById('input-screen').style.display = 'none';
-            document.getElementById('waiting-screen').style.display = 'block';
-            console.log("Data Berhasil Terkirim!");
-        } else {
-            const errData = await response.json();
-            alert("Firebase Menolak: " + JSON.stringify(errData));
+            if (response.ok) {
+                alert("BERHASIL! Pesanan Anda sudah masuk ke database.");
+                document.getElementById('input-screen').style.display = 'none';
+                document.getElementById('waiting-screen').style.display = 'block';
+            } else {
+                const errText = await response.text();
+                alert("Gagal Kirim: " + errText);
+            }
+        } catch (error) {
+            alert("Error Koneksi: " + error.message);
         }
-    } catch (error) {
-        alert("Koneksi Gagal: " + error.message);
     }
-}
-
 </script>
 </body>
 </html>
