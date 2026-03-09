@@ -11,22 +11,24 @@
         .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
         h2 { font-size: 18px; color: var(--primary); margin-top: 0; }
         select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 15px; }
-        .btn-loc { background: #e0e7ff; color: var(--primary); border: none; font-weight: bold; cursor: pointer; }
-        .btn-order { background: black; color: white; border: none; font-weight: bold; padding: 18px; margin-top: 20px; cursor: pointer; }
+        .btn-loc { background: #e0e7ff; color: var(--primary); border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-order { background: black; color: white; border: none; font-weight: bold; padding: 18px; margin-top: 20px; cursor: pointer; width: 100%; }
         .price-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-        .price-card { border: 2px solid #eee; padding: 10px; border-radius: 12px; text-align: center; cursor: pointer; }
+        .price-card { border: 2px solid #eee; padding: 10px; border-radius: 12px; text-align: center; cursor: pointer; background: white; }
         .price-card.active { border-color: var(--primary); background: #f5f7ff; }
         #waiting-screen { display: none; text-align: center; margin-top: 50px; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<div class="container" id="main-app">
+<div class="container">
     <div id="input-screen">
         <div class="card">
             <h2>📍 Penjemputan</h2>
             <button class="btn-loc" id="btn-gps" onclick="ambilLokasi()">KLIK UNTUK AMBIL LOKASI SAYA</button>
-            <p id="status-gps" style="font-size: 12px; color: grey;">Lokasi belum diambil</p>
+            <p id="status-gps" style="font-size: 12px; color: grey; text-align: center;">Lokasi belum diambil</p>
         </div>
 
         <div class="card">
@@ -39,41 +41,34 @@
             <select id="kecamatan" onchange="hitungSemua()">
                 <option value="">Pilih Kecamatan</option>
             </select>
-            <p id="info-jarak" style="font-weight: bold; color: var(--primary); margin-top: 10px;"></p>
+            <p id="info-jarak" style="font-weight: bold; color: var(--primary); margin-top: 10px; text-align: center;"></p>
         </div>
 
         <div class="price-options" id="price-container" style="display: none;">
-            <div class="price-card" onclick="setPrice(this, 'hemat')"><span>Hemat (x3)</span><br><strong id="p1">-</strong></div>
-            <div class="price-card" onclick="setPrice(this, 'normal')"><span>Normal (x4)</span><br><strong id="p2">-</strong></div>
-            <div class="price-card" onclick="setPrice(this, 'cepat')"><span>Cepat (x5)</span><br><strong id="p3">-</strong></div>
+            <div class="price-card" id="card-hemat" onclick="setPrice(this, 3000)"><span>Hemat (x3)</span><br><strong id="p1">-</strong></div>
+            <div class="price-card" id="card-normal" onclick="setPrice(this, 4000)"><span>Normal (x4)</span><br><strong id="p2">-</strong></div>
+            <div class="price-card" id="card-cepat" onclick="setPrice(this, 5000)"><span>Cepat (x5)</span><br><strong id="p3">-</strong></div>
         </div>
 
         <button class="btn-order" onclick="kirimOrder()">ORDER SEKARANG</button>
     </div>
 
     <div id="waiting-screen">
+        <div class="loader"></div>
         <h3>Mencari Driver...</h3>
-        <p>Mohon tunggu sebentar.</p>
-        <button onclick="location.reload()" style="background: red; color: white; border: none;">Batal</button>
+        <p>Pesanan Anda sedang disiarkan ke driver terdekat.</p>
+        <button onclick="location.reload()" style="background: #fee2e2; color: #ef4444; border: none; padding: 10px; border-radius: 10px; width: 100%;">Batalkan Pesanan</button>
     </div>
 </div>
 
 <script>
-    let userLat, userLon;
-    let distKm = 0;
-    let finalPrice = 0;
+    let userLat, userLon, distKm = 0, finalPrice = 0;
+    const FIREBASE_URL = "https://ojeklokal-42b84-default-rtdb.firebaseio.com/orders.json";
 
-    // 1. Fungsi Ambil GPS Asli
     function ambilLokasi() {
-    if (navigator.geolocation) {
-        document.getElementById('status-gps').innerText = "Sedang melacak...";
+        if (!navigator.geolocation) return alert("Browser tidak support GPS");
         
-        const options = {
-            enableHighAccuracy: true, // Memaksa akurasi tinggi (GPS)
-            timeout: 10000,           // Tunggu maksimal 10 detik
-            maximumAge: 0             // Jangan gunakan data lokasi lama
-        };
-
+        document.getElementById('status-gps').innerText = "Sedang melacak...";
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 userLat = pos.coords.latitude;
@@ -84,19 +79,13 @@
                 hitungSemua();
             }, 
             (err) => {
-                console.warn(`ERROR(${err.code}): ${err.message}`);
-                document.getElementById('status-gps').innerText = "Gagal: " + err.message;
-                alert("Gagal ambil lokasi. Pastikan izin lokasi browser sudah aktif.");
+                alert("Gagal ambil lokasi. Pastikan GPS HP & Izin Browser menyala.");
+                document.getElementById('status-gps').innerText = "Gagal melacak";
             },
-            options
+            { enableHighAccuracy: true, timeout: 10000 }
         );
-    } else {
-        alert("Browser kamu tidak mendukung GPS.");
     }
-}
 
-
-    // 2. Database Dropdown (Contoh)
     const dataWilayah = {
         "Kab. Bandung": ["Cileunyi", "Jatinangor", "Rancaekek"],
         "Kota Bandung": ["Cibiru", "Ujung Berung", "Arcamanik"]
@@ -113,61 +102,65 @@
         }
     }
 
-    // 3. Logika Hitung Jarak (Haversine Formula)
     function hitungJarak(lat1, lon1, lat2, lon2) {
-        const R = 6371; // Jari-jari bumi km
+        const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
     }
 
     function hitungSemua() {
         const kotaSelect = document.getElementById('kota');
         const selOption = kotaSelect.options[kotaSelect.selectedIndex];
-        const destLat = parseFloat(selOption.getAttribute('data-lat'));
-        const destLon = parseFloat(selOption.getAttribute('data-lon'));
+        if (!userLat || !selOption.getAttribute('data-lat')) return;
 
-        if (userLat && destLat) {
-            distKm = hitungJarak(userLat, userLon, destLat, destLon).toFixed(1);
-            document.getElementById('info-jarak').innerText = `Jarak: ${distKm} km`;
-            
-            // Rekomendasi Ongkos (x3000, x4000, x5000)
-            document.getElementById('p1').innerText = "Rp " + (distKm * 3000).toLocaleString();
-            document.getElementById('p2').innerText = "Rp " + (distKm * 4000).toLocaleString();
-            document.getElementById('p3').innerText = "Rp " + (distKm * 5000).toLocaleString();
-            document.getElementById('price-container').style.display = 'grid';
-        }
+        distKm = hitungJarak(userLat, userLon, parseFloat(selOption.getAttribute('data-lat')), parseFloat(selOption.getAttribute('data-lon'))).toFixed(1);
+        document.getElementById('info-jarak').innerText = `Jarak: ${distKm} km`;
+        
+        document.getElementById('p1').innerText = "Rp " + (distKm * 3000).toLocaleString();
+        document.getElementById('p2').innerText = "Rp " + (distKm * 4000).toLocaleString();
+        document.getElementById('p3').innerText = "Rp " + (distKm * 5000).toLocaleString();
+        document.getElementById('price-container').style.display = 'grid';
     }
 
-    function setPrice(el, type) {
+    function setPrice(el, multiplier) {
         document.querySelectorAll('.price-card').forEach(c => c.classList.remove('active'));
         el.classList.add('active');
-        const multiplier = type === 'hemat' ? 3000 : (type === 'normal' ? 4000 : 5000);
-        finalPrice = distKm * multiplier;
+        finalPrice = Math.round(distKm * multiplier);
     }
 
     async function kirimOrder() {
-        if (finalPrice === 0) return alert("Pilih tujuan dan upah!");
+        const kec = document.getElementById('kecamatan').value;
+        if (!userLat) return alert("Ambil lokasi jemput dulu!");
+        if (!kec || finalPrice === 0) return alert("Pilih tujuan dan upah!");
         
-        document.getElementById('input-screen').style.display = 'none';
-        document.getElementById('waiting-screen').style.display = 'block';
-
         const payload = {
             jemput_lat: userLat,
             jemput_lon: userLon,
-            tujuan: document.getElementById('kecamatan').value,
+            tujuan: kec,
             upah: finalPrice,
             jarak: distKm,
-            status: "mencari_driver"
+            status: "mencari_driver",
+            waktu: new Date().toISOString()
         };
 
-        await fetch("https://ojeklokal-42b84-default-rtdb.firebaseio.com/orders.json", {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
+        try {
+            const response = await fetch(FIREBASE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                document.getElementById('input-screen').style.display = 'none';
+                document.getElementById('waiting-screen').style.display = 'block';
+            } else {
+                alert("Gagal kirim ke database. Cek Rules Firebase kamu.");
+            }
+        } catch (error) {
+            alert("Error: " + error);
+        }
     }
 </script>
 </body>
