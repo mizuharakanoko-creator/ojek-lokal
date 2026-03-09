@@ -3,70 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ojek Lokal - Driver Panel</title>
+    <title>Driver - Ojek Lokal</title>
     <style>
         :root { --primary: #10b981; --bg: #f1f5f9; }
         body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; }
-        .header { text-align: center; margin-bottom: 20px; }
         .order-card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 5px solid var(--primary); }
-        .price { font-size: 20px; font-weight: bold; color: var(--primary); }
-        .btn-maps { background: #3b82f6; color: white; border: none; padding: 10px; width: 100%; border-radius: 8px; margin-top: 10px; font-weight: bold; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; }
-        .status-badge { background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 5px; font-size: 12px; }
+        .price { font-size: 18px; font-weight: bold; color: var(--primary); margin: 10px 0; }
+        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin-top: 5px; }
+        .btn-lamar { background: var(--primary); color: white; }
+        .btn-maps { background: #3b82f6; color: white; text-decoration: none; display: block; text-align: center; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <h1>🚖 Panel Driver</h1>
-    <p>Menunggu pesanan masuk...</p>
+<div id="app">
+    <h2 style="text-align:center">🚖 Orderan Tersedia</h2>
+    <div id="order-list">Memuat...</div>
 </div>
 
-<div id="order-list">
-    </div>
-
 <script>
-    // URL DATABASE KAMU (ASIA-SOUTHEAST1)
-    const FIREBASE_URL = "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/orders.json";
+    const BASE_URL = "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/orders";
 
     function muatPesanan() {
-        fetch(FIREBASE_URL)
+        fetch(`${BASE_URL}.json`)
             .then(res => res.json())
             .then(data => {
                 const list = document.getElementById('order-list');
-                list.innerHTML = ""; // Kosongkan daftar sebelum update
+                list.innerHTML = "";
+                if (!data) return list.innerHTML = "Tidak ada orderan.";
 
-                if (!data) {
-                    list.innerHTML = "<p style='text-align:center;'>Belum ada pesanan aktif.</p>";
-                    return;
-                }
-
-                // Balik urutan agar pesanan terbaru di atas
                 Object.keys(data).reverse().forEach(id => {
-                    const order = data[id];
-                    if (order.status === "mencari_driver") {
-                        const card = `
-                            <div class="order-card">
-                                <div style="display:flex; justify-content:space-between;">
-                                    <span class="status-badge">PESANAN BARU</span>
-                                    <span>${order.jarak} km</span>
-                                </div>
-                                <p><strong>📍 Jemput:</strong> Lokasi Terdeteksi</p>
-                                <p><strong>🏁 Tujuan:</strong> ${order.tujuan}</p>
-                                <div class="price">Rp ${order.upah.toLocaleString()}</div>
-                                <a href="https://www.google.com/maps?q=${order.jemput_lat},${order.jemput_lon}" 
-                                   target="_blank" class="btn-maps">BUKA GOOGLE MAPS (JEMPUT)</a>
-                            </div>
-                        `;
-                        list.innerHTML += card;
-                    }
+                    const o = data[id];
+                    // Orderan hilang jika status bukan 'mencari_driver'
+                    if (o.status !== "mencari_driver") return;
+
+                    list.innerHTML += `
+                        <div class="order-card">
+                            <p>🏁 <b>Tujuan:</b> ${o.tujuan} (${o.jarak}km)</p>
+                            <div class="price">Harga User: Rp ${o.upah.toLocaleString()}</div>
+                            <hr>
+                            <input type="text" id="nama-${id}" placeholder="Nama Kamu (Driver)">
+                            <input type="number" id="nego-${id}" placeholder="Tawar Harga (Kosongkan jika setuju)">
+                            <button class="btn-lamar" onclick="lamarJob('${id}', ${o.upah})">LAMAR SEKARANG</button>
+                        </div>
+                    `;
                 });
-            })
-            .catch(err => console.error("Gagal ambil data:", err));
+            });
     }
 
-    // Cek data setiap 5 detik secara otomatis
+    async function lamarJob(orderId, hargaAsli) {
+        const nama = document.getElementById(`nama-${orderId}`).value;
+        const hargaNego = document.getElementById(`nego-${orderId}`).value || hargaAsli;
+
+        if (!nama) return alert("Isi nama kamu!");
+
+        // Masukkan data lamaran ke sub-folder 'tawaran' di dalam orderan tersebut
+        const tawaran = {
+            nama_driver: nama,
+            harga_tawar: parseInt(hargaNego),
+            waktu: new Date().getTime()
+        };
+
+        try {
+            await fetch(`${BASE_URL}/${orderId}/tawaran.json`, {
+                method: 'POST',
+                body: JSON.stringify(tawaran)
+            });
+            alert("Tawaran terkirim! Tunggu user memilih kamu.");
+            muatPesanan();
+        } catch (e) { alert("Gagal melamar"); }
+    }
+
     setInterval(muatPesanan, 5000);
-    muatPesanan(); // Jalankan sekali saat pertama buka
+    muatPesanan();
 </script>
 </body>
 </html>
