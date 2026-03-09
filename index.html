@@ -3,23 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ojek Lokal Kuningan - User</title>
+    <title>Ojek Kuningan - User Panel</title>
     <style>
-        :root { --primary: #6366f1; --bg: #f8fafc; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        :root { --primary: #6366f1; --success: #10b981; --danger: #ef4444; --warning: #f59e0b; --bg: #f8fafc; --text: #1e293b; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; justify-content: center; color: var(--text); }
         .container { width: 100%; max-width: 450px; }
-        .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin-bottom: 20px; }
         h2 { font-size: 18px; color: var(--primary); margin-top: 0; }
-        select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 15px; box-sizing: border-box; }
+        select, button, textarea { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 15px; box-sizing: border-box; }
         .btn-loc { background: #e0e7ff; color: var(--primary); border: none; font-weight: bold; cursor: pointer; }
-        .btn-order { background: black; color: white; border: none; font-weight: bold; padding: 18px; margin-top: 20px; cursor: pointer; }
+        .btn-order { background: #1e293b; color: white; border: none; font-weight: bold; padding: 18px; margin-top: 10px; cursor: pointer; border-radius: 15px; }
+        
+        /* Price Options */
         .price-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
-        .price-card { border: 2px solid #eee; padding: 10px; border-radius: 12px; text-align: center; cursor: pointer; background: white; font-size: 12px; }
-        .price-card.active { border-color: var(--primary); background: #f5f7ff; }
-        #waiting-screen { display: none; text-align: center; margin-top: 30px; }
-        .driver-item { background: #f0fdf4; padding: 15px; border-radius: 15px; border: 1px solid #bbf7d0; margin-top: 10px; text-align: left; }
-        .loader { border: 5px solid #f3f3f3; border-top: 5px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        .price-card { border: 2px solid #f1f5f9; padding: 10px; border-radius: 12px; text-align: center; cursor: pointer; background: white; font-size: 12px; transition: 0.3s; }
+        .price-card.active { border-color: var(--primary); background: #f5f7ff; transform: scale(1.05); }
+
+        /* Driver List */
+        .driver-item { background: white; padding: 15px; border-radius: 18px; border: 1px solid #e2e8f0; margin-top: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .label-fav { background: #fef08a; color: #854d0e; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: bold; margin-bottom: 5px; display: inline-block; }
+        .rating-stars { color: var(--warning); font-size: 14px; margin: 4px 0; }
+        
+        /* Screens */
+        #waiting-screen, #rating-screen { display: none; text-align: center; }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid var(--primary); border-radius: 50%; width: 45px; height: 45px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Rating Stars Interaction */
+        .star-input { font-size: 35px; color: #cbd5e1; cursor: pointer; transition: 0.2s; }
+        .star-input.active { color: var(--warning); }
     </style>
 </head>
 <body>
@@ -27,13 +39,13 @@
 <div class="container">
     <div id="input-screen">
         <div class="card">
-            <h2>📍 Penjemputan (Kuningan)</h2>
-            <button class="btn-loc" id="btn-gps" onclick="ambilLokasi()">KLIK AMBIL LOKASI SAYA</button>
-            <p id="status-gps" style="font-size: 12px; color: grey; text-align: center;">Lokasi belum diambil</p>
+            <h2>📍 Penjemputan</h2>
+            <button class="btn-loc" id="btn-gps" onclick="ambilLokasi()">AMBIL LOKASI GPS SAYA</button>
+            <p id="status-gps" style="font-size: 12px; color: grey; text-align: center;">Lokasi belum terdeteksi</p>
         </div>
 
         <div class="card">
-            <h2>🏁 Tujuan Kecamatan</h2>
+            <h2>🏁 Tujuan (Kuningan)</h2>
             <select id="kecamatan" onchange="hitungSemua()">
                 <option value="">Pilih Kecamatan Tujuan</option>
                 <option value="Kuningan Kota" data-lat="-6.976" data-lon="108.483">Kuningan Kota</option>
@@ -43,9 +55,8 @@
                 <option value="Kadugede" data-lat="-6.995" data-lon="108.463">Kadugede</option>
                 <option value="Cigugur" data-lat="-6.974" data-lon="108.461">Cigugur</option>
                 <option value="Jalaksana" data-lat="-6.915" data-lon="108.489">Jalaksana</option>
-                <option value="Garawangi" data-lat="-7.009" data-lon="108.521">Garawangi</option>
             </select>
-            <p id="info-jarak" style="font-weight: bold; color: var(--primary); margin-top: 10px; text-align: center;"></p>
+            <p id="info-jarak" style="font-weight: bold; color: var(--primary); text-align: center; margin-top: 10px;"></p>
         </div>
 
         <div class="price-options" id="price-container" style="display: none;">
@@ -54,43 +65,75 @@
             <div class="price-card" onclick="setPrice(this, 5000)"><span>Cepat</span><br><strong id="p3">-</strong></div>
         </div>
 
-        <button class="btn-order" onclick="kirimOrder()">ORDER SEKARANG</button>
+        <button class="btn-order" onclick="kirimOrder()">PESAN OJEK SEKARANG</button>
     </div>
 
-    <div id="waiting-screen">
+    <div id="waiting-screen" class="card">
         <div class="loader" id="main-loader"></div>
         <h3 id="wait-title">Mencari Driver...</h3>
-        <p id="wait-desc">Orderan berlaku 5 menit. Jika tidak ada driver, pesanan otomatis batal.</p>
+        <p id="wait-desc" style="font-size: 13px; color: #64748b;">Mencari driver di sekitar Kuningan. Pesanan otomatis batal dalam 5 menit jika tidak ada driver.</p>
+        
         <div id="list-driver-melamar"></div>
-        <button onclick="location.reload()" style="background: #fee2e2; color: #ef4444; border: none; padding: 10px; border-radius: 10px; margin-top: 20px;">Batalkan</button>
+
+        <button onclick="location.reload()" style="background: none; border: none; color: var(--danger); font-size: 13px; margin-top: 20px; cursor: pointer;">Batalkan Pesanan</button>
+    </div>
+
+    <div id="rating-screen" class="card">
+        <h2>Trip Selesai! ⭐</h2>
+        <p>Bagaimana pelayanan driver <b id="rate-driver-name"></b>?</p>
+        
+        <div style="margin: 15px 0;">
+            <span class="star-input" onclick="updateStarUI(1)">★</span>
+            <span class="star-input" onclick="updateStarUI(2)">★</span>
+            <span class="star-input" onclick="updateStarUI(3)">★</span>
+            <span class="star-input" onclick="updateStarUI(4)">★</span>
+            <span class="star-input" onclick="updateStarUI(5)">★</span>
+        </div>
+        
+        <textarea id="ulasan-teks" placeholder="Berikan alasan atau ulasan Anda..."></textarea>
+        
+        <div id="warning-bad-rating" style="display:none; background:#fee2e2; color:#b91c1c; padding:12px; border-radius:10px; font-size:12px; margin: 10px 0; text-align:left;">
+            ⚠️ <b>Peringatan:</b> Memberi bintang rendah akan mengurangi tingkat kepercayaan driver. Ulasan buruk Anda akan dibagikan ke pengguna lain agar tetap waspada.
+        </div>
+
+        <label style="display:block; margin: 15px 0; font-size:13px; color:var(--primary); cursor:pointer;">
+            <input type="checkbox" id="check-favorit"> ⭐ Tandai sebagai Driver Favorit
+        </label>
+
+        <button class="btn-order" style="background: var(--success);" onclick="kirimRating()">KIRIM ULASAN</button>
     </div>
 </div>
 
 <script>
-    let userLat, userLon, distKm = 0, finalPrice = 0, currentOrderId = null;
-    let checkInterval;
     const BASE_URL = "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/orders";
+    const DRIVER_DB = "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/drivers";
+    
+    let userLat, userLon, distKm = 0, finalPrice = 0, currentOrderId = null;
+    let selectedStar = 0, currentDriverNik = "", currentDriverName = "";
+    let checkInterval;
 
     function ambilLokasi() {
-        if (!navigator.geolocation) return alert("GPS tidak support");
+        if (!navigator.geolocation) return alert("GPS tidak didukung!");
         navigator.geolocation.getCurrentPosition((pos) => {
             userLat = pos.coords.latitude; userLon = pos.coords.longitude;
             document.getElementById('status-gps').innerText = "✅ Lokasi Terkunci";
             document.getElementById('btn-gps').style.background = "#dcfce7";
             hitungSemua();
-        }, () => alert("Aktifkan Izin GPS!"), { enableHighAccuracy: true });
+        }, () => alert("Gagal mengambil lokasi!"), { enableHighAccuracy: true });
     }
 
     function hitungSemua() {
         const kecSelect = document.getElementById('kecamatan');
-        const selOption = kecSelect.options[kecSelect.selectedIndex];
-        if (!userLat || !selOption.getAttribute('data-lat')) return;
-        const lat2 = parseFloat(selOption.getAttribute('data-lat')), lon2 = parseFloat(selOption.getAttribute('data-lon'));
+        const opt = kecSelect.options[kecSelect.selectedIndex];
+        if (!userLat || !opt.getAttribute('data-lat')) return;
+        
+        const lat2 = parseFloat(opt.getAttribute('data-lat')), lon2 = parseFloat(opt.getAttribute('data-lon'));
         const R = 6371;
         const dLat = (lat2 - userLat) * Math.PI / 180, dLon = (lon2 - userLon) * Math.PI / 180;
         const a = Math.sin(dLat/2)**2 + Math.cos(userLat * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
         distKm = (R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)))).toFixed(1);
-        document.getElementById('info-jarak').innerText = `Jarak ke ${kecSelect.value}: ${distKm} km`;
+        
+        document.getElementById('info-jarak').innerText = `Jarak: ${distKm} km`;
         document.getElementById('p1').innerText = "Rp "+(distKm*3000).toLocaleString();
         document.getElementById('p2').innerText = "Rp "+(distKm*4000).toLocaleString();
         document.getElementById('p3').innerText = "Rp "+(distKm*5000).toLocaleString();
@@ -105,7 +148,7 @@
 
     async function kirimOrder() {
         const kec = document.getElementById('kecamatan').value;
-        if (!userLat || finalPrice === 0) return alert("Lengkapi lokasi & pilih harga!");
+        if (!userLat || finalPrice === 0) return alert("Pilih lokasi dan harga!");
 
         const waktuOrder = new Date().getTime();
         const payload = {
@@ -120,53 +163,111 @@
             currentOrderId = data.name;
             document.getElementById('input-screen').style.display = 'none';
             document.getElementById('waiting-screen').style.display = 'block';
-            
-            // Pantau tawaran & cek waktu 5 menit
             checkInterval = setInterval(() => pantauSistem(currentOrderId, waktuOrder), 3000);
         }
     }
 
     async function pantauSistem(orderId, waktuOrder) {
         const sekarang = new Date().getTime();
-        if ((sekarang - waktuOrder) > 300000) { // 5 menit = 300.000 ms
+        if ((sekarang - waktuOrder) > 300000) {
             clearInterval(checkInterval);
             await fetch(`${BASE_URL}/${orderId}.json`, { method: 'DELETE' });
-            alert("Order dibatalkan otomatis (Batas 5 menit habis).");
+            alert("Order otomatis dibatalkan (Waktu 5 menit habis).");
             location.reload();
             return;
         }
 
         const res = await fetch(`${BASE_URL}/${orderId}.json`);
         const data = await res.json();
+        
         if (data && data.tawaran) {
             let html = "<h4>Driver Melamar:</h4>";
-            Object.keys(data.tawaran).forEach(id => {
-                const t = data.tawaran[id];
+            let favs = JSON.parse(localStorage.getItem('ojek_favorit')) || [];
+
+            for (const tId of Object.keys(data.tawaran)) {
+                const t = data.tawaran[tId];
+                const isFav = favs.includes(t.driver_nik);
+
+                // Tarik ulasan buruk langsung dari DB Driver
+                const resD = await fetch(`${DRIVER_DB}/${t.driver_nik}.json`);
+                const prof = await resD.json();
+
+                const labelFav = isFav ? `<div class="label-fav">⭐ DRIVER FAVORIT ANDA</div>` : "";
+                const bintang = "⭐".repeat(prof.stats.kepercayaan || 5);
+                const ulasanBuruk = prof.ulasan_buruk ? `<div style="color:var(--danger); font-size:11px; margin-top:5px;">⚠️ <b>Ulasan Buruk:</b> "${prof.ulasan_buruk}"</div>` : `<div style="color:var(--success); font-size:11px; margin-top:5px;">✅ Reputasi Baik</div>`;
+
                 html += `
                     <div class="driver-item">
-                        <b>👤 ${t.nama_driver}</b><br>
-                        💰 Nego: Rp ${t.harga_tawar.toLocaleString()}<br>
-                        <button onclick="pilihDriver('${orderId}', '${t.nama_driver}', ${t.harga_tawar})" 
-                                style="background:#10b981; color:white; border:none; padding:8px; border-radius:5px; margin-top:5px;">
-                            PILIH DRIVER
+                        ${labelFav}
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <b>${t.nama_driver}</b> <small>(${t.plat_nomor})</small>
+                                <div class="rating-stars">${bintang}</div>
+                            </div>
+                            <b style="color:var(--success); font-size:16px;">Rp ${t.harga_tawar.toLocaleString()}</b>
+                        </div>
+                        ${ulasanBuruk}
+                        <button onclick="pilihDriver('${orderId}', '${t.nama_driver}', ${t.harga_tawar}, '${t.driver_nik}')" 
+                                style="background:var(--success); color:white; border:none; padding:10px; border-radius:10px; margin-top:10px;">
+                            PILIH DRIVER INI
                         </button>
                     </div>`;
-            });
+            }
             document.getElementById('list-driver-melamar').innerHTML = html;
         }
     }
 
-    async function pilihDriver(orderId, nama, harga) {
+    async function pilihDriver(orderId, nama, harga, nik) {
+        currentDriverNik = nik;
+        currentDriverName = nama;
         clearInterval(checkInterval);
+        
         await fetch(`${BASE_URL}/${orderId}.json`, {
             method: 'PATCH',
-            body: JSON.stringify({ status: "diambil", driver_pilihan: nama, upah_final: harga })
+            body: JSON.stringify({ status: "diambil", driver_pilihan: nama, upah_final: harga, driver_nik: nik })
         });
+
         document.getElementById('main-loader').style.display = 'none';
-        document.getElementById('wait-title').innerText = "Driver Meluncur!";
-        document.getElementById('wait-desc').innerHTML = `Driver <b>${nama}</b> terpilih.<br>Harga: <b>Rp ${harga.toLocaleString()}</b>`;
+        document.getElementById('wait-title').innerText = "Driver Sedang Menuju Lokasi!";
+        document.getElementById('wait-desc').innerHTML = `Driver <b>${nama}</b> sedang dalam perjalanan.<br><button onclick="selesaikanTrip()" style="background:var(--primary); color:white; border:none; padding:12px; border-radius:10px; margin-top:20px; font-weight:bold;">SAYA SUDAH SAMPAI</button>`;
         document.getElementById('list-driver-melamar').innerHTML = "";
+    }
+
+    function selesaikanTrip() {
+        document.getElementById('waiting-screen').style.display = 'none';
+        document.getElementById('rating-screen').style.display = 'block';
+        document.getElementById('rate-driver-name').innerText = currentDriverName;
+    }
+
+    function updateStarUI(n) {
+        selectedStar = n;
+        const stars = document.querySelectorAll('.star-input');
+        stars.forEach((s, i) => s.classList.toggle('active', i < n));
+        document.getElementById('warning-bad-rating').style.display = (n <= 2) ? 'block' : 'none';
+    }
+
+    async function kirimRating() {
+        if (selectedStar === 0) return alert("Pilih bintang dulu!");
+        const ulasan = document.getElementById('ulasan-teks').value;
+        const isFav = document.getElementById('check-favorit').checked;
+
+        // 1. Simpan Driver Favorit
+        if (isFavorit) {
+            let f = JSON.parse(localStorage.getItem('ojek_favorit')) || [];
+            if (!f.includes(currentDriverNik)) f.push(currentDriverNik);
+            localStorage.setItem('ojek_favorit', JSON.stringify(f));
+        }
+
+        // 2. Update Database Driver (Rating & Ulasan Buruk)
+        let updateData = { "stats/kepercayaan": selectedStar };
+        if (selectedStar <= 2) updateData["ulasan_buruk"] = ulasan;
+
+        await fetch(`${DRIVER_DB}/${currentDriverNik}.json`, { method: 'PATCH', body: JSON.stringify(updateData) });
+        
+        alert("Rating terkirim! Terima kasih telah menggunakan Ojek Kuningan.");
+        location.reload();
     }
 </script>
 </body>
-</html>
+    </html>
+    
