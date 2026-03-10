@@ -9,9 +9,10 @@ let sudahNotifDriver = false;
 let userRatings = { kecepatan: 0, kesopanan: 0 };
 let driverData = { nik: "", nama: "" };
 
-/**
- * AMBIL LOKASI GPS (WAJIB UNTUK MAPS DRIVER)
- */
+// ==========================================
+// 2. GPS & WILAYAH (FITUR LAMA UTUH)
+// ==========================================
+
 function userAmbilLokasi() {
     const btn = document.getElementById('btn-gps');
     btn.innerHTML = '<span class="loader-ring" style="width:15px; height:15px; border-width:2px;"></span> Mencari GPS...';
@@ -20,7 +21,6 @@ function userAmbilLokasi() {
         navigator.geolocation.getCurrentPosition((p) => {
             userLat = p.coords.latitude;
             userLon = p.coords.longitude;
-            
             btn.innerHTML = "✅ LOKASI TERKUNCI";
             btn.style.background = "#dcfce7";
             btn.style.color = "#166534";
@@ -35,9 +35,6 @@ function userAmbilLokasi() {
     }
 }
 
-/**
- * RENDER DAFTAR DESA
- */
 function renderDesa() {
     const kec = document.getElementById('select-kecamatan').value;
     const dSel = document.getElementById('select-desa');
@@ -53,9 +50,6 @@ function renderDesa() {
     }
 }
 
-/**
- * HITUNG TARIF & JARAK
- */
 function prosesHitungTarif() {
     const kec = document.getElementById('select-kecamatan').value;
     if (!userLat) return alert("Klik 'Gunakan Lokasi Saya' dahulu!");
@@ -77,14 +71,17 @@ function prosesHitungTarif() {
     finalPrice = h2; 
 }
 
-function pilihTipeHarga(el, pengali) {
+function pilihTipeHarga(tipe, harga) {
     document.querySelectorAll('.price-card').forEach(c => c.classList.remove('active'));
-    el.classList.add('active');
+    document.getElementById(`card-${tipe}`).classList.add('active');
+    
+    // Hitung ulang berdasarkan pengali tipe
+    const pengali = (tipe === 'hemat') ? 3000 : (tipe === 'reguler' ? 4000 : 5000);
     finalPrice = bulatkanHarga(distKm * pengali);
 }
 
 // ==========================================
-// 2. LOGIKA PESANAN & AUTO-CLEANUP
+// 3. LOGIKA PESANAN & BIDDING (UPDATE)
 // ==========================================
 
 async function buatPesanan() {
@@ -92,19 +89,18 @@ async function buatPesanan() {
     const desa = document.getElementById('select-desa').value;
     if(!kec || !desa) return alert("Pilih tujuan terlebih dahulu!");
 
-    // Simpan data untuk Re-Order
     lastOrderData = { kec, desa, upah: finalPrice };
     sudahNotifDriver = false;
     jumlahPesanLamaUser = 0;
 
-    // DATA PAYLOAD (Disinkronkan dengan Maps Driver)
     const payload = {
         jemput_lat: userLat, 
         jemput_lon: userLon,
         tujuan: `${kec}, ${desa}`,
         upah: finalPrice,
         status: "mencari_driver",
-        timestamp: new Date().getTime()
+        timestamp: new Date().getTime(),
+        bids: {} // Tempat menampung tawaran driver
     };
     
     const res = await fetch(`${DB_URL}/orders.json`, { method: 'POST', body: JSON.stringify(payload) });
@@ -114,57 +110,27 @@ async function buatPesanan() {
     tampilkanScreen('screen-waiting');
     monitorInterval = setInterval(pantauOrderUser, 3000);
 
-    // Timeout 3 Menit (Poin: Notif & Pembatalan Otomatis)
+    // Timeout 3 Menit (Auto-Cleanup)
     searchTimeout = setTimeout(() => {
         handleTimeoutPencarian();
     }, 180000); 
 }
 
-async function handleTimeoutPencarian() {
-    clearInterval(monitorInterval);
-    
-    // HAPUS DARI DATABASE (Keep it clean!)
-    if (currentOrderId) {
-        await fetch(`${DB_URL}/orders/${currentOrderId}.json`, { method: 'DELETE' });
-    }
-
-    // Tampilkan Layar Gagal & Tombol Re-Order
-    document.getElementById('waiting-content').innerHTML = `
-        <div style="padding:10px;">
-            <span style="font-size:60px;">⏳</span>
-            <h3 style="color:#e11d48; margin-top:15px;">Belum Dapat Driver</h3>
-            <p class="text-muted" style="font-size:13px; margin-bottom:20px;">
-                Maaf, saat ini mitra driver di area Anda sedang sibuk atau tidak tersedia. 
-                Silahkan coba beberapa saat lagi atau gunakan tarif <b>Kilat</b>.
-            </p>
-            <button class="btn-confirm" onclick="ulangiPesananTerakhir()">ULANGI PESANAN</button>
-            <button class="btn-cancel" style="background:none; border:1px solid #ccc; color:#666; margin-top:10px;" onclick="location.reload()">KEMBALI</button>
-        </div>
-    `;
-}
-
-function ulangiPesananTerakhir() {
-    if (!lastOrderData) return location.reload();
-    tampilkanScreen('screen-order');
-    document.getElementById('select-kecamatan').value = lastOrderData.kec;
-    renderDesa();
-    document.getElementById('select-desa').value = lastOrderData.desa;
-    buatPesanan(); // Pesan lagi otomatis
-}
-
-// ==========================================
-// 3. PANTAU STATUS & CHAT (KLAKSON)
-// ==========================================
-
 async function pantauOrderUser() {
-    const data = await cekStatusOrder(currentOrderId);
+    const res = await fetch(`${DB_URL}/orders/${currentOrderId}.json`);
+    const data = await res.json();
     if (!data) return;
 
-    // A. Driver Ketemu
+    // A. CEK TAWARAN HARGA (BIDDING)
+    if (data.status === "mencari_driver" && data.bids) {
+        renderDaftarTawaran(data.bids);
+    }
+
+    // B. DRIVER KETEMU (DITERIMA)
     if (data.status === "diambil") {
         clearTimeout(searchTimeout); 
         if (!sudahNotifDriver) {
-            bunyiKlakson(); // Bunyi klakson sukses
+            if(typeof bunyiKlakson === "function") bunyiKlakson();
             sudahNotifDriver = true;
         }
         driverData.nik = data.driver_nik;
@@ -184,25 +150,55 @@ async function pantauOrderUser() {
         tampilkanScreen('screen-trip');
     }
 
-    // B. Chat & Notif Klakson
+    // C. CHAT & KLAKSON
     if (data.chat) {
         const jmlChat = Object.keys(data.chat).length;
         if (jmlChat > jumlahPesanLamaUser) {
             const pesanTerakhir = Object.values(data.chat).pop();
-            if (pesanTerakhir.sender === 'driver') bunyiKlakson();
+            if (pesanTerakhir.sender === 'driver' && typeof bunyiKlakson === "function") bunyiKlakson();
             renderChat(data.chat);
         }
         jumlahPesanLamaUser = jmlChat;
     }
 
-    // C. Cek jika Driver sudah klik Selesai
+    // D. FINISH STATUS
     if (data.status_driver === "selesai") {
         userKlikSelesai();
     }
 }
 
+// FUNGSI BARU: RENDER DAFTAR TAWARAN DRIVER
+function renderDaftarTawaran(bids) {
+    const container = document.getElementById('container-tawaran');
+    let html = '<p style="font-size:12px; font-weight:bold; margin-bottom:10px;">Driver Menawarkan Harga:</p>';
+    
+    for (let driverNik in bids) {
+        const bid = bids[driverNik];
+        html += `
+            <div class="bid-card">
+                <div class="bid-info">
+                    <b>${bid.nama_driver}</b>
+                    <small>Harga: Rp ${bid.harga_tawar.toLocaleString()}</small>
+                </div>
+                <button class="btn-confirm" onclick="terimaTawaran('${driverNik}', ${bid.harga_tawar}, '${bid.nama_driver}')" style="width:auto; padding:8px 15px;">Terima</button>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+async function terimaTawaran(nik, harga, nama) {
+    const update = {
+        status: "diambil",
+        driver_nik: nik,
+        driver_pilihan: nama,
+        upah_final: harga
+    };
+    await fetch(`${DB_URL}/orders/${currentOrderId}.json`, { method: 'PATCH', body: JSON.stringify(update) });
+}
+
 // ==========================================
-// 4. CHAT, RATING & BATAL
+// 4. CHAT, RATING & CLEANUP (UTUH)
 // ==========================================
 
 function renderChat(chatData) {
@@ -218,6 +214,7 @@ function renderChat(chatData) {
 
 function userKirimChat() {
     const inp = document.getElementById('input-pesan');
+    if(!inp.value.trim()) return;
     kirimPesanFirebase(currentOrderId, 'user', inp.value);
     inp.value = "";
 }
@@ -232,8 +229,11 @@ async function userBatalkanPesanan() {
 
 function setRating(kat, n) {
     userRatings[kat] = n;
-    const stars = document.querySelectorAll(`[data-cat="${kat}"] span`);
-    stars.forEach((s, i) => s.classList.toggle('active', i < n));
+    const stars = document.querySelectorAll(`#star-${kat} span`);
+    stars.forEach((s, i) => {
+        s.innerHTML = i < n ? '★' : '☆';
+        s.classList.toggle('active', i < n);
+    });
 }
 
 function userKlikSelesai() {
@@ -242,7 +242,7 @@ function userKlikSelesai() {
 }
 
 async function kirimRatingFinal() {
-    if (userRatings.kecepatan === 0) return alert("Mohon beri rating bintang!");
+    if (userRatings.kecepatan === 0 || userRatings.kesopanan === 0) return alert("Mohon beri rating bintang!");
     const ulasan = document.getElementById('input-ulasan').value;
     
     await fetch(`${DB_URL}/drivers/${driverData.nik}/feedback.json`, {
@@ -253,5 +253,32 @@ async function kirimRatingFinal() {
     await fetch(`${DB_URL}/orders/${currentOrderId}.json`, { method: 'DELETE' });
     alert("Terima kasih! Pesanan selesai.");
     location.reload();
+}
+
+// Fungsi Re-Order jika Gagal
+function handleTimeoutPencarian() {
+    clearInterval(monitorInterval);
+    if (currentOrderId) fetch(`${DB_URL}/orders/${currentOrderId}.json`, { method: 'DELETE' });
+
+    document.getElementById('waiting-content').innerHTML = `
+        <div style="text-align:center;">
+            <span style="font-size:50px;">⏳</span>
+            <h3 style="color:red; margin-top:10px;">Driver Belum Tersedia</h3>
+            <p style="font-size:12px; color:gray;">Coba lagi dengan tarif Kilat agar driver lebih cepat merespon.</p>
+            <button class="btn-confirm" onclick="ulangiPesananTerakhir()" style="margin-top:15px;">ULANGI PESANAN</button>
+            <button onclick="location.reload()" style="background:none; border:none; color:gray; margin-top:10px;">KEMBALI</button>
+        </div>
+    `;
+}
+
+function ulangiPesananTerakhir() {
+    if (!lastOrderData) return location.reload();
+    tampilkanScreen('screen-order');
+    document.getElementById('select-kecamatan').value = lastOrderData.kec;
+    renderDesa();
+    setTimeout(() => {
+        document.getElementById('select-desa').value = lastOrderData.desa;
+        buatPesanan();
+    }, 500);
         }
-                               
+        
