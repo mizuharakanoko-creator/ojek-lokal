@@ -1,19 +1,26 @@
-// CONFIGURASI DATABASE PUSAT
-// Ini adalah "Kunci Kontak" untuk menghubungkan ke server Google Firebase
-
+// CONFIGURASI PUSAT FIREBASE OJEK LOKAL
 const firebaseConfig = {
-    apiKey: "AIzaSyA-XXXX-XXXX-XXXX", // Dapatkan dari Firebase Console
-    authDomain: "ojek-lokal-anda.firebaseapp.com",
-    databaseURL: "https://ojek-lokal-anda-default-rtdb.firebaseio.com",
-    projectId: "ojek-lokal-anda",
-    storageBucket: "ojek-lokal-anda.appspot.com",
-    messagingSenderId: "1234567890",
-    appId: "1:1234567890:web:abcdef12345"
+    // Silakan isi kode di bawah ini dari Firebase Console (Project Settings)
+    apiKey: "AIzaSyAXXXXXXXXXXXXXXXXXXXXXXXXXXXX", 
+    authDomain: "ojeklokal-42b84.firebaseapp.com",
+    
+    // URL Database Anda
+    databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    
+    projectId: "ojeklokal-42b84",
+    storageBucket: "ojeklokal-42b84.appspot.com",
+    
+    // Silakan isi kode di bawah ini dari Firebase Console
+    messagingSenderId: "XXXXXXXXXXXX",
+    appId: "1:XXXXXXXXXXXX:web:XXXXXXXXXXXXXXXX"
 };
 
-// Inisialisasi Firebase
-const app = firebase.initializeApp(firebaseConfig);
-const db = firebase.database(); // Database Real-time aktif!
+// Inisialisasi Firebase (Versi Compatibility agar cocok dengan script di HTML)
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
 
-// Export agar bisa dibaca mesin lain (jika menggunakan module)
-// Untuk penggunaan HTML biasa, variabel 'db' sudah bisa langsung dipakai di file lain
+// Variabel database global yang akan digunakan oleh 15 mesin Anda
+const db = firebase.database();
+
+console.log("Firebase terhubung ke: " + firebaseConfig.databaseURL);
