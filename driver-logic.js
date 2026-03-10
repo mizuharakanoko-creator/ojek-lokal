@@ -44,13 +44,22 @@ function loadDashboard() {
 function updateVisualKepuasan() {
     const area = document.getElementById('area-kepuasan');
     if(area) {
+        // Update Emoticon (Data dari driverRatings)
         area.innerHTML = `
-            <div class="stat-mini">😊 <br> <b>${driverRatings.puas}</b> <br> Puas</div>
-            <div class="stat-mini">😐 <br> <b>${driverRatings.biasa}</b> <br> Biasa</div>
-            <div class="stat-mini">😞 <br> <b>${driverRatings.kecewa}</b> <br> Kurang</div>
+            <div class="stat-mini">😊 <br> <b>${driverRatings.puas || 0}</b> <br> Puas</div>
+            <div class="stat-mini">😐 <br> <b>${driverRatings.biasa || 0}</b> <br> Biasa</div>
+            <div class="stat-mini">😞 <br> <b>${driverRatings.kecewa || 0}</b> <br> Kurang</div>
         `;
+
+        // Update Detail Performa (Menggunakan data dari profil driver)
+        // Jika data belum ada di profil, gunakan default 100%
+        document.getElementById('stat-speed').innerText = myDriver.speed || "100%";
+        document.getElementById('stat-accuracy').innerText = myDriver.accuracy || "100%";
+        document.getElementById('stat-attitude').innerText = myDriver.attitude || "100%";
+        document.getElementById('stat-rank').innerText = myDriver.rank || "#" + (Math.floor(Math.random() * 50) + 1);
     }
 }
+
 
 function prosesDaftar() {
     const nama = document.getElementById('reg-nama').value;
@@ -60,13 +69,20 @@ function prosesDaftar() {
     if (!nama || !plat || !motor) return alert("Mohon lengkapi semua data pendaftaran!");
 
     myDriver = {
-        nik: "DRV-" + Math.floor(Math.random() * 100000),
-        nama: nama, plat: plat, motor: motor,
-        moto: "Melayani dengan Sepenuh Hati",
-        rating: "5.0",
-        incomeToday: 0, orderCount: 0,
-        incomeM1: 0, incomeM2: 0
-    };
+    nik: "DRV-" + Math.floor(Math.random() * 100000),
+    nama: nama,
+    plat: plat,
+    motor: motor,
+    moto: "Melayani dengan Sepenuh Hati",
+    rating: "5.0",
+    incomeToday: 0,
+    orderCount: 0,
+    // TAMBAHKAN INI:
+    speed: "100%",
+    accuracy: "100%",
+    attitude: "100%",
+    rank: "#--"
+}
 
     localStorage.setItem('ojek_kuningan_driver', JSON.stringify(myDriver));
     alert("Pendaftaran Berhasil!");
