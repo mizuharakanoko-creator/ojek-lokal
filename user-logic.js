@@ -1,9 +1,12 @@
+// Variabel Global
 let userLat, userLon, distKm, finalPrice, currentOrderId, monitorInterval;
+let searchTimeout; 
+let lastOrderData = null; // Menyimpan data order terakhir untuk fitur Ulangi
 let userRatings = { kecepatan: 0, kesopanan: 0 };
 let driverData = { nik: "", nama: "" };
 
 /**
- * 1. AMBIL LOKASI GPS (POIN 4: VISUAL SMOOTH)
+ * 1. AMBIL LOKASI GPS
  */
 function userAmbilLokasi() {
     const btn = document.getElementById('btn-gps');
@@ -43,7 +46,7 @@ function renderDesa() {
 }
 
 /**
- * 3. HITUNG TARIF (POIN 2: PEMBULATAN RIBUAN)
+ * 3. HITUNG TARIF (PEMBULATAN RIBUAN)
  */
 function prosesHitungTarif() {
     const kec = document.getElementById('select-kecamatan').value;
@@ -54,7 +57,6 @@ function prosesHitungTarif() {
     
     document.getElementById('display-jarak').innerText = `Jarak: ${distKm} KM`;
     
-    // Hitung 3 opsi harga dan bulatkan (Core.js)
     const h1 = bulatkanHarga(distKm * 3000);
     const h2 = bulatkanHarga(distKm * 4000);
     const h3 = bulatkanHarga(distKm * 5000);
@@ -64,7 +66,7 @@ function prosesHitungTarif() {
     document.getElementById('p-kilat').innerText = `Rp ${h3.toLocaleString()}`;
     
     document.getElementById('price-section').style.display = 'block';
-    finalPrice = h2; // Default reguler
+    finalPrice = h2; 
 }
 
 function pilihTipeHarga(el, pengali) {
@@ -74,12 +76,19 @@ function pilihTipeHarga(el, pengali) {
 }
 
 /**
- * 4. KIRIM ORDER & PANTAU (POIN 4 & 5)
+ * 4. LOGIKA PESANAN & TIMEOUT (3 MENIT)
  */
 async function buatPesanan() {
     const kec = document.getElementById('select-kecamatan').value;
     const desa = document.getElementById('select-desa').value;
     
+    // Simpan data untuk fitur Re-Order jika nanti gagal
+    lastOrderData = {
+        kec: kec,
+        desa: desa,
+        upah: finalPrice
+    };
+
     const payload = {
         jemput_lat: userLat, 
         jemput_lon: userLon,
@@ -95,20 +104,63 @@ async function buatPesanan() {
     
     tampilkanScreen('screen-waiting');
     monitorInterval = setInterval(pantauOrderUser, 3000);
+
+    // Set Timeout 3 Menit (180 detik)
+    searchTimeout = setTimeout(() => {
+        handleTimeoutPencarian();
+    }, 180000); 
 }
 
+async function handleTimeoutPencarian() {
+    clearInterval(monitorInterval);
+    
+    // HAPUS DARI DATABASE (Clean up)
+    if (currentOrderId) {
+        await fetch(`${DB_URL}/orders/${currentOrderId}.json`, { method: 'DELETE' });
+    }
+
+    // Ubah tampilan layar waiting menjadi pesan gagal
+    document.getElementById('screen-waiting').innerHTML = `
+        <div class="card text-center">
+            <span style="font-size:50px;">⏳</span>
+            <h3 style="color:var(--danger);">Driver Belum Ditemukan</h3>
+            <p class="text-muted" style="font-size:13px;">Mohon maaf, saat ini mitra driver di area Anda sedang sibuk atau tidak tersedia.</p>
+            <div style="background:#f1f5f9; padding:15px; border-radius:15px; margin:15px 0; font-size:12px; text-align:left;">
+                <b>Saran:</b><br>
+                1. Coba lagi dalam 1-2 menit.<br>
+                2. Gunakan tarif <b>Kilat</b> untuk respon lebih cepat.
+            </div>
+            <button class="btn-confirm" onclick="ulangiPesananTerakhir()">ULANGI PESANAN</button>
+            <button class="btn-cancel" onclick="location.reload()">KEMBALI KE AWAL</button>
+        </div>
+    `;
+}
+
+// Fitur Re-Order (Ulangi)
+function ulangiPesananTerakhir() {
+    if (!lastOrderData) return location.reload();
+    
+    // Kembalikan UI ke kondisi awal tapi tetap di layar order
+    tampilkanScreen('screen-order');
+    
+    // Isi kembali nilai yang tadi
+    document.getElementById('select-kecamatan').value = lastOrderData.kec;
+    renderDesa();
+    document.getElementById('select-desa').value = lastOrderData.desa;
+    
+    // Langsung buat pesanan lagi
+    buatPesanan();
+}
+
+/**
+ * 5. PANTAU STATUS ORDER
+ */
 async function pantauOrderUser() {
     const data = await cekStatusOrder(currentOrderId);
     if (!data) return;
 
-    // Jika driver klik selesai (Poin 1 Sinkronisasi)
-    if (data.status_driver === "selesai") {
-        userKlikSelesai();
-        return;
-    }
-
-    // Jika driver menerima
     if (data.status === "diambil") {
+        clearTimeout(searchTimeout); // Stop timeout karena driver ketemu!
         driverData.nik = data.driver_nik;
         driverData.nama = data.driver_pilihan;
         
@@ -124,11 +176,10 @@ async function pantauOrderUser() {
             </div>
         `;
         tampilkanScreen('screen-trip');
-        renderChat(data.chat);
     }
 
-    // Tampilkan tawaran jika ada
     if (data.tawaran) {
+        // Tampilkan tawaran harga dari driver (Logika Bid)
         let h = "";
         for (const key in data.tawaran) {
             const t = data.tawaran[key];
@@ -144,6 +195,7 @@ async function pantauOrderUser() {
 }
 
 async function pilihDriverFix(nama, nik, harga) {
+    clearTimeout(searchTimeout); // Pastikan timeout mati saat user memilih driver dari bid
     await fetch(`${DB_URL}/orders/${currentOrderId}.json`, {
         method: 'PATCH', 
         body: JSON.stringify({ status: "diambil", driver_pilihan: nama, driver_nik: nik, upah_final: harga })
@@ -151,7 +203,7 @@ async function pilihDriverFix(nama, nik, harga) {
 }
 
 /**
- * 5. FITUR CHAT (POIN 4 & 5)
+ * 6. CHAT & RATING
  */
 function userKirimChat() {
     const inp = document.getElementById('input-pesan');
@@ -159,25 +211,10 @@ function userKirimChat() {
     inp.value = "";
 }
 
-function renderChat(chatData) {
-    const box = document.getElementById('chat-messages');
-    if (!chatData) return;
-    let h = "";
-    for (const id in chatData) {
-        const c = chatData[id];
-        const clss = c.sender === 'user' ? 'msg-u' : 'msg-d';
-        h += `<div class="msg ${clss}">${c.txt}</div>`;
-    }
-    box.innerHTML = h;
-    box.scrollTop = box.scrollHeight;
-}
-
-/**
- * 6. BATAL & RATING (POIN 3 & 6)
- */
 async function userBatalkanPesanan() {
     if (!confirm("Batalkan pesanan ini?")) return;
     clearInterval(monitorInterval);
+    clearTimeout(searchTimeout);
     await fetch(`${DB_URL}/orders/${currentOrderId}.json`, { method: 'DELETE' });
     location.reload();
 }
@@ -195,14 +232,11 @@ function userKlikSelesai() {
 
 async function kirimRatingFinal() {
     if (userRatings.kecepatan === 0) return alert("Mohon beri bintang!");
-    
     const ulasan = document.getElementById('input-ulasan').value;
-    // Update ke data driver
     await fetch(`${DB_URL}/drivers/${driverData.nik}/feedback.json`, {
         method: 'POST',
         body: JSON.stringify({ rating: userRatings, teks: ulasan, user: "Customer" })
     });
-    
     await fetch(`${DB_URL}/orders/${currentOrderId}.json`, { method: 'DELETE' });
     alert("Terima kasih!");
     location.reload();
