@@ -1,11 +1,14 @@
 // ==========================================
-// 1. DATA & STATE (Sistem Registrasi)
+// 1. DATA & STATE
 // ==========================================
 let myDriver = null; 
 let isOnline = false;
 let monitorInterval, activeTripId;
-let currentTripData = null; // Menyimpan info jemputan user
+let currentTripData = null; 
 let jumlahPesanLamaDriver = 0;
+
+// Data kepuasan (Nanti bisa dikembangkan untuk tarik dari Firebase)
+let driverRatings = { puas: 0, biasa: 0, kecewa: 0 };
 
 // Cek Registrasi Saat Load
 document.addEventListener('DOMContentLoaded', () => {
@@ -18,9 +21,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-/**
- * PROSES PENDAFTARAN DRIVER
- */
+// ==========================================
+// 2. FUNGSI INTI (DASHBOARD & REGISTRASI)
+// ==========================================
+
+function loadDashboard() {
+    tampilkanScreen('screen-dashboard');
+    
+    // Update Identitas
+    document.getElementById('disp-nama').innerText = myDriver.nama;
+    document.getElementById('disp-plat').innerText = `${myDriver.plat} | ${myDriver.motor}`;
+    document.getElementById('disp-moto').innerText = `"${myDriver.moto || 'Melayani Sepenuh Hati'}"`;
+    
+    // Update Statistik Angka
+    document.getElementById('stat-income').innerText = `Rp ${(myDriver.incomeToday || 0).toLocaleString()}`;
+    document.getElementById('stat-rating').innerText = `⭐ ${myDriver.rating || '5.0'}`;
+    
+    // Update Tampilan Kepuasan
+    updateVisualKepuasan();
+}
+
+function updateVisualKepuasan() {
+    const area = document.getElementById('area-kepuasan');
+    if(area) {
+        area.innerHTML = `
+            <div class="stat-mini">😊 <br> <b>${driverRatings.puas}</b> <br> Puas</div>
+            <div class="stat-mini">😐 <br> <b>${driverRatings.biasa}</b> <br> Biasa</div>
+            <div class="stat-mini">😞 <br> <b>${driverRatings.kecewa}</b> <br> Kurang</div>
+        `;
+    }
+}
+
 function prosesDaftar() {
     const nama = document.getElementById('reg-nama').value;
     const plat = document.getElementById('reg-plat').value;
@@ -29,33 +60,21 @@ function prosesDaftar() {
     if (!nama || !plat || !motor) return alert("Mohon lengkapi semua data pendaftaran!");
 
     myDriver = {
-        nik: "DRV-" + Math.floor(Math.random() * 100000), // Generate ID Unik
-        nama: nama,
-        plat: plat,
-        motor: motor,
+        nik: "DRV-" + Math.floor(Math.random() * 100000),
+        nama: nama, plat: plat, motor: motor,
         moto: "Melayani dengan Sepenuh Hati",
         rating: "5.0",
-        incomeToday: 0,
-        incomeM1: 0,
-        incomeM2: 0
+        incomeToday: 0, orderCount: 0,
+        incomeM1: 0, incomeM2: 0
     };
 
-    // Simpan di HP Driver agar tidak hilang saat reload
     localStorage.setItem('ojek_kuningan_driver', JSON.stringify(myDriver));
-    alert("Pendaftaran Berhasil! Selamat bergabung.");
+    alert("Pendaftaran Berhasil!");
     loadDashboard();
 }
 
-function loadDashboard() {
-    tampilkanScreen('screen-dashboard');
-    document.getElementById('disp-nama').innerText = myDriver.nama;
-    document.getElementById('disp-plat').innerText = `${myDriver.plat} | ${myDriver.motor}`;
-    document.getElementById('disp-moto').innerText = `"${myDriver.moto}"`;
-    document.getElementById('stat-rating').innerText = `⭐ ${myDriver.rating}`;
-}
-
 // ==========================================
-// 2. LOGIKA ONLINE & PANTAU ORDER
+// 3. LOGIKA ORDERAN & ONLINE
 // ==========================================
 
 function toggleOnline() {
@@ -67,17 +86,13 @@ function toggleOnline() {
     if (isOnline) {
         btn.innerText = "MASUK OFFLINE";
         btn.style.background = "#fee2e2"; btn.style.color = "#ef4444";
-        txt.innerText = "ONLINE (Siap Mencari Order)";
-        txt.style.color = "#10b981";
-        
-        // Pemicu Suara (Browser butuh interaksi user)
+        txt.innerText = "ONLINE"; txt.style.color = "#10b981";
         bunyiKlakson();
         monitorInterval = setInterval(pantauOrderanBaru, 4000);
     } else {
         btn.innerText = "MASUK ONLINE";
         btn.style.background = "white"; btn.style.color = "#059669";
-        txt.innerText = "OFFLINE";
-        txt.style.color = "#ef4444";
+        txt.innerText = "OFFLINE"; txt.style.color = "#ef4444";
         clearInterval(monitorInterval);
         listArea.innerHTML = '<p class="text-center text-muted">Aktifkan status online...</p>';
     }
@@ -86,45 +101,31 @@ function toggleOnline() {
 async function pantauOrderanBaru() {
     const res = await fetch(`${DB_URL}/orders.json`);
     const orders = await res.json();
-    const listArea = document.getElementById('list-order-masuk');
-    
-    if (!orders) {
-        listArea.innerHTML = '<p class="text-center text-muted">Belum ada orderan masuk...</p>';
-        return;
-    }
+    if (!orders) return;
 
     let html = "";
     for (const id in orders) {
         const o = orders[id];
-        
-        // Cek jika ada orderan yang sebelumnya sudah saya ambil (Session Recovery)
         if (o.status === "diambil" && o.driver_nik === myDriver.nik) {
             mulaiTripLayar(id, o);
             return;
         }
-
         if (o.status === "mencari_driver") {
             html += `
-            <div class="card order-card" style="margin-bottom:12px; border-left: 5px solid #10b981;">
-                <div style="display:flex; justify-content:space-between;">
+            <div class="card order-card" style="border-left: 5px solid #10b981;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
                         <small style="color:#059669; font-weight:bold;">TUJUAN:</small>
-                        <div style="font-weight:bold; font-size:15px;">${o.tujuan}</div>
-                        <div style="color:#10b981; font-weight:800; margin-top:5px;">Rp ${o.upah.toLocaleString()}</div>
+                        <div style="font-weight:bold;">${o.tujuan}</div>
+                        <div style="color:#10b981; font-weight:800;">Rp ${o.upah.toLocaleString()}</div>
                     </div>
-                    <div style="text-align:right;">
-                        <button class="btn-confirm" onclick="ambilOrder('${id}')" style="padding:8px 15px; font-size:12px;">AMBIL</button>
-                    </div>
+                    <button class="btn-confirm" onclick="ambilOrder('${id}')" style="width:auto; padding:8px 15px;">AMBIL</button>
                 </div>
             </div>`;
         }
     }
-    listArea.innerHTML = html || '<p class="text-center text-muted">Belum ada orderan baru...</p>';
+    document.getElementById('list-order-masuk').innerHTML = html || '<p class="text-center text-muted">Mencari orderan...</p>';
 }
-
-// ==========================================
-// 3. LOGIKA TRIP & NAVIGASI MAPS
-// ==========================================
 
 async function ambilOrder(id) {
     await fetch(`${DB_URL}/orders/${id}.json`, {
@@ -132,59 +133,66 @@ async function ambilOrder(id) {
         body: JSON.stringify({
             status: "diambil",
             driver_pilihan: myDriver.nama,
-            driver_nik: myDriver.nik,
-            upah_final: 0 
+            driver_nik: myDriver.nik
         })
     });
 }
 
+// ==========================================
+// 4. LOGIKA TRIP & NAVIGASI
+// ==========================================
+
 function mulaiTripLayar(id, data) {
     activeTripId = id;
-    currentTripData = data; // Simpan koordinat jemputan
+    currentTripData = data;
     clearInterval(monitorInterval);
     tampilkanScreen('screen-trip-driver');
     
     document.getElementById('trip-destinasi').innerText = data.tujuan;
-    document.getElementById('trip-upah').innerText = "Pendapatan: Rp " + (data.upah_final || data.upah).toLocaleString();
+    document.getElementById('trip-upah').innerText = "Pendapatan: Rp " + (data.upah).toLocaleString();
     
-    // Timer Selesai Aktif Otomatis (900 detik = 15 menit)
+    // Timer 15 Menit (Simulasi waktu tempuh)
     jalankanTimerSelesai(30, (waktu) => {
         document.getElementById('timer-text').innerText = waktu;
     }, () => {
         const btn = document.getElementById('btn-selesai-order');
-        btn.disabled = false; btn.style.background = "#10b981";
+        btn.disabled = false;
+        btn.style.opacity = "1";
     });
-
-    // Pantau Chat & Pembatalan User
-    const tripMonitor = setInterval(async () => {
-        if(!activeTripId) return clearInterval(tripMonitor);
-        const res = await fetch(`${DB_URL}/orders/${activeTripId}.json`);
-        const d = await res.json();
-        if(!d) {
-            alert("Orderan telah dibatalkan oleh pelanggan.");
-            location.reload();
-        } else if(d.chat) {
-            updateChatDriver(d.chat);
-        }
-    }, 4000);
 }
 
-/**
- * FITUR UTAMA: BUKA GOOGLE MAPS
- */
 function bukaGoogleMaps() {
-    if (!currentTripData) return;
-    const lat = currentTripData.jemput_lat;
-    const lon = currentTripData.jemput_lon;
-    
-    // Membuka navigasi langsung ke titik jemput user
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=motorcycle`;
+    if (!currentTripData || !currentTripData.jemput_lat) return alert("Lokasi jemput tidak ditemukan!");
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${currentTripData.jemput_lat},${currentTripData.jemput_lon}&travelmode=motorcycle`;
     window.open(url, '_blank');
 }
 
 // ==========================================
-// 4. CHAT & FINISH
+// 5. CHAT & SELESAI (PENTING!)
 // ==========================================
+
+async function driverKlikSelesai() {
+    const untung = currentTripData.upah;
+    
+    // 1. Update Data Lokal
+    myDriver.incomeToday = (myDriver.incomeToday || 0) + untung;
+    myDriver.orderCount = (myDriver.orderCount || 0) + 1;
+
+    // 2. Simpan Permanen
+    localStorage.setItem('ojek_kuningan_driver', JSON.stringify(myDriver));
+
+    // 3. Update Database Firebase
+    await fetch(`${DB_URL}/orders/${activeTripId}.json`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status_driver: "selesai" })
+    });
+
+    alert(`Order Selesai! Rp ${untung.toLocaleString()} masuk ke kantong.`);
+    
+    // 4. Reset & Kembali
+    activeTripId = null;
+    loadDashboard();
+}
 
 function updateChatDriver(chatData) {
     const jmlChat = Object.keys(chatData).length;
@@ -209,29 +217,13 @@ function renderChatUI(chatData) {
 
 function driverKirimChat() {
     const inp = document.getElementById('input-pesan-driver');
+    if(!inp.value) return;
     kirimPesanFirebase(activeTripId, 'driver', inp.value);
     inp.value = "";
 }
 
-async function driverKlikSelesai() {
-    const untung = currentTripData.upah_final || currentTripData.upah;
-    myDriver.incomeToday += untung;
-    
-    // Update profil lokal agar pendapatan bertambah
-    localStorage.setItem('ojek_kuningan_driver', JSON.stringify(myDriver));
-
-    // Kirim sinyal selesai ke user
-    await fetch(`${DB_URL}/orders/${activeTripId}.json`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status_driver: "selesai" })
-    });
-
-    alert("Pesanan Selesai! Pendapatan harian Anda diperbarui.");
-    location.reload();
-}
-
 async function driverBatalkanPesanan() {
-    if (!confirm("Batal? Data performa Anda akan menurun.")) return;
+    if (!confirm("Yakin ingin membatalkan?")) return;
     await fetch(`${DB_URL}/orders/${activeTripId}.json`, { method: 'DELETE' });
     location.reload();
-}
+            }
