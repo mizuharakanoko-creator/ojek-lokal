@@ -7,7 +7,7 @@ let monitorInterval, activeTripId;
 let currentTripData = null; 
 let jumlahPesanLamaDriver = 0;
 
-// Data kepuasan (Nanti bisa dikembangkan untuk tarik dari Firebase)
+// Data kepuasan (Default 0, akan diupdate via logic)
 let driverRatings = { puas: 0, biasa: 0, kecewa: 0 };
 
 // Cek Registrasi Saat Load
@@ -33,11 +33,11 @@ function loadDashboard() {
     document.getElementById('disp-plat').innerText = `${myDriver.plat} | ${myDriver.motor}`;
     document.getElementById('disp-moto').innerText = `"${myDriver.moto || 'Melayani Sepenuh Hati'}"`;
     
-    // Update Statistik Angka
-    document.getElementById('stat-income').innerText = `Rp ${(myDriver.incomeToday || 0).toLocaleString()}`;
+    // Update Statistik Angka (Pastikan angka valid)
+    const income = parseInt(myDriver.incomeToday) || 0;
+    document.getElementById('stat-income').innerText = `Rp ${income.toLocaleString()}`;
     document.getElementById('stat-rating').innerText = `⭐ ${myDriver.rating || '5.0'}`;
     
-    // Update Tampilan Kepuasan
     updateVisualKepuasan();
 }
 
@@ -74,7 +74,7 @@ function prosesDaftar() {
 }
 
 // ==========================================
-// 3. LOGIKA ORDERAN & ONLINE
+// 3. LOGIKA ORDERAN & ONLINE (SAKELAR)
 // ==========================================
 
 function toggleOnline() {
@@ -101,30 +101,62 @@ function toggleOnline() {
 async function pantauOrderanBaru() {
     const res = await fetch(`${DB_URL}/orders.json`);
     const orders = await res.json();
-    if (!orders) return;
+    const listArea = document.getElementById('list-order-masuk');
+    if (!orders) {
+        listArea.innerHTML = '<p class="text-center text-muted">Belum ada orderan...</p>';
+        return;
+    }
 
     let html = "";
     for (const id in orders) {
         const o = orders[id];
+        
+        // Cek jika orderan sudah diambil oleh saya
         if (o.status === "diambil" && o.driver_nik === myDriver.nik) {
             mulaiTripLayar(id, o);
             return;
         }
+
+        // Tampilkan orderan yang mencari driver
         if (o.status === "mencari_driver") {
+            const sudahTawar = o.tawaran && o.tawaran[myDriver.nik];
+            
             html += `
-            <div class="card order-card" style="border-left: 5px solid #10b981;">
+            <div class="card order-card" style="border-left: 5px solid #10b981; margin-bottom:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <small style="color:#059669; font-weight:bold;">TUJUAN:</small>
-                        <div style="font-weight:bold;">${o.tujuan}</div>
+                    <div style="flex:1;">
+                        <small style="color:#64748b;">TUJUAN:</small>
+                        <div style="font-weight:bold; font-size:14px;">${o.tujuan}</div>
                         <div style="color:#10b981; font-weight:800;">Rp ${o.upah.toLocaleString()}</div>
                     </div>
-                    <button class="btn-confirm" onclick="ambilOrder('${id}')" style="width:auto; padding:8px 15px;">AMBIL</button>
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                        <button class="btn-confirm" onclick="ambilOrder('${id}')" style="width:auto; padding:8px 15px; font-size:11px;">AMBIL</button>
+                        ${sudahTawar 
+                            ? `<small style="color:#f59e0b; font-weight:bold; text-align:center;">Ditawar...</small>`
+                            : `<button class="btn-gps" onclick="tawarHarga('${id}', ${o.upah})" style="padding:6px 12px; font-size:11px; background:#fff7ed; color:#c2410c; border:1px solid #fdba74;">TAWAR</button>`
+                        }
+                    </div>
                 </div>
             </div>`;
         }
     }
-    document.getElementById('list-order-masuk').innerHTML = html || '<p class="text-center text-muted">Mencari orderan...</p>';
+    listArea.innerHTML = html || '<p class="text-center text-muted">Mencari orderan...</p>';
+}
+
+async function tawarHarga(orderId, hargaAsli) {
+    const tawar = prompt(`Harga asli Rp ${hargaAsli.toLocaleString()}. Masukkan harga tawaran Anda:`, hargaAsli + 2000);
+    if (!tawar || isNaN(tawar)) return;
+
+    await fetch(`${DB_URL}/orders/${orderId}/tawaran/${myDriver.nik}.json`, {
+        method: 'PUT',
+        body: JSON.stringify({
+            nama: myDriver.nama,
+            plat: myDriver.plat,
+            harga: parseInt(tawar),
+            rating: myDriver.rating
+        })
+    });
+    alert("Tawaran terkirim!");
 }
 
 async function ambilOrder(id) {
@@ -149,9 +181,10 @@ function mulaiTripLayar(id, data) {
     tampilkanScreen('screen-trip-driver');
     
     document.getElementById('trip-destinasi').innerText = data.tujuan;
-    document.getElementById('trip-upah').innerText = "Pendapatan: Rp " + (data.upah).toLocaleString();
+    // Gunakan upah_final jika ada (hasil tawar), jika tidak gunakan upah asli
+    const hargaTampil = data.upah_final || data.upah;
+    document.getElementById('trip-upah').innerText = "Pendapatan: Rp " + hargaTampil.toLocaleString();
     
-    // Timer 15 Menit (Simulasi waktu tempuh)
     jalankanTimerSelesai(30, (waktu) => {
         document.getElementById('timer-text').innerText = waktu;
     }, () => {
@@ -159,39 +192,58 @@ function mulaiTripLayar(id, data) {
         btn.disabled = false;
         btn.style.opacity = "1";
     });
+
+    // Pantau Chat & Pembatalan
+    const tripMonitor = setInterval(async () => {
+        if(!activeTripId) return clearInterval(tripMonitor);
+        const res = await fetch(`${DB_URL}/orders/${activeTripId}.json`);
+        const d = await res.json();
+        if(!d) {
+            alert("Orderan dibatalkan.");
+            location.reload();
+        } else {
+            if(d.chat) updateChatDriver(d.chat);
+            currentTripData = d; // Sync data terbaru (termasuk upah_final)
+        }
+    }, 4000);
 }
 
 function bukaGoogleMaps() {
-    if (!currentTripData || !currentTripData.jemput_lat) return alert("Lokasi jemput tidak ditemukan!");
+    if (!currentTripData || !currentTripData.jemput_lat) return alert("Titik lokasi tidak ada!");
     const url = `https://www.google.com/maps/dir/?api=1&destination=${currentTripData.jemput_lat},${currentTripData.jemput_lon}&travelmode=motorcycle`;
     window.open(url, '_blank');
 }
 
 // ==========================================
-// 5. CHAT & SELESAI (PENTING!)
+// 5. CHAT & SELESAI (FIX SALDO)
 // ==========================================
 
 async function driverKlikSelesai() {
-    const untung = currentTripData.upah;
+    if (!confirm("Selesaikan pesanan?")) return;
+
+    // Ambil nominal yang disepakati
+    const untung = parseInt(currentTripData.upah_final || currentTripData.upah);
     
-    // 1. Update Data Lokal
-    myDriver.incomeToday = (myDriver.incomeToday || 0) + untung;
-    myDriver.orderCount = (myDriver.orderCount || 0) + 1;
+    // Update profil lokal
+    let savedData = JSON.parse(localStorage.getItem('ojek_kuningan_driver'));
+    savedData.incomeToday = (parseInt(savedData.incomeToday) || 0) + untung;
+    savedData.orderCount = (parseInt(savedData.orderCount) || 0) + 1;
 
-    // 2. Simpan Permanen
-    localStorage.setItem('ojek_kuningan_driver', JSON.stringify(myDriver));
+    // Simpan permanen ke HP
+    localStorage.setItem('ojek_kuningan_driver', JSON.stringify(savedData));
+    myDriver = savedData;
 
-    // 3. Update Database Firebase
+    // Update Firebase
     await fetch(`${DB_URL}/orders/${activeTripId}.json`, {
         method: 'PATCH',
         body: JSON.stringify({ status_driver: "selesai" })
     });
 
-    alert(`Order Selesai! Rp ${untung.toLocaleString()} masuk ke kantong.`);
+    alert(`Alhamdulillah! Rp ${untung.toLocaleString()} masuk ke saldo.`);
     
-    // 4. Reset & Kembali
     activeTripId = null;
-    loadDashboard();
+    currentTripData = null;
+    loadDashboard(); // Render ulang angka di layar dashboard
 }
 
 function updateChatDriver(chatData) {
@@ -226,4 +278,4 @@ async function driverBatalkanPesanan() {
     if (!confirm("Yakin ingin membatalkan?")) return;
     await fetch(`${DB_URL}/orders/${activeTripId}.json`, { method: 'DELETE' });
     location.reload();
-            }
+}
