@@ -1,5 +1,5 @@
 // ==========================================
-// 1. DATA IDENTITAS & STATISTIK DRIVER
+// 1. DATA IDENTITAS & STATE DRIVER
 // ==========================================
 const myDriver = {
     nik: "DRV-10029", 
@@ -9,7 +9,6 @@ const myDriver = {
     moto: "Kepuasan Anda, Rejeki Saya",
     foto: "https://via.placeholder.com/100", 
     rating: "4.9",
-    // Data Historis (Poin permintaan Anda)
     incomeM1: 1450000, // Bulan Lalu
     incomeM2: 1200000, // 2 Bulan Lalu
     incomeToday: 0,
@@ -18,12 +17,17 @@ const myDriver = {
 
 let isOnline = false;
 let monitorInterval, activeTripId;
+let jumlahPesanLamaDriver = 0;
+let jumlahOrderanLama = 0;
 
 // ==========================================
-// 2. INISIALISASI TAMPILAN (ON LOAD)
+// 2. INISIALISASI (ON LOAD)
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Muat Profil ke UI
+    loadProfileDriver();
+});
+
+function loadProfileDriver() {
     document.getElementById('disp-nama').innerText = myDriver.nama;
     document.getElementById('disp-plat').innerText = `${myDriver.plat} | ${myDriver.motor}`;
     document.getElementById('disp-moto').innerText = `"${myDriver.moto}"`;
@@ -31,9 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('stat-m1').innerText = `Rp ${myDriver.incomeM1.toLocaleString()}`;
     document.getElementById('stat-m2').innerText = `Rp ${myDriver.incomeM2.toLocaleString()}`;
     document.getElementById('stat-income').innerText = `Rp 0`;
-    
     if(myDriver.foto) document.getElementById('driver-img').src = myDriver.foto;
-});
+}
 
 // ==========================================
 // 3. LOGIKA ONLINE / OFFLINE
@@ -50,7 +53,10 @@ function toggleOnline() {
         btn.style.color = "#ef4444";
         txt.innerText = "ONLINE (Mencari Penumpang)";
         txt.style.color = "#10b981";
-        // Mulai monitor orderan setiap 4 detik
+        // Pemicu Audio Context agar klakson bisa bunyi
+        const dummyCtx = new (window.AudioContext || window.webkitAudioContext)();
+        dummyCtx.resume();
+        
         monitorInterval = setInterval(pantauOrderanBaru, 4000);
     } else {
         btn.innerText = "MASUK ONLINE";
@@ -64,7 +70,7 @@ function toggleOnline() {
 }
 
 // ==========================================
-// 4. PANTAU & TAWAR ORDERAN (SISTEM BID)
+// 4. PANTAU ORDER & NOTIF KLAKSON
 // ==========================================
 async function pantauOrderanBaru() {
     const res = await fetch(`${DB_URL}/orders.json`);
@@ -72,34 +78,43 @@ async function pantauOrderanBaru() {
     const listArea = document.getElementById('list-order-masuk');
     
     if (!orders) {
-        listArea.innerHTML = '<p class="text-center text-muted">Belum ada orderan di sekitar Kuningan...</p>';
+        listArea.innerHTML = '<p class="text-center text-muted">Belum ada orderan baru...</p>';
+        jumlahOrderanLama = 0;
         return;
     }
+
+    // Hitung jumlah orderan yang tersedia (status: mencari_driver)
+    const orderTersedia = Object.keys(orders).filter(id => orders[id].status === "mencari_driver");
+    
+    // BUNYI KLAKSON JIKA ADA ORDERAN BARU MASUK
+    if (orderTersedia.length > jumlahOrderanLama) {
+        bunyiKlakson();
+    }
+    jumlahOrderanLama = orderTersedia.length;
 
     let html = "";
     for (const id in orders) {
         const o = orders[id];
         
-        // Cek jika orderan ini diambil oleh SAYA (Re-connect jika aplikasi tertutup)
+        // Cek jika orderan diambil oleh saya (Re-connect)
         if (o.status === "diambil" && o.driver_nik === myDriver.nik) {
             mulaiTripLayar(id, o);
             return;
         }
 
-        // Tampilkan orderan yang masih mencari driver
         if (o.status === "mencari_driver") {
             html += `
-            <div class="card order-card" style="margin-bottom:12px; padding:15px;">
+            <div class="card order-card" style="margin-bottom:12px; padding:15px; border-left: 5px solid #10b981;">
                 <div style="display:flex; justify-content:space-between; align-items:start;">
                     <div style="flex:1;">
-                        <small style="color:var(--primary); font-weight:bold;">TUJUAN:</small>
+                        <small style="color:#059669; font-weight:bold;">TUJUAN:</small>
                         <div style="font-weight:bold; font-size:15px; margin-bottom:5px;">${o.tujuan}</div>
                         <small>Ongkos User:</small>
-                        <div style="color:var(--success); font-weight:800;">Rp ${o.upah.toLocaleString()}</div>
+                        <div style="color:#10b981; font-weight:800;">Rp ${o.upah.toLocaleString()}</div>
                     </div>
                     <div style="text-align:right;">
-                        <button class="btn-confirm" style="padding:8px 15px; font-size:12px; margin-bottom:5px;" onclick="ambilOrder('${id}')">TERIMA</button>
-                        <button class="btn-gps" style="padding:8px 15px; font-size:12px; margin:0; border:1px solid #ddd;" onclick="tawarOrder('${id}', ${o.upah})">TAWAR</button>
+                        <button class="btn-confirm" style="padding:8px 12px; font-size:11px; margin-bottom:5px;" onclick="ambilOrder('${id}')">AMBIL</button>
+                        <button class="btn-gps" style="padding:8px 12px; font-size:11px; margin:0; border:1px solid #ddd;" onclick="tawarOrder('${id}', ${o.upah})">TAWAR</button>
                     </div>
                 </div>
             </div>`;
@@ -115,7 +130,7 @@ async function ambilOrder(id) {
             status: "diambil",
             driver_pilihan: myDriver.nama,
             driver_nik: myDriver.nik,
-            upah_final: 0 // Akan diupdate di mulaiTripLayar
+            upah_final: 0 // Akan diisi jika ada tawar menawar
         })
     });
 }
@@ -133,14 +148,15 @@ async function tawarOrder(id, hargaUser) {
             harga_tawar: hargaTawar
         })
     });
-    alert("Tawaran terkirim! Silahkan tunggu user memilih Anda.");
+    alert("Tawaran terkirim! Pantau layar, jika user setuju trip akan dimulai.");
 }
 
 // ==========================================
-// 5. LOGIKA PERJALANAN (TRIP) & TIMER 15M
+// 5. LOGIKA PERJALANAN & CHAT
 // ==========================================
 function mulaiTripLayar(id, data) {
     activeTripId = id;
+    jumlahPesanLamaDriver = 0;
     clearInterval(monitorInterval);
     tampilkanScreen('screen-trip-driver');
     
@@ -148,39 +164,44 @@ function mulaiTripLayar(id, data) {
     const ongkos = data.upah_final || data.upah;
     document.getElementById('trip-upah').innerText = "Pendapatan: Rp " + ongkos.toLocaleString();
     
-    // Timer Keamanan (900 detik = 15 menit)
-    // Untuk tes, gunakan 30 detik saja dulu
+    // Timer Keamanan (30 detik untuk tes, ubah ke 900 untuk 15 menit)
     jalankanTimerSelesai(30, (waktu) => {
         document.getElementById('timer-text').innerText = waktu;
     }, () => {
         const btn = document.getElementById('btn-selesai-order');
         btn.disabled = false;
         btn.style.opacity = "1";
-        btn.style.background = "var(--success)";
+        btn.style.background = "#10b981";
     });
 
-    // Jalankan Sinkronisasi Chat
+    // Pantau Chat & Status
     setInterval(async () => {
         if(activeTripId){
-            const res = await fetch(`${DB_URL}/orders/${activeTripId}/chat.json`);
-            const chat = await res.json();
-            updateChatUI(chat);
+            const res = await fetch(`${DB_URL}/orders/${activeTripId}.json`);
+            const d = await res.json();
+            if(d && d.chat) updateChatDriver(d.chat);
+            // Jika user membatalkan sepihak
+            if(!d) location.reload();
         }
     }, 3000);
 }
 
-// ==========================================
-// 6. CHAT & SELESAI
-// ==========================================
-function driverKirimChat() {
-    const inp = document.getElementById('input-pesan-driver');
-    kirimPesanFirebase(activeTripId, 'driver', inp.value);
-    inp.value = "";
+function updateChatDriver(chatData) {
+    const box = document.getElementById('chat-messages');
+    const jmlPesan = Object.keys(chatData).length;
+
+    if (jmlPesan > jumlahPesanLamaDriver) {
+        const pesanTerakhir = Object.values(chatData).pop();
+        if (pesanTerakhir.sender === 'user') {
+            bunyiKlakson(); // BUNYI JIKA USER CHAT
+        }
+        renderChatUI(chatData);
+    }
+    jumlahPesanLamaDriver = jmlPesan;
 }
 
-function updateChatUI(chatData) {
+function renderChatUI(chatData) {
     const box = document.getElementById('chat-messages');
-    if (!chatData) return;
     let h = "";
     for (const id in chatData) {
         const c = chatData[id];
@@ -191,6 +212,15 @@ function updateChatUI(chatData) {
     box.scrollTop = box.scrollHeight;
 }
 
+function driverKirimChat() {
+    const inp = document.getElementById('input-pesan-driver');
+    kirimPesanFirebase(activeTripId, 'driver', inp.value);
+    inp.value = "";
+}
+
+// ==========================================
+// 6. SELESAI & STATISTIK
+// ==========================================
 async function driverKlikSelesai() {
     const res = await fetch(`${DB_URL}/orders/${activeTripId}.json`);
     const data = await res.json();
@@ -201,20 +231,21 @@ async function driverKlikSelesai() {
     myDriver.orderCount++;
     document.getElementById('stat-income').innerText = `Rp ${myDriver.incomeToday.toLocaleString()}`;
 
-    // Update Firebase untuk User (Sinkronisasi)
+    // Kirim sinyal selesai ke User (Sinkronisasi)
     await fetch(`${DB_URL}/orders/${activeTripId}.json`, {
         method: 'PATCH',
         body: JSON.stringify({ status_driver: "selesai" })
     });
 
-    alert("Pesanan Selesai! Terima kasih telah melayani warga Kuningan.");
+    alert("Pesanan Selesai! Alhamdulillah.");
     activeTripId = null;
     tampilkanScreen('screen-dashboard');
-    toggleOnline(); // Reset ke online
+    toggleOnline(); // Kembali online mencari order
 }
 
 async function driverBatalkanPesanan() {
-    if (!confirm("Batalkan pesanan? Saldo donasi mungkin terpotong jika sering membatalkan.")) return;
+    if (!confirm("Batal? Saldo donasi dapat terpengaruh.")) return;
     await fetch(`${DB_URL}/orders/${activeTripId}.json`, { method: 'DELETE' });
     location.reload();
-}
+            }
+        
