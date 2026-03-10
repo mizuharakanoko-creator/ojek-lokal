@@ -1,40 +1,42 @@
 // ==========================================
-// 1. VARIABEL GLOBAL & STATE
+// 1. STATE & GLOBAL VARIABLES
 // ==========================================
 let userLat, userLon, distKm, finalPrice, currentOrderId, monitorInterval;
 let searchTimeout; 
-let lastOrderData = null; // Untuk fitur Ulangi Pesanan
+let lastOrderData = null; 
 let jumlahPesanLamaUser = 0;
 let sudahNotifDriver = false;
 let userRatings = { kecepatan: 0, kesopanan: 0 };
 let driverData = { nik: "", nama: "" };
 
 /**
- * AMBIL LOKASI GPS (DENGAN VISUAL LOADING)
+ * AMBIL LOKASI GPS (WAJIB UNTUK MAPS DRIVER)
  */
 function userAmbilLokasi() {
     const btn = document.getElementById('btn-gps');
-    btn.innerHTML = '<span class="loader-ring" style="width:15px; height:15px; margin:0; border-width:2px;"></span> Mencari GPS...';
+    btn.innerHTML = '<span class="loader-ring" style="width:15px; height:15px; border-width:2px;"></span> Mencari GPS...';
     
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((p) => {
             userLat = p.coords.latitude;
             userLon = p.coords.longitude;
+            
             btn.innerHTML = "✅ LOKASI TERKUNCI";
             btn.style.background = "#dcfce7";
             btn.style.color = "#166534";
-            // Pemicu Audio Context (Agar suara klakson bisa bunyi nanti)
+            
+            // Aktifkan Audio Context agar klakson bisa bunyi
             const dummyCtx = new (window.AudioContext || window.webkitAudioContext)();
             dummyCtx.resume();
         }, () => {
-            alert("Gagal ambil lokasi. Pastikan GPS aktif dan izinkan akses lokasi.");
+            alert("Gagal akses GPS. Mohon izinkan lokasi di pengaturan browser Anda.");
             btn.innerHTML = "📍 COBA LAGI";
         });
     }
 }
 
 /**
- * DAFTAR DESA BERDASARKAN KECAMATAN
+ * RENDER DAFTAR DESA
  */
 function renderDesa() {
     const kec = document.getElementById('select-kecamatan').value;
@@ -44,8 +46,7 @@ function renderDesa() {
     if (dataWilayah[kec]) {
         dataWilayah[kec].forEach(d => {
             let opt = document.createElement('option');
-            opt.value = d;
-            opt.text = d;
+            opt.value = d; opt.text = d;
             dSel.add(opt);
         });
         dSel.style.display = 'block';
@@ -53,7 +54,7 @@ function renderDesa() {
 }
 
 /**
- * HITUNG TARIF OTOMATIS
+ * HITUNG TARIF & JARAK
  */
 function prosesHitungTarif() {
     const kec = document.getElementById('select-kecamatan').value;
@@ -73,7 +74,7 @@ function prosesHitungTarif() {
     document.getElementById('p-kilat').innerText = `Rp ${h3.toLocaleString()}`;
     
     document.getElementById('price-section').style.display = 'block';
-    finalPrice = h2; // Default reguler
+    finalPrice = h2; 
 }
 
 function pilihTipeHarga(el, pengali) {
@@ -83,19 +84,20 @@ function pilihTipeHarga(el, pengali) {
 }
 
 // ==========================================
-// 2. LOGIKA ORDER & TIMEOUT (3 MENIT)
+// 2. LOGIKA PESANAN & AUTO-CLEANUP
 // ==========================================
 
 async function buatPesanan() {
     const kec = document.getElementById('select-kecamatan').value;
     const desa = document.getElementById('select-desa').value;
-    if(!kec || !desa) return alert("Pilih tujuan dengan lengkap!");
+    if(!kec || !desa) return alert("Pilih tujuan terlebih dahulu!");
 
-    // Simpan data untuk fitur Re-Order
+    // Simpan data untuk Re-Order
     lastOrderData = { kec, desa, upah: finalPrice };
     sudahNotifDriver = false;
     jumlahPesanLamaUser = 0;
 
+    // DATA PAYLOAD (Disinkronkan dengan Maps Driver)
     const payload = {
         jemput_lat: userLat, 
         jemput_lon: userLon,
@@ -121,97 +123,86 @@ async function buatPesanan() {
 async function handleTimeoutPencarian() {
     clearInterval(monitorInterval);
     
-    // HAPUS DARI DATABASE (Clean up agar tetap bersih)
+    // HAPUS DARI DATABASE (Keep it clean!)
     if (currentOrderId) {
         await fetch(`${DB_URL}/orders/${currentOrderId}.json`, { method: 'DELETE' });
     }
 
-    // Ubah tampilan menjadi Pesan Profesional
+    // Tampilkan Layar Gagal & Tombol Re-Order
     document.getElementById('waiting-content').innerHTML = `
-        <div style="padding:20px;">
-            <span style="font-size:50px;">⏳</span>
-            <h3 style="color:var(--danger); margin-top:10px;">Driver Belum Ditemukan</h3>
-            <p class="text-muted" style="font-size:13px; margin-bottom:15px;">
-                Mohon maaf, saat ini mitra driver di area Anda sedang tidak tersedia. 
-                Hal ini mungkin karena keterbatasan mitra atau tarif yang kurang kompetitif.
+        <div style="padding:10px;">
+            <span style="font-size:60px;">⏳</span>
+            <h3 style="color:#e11d48; margin-top:15px;">Belum Dapat Driver</h3>
+            <p class="text-muted" style="font-size:13px; margin-bottom:20px;">
+                Maaf, saat ini mitra driver di area Anda sedang sibuk atau tidak tersedia. 
+                Silahkan coba beberapa saat lagi atau gunakan tarif <b>Kilat</b>.
             </p>
-            <div style="background:#f1f5f9; padding:15px; border-radius:15px; margin-bottom:20px; font-size:12px; text-align:left;">
-                <b>Saran:</b><br>
-                1. Coba lagi beberapa saat lagi.<br>
-                2. Gunakan tarif <b>Kilat</b> untuk menarik minat driver.
-            </div>
             <button class="btn-confirm" onclick="ulangiPesananTerakhir()">ULANGI PESANAN</button>
-            <button class="btn-cancel" style="background:none; color:var(--danger); border:1px solid" onclick="location.reload()">KEMBALI</button>
+            <button class="btn-cancel" style="background:none; border:1px solid #ccc; color:#666; margin-top:10px;" onclick="location.reload()">KEMBALI</button>
         </div>
     `;
 }
 
 function ulangiPesananTerakhir() {
     if (!lastOrderData) return location.reload();
-    // Kembalikan UI ke layar order
     tampilkanScreen('screen-order');
     document.getElementById('select-kecamatan').value = lastOrderData.kec;
     renderDesa();
     document.getElementById('select-desa').value = lastOrderData.desa;
-    // Jalankan ulang
-    buatPesanan();
+    buatPesanan(); // Pesan lagi otomatis
 }
 
 // ==========================================
-// 3. PANTAU STATUS & NOTIF KLAKSON
+// 3. PANTAU STATUS & CHAT (KLAKSON)
 // ==========================================
 
 async function pantauOrderUser() {
     const data = await cekStatusOrder(currentOrderId);
     if (!data) return;
 
-    // A. DRIVER DITEMUKAN
+    // A. Driver Ketemu
     if (data.status === "diambil") {
         clearTimeout(searchTimeout); 
-        
         if (!sudahNotifDriver) {
-            bunyiKlakson(); // Bunyi saat driver deal
+            bunyiKlakson(); // Bunyi klakson sukses
             sudahNotifDriver = true;
         }
-
         driverData.nik = data.driver_nik;
         driverData.nama = data.driver_pilihan;
         
         document.getElementById('info-driver-trip').innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px; background:#f8fafc; padding:10px; border-radius:12px;">
-                <div style="background:var(--primary); color:white; width:45px; height:45px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:20px;">
+            <div style="display:flex; align-items:center; gap:12px; background:#f1f5f9; padding:15px; border-radius:15px;">
+                <div style="background:var(--primary); color:white; width:45px; height:45px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:18px;">
                     ${driverData.nama.charAt(0)}
                 </div>
                 <div>
-                    <b style="font-size:15px;">${driverData.nama}</b><br>
-                    <small style="color:var(--success); font-weight:bold;">Ongkos: Rp ${data.upah_final ? data.upah_final.toLocaleString() : data.upah.toLocaleString()}</small>
+                    <b style="font-size:16px;">${driverData.nama}</b><br>
+                    <small style="color:#059669; font-weight:bold;">Ongkos: Rp ${(data.upah_final || data.upah).toLocaleString()}</small>
                 </div>
             </div>
         `;
         tampilkanScreen('screen-trip');
     }
 
-    // B. LOGIKA CHAT & KLAKSON CHAT
+    // B. Chat & Notif Klakson
     if (data.chat) {
         const jmlChat = Object.keys(data.chat).length;
         if (jmlChat > jumlahPesanLamaUser) {
             const pesanTerakhir = Object.values(data.chat).pop();
-            if (pesanTerakhir.sender === 'driver') {
-                bunyiKlakson(); // Bunyi saat ada pesan masuk
-            }
+            if (pesanTerakhir.sender === 'driver') bunyiKlakson();
             renderChat(data.chat);
         }
         jumlahPesanLamaUser = jmlChat;
     }
 
-    // C. SINKRONISASI SELESAI (Poin 1: Driver Klik Selesai)
+    // C. Cek jika Driver sudah klik Selesai
     if (data.status_driver === "selesai") {
         userKlikSelesai();
     }
 }
 
 // ==========================================
-// 4. FITUR CHAT & RATING
+// 4. CHAT, RATING & BATAL
 // ==========================================
 
 function renderChat(chatData) {
@@ -219,8 +210,7 @@ function renderChat(chatData) {
     let h = "";
     for (const id in chatData) {
         const c = chatData[id];
-        const tipe = c.sender === 'user' ? 'msg-u' : 'msg-d';
-        h += `<div class="msg ${tipe}">${c.txt}</div>`;
+        h += `<div class="msg ${c.sender === 'user' ? 'msg-u' : 'msg-d'}">${c.txt}</div>`;
     }
     box.innerHTML = h;
     box.scrollTop = box.scrollHeight;
@@ -248,7 +238,6 @@ function setRating(kat, n) {
 
 function userKlikSelesai() {
     clearInterval(monitorInterval);
-    clearTimeout(searchTimeout);
     tampilkanScreen('screen-rating');
 }
 
@@ -261,8 +250,8 @@ async function kirimRatingFinal() {
         body: JSON.stringify({ rating: userRatings, teks: ulasan, date: new Date().toISOString() })
     });
     
-    // Final Clean-up
     await fetch(`${DB_URL}/orders/${currentOrderId}.json`, { method: 'DELETE' });
-    alert("Terima kasih! Semoga perjalanan Anda menyenangkan.");
+    alert("Terima kasih! Pesanan selesai.");
     location.reload();
-}
+        }
+                               
