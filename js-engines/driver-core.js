@@ -1,60 +1,80 @@
-// MODUL 16: CORE ENGINE (OTAK UTAMA)
+// MODUL 16: CORE ENGINE (OTAK UTAMA) - TERUPDATE
 const DriverCore = {
     init() {
-        console.log("Core Engine Memulai...");
+        console.log("Core Engine: Menginisialisasi...");
         
-        // 1. Ambil data dari localStorage
-        const name = localStorage.getItem('driver_nama') || "Driver";
-        
-        // 2. Update Tampilan Profil di Header
-        document.getElementById('display-name').innerText = name;
-        
-        // 3. Ambil data Realtime (Saldo, Rating)
-        this.loadDriverRealtimeStats();
-        
-        // 4. Inisialisasi Bursa Order (Langsung Tampil)
-        DriverMarket.init();
-        
-        console.log("Core Engine Siap.");
+        // 1. Ambil data identitas dari memori HP
+        const nik = localStorage.getItem('driver_nik');
+        const nama = localStorage.getItem('driver_nama') || "Driver";
+
+        if (!nik) {
+            console.error("NIK tidak ditemukan, mengalihkan ke Login.");
+            window.location.href = "login.html";
+            return;
+        }
+
+        // 2. Update Nama di Header secara instan
+        const nameElement = document.getElementById('display-name');
+        if (nameElement) nameElement.innerText = nama;
+
+        // 3. Hubungkan ke Firebase untuk data Real-time (Saldo & Rating)
+        this.syncDriverStats(nik);
+
+        // 4. Aktifkan Mesin Pendukung lainnya
+        if (typeof DriverGatekeeper !== 'undefined') DriverGatekeeper.init();
+        if (typeof DriverMarket !== 'undefined') DriverMarket.init();
+        if (typeof DriverSharding !== 'undefined') DriverSharding.init();
+
+        console.log("Core Engine: Siap digunakan.");
     },
 
-    loadDriverRealtimeStats() {
-        const nik = localStorage.getItem('driver_nik');
-        if(!nik) return;
-        
-        // Ambil data Saldo
+    // Sinkronisasi Saldo dan Rating langsung dari Firebase
+    syncDriverStats(nik) {
+        // Listener Saldo
         db.ref(`drivers/${nik}/saldo`).on('value', (snapshot) => {
             const saldo = snapshot.val() || 0;
-            document.getElementById('display-saldo').innerText = `Rp ${saldo.toLocaleString('id-ID')}`;
+            const saldoEl = document.getElementById('display-saldo');
+            if (saldoEl) {
+                saldoEl.innerText = `Rp ${saldo.toLocaleString('id-ID')}`;
+            }
         });
-        
-        // Ambil data Rating
+
+        // Listener Rating
         db.ref(`drivers/${nik}/rating`).on('value', (snapshot) => {
             const rating = snapshot.val() || 5.0;
-            document.getElementById('display-rating').innerText = rating.toFixed(1);
+            const ratingEl = document.getElementById('display-rating');
+            if (ratingEl) {
+                ratingEl.innerText = rating.toFixed(1);
+            }
         });
     },
 
-    // FUNGSI UNTUK TOMBOL NAVIGASI BAWAH
-    showPage(pageName) {
-        console.log("Membuka halaman: " + pageName);
+    // Fungsi untuk tombol Navigasi Bawah
+    showPage(pageId) {
+        console.log("Berpindah ke halaman: " + pageId);
         
-        // Update status tombol aktif di CSS
+        // 1. Atur visual tombol aktif
         const navItems = document.querySelectorAll('.nav-item');
         navItems.forEach(item => item.classList.remove('active'));
-        // (Logika CSS tambahan untuk nav-item yang diklik harus dibuat)
-
-        // Logika untuk menampilkan/menyembunyikan konten utama
-        if (pageName === 'market') {
-            document.getElementById('market-list').style.display = 'block';
-            // Sembunyikan div Wallet/Profil lainnya
+        
+        // Cari tombol yang diklik (berdasarkan fungsi yang dipanggil)
+        // Catatan: Di index.html, pastikan class 'active' diberikan pada element yang benar
+        
+        // 2. Logika perpindahan konten
+        if (pageId === 'market') {
+            document.getElementById('app-content').style.display = 'block';
         } else {
-            alert("Fitur " + pageName + " sedang dalam pengembangan.");
+            // Tampilkan pesan untuk fitur yang belum dibuat
+            alert("Halaman " + pageId + " sedang disiapkan.");
         }
     }
 };
 
-// JALANKAN CORE SAAT APLIKASI DIbuka
-window.onload = function() {
-    DriverCore.init();
+// Pastikan mesin berjalan setelah seluruh halaman dan Firebase siap
+window.onload = () => {
+    if (typeof db !== 'undefined') {
+        DriverCore.init();
+    } else {
+        console.error("Firebase Database (db) belum terdeteksi. Periksa urutan script!");
+    }
 };
