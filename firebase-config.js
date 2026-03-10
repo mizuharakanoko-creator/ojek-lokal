@@ -1,7 +1,7 @@
 // CONFIGURASI PUSAT FIREBASE OJEK LOKAL
 const firebaseConfig = {
     // Silakan isi kode di bawah ini dari Firebase Console (Project Settings)
-    apiKey: "AIzaSyAXXXXXXXXXXXXXXXXXXXXXXXXXXXX", 
+    apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk", 
     authDomain: "ojeklokal-42b84.firebaseapp.com",
     
     // URL Database Anda
@@ -11,8 +11,8 @@ const firebaseConfig = {
     storageBucket: "ojeklokal-42b84.appspot.com",
     
     // Silakan isi kode di bawah ini dari Firebase Console
-    messagingSenderId: "XXXXXXXXXXXX",
-    appId: "1:XXXXXXXXXXXX:web:XXXXXXXXXXXXXXXX"
+    messagingSenderId: "320198748498",
+    appId: "1:320198748498:web:3e6038249edc6af20b328b"
 };
 
 // Inisialisasi Firebase (Versi Compatibility agar cocok dengan script di HTML)
