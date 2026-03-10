@@ -2,163 +2,89 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ojek Kuningan - User (v1.1 Stable)</title>
-    <link rel="stylesheet" href="style.css">
-</head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Driver Apps - Ojek Lokal</title>
+
+    <link rel="stylesheet" href="css/style-main.css"> <link rel="stylesheet" href="css/style-overlay.css"> <link rel="stylesheet" href="css/style-sharding.css"> <link rel="stylesheet" href="css/style-market.css"> <link rel="stylesheet" href="css/style-modal.css"> <link rel="stylesheet" href="css/style-nav.css"> <link rel="stylesheet" href="css/style-chat.css"> <link rel="stylesheet" href="css/style-stats.css"> <link rel="stylesheet" href="css/style-wallet.css"> <link rel="stylesheet" href="css/style-rank.css"> <link rel="stylesheet" href="css/style-emergency.css"> </head>
 <body>
 
-<div class="container">
+    <header id="app-header">
+        <div class="status-window-mini" onclick="showFullStats()">
+            <span class="rank-tag">GOLD</span>
+            <span class="driver-name" id="display-name">Memuat...</span>
+        </div>
+        <button class="btn-sos-trigger" onclick="DriverBroadcast.triggerSOS(localStorage.getItem('driver_nik'), localStorage.getItem('driver_nama'), DriverSharding.currentRegion)">🚨 SOS</button>
+    </header>
+
+    <nav class="region-picker">
+        <label class="region-label">Wilayah Aktif:</label>
+        <select class="region-select" id="region-selector" onchange="DriverSharding.setRegion(this.value)">
+            <option value="Kuningan">Kuningan</option>
+            <option value="Cirendang">Cirendang</option>
+            <option value="Kadugede">Kadugede</option>
+        </select>
+    </nav>
+
+    <main id="app-content">
+        <div id="market-list" class="market-container">
+            <p class="loading-text">Mencari orderan di sekitar Anda...</p>
+        </div>
+    </main>
+
+    <footer id="main-nav">
+        <button class="nav-item active" onclick="showPage('market')">🏠<br>Bursa</button>
+        <button class="nav-item" onclick="showPage('wallet')">💰<br>Dompet</button>
+        <button class="nav-item" onclick="showPage('history')">📜<br>Riwayat</button>
+        <button class="nav-item" onclick="showPage('profile')">👤<br>Profil</button>
+    </footer>
+
+    <div id="gate-overlay" class="full-overlay gate-locked">
+        <div class="gate-icon">🔒</div>
+        <h2 id="gate-message">Akses Terkunci</h2>
+        <a href="https://wa.me/admin" class="btn-contact-admin">Hubungi Admin</a>
+    </div>
+
+    <div id="sos-overlay" class="sos-overlay">
+        <div class="sos-card">
+            <h1>🚨 DARURAT 🚨</h1>
+            <p id="sos-info">Rekan Driver butuh bantuan!</p>
+            <button class="btn-help">Lihat Lokasi</button>
+            <button onclick="this.parentElement.parentElement.style.display='none'">Tutup</button>
+        </div>
+    </div>
+
+    <div id="modal-bidding" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Tawar Harga</h3>
+            <input type="number" id="input-harga-tawar" class="wd-input">
+            <div class="bid-actions">
+                <button class="btn-cancel" onclick="DriverBidding.closeBidding()">Batal</button>
+                <button class="btn-send" onclick="submitBid()">Kirim</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-database.js"></script>
     
-    <div id="screen-order" class="active-screen">
-        <div class="card header-main">
-            <h1>📍 Ojek Kuningan</h1>
-            <p>Layanan Ojek Lokal Kebanggaan Warga</p>
-            
-            <div class="beta-badge">
-                🚀 <b>Versi Beta:</b> Aplikasi masih dalam tahap pengembangan. Mohon maklum jika ada kendala. Dukung kami dengan donasi agar layanan tetap jalan!
-            </div>
-
-            <button class="btn-gps" onclick="userAmbilLokasi()" id="btn-gps">
-                📍 GUNAKAN LOKASI SAYA (GPS)
-            </button>
-        </div>
-
-        <div class="card">
-            <label>TUJUAN PERJALANAN:</label>
-            <select id="select-kecamatan" onchange="renderDesa()" style="margin-top:10px;">
-                <option value="">-- Pilih Kecamatan --</option>
-            </select>
-
-            <select id="select-desa" onchange="prosesHitungTarif()" style="display:none; margin-top:10px;"></select>
-            
-            <div id="price-section" style="display: none; margin-top: 20px;">
-                <div style="text-align: center; margin-bottom: 15px;">
-                    <span id="display-jarak" style="background:#f1f5f9; padding:5px 15px; border-radius:20px; font-weight:bold; font-size:13px;">0 KM</span>
-                </div>
-                
-                <div class="price-grid">
-                    <div class="price-card" id="card-hemat" onclick="pilihTipeHarga('hemat', 3000)">
-                        <small>Hemat</small>
-                        <b id="p-hemat">-</b>
-                    </div>
-                    <div class="price-card active" id="card-reguler" onclick="pilihTipeHarga('reguler', 4000)">
-                        <small>Reguler</small>
-                        <b id="p-reguler">-</b>
-                    </div>
-                    <div class="price-card" id="card-kilat" onclick="pilihTipeHarga('kilat', 5000)">
-                        <small>Kilat</small>
-                        <b id="p-kilat">-</b>
-                    </div>
-                </div>
-                
-                <button class="btn-confirm" onclick="buatPesanan()" style="margin-top: 20px;">PESAN SEKARANG</button>
-            </div>
-        </div>
-
-        <div class="share-box">
-            <p style="font-size: 12px; color: #166534; margin: 0;">
-                <b>Aplikasi ini milik kita bersama!</b><br>
-                Bantu sebarkan ke teman & saudara agar semakin banyak Driver yang bergabung.
-            </p>
-            <button class="btn-share" onclick="bagikanAplikasi()">BAGIKAN KE WHATSAPP</button>
-        </div>
-    </div>
-
-    <div id="screen-waiting" class="screen">
-        <div class="card text-center" id="waiting-content" style="padding: 40px 20px;">
-            <div class="loader-ring"></div>
-            <h3 style="margin-top: 20px;">Mencari Driver...</h3>
-            <p class="text-muted" style="font-size: 13px;">Sistem sedang menghubungkan Anda dengan Mitra terdekat di Kuningan.</p>
-            
-            <div id="container-tawaran" style="margin: 20px 0;"></div>
-            
-            <button class="btn-cancel" onclick="userBatalkanPesanan()" style="margin-top: 30px;">BATALKAN</button>
-        </div>
-    </div>
-
-    <div id="screen-trip" class="screen">
-        <div class="card">
-            <div style="background: var(--primary); color: white; display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: bold;">DRIVER DITEMUKAN</div>
-            
-            <div id="info-driver-trip" style="margin: 20px 0;"></div>
-            
-            <div id="chat-container">
-                <div id="chat-messages"></div>
-                <div class="chat-input-group">
-                    <input type="text" id="input-pesan" placeholder="Tulis pesan ke driver...">
-                    <button onclick="userKirimChat()">Kirim</button>
-                </div>
-            </div>
-
-            <button class="btn-finish" onclick="userKlikSelesai()" style="margin-top: 20px;">SAYA SUDAH SAMPAI</button>
-        </div>
-    </div>
-
-    <div id="screen-rating" class="screen">
-        <div class="card text-center">
-            <span style="font-size: 50px;">⭐</span>
-            <h2>Alhamdulillah Sampai!</h2>
-            <p class="text-muted" style="font-size: 14px;">Beri penilaian untuk pelayanan mitra kami:</p>
-            
-            <div id="rating-form" style="margin: 25px 0;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <span>🚀 Kecepatan</span>
-                    <div class="stars" id="star-kecepatan">
-                        <span onclick="setRating('kecepatan',1)">★</span><span onclick="setRating('kecepatan',2)">★</span><span onclick="setRating('kecepatan',3)">★</span><span onclick="setRating('kecepatan',4)">★</span><span onclick="setRating('kecepatan',5)">★</span>
-                    </div>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>😊 Kesopanan</span>
-                    <div class="stars" id="star-kesopanan">
-                        <span onclick="setRating('kesopanan',1)">★</span><span onclick="setRating('kesopanan',2)">★</span><span onclick="setRating('kesopanan',3)">★</span><span onclick="setRating('kesopanan',4)">★</span><span onclick="setRating('kesopanan',5)">★</span>
-                    </div>
-                </div>
-            </div>
-            
-            <textarea id="input-ulasan" placeholder="Ada masukan untuk kami?" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #ddd;"></textarea>
-            
-            <button class="btn-confirm" onclick="kirimRatingFinal()" style="margin-top: 20px;">KIRIM ULASAN</button>
-        </div>
-    </div>
-
-    <p class="text-center" style="font-size: 10px; color: #94a3b8; margin: 20px 0;">
-        <b>Ojek Kuningan v1.1.0 Stable</b><br>
-        Terima kasih telah menggunakan karya lokal.
-    </p>
-
-</div>
-
-<script src="wilayah.js"></script>
-<script src="core.js"></script>
-<script src="user-logic.js"></script>
-
-<script>
-    function bagikanAplikasi() {
-        const urlApp = window.location.href;
-        const pesan = encodeURIComponent(
-            "📍 *Ojek Kuningan*\n\n" +
-            "Yuk coba ojek lokal Kuningan! Tanpa potongan komisi, upah 100% buat driver. Aman, cepat, dan transparan.\n\n" +
-            "Pesan di sini: " + urlApp + "\n\n" +
-            "Sebarkan ke warga Kuningan lainnya ya! 🚀"
-        );
-        window.open(`https://wa.me/?text=${pesan}`, '_blank');
-    }
-
-    // Fungsi pembantu jika user-logic belum memuatnya
-    function tampilkanScreen(id) {
-        document.querySelectorAll('.screen, .active-screen').forEach(s => {
-            s.style.display = 'none';
-            s.classList.remove('active-screen');
-        });
-        const target = document.getElementById(id);
-        if(target) {
-            target.style.display = 'block';
-            target.classList.add('active-screen');
-        }
-    }
-</script>
+    <script src="js-engines/driver-auth.js"></script>
+    <script src="js-engines/driver-gatekeeper.js"></script>
+    <script src="js-engines/driver-sharding.js"></script>
+    <script src="js-engines/driver-market.js"></script>
+    <script src="js-engines/driver-bidding.js"></script>
+    <script src="js-engines/driver-conflict.js"></script>
+    <script src="js-engines/driver-tracker.js"></script>
+    <script src="js-engines/driver-navigator.js"></script>
+    <script src="js-engines/driver-messenger.js"></script>
+    <script src="js-engines/driver-journal.js"></script>
+    <script src="js-engines/driver-wallet.js"></script>
+    <script src="js-engines/driver-rank.js"></script>
+    <script src="js-engines/driver-archive.js"></script>
+    <script src="js-engines/driver-recovery.js"></script>
+    <script src="js-engines/driver-broadcast.js"></script>
+    
+    <script src="js-engines/driver-core.js"></script>
 
 </body>
-                        </html>
-    
+            </html>
+                
