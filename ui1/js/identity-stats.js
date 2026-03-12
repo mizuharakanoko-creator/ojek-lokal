@@ -21,3 +21,36 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMotto();
     // Anda bisa menambahkan logika perubahan bingkai berdasarkan Rank di sini nanti
 });
+
+
+
+
+
+
+
+
+
+
+
+// --- Attribute Chart Logic ---
+// Fungsi untuk simulasi update stat (Jika dibutuhkan nanti)
+function updateAttributes(data) {
+    // Di sini Anda bisa memanipulasi points pada polygon .data-line secara dinamis
+    console.log("Attributes updated with new system data.");
+}
+
+// Event Listener untuk integrasi Weather (Debuff)
+function syncWeatherToStats(weather) {
+    const rainSlot = document.getElementById('slot-rain');
+    if (weather === 'rain') {
+        rainSlot.style.display = 'block';
+    } else {
+        rainSlot.style.display = 'none';
+    }
+}
+
+// Inisialisasi awal
+document.addEventListener('DOMContentLoaded', () => {
+    // Sembunyikan slot rain secara default
+    syncWeatherToStats('clear');
+});
