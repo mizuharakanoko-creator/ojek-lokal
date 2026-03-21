@@ -54,3 +54,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sembunyikan slot rain secara default
     syncWeatherToStats('clear');
 });
+
+
+function toggleDetails() {
+    const extraInfo = document.getElementById('extra-info');
+    const tapHint = document.getElementById('tap-hint');
+    
+    if (extraInfo.style.display === 'none') {
+        extraInfo.style.display = 'block';
+        tapHint.innerHTML = '▲ CLOSE DETAILS';
+    } else {
+        extraInfo.style.display = 'none';
+        tapHint.innerHTML = '▼ TAP FOR DETAILS';
+    }
+}
+
