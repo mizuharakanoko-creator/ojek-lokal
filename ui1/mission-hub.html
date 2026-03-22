@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mission Hub - PICK ME</title>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style-core.css"> <link rel="stylesheet" href="css/mission-style.css">
+    <link rel="stylesheet" href="css/style-core.css">
+    <link rel="stylesheet" href="css/mission-style.css">
 </head>
 <body class="mission-body">
 
@@ -23,29 +24,31 @@
 
         <div class="resource-bars">
             <div class="res-item">
-                <div class="res-label">STAMINA (HP) <span id="hp-val">550/1000</span></div>
-                <div class="bar-bg"><div class="bar-fill hp-fill" style="width: 55%;"></div></div>
+                <div class="res-label">STAMINA (HP) <span id="hp-text">550/1000</span></div>
+                <div class="bar-bg"><div id="hp-bar" class="bar-fill hp-fill" style="width: 55%;"></div></div>
             </div>
             <div class="res-item">
-                <div class="res-label">EXP PROGRESS <span id="exp-val">695/2000</span></div>
-                <div class="bar-bg"><div class="bar-fill exp-fill" style="width: 35%;"></div></div>
+                <div class="res-label">EXP PROGRESS <span id="exp-text">695/2000</span></div>
+                <div class="bar-bg"><div id="exp-bar" class="bar-fill exp-fill" style="width: 35%;"></div></div>
             </div>
         </div>
     </header>
 
     <section class="map-container">
         <div id="map-placeholder">
-            <div class="radar-scan"></div>
+            <div id="radar" class="radar-scan" style="display:none;"></div>
             <div class="heatmap-point" style="top:30%; left:40%;"></div>
-            <div class="heatmap-point pulse" style="top:60%; left:70%;"></div>
-            <p class="map-msg">GPS SIGNAL: <span class="cyan-glow">SECURED</span></p>
+            <p class="map-msg">GPS SIGNAL: <span id="gps-status" class="red-glow">OFFLINE</span></p>
         </div>
     </section>
 
-    <section class="mission-list" id="mission-box">
-        <h2 class="section-title">AVAILABLE MISSIONS</h2>
+    <div id="stamina-refill" class="refill-banner" style="display:none;">
+        <p>Stamina Habis! Tonton iklan untuk +200 HP</p>
+        <button class="btn-ad" onclick="watchAd()">NONTON IKLAN</button>
+    </div>
 
-        <div class="mission-card trust-blue">
+    <section class="mission-list" id="mission-box">
+        <div class="mission-card trust-blue" id="mission-1">
             <details>
                 <summary>
                     <div class="card-header">
@@ -57,54 +60,21 @@
                             <span class="gold">Rp 25.000</span>
                             <span class="exp-plus">+150 EXP</span>
                         </div>
-                        <div class="timer">04:59</div>
+                        <div class="timer" id="timer-1">05:00</div>
                     </div>
                 </summary>
-                
                 <div class="card-detail">
                     <div class="stat-grid">
                         <div class="stat-item">👍 <br> 120</div>
                         <div class="stat-item">👎 <br> 2</div>
                         <div class="stat-item">RANK <br> <span class="blue">CITIZEN</span></div>
                     </div>
-                    <p class="order-desc">Antar Paket: Elektronik (Fragile)</p>
                     <div class="client-history">
-                        <span>Member: 2 Thn</span> | <span>Selesai: 450</span> | <span>Batal: 1</span>
+                        <span>Selesai: 450</span> | <span>Batal: 1</span>
                     </div>
                     <div class="action-row">
                         <button class="btn-nego">NEGO</button>
-                        <button class="btn-apply" onclick="applyMission(50)">LAMAR (-50 HP)</button>
-                    </div>
-                </div>
-            </details>
-        </div>
-
-        <div class="mission-card danger-red">
-            <details>
-                <summary>
-                    <div class="card-header">
-                        <div class="client-info">
-                            <span class="client-name">Unknown_User</span>
-                            <span class="dist">0.5 KM</span>
-                        </div>
-                        <div class="reward-info">
-                            <span class="gold">Rp 45.000</span>
-                            <span class="exp-plus">+200 EXP</span>
-                        </div>
-                        <div class="timer">02:15</div>
-                    </div>
-                </summary>
-                
-                <div class="card-detail">
-                    <div class="warning-tag">HIGH CANCELLATION RISK!</div>
-                    <div class="stat-grid">
-                        <div class="stat-item">👍 <br> 5</div>
-                        <div class="stat-item">👎 <br> 28</div>
-                        <div class="stat-item">RANK <br> <span class="red">OUTLAW</span></div>
-                    </div>
-                    <div class="action-row">
-                        <button class="btn-nego">NEGO</button>
-                        <button class="btn-apply" onclick="applyMission(50)">LAMAR (-50 HP)</button>
+                        <button class="btn-apply" onclick="applyMission('mission-1', 50, 150)">LAMAR (-50 HP)</button>
                     </div>
                 </div>
             </details>
@@ -112,18 +82,86 @@
     </section>
 
     <script>
-        function toggleSystem() {
-            const isOnline = document.getElementById('online-toggle').checked;
-            const label = document.getElementById('status-label');
-            label.innerText = isOnline ? "READY TO ORDER" : "OFFLINE";
-            label.className = isOnline ? "status-text online-glow" : "status-text";
+        let currentHP = 550;
+        let currentEXP = 695;
+
+        // Simulasi Timer
+        function startTimer(duration, displayId, cardId) {
+            let timer = duration, minutes, seconds;
+            let countdown = setInterval(function () {
+                minutes = parseInt(timer / 60, 10);
+                seconds = parseInt(timer % 60, 10);
+                document.getElementById(displayId).textContent = 
+                    (minutes < 10 ? "0" + minutes : minutes) + ":" + (seconds < 10 ? "0" + seconds : seconds);
+
+                if (--timer < 0) {
+                    clearInterval(countdown);
+                    document.getElementById(cardId).style.opacity = "0.5";
+                    document.getElementById(cardId).innerHTML = "<p style='text-align:center; padding:10px;'>MISSION EXPIRED</p>";
+                    setTimeout(() => document.getElementById(cardId).remove(), 2000);
+                }
+            }, 1000);
         }
 
-        function applyMission(cost) {
-            alert("Lamaran terkirim! Menunggu konfirmasi pemesan...");
-            // Logika potong stamina bisa ditambahkan di sini
+        // Jalankan timer untuk misi yang ada
+        startTimer(300, 'timer-1', 'mission-1');
+
+        function toggleSystem() {
+            const isOnline = document.getElementById('online-toggle').checked;
+            document.getElementById('status-label').innerText = isOnline ? "READY TO ORDER" : "OFFLINE";
+            document.getElementById('radar').style.display = isOnline ? "block" : "none";
+            document.getElementById('gps-status').innerText = isOnline ? "SECURED" : "OFFLINE";
+            document.getElementById('gps-status').className = isOnline ? "cyan-glow" : "red-glow";
+        }
+
+        function applyMission(cardId, hpCost, expGain) {
+            if (currentHP < hpCost) {
+                document.getElementById('stamina-refill').style.display = "block";
+                alert("Stamina tidak cukup!");
+                return;
+            }
+
+            // Kurangi HP
+            currentHP -= hpCost;
+            updateResources();
+
+            const btn = document.querySelector(`#${cardId} .btn-apply`);
+            btn.innerText = "PENDING...";
+            btn.disabled = true;
+
+            // Simulasi diproses pemesan
+            setTimeout(() => {
+                let success = Math.random() > 0.5; // 50% kemungkinan diterima
+                if(success) {
+                    alert("DITERIMA! + " + expGain + " EXP didapat.");
+                    currentEXP += expGain;
+                    updateResources();
+                    document.getElementById(cardId).remove();
+                } else {
+                    alert("Lamaran ditolak oleh pemesan.");
+                    btn.innerText = "LAMAR (-50 HP)";
+                    btn.disabled = false;
+                }
+            }, 3000);
+        }
+
+        function watchAd() {
+            alert("Memutar Iklan...");
+            setTimeout(() => {
+                currentHP = Math.min(currentHP + 200, 1000);
+                updateResources();
+                document.getElementById('stamina-refill').style.display = "none";
+                alert("Stamina bertambah +200 HP!");
+            }, 2000);
+        }
+
+        function updateResources() {
+            document.getElementById('hp-text').innerText = currentHP + "/1000";
+            document.getElementById('hp-bar').style.width = (currentHP / 10) + "%";
+            document.getElementById('exp-text').innerText = currentEXP + "/2000";
+            document.getElementById('exp-bar').style.width = (currentEXP / 20) + "%";
         }
     </script>
 </body>
-          </html>
-                          
+    </html>
+        
