@@ -106,6 +106,20 @@
             </div>
     </div>
         </div>
+
+
+
+    <div class="streak-tag">
+    STREAK: 
+    <span id="streak-dots">
+        <span class="streak-dot"></span>
+        <span class="streak-dot"></span>
+        <span class="streak-dot"></span>
+    </span>
+    <div id="streak-bonus-msg" class="streak-bonus-text" style="display:none;">BUFF: 0 HP COST ACTIVE!</div>
+    </div>
+
+        
         
     </footer>
 
@@ -689,6 +703,172 @@
             showNotification(isScam ? "SENSORS DETECT CHAOS RANK!" : "New mission detected", isScam ? "error" : "success");
         }
 
+
+                // === 16. SISTEM REPORT (PELAPORAN AKUN) ===
+        function reportUser(cardId) {
+            if(!confirm("Laporkan akun ini karena aktivitas mencurigakan?")) return;
+
+            const card = document.getElementById(cardId);
+            card.classList.add('reporting-active');
+            
+            triggerVibration("short");
+            showNotification("REPORTING TO SYSTEM...", "error");
+
+            setTimeout(() => {
+                // Efek visual kartu menghilang (glitch)
+                card.classList.add('glitch-out');
+                
+                setTimeout(() => {
+                    card.remove();
+                    // Bonus kecil untuk driver yang rajin lapor (misal +5 EXP)
+                    addExp(5); 
+                    showNotification("REPORT SUCCESS: Target Removed", "success");
+                }, 400);
+            }, 1500);
+        }
+
+        // Tambahkan tombol report di HTML kartu (update fungsi generateGhostOrder bagian action-row)
+        // Di dalam fungsi generateGhostOrder Anda, ganti action-row menjadi:
+        /*
+        <div class="action-row">
+            <button class="btn-nego" onclick="openNego('${id}', '15.000')">NEGO</button>
+            <button class="btn-apply" onclick="applyQuest('${id}', 25)">APPLY</button>
+            <button class="btn-nego" style="color:var(--p-red); border-color:#500;" onclick="reportUser('${id}')">REPORT</button>
+        </div>
+        */
+
+        // === 17. SISTEM LEVEL UP DRIVER ===
+        let currentLevel = 12; // Level awal (dummy)
+
+        function addExp(amount) {
+            userData.exp += amount;
+            
+            // Cek apakah EXP melampaui batas
+            if (userData.exp >= userData.maxExp) {
+                let excessExp = userData.exp - userData.maxExp;
+                triggerLevelUp(excessExp);
+            } else {
+                updateUI();
+            }
+        }
+
+        function triggerLevelUp(excess) {
+            currentLevel++;
+            userData.exp = excess; // Sisa EXP dibawa ke level berikutnya
+            userData.maxExp += 500; // Level berikutnya lebih susah
+            
+            // Efek Suara & Getar
+            triggerVibration("emergency");
+            document.getElementById('snd-success').play();
+
+            // Tampilkan Overlay Level Up
+            const lvOverlay = document.createElement('div');
+            lvOverlay.className = 'level-up-overlay';
+            lvOverlay.innerHTML = `
+                <div class="level-sub">RANK UP!</div>
+                <div class="level-text">LEVEL ${currentLevel}</div>
+                <div style="color:#fff; margin-top:20px;">ALL STATS RESTORED</div>
+                <button class="btn-apply" style="margin-top:30px; width:200px;" onclick="closeLevelUp(this)">CONTINUE</button>
+            `;
+            document.body.appendChild(lvOverlay);
+
+            // Reward Level Up: HP Full Kembali
+            userData.hp = userData.maxHp;
+            updateUI();
+        }
+
+        function closeLevelUp(btn) {
+            const overlay = btn.parentElement;
+            overlay.style.opacity = "0";
+            setTimeout(() => overlay.remove(), 500);
+        }
+
+        // Simulasi: Tes Level Up dengan menambah 1500 EXP (panggil di konsol atau buat tombol)
+        function testLevelUp() {
+            addExp(1500);
+        }
+
+
+                // === 18. SISTEM STREAK BONUS ===
+        let currentStreak = 0;
+        const maxStreak = 3;
+
+        function updateStreakUI() {
+            const dots = document.querySelectorAll('.streak-dot');
+            const bonusMsg = document.getElementById('streak-bonus-msg');
+            
+            dots.forEach((dot, index) => {
+                if (index < currentStreak) {
+                    dot.classList.add('streak-active');
+                } else {
+                    dot.classList.remove('streak-active');
+                }
+            });
+
+            // Jika streak penuh, tampilkan pesan bonus
+            if (currentStreak >= maxStreak) {
+                bonusMsg.style.display = "block";
+                triggerVibration("short");
+            } else {
+                bonusMsg.style.display = "none";
+            }
+        }
+
+        // Fungsi yang dipanggil saat misi benar-benar SELESAI
+        function completeMission() {
+            // Tambah EXP
+            addExp(250); // Contoh hadiah EXP
+            
+            // Logika Streak
+            if (currentStreak < maxStreak) {
+                currentStreak++;
+            } else {
+                // Jika sudah dpt bonus, streak reset setelah digunakan
+                currentStreak = 0; 
+            }
+            
+            updateStreakUI();
+            showNotification("MISSION COMPLETE: Streak +1");
+        }
+
+        // MODIFIKASI: Update fungsi applyQuest untuk mengecek bonus streak
+        // Ganti bagian pengecekan HP di fungsi applyQuest Anda sebelumnya:
+        function applyQuest(cardId, cost) {
+            if(!userData.isOnline) {
+                showNotification("SYSTEM OFFLINE!", "error");
+                return;
+            }
+
+            // CEK STREAK BONUS: Jika streak == 3, maka cost jadi 0
+            let finalCost = (currentStreak >= maxStreak) ? 0 : cost;
+
+            if (userData.hp < finalCost) {
+                showNotification("LOW STAMINA!", "error");
+                return;
+            }
+
+            // Kurangi HP (jika bukan bonus)
+            userData.hp -= finalCost;
+            
+            // Jika dia pakai bonus, reset streak setelah klik apply
+            if (currentStreak >= maxStreak) {
+                currentStreak = 0;
+                showNotification("STREAK BONUS USED: 0 HP CONSUMED!");
+            }
+
+            updateUI();
+            updateStreakUI();
+
+            // ... sisa kode applyQuest (timer, pending, dll) sama seperti sebelumnya ...
+            // Simulasi sukses di akhir:
+            setTimeout(() => {
+                if(Math.random() > 0.4) {
+                    showSuccessNotif(cardId);
+                    completeMission(); // Panggil ini saat sukses
+                }
+            }, 3000);
+                }
+                                 
 
         
         
