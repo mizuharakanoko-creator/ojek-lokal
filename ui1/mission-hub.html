@@ -870,6 +870,66 @@
                 }
                                  
 
+
+                // === 19. SISTEM REFILL STAMINA (ADS SIMULATION) ===
+        
+        function watchAd() {
+            // Jika HP sudah penuh, tidak perlu nonton iklan
+            if(userData.hp >= userData.maxHp) {
+                showNotification("STAMINA IS ALREADY FULL", "success");
+                return;
+            }
+
+            // Buat Overlay Iklan Palsu
+            const adContainer = document.createElement('div');
+            adContainer.className = 'ad-overlay';
+            adContainer.innerHTML = `
+                <div class="ad-scanner"></div>
+                <div class="ad-text">RECOVERING STAMINA CORE...</div>
+                <div id="ad-timer" style="color:#555; font-size:12px; margin-top:10px;">PLEASE WAIT 5s</div>
+            `;
+            document.body.appendChild(adContainer);
+
+            // Simulasi Durasi Iklan (5 detik)
+            let timeLeft = 5;
+            const countdown = setInterval(() => {
+                timeLeft--;
+                document.getElementById('ad-timer').innerText = `PLEASE WAIT ${timeLeft}s`;
+                
+                if(timeLeft <= 0) {
+                    clearInterval(countdown);
+                    finalizeRefill(adContainer);
+                }
+            }, 1000);
+        }
+
+        function finalizeRefill(container) {
+            // Hapus Overlay
+            container.remove();
+
+            // Isi HP (Bisa diatur: Full atau cuma +300)
+            const refillAmount = 500;
+            userData.hp = Math.min(userData.hp + refillAmount, userData.maxHp);
+            
+            // Update UI & Notifikasi
+            updateUI();
+            triggerVibration("long");
+            showNotification(`RECOVERY COMPLETE: +${refillAmount} HP`, "success");
+
+            // Efek suara sukses jika ada
+            document.getElementById('snd-success').play();
+        }
+
+        // === 20. AUTOMATIC REGENERATION (IDLE SYSTEM) ===
+        // Stamina bertambah +5 setiap 30 detik secara otomatis (pasif)
+        setInterval(() => {
+            if(userData.hp < userData.maxHp) {
+                userData.hp = Math.min(userData.hp + 5, userData.maxHp);
+                updateUI();
+                console.log("System: Passive Stamina Regenerated (+5)");
+            }
+        }, 30000); 
+               
         
         
         
