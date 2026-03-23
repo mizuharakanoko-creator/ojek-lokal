@@ -111,6 +111,12 @@
 
 
 
+<audio id="snd-success" src="https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3"></audio>
+<audio id="snd-failed" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
+
+<div id="toast-container" class="toast-wrapper"></div>
+    
+
 
 
 
@@ -451,6 +457,101 @@
         document.querySelectorAll('.f-btn')[2].onclick = watchAd;
             
 
+
+                // === 13. SISTEM NOTIFIKASI (TOAST & SOUND) ===
+        
+        /**
+         * Fungsi untuk memunculkan notifikasi kecil (Toast)
+         * @param {string} msg - Pesan yang ditampilkan
+         * @param {string} type - 'success' atau 'error'
+         */
+        function showNotification(msg, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast-item ${type === 'error' ? 'error' : ''}`;
+            toast.innerText = msg;
+
+            container.appendChild(toast);
+
+            // Trigger Suara
+            if(type === 'success') {
+                document.getElementById('snd-success').play().catch(e => console.log("Audio play blocked by browser"));
+            } else {
+                document.getElementById('snd-failed').play().catch(e => console.log("Audio play blocked by browser"));
+            }
+
+            // Hapus otomatis setelah 4 detik
+            setTimeout(() => {
+                toast.style.animation = "toastIn 0.3s ease-in reverse forwards";
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // === REVISI FUNGSI APPLYQUEST (Integrasi Notifikasi) ===
+        // Ganti fungsi applyQuest lama dengan ini
+        function applyQuest(cardId, cost) {
+            if(!userData.isOnline) {
+                showNotification("SYSTEM OFFLINE: Aktifkan STOR!", "error");
+                return;
+            }
+
+            if (userData.hp < cost) {
+                showNotification("LOW STAMINA: Segera refill!", "error");
+                return;
+            }
+
+            userData.hp -= cost;
+            updateUI();
+
+            const btn = document.querySelector(`#${cardId} .btn-apply`);
+            btn.innerText = "WAITING...";
+            btn.disabled = true;
+
+            showNotification("APPLICATION SENT: Menunggu respon...");
+
+            setTimeout(() => {
+                const isAccepted = Math.random() > 0.4; // 60% Diterima
+
+                if(isAccepted) {
+                    // Beri efek glow pada kartu yang diterima
+                    document.getElementById(cardId).classList.add('quest-accepted-glow');
+                    
+                    // Munculkan Popup Besar (Level Up Feel)
+                    showSuccessNotif(cardId);
+                    showNotification("QUEST SECURED!");
+                } else {
+                    showNotification("MISSION FAILED: Driver lain lebih cepat.", "error");
+                    btn.innerText = "APPLY AGAIN";
+                    btn.disabled = false;
+                }
+            }, 3000);
+        }
+
+        // Fungsi khusus Popup Sukses (Modifikasi dari sebelumnya)
+        function showSuccessNotif(cardId) {
+            const reward = document.querySelector(`#${cardId} .q-gold`).innerText;
+            
+            const popupHTML = `
+                <div class="popup-content">
+                    <span class="popup-title" style="color:var(--p-cyan)">MISSION ASSIGNED!</span>
+                    <div style="margin: 15px 0; border: 1px solid var(--p-cyan); padding: 10px; background: rgba(0,255,242,0.05)">
+                        <p style="font-size: 10px; color: #888; margin-bottom: 5px;">POTENTIAL EARNING:</p>
+                        <h2 style="color:gold; margin: 0;">${reward}</h2>
+                    </div>
+                    <p style="font-size: 12px;">Segera menuju lokasi penjemputan sebelum timer habis!</p>
+                    <button class="btn-apply" style="width:100%; margin-top:15px;" onclick="window.location.href='index.html'">NAVIGASI KE LOKASI</button>
+                </div>
+            `;
+            
+            // Gunakan sistem modal yang sudah ada
+            openModal("S-RANK MISSION START", popupHTML);
+            
+            // Play sound success
+            document.getElementById('snd-success').play();
+        }
+            
+
+        
         
 
         // === INITIAL RUN ===
