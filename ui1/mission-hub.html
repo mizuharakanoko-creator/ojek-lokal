@@ -96,6 +96,287 @@
         <button class="f-btn red-alert">⚡ REFILL</button>
     </footer>
 
+
+
+
+
+
+
+
+
+    <script>
+        // === 1. DATA INITIALIZATION (Data Awal) ===
+        // Anda bisa mengubah angka ini sesuai dengan data dari Database/Halaman Utama nantinya
+        let userData = {
+            hp: 550,
+            maxHp: 1000,
+            exp: 695,
+            maxExp: 2000,
+            isOnline: false,
+            streak: 2
+        };
+
+        // === 2. SISTEM REFRESH UI (Sinkronisasi Bar) ===
+        function updateUI() {
+            // Update Teks Angka
+            document.getElementById('hp-text').innerText = `${userData.hp}/${userData.maxHp}`;
+            document.getElementById('exp-text').innerText = `${userData.exp}/${userData.maxExp}`;
+
+            // Update Panjang Bar (Persentase)
+            const hpPercent = (userData.hp / userData.maxHp) * 100;
+            const expPercent = (userData.exp / userData.maxExp) * 100;
+            
+            document.getElementById('hp-fill').style.width = hpPercent + "%";
+            document.getElementById('exp-fill').style.width = expPercent + "%";
+
+            // Cek jika HP kritis untuk tombol refill
+            const refillBtn = document.getElementById('refill-btn');
+            if(userData.hp < 100) {
+                refillBtn.style.display = "block";
+            } else {
+                refillBtn.style.display = "none";
+            }
+        }
+
+        // === 3. SISTEM TOGGLE ONLINE (Radar & GPS) ===
+        function toggleSystem() {
+            const toggle = document.getElementById('online-toggle');
+            const statusLabel = document.getElementById('status-label');
+            const radar = document.getElementById('radar-anim');
+            const gpsStatus = document.getElementById('gps-status');
+
+            userData.isOnline = toggle.checked;
+
+            if (userData.isOnline) {
+                statusLabel.innerText = "ONLINE";
+                statusLabel.style.color = "var(--p-cyan)";
+                radar.classList.add('scanning'); // Jalankan Animasi Radar
+                gpsStatus.innerText = "SECURED [STOR ACTIVE]";
+                gpsStatus.className = "txt-cyan"; // Ubah warna jadi biru neon
+                console.log("System: Tracking GPS...");
+            } else {
+                statusLabel.innerText = "OFFLINE";
+                statusLabel.style.color = "#fff";
+                radar.classList.remove('scanning'); // Matikan Radar
+                gpsStatus.innerText = "DISCONNECTED";
+                gpsStatus.className = "txt-red";
+            }
+        }
+
+        // === 4. SISTEM TIMER MISI (Countdown) ===
+        function startMissionTimer(duration, displayId, cardId) {
+            let timer = duration, minutes, seconds;
+            
+            const countdown = setInterval(function () {
+                minutes = parseInt(timer / 60, 10);
+                seconds = parseInt(timer % 60, 10);
+
+                minutes = minutes < 10 ? "0" + minutes : minutes;
+                seconds = seconds < 10 ? "0" + seconds : seconds;
+
+                const display = document.getElementById(displayId);
+                if(display) {
+                    display.textContent = minutes + ":" + seconds;
+                }
+
+                if (--timer < 0) {
+                    clearInterval(countdown);
+                    expireMission(cardId);
+                }
+            }, 1000);
+        }
+
+        function expireMission(cardId) {
+            const card = document.getElementById(cardId);
+            if(card) {
+                card.style.opacity = "0.3";
+                card.style.pointerEvents = "none";
+                card.querySelector('.timer').innerText = "EXPIRED";
+                console.log(`Mission ${cardId} has expired.`);
+                // Opsi: Hapus kartu setelah beberapa detik
+                setTimeout(() => card.remove(), 3000);
+            }
+        }
+
+        // === 5. SISTEM APPLY MISSION (Proses Melamar) ===
+        function applyQuest(cardId, cost) {
+            // Cek apakah Online
+            if(!userData.isOnline) {
+                alert("ACCESS DENIED: Aktifkan status ONLINE untuk melamar!");
+                return;
+            }
+
+            // Cek Stamina
+            if (userData.hp < cost) {
+                alert("ENERGY INSUFFICIENT: Silahkan refill stamina!");
+                return;
+            }
+
+            // Kurangi Stamina & Update UI
+            userData.hp -= cost;
+            updateUI();
+
+            // Animasi Tombol saat "Selection Phase"
+            const btn = document.querySelector(`#${cardId} .btn-apply`);
+            const originalText = btn.innerText;
+            btn.innerText = "PENDING APPROVAL...";
+            btn.disabled = true;
+            btn.style.background = "#333";
+
+            console.log(`Applying for ${cardId}... Profil RPG terkirim ke pemesan.`);
+
+            // Simulasi "Selection Phase" (Menunggu Pemesan)
+            setTimeout(() => {
+                // Simulasi hasil: 70% diterima
+                const isAccepted = Math.random() > 0.3;
+
+                if(isAccepted) {
+                    showSuccessNotif(cardId);
+                } else {
+                    alert("REJECTED: Pemesan memilih driver lain.");
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                    btn.style.background = "var(--p-purple)";
+                }
+            }, 3000); // Tunggu 3 detik
+        }
+
+        // === 6. NOTIFIKASI & POPUP ===
+        function showSuccessNotif(cardId) {
+            // Suara Quest Berhasil (Jika Anda punya file audionya)
+            // let audio = new Audio('sounds/quest_start.mp3'); audio.play();
+
+            const popup = document.createElement('div');
+            popup.className = 'quest-popup';
+            popup.innerHTML = `
+                <div class="popup-content">
+                    <span class="popup-title">QUEST ACCEPTED!</span>
+                    <p>Sistem telah mengunci pesanan untuk Anda.</p>
+                    <button class="btn-apply" onclick="location.reload()">MULAI JALANKAN</button>
+                </div>
+            `;
+            document.body.appendChild(popup);
+        }
+
+
+                // === 7. SISTEM NEGO (TAWAR MENAWAR) ===
+        function openNego(cardId, currentPrice) {
+            // Kita gunakan prompt sederhana atau Anda bisa kembangkan jadi modal nantinya
+            let cleanPrice = currentPrice.replace(/[^0-9.-]+/g,""); // Menghapus "Rp" dan titik
+            let newPrice = prompt(`HARGA SAAT INI: Rp ${currentPrice}\nMasukkan penawaran Anda:`, cleanPrice);
+
+            if (newPrice != null && newPrice != "") {
+                const btnNego = document.querySelector(`#${cardId} .btn-nego`);
+                btnNego.innerText = "WAITING NEGO...";
+                btnNego.disabled = true;
+                btnNego.style.borderColor = "var(--p-gold)";
+
+                console.log(`System: Mengirim penawaran Rp ${newPrice} ke pemesan.`);
+
+                // Simulasi respon pemesan terhadap nego (40% diterima)
+                setTimeout(() => {
+                    if(Math.random() > 0.6) {
+                        alert(`NEGO DITERIMA! Harga baru: Rp ${parseInt(newPrice).toLocaleString('id-ID')}`);
+                        document.querySelector(`#${cardId} .q-gold`).innerText = `Rp ${parseInt(newPrice).toLocaleString('id-ID')}`;
+                        btnNego.innerText = "ACCEPTED";
+                    } else {
+                        alert("NEGO DITOLAK: Pemesan tetap pada harga awal.");
+                        btnNego.innerText = "NEGO AGAIN";
+                        btnNego.disabled = false;
+                    }
+                }, 2000);
+            }
+        }
+
+        // === 8. SISTEM GHOST/FAKE ORDER GENERATOR ===
+        // Berfungsi agar aplikasi terlihat aktif dengan misi otomatis dari sistem
+        function generateGhostOrder() {
+            if(!userData.isOnline) return; // Hanya muncul jika Driver Online
+
+            const missionBox = document.getElementById('mission-box');
+            const id = "ghost-" + Math.floor(Math.random() * 1000);
+            const names = ["DANI_SHADOW", "X-REBEL", "ZODIAC_KLR", "MYSTIC_V"];
+            const randomName = names[Math.floor(Math.random() * names.length)];
+            
+            const ghostHTML = `
+                <div class="quest-card red-tier" id="${id}" style="animation: slideIn 0.5s ease-out;">
+                    <details>
+                        <summary>
+                            <div class="q-summary-grid">
+                                <div class="q-client-name terminal-font">${randomName}</div>
+                                <div class="q-meta-info">
+                                    <span class="reward">Rp ${Math.floor(Math.random() * 50000 + 10000).toLocaleString('id-ID')}</span>
+                                    <span class="timer" id="t-${id}">03:00</span>
+                                </div>
+                            </div>
+                        </summary>
+                        <div class="q-details">
+                            <div class="anti-fraud-tag blink">⚠️ SYSTEM GENERATED MISSION</div>
+                            <div class="info-list">
+                                <p><strong>Rank:</strong> <span class="txt-red">UNKNOWN</span></p>
+                                <p class="note">"Misi rahasia: Antar paket anonim ke koordinat X."</p>
+                            </div>
+                            <div class="action-row">
+                                <button class="btn-nego" onclick="openNego('${id}', '20.000')">NEGO</button>
+                                <button class="btn-apply" onclick="applyQuest('${id}', 30)">APPLY (-30 HP)</button>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            `;
+
+            missionBox.insertAdjacentHTML('beforeend', ghostHTML);
+            startMissionTimer(180, `t-${id}`, id); // Timer 3 menit untuk misi hantu
+        }
+
+        // Jalankan Ghost Order setiap 45 detik jika online
+        setInterval(() => {
+            if(userData.isOnline) generateGhostOrder();
+        }, 45000);
+
+        // === 9. WEATHER & TIME BUFF LOGIC ===
+        function checkBuffs() {
+            const now = new Date();
+            const hours = now.getHours();
+            const buffElement = document.querySelector('.weather-tag');
+
+            // Jika jam 9 malam (21) sampai jam 4 pagi
+            if(hours >= 21 || hours <= 4) {
+                buffElement.innerHTML = "🌙 NIGHT BUFF: EXP 1.5x ACTIVE";
+                buffElement.style.color = "var(--p-cyan)";
+            } else {
+                buffElement.innerHTML = "☀️ DAY MODE: NORMAL EXP";
+                buffElement.style.color = "#888";
+            }
+        }
+
+        // Tambahkan ke window.onload yang sudah ada sebelumnya
+        const originalOnload = window.onload;
+        window.onload = function() {
+            if(originalOnload) originalOnload();
+            checkBuffs();
+            
+            // Pasangkan fungsi Nego ke tombol yang sudah ada di HTML
+            const btnNegoAwal = document.querySelector('.btn-nego');
+            if(btnNegoAwal) {
+                btnNegoAwal.onclick = () => openNego('m-1', '35.000');
+            }
+        };
+
+        
+
+        // === INITIAL RUN ===
+        window.onload = function() {
+            updateUI();
+            // Jalankan timer untuk misi yang ada di HTML (300 detik = 5 menit)
+            startMissionTimer(300, 't-1', 'm-1');
+        };
+
+                </script>
+    
+
+
+    
 </body>
     </html>
         
