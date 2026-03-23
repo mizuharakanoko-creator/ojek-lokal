@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SYSTEM LOGIN | S-CLASS HUB</title>
+    
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     
@@ -23,11 +24,12 @@
         }
 
         .login-card {
-            width: 300px; padding: 30px;
+            width: 320px; padding: 30px;
             border: 1px solid var(--p-purple);
             background: rgba(10, 10, 10, 0.9);
             box-shadow: 0 0 20px rgba(188, 0, 255, 0.3);
             text-align: center;
+            box-sizing: border-box;
         }
 
         .glitch-text {
@@ -36,25 +38,28 @@
         }
 
         .input-group { margin-bottom: 20px; text-align: left; }
-        label { font-size: 10px; color: #888; display: block; margin-bottom: 5px; }
+        label { font-size: 10px; color: #888; display: block; margin-bottom: 5px; text-transform: uppercase; }
         
         input, select {
             width: 100%; padding: 12px; background: #000;
             border: 1px solid #333; color: #fff; box-sizing: border-box;
-            outline: none; font-family: 'Courier New', monospace;
+            outline: none; font-family: 'Courier New', monospace; font-size: 14px;
         }
 
         input:focus { border-color: var(--p-cyan); }
 
         .btn-login {
-            width: 100%; padding: 12px;
+            width: 100%; padding: 15px;
             background: var(--p-purple); color: #fff;
             border: none; font-weight: bold; cursor: pointer;
             margin-top: 10px; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
+            text-transform: uppercase;
         }
 
-        .footer-link { margin-top: 20px; font-size: 10px; color: #555; }
-        .footer-link a { color: var(--p-cyan); text-decoration: none; }
+        .btn-login:active { transform: scale(0.95); opacity: 0.8; }
+
+        .footer-link { margin-top: 25px; font-size: 10px; color: #555; line-height: 1.5; }
+        .footer-link a { color: var(--p-cyan); text-decoration: none; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -63,60 +68,77 @@
     <div class="glitch-text">AUTHENTICATION</div>
     
     <div class="input-group">
-        <label>ACCESS ID (UNIQUE ID)</label>
-        <input type="text" id="login-id" placeholder="Masukkan ID Anda...">
+        <label>Access ID (Unique ID)</label>
+        <input type="text" id="login-id" placeholder="ID Registrasi Anda...">
     </div>
 
     <div class="input-group">
-        <label>USER TYPE</label>
+        <label>Account Type</label>
         <select id="login-type">
             <option value="customer">PEMESAN (CUSTOMER)</option>
             <option value="driver">DRIVER (S-CLASS)</option>
         </select>
     </div>
 
-    <button class="btn-login" onclick="processLogin()">IDENTITY VERIFY</button>
+    <button class="btn-login" onclick="processLogin()">Identity Verify</button>
 
     <div class="footer-link">
-        Belum punya ID? <br>
-        <a href="register-client.html">REGISTER NEW ACCOUNT</a>
+        ACCESS DENIED? <br>
+        <a href="register-client.html">CREATE NEW CITIZEN ID</a>
     </div>
 </div>
 
 <script>
+    // DATA KONFIGURASI ASLI ANDA
     const firebaseConfig = {
-        apiKey: "AIza...", // Gunakan milik Anda
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
         authDomain: "ojeklokal-42b84.firebaseapp.com",
-        databaseURL: "https://ojeklokal-42b84-default-rtdb.firebaseio.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
         projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
     };
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     function processLogin() {
-        const id = document.getElementById('login-id').value;
+        const id = document.getElementById('login-id').value.trim();
         const type = document.getElementById('login-type').value;
 
-        if(!id) return alert("Sistem: Input ID diperlukan.");
+        if(!id) {
+            alert("SISTEM: Harap masukkan ID Akses Anda.");
+            return;
+        }
 
-        // Tentukan path database berdasarkan tipe
+        // Tentukan path pencarian berdasarkan tipe akun
         const dbPath = (type === 'customer') ? 'users_customer/' : 'users_driver/';
 
+        console.log("Mencoba verifikasi ID:", id, "di folder:", dbPath);
+
+        // Cari ID di Firebase secara spesifik
         db.ref(dbPath + id).once('value', (snapshot) => {
             if (snapshot.exists()) {
                 const userData = snapshot.val();
-                alert(`WELCOME BACK, ${userData.name}!`);
+                alert("ACCESS GRANTED! Welcome, " + userData.name);
 
                 if (type === 'customer') {
+                    // Simpan sesi Customer
                     localStorage.setItem('current_customer_id', id);
                     window.location.href = 'order-client.html';
                 } else {
+                    // Simpan sesi Driver
                     localStorage.setItem('current_driver_id', id);
                     window.location.href = 'mission-hub.html';
                 }
             } else {
-                alert("ACCESS DENIED: ID tidak ditemukan di database " + type);
+                // Jika ID tidak ada di folder yang dipilih
+                alert("ACCESS DENIED: ID tidak ditemukan sebagai " + type.toUpperCase());
             }
+        })
+        .catch((err) => {
+            alert("SYSTEM ERROR: " + err.message);
         });
     }
 </script>
