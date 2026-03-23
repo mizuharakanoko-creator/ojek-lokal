@@ -182,6 +182,93 @@
         localStorage.removeItem('current_customer_id');
         window.location.href = 'register-client.html';
     }
+
+
+
+
+
+
+
+
+    
+    // 1. Ambil ID dari LocalStorage (Hasil dari register tadi)
+    const currentUID = localStorage.getItem('current_customer_id');
+
+    // Jika tidak ada ID, tendang balik ke halaman register
+    if (!currentUID) {
+        alert("ACCESS DENIED: Harap registrasi/login terlebih dahulu.");
+        window.location.href = 'register-client.html';
+    }
+
+    let userProfile = {}; // Penampung data profil asli
+
+    // 2. Tarik Data Profil dari Firebase secara Real-time
+    db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
+        userProfile = snapshot.val();
+        if (userProfile) {
+            // Tampilkan info profil di UI (Opsional: buat elemen info di atas form)
+            document.getElementById('display-name').innerText = userProfile.name;
+            document.getElementById('display-reputation').innerText = userProfile.reputation;
+            
+            // Set default value di input nama (Readonly agar tidak bisa dipalsukan)
+            const nameInput = document.getElementById('cust-name');
+            nameInput.value = userProfile.name;
+            nameInput.readOnly = true;
+            nameInput.style.backgroundColor = "#111";
+            nameInput.style.color = "var(--p-cyan)";
+        } else {
+            alert("Sistem: ID tidak ditemukan di Database Pusat.");
+            window.location.href = 'register-client.html';
+        }
+    });
+
+    // 3. Modifikasi Fungsi Kirim Misi (Kirim data Reputation ke Driver)
+    function sendMission() {
+        const rank = document.getElementById('cust-rank').value;
+        const price = document.getElementById('cust-price').value;
+        const pickup = document.getElementById('cust-pickup').value;
+        const note = document.getElementById('cust-note').value;
+
+        if(!price || !pickup) return alert("Lengkapi detail misi!");
+
+        const missionRef = db.ref('missions').push();
+        missionRef.set({
+            id: missionRef.key,
+            clientId: currentUID, // ID Unik Pemesan
+            clientName: userProfile.name,
+            
+            // DATA REPUTASI (Ini yang akan dilihat Driver)
+            stats: {
+                joinDate: userProfile.joinDate,
+                totalOrders: userProfile.totalOrders,
+                cancellations: userProfile.cancellations,
+                likes: userProfile.likes,
+                dislikes: userProfile.dislikes,
+                reputation: userProfile.reputation
+            },
+
+            // DETAIL PESANAN
+            price: parseInt(price),
+            pickup: pickup,
+            note: note,
+            rank: rank,
+            status: "available",
+            timestamp: Date.now()
+        }).then(() => {
+            // Setelah kirim misi, tambahkan +1 ke TotalOrders si Pemesan
+            db.ref('users_customer/' + currentUID).update({
+                totalOrders: userProfile.totalOrders + 1
+            });
+            
+            alert("QUEST PUBLISHED! Driver akan segera mendeteksi sinyal Anda.");
+        });
+    }
+    
+
+
+
+
+    
 </script>
 
 </body>
