@@ -186,6 +186,47 @@
     border-color: var(--p-cyan);
     box-shadow: 0 0 15px var(--p-purple);
     }
+
+
+
+
+        .gps-btn-large {
+    width: 100%;
+    padding: 20px;
+    background: #000;
+    border: 1px solid var(--p-cyan);
+    color: var(--p-cyan);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.5s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Animasi saat scanning */
+.scanning {
+    background: rgba(0, 255, 242, 0.1);
+    border-color: #fff;
+    color: #fff;
+    animation: blink 0.8s infinite;
+}
+
+@keyframes blink {
+    50% { opacity: 0.5; box-shadow: 0 0 20px var(--p-cyan); }
+}
+
+/* Tampilan saat lokasi terkunci */
+.location-locked {
+    background: var(--p-cyan);
+    color: #000;
+    border-color: #fff;
+    font-weight: bold;
+}
+        
     
     
     </style>
@@ -221,12 +262,16 @@
 
 
     <div class="form-group">
-    <label>Pickup Point</label>
-    <div style="display: flex; gap: 5px;">
-        <input type="text" id="cust-pickup" placeholder="Mencari lokasi..." readonly>
-        <button type="button" onclick="getCurrentLocation()" style="background: var(--p-cyan); color: #000; border: none; padding: 0 10px; cursor: pointer; font-weight: bold;">GPS</button>
+    <label>Pickup Point Status</label>
+    <div id="pickup-container">
+        <button type="button" id="btn-location" onclick="handleGPS()" class="gps-btn-large">
+            <span id="gps-icon">📡</span> 
+            <span id="gps-text">ESTABLISH PICKUP SIGNAL</span>
+        </button>
+        <input type="hidden" id="cust-pickup-coords">
     </div>
 </div>
+
 
 <div class="form-group">
     <label>Destination (Step 1: Kecamatan)</label>
@@ -290,23 +335,47 @@
 
 
     // 1. Ambil Lokasi GPS Otomatis
-function getCurrentLocation() {
-    const pickupInput = document.getElementById('cust-pickup');
-    pickupInput.value = "Menghubungi Satelit...";
+function handleGPS() {
+    const btn = document.getElementById('btn-location');
+    const txt = document.getElementById('gps-text');
+    const icon = document.getElementById('gps-icon');
+
+    // 1. Mulai Animasi Scanning
+    btn.classList.add('scanning');
+    txt.innerText = "TRIANGULATING POSITION...";
+    icon.innerText = "⌛";
 
     if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((position) => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            // Kita gunakan Reverse Geocoding sederhana (Bisa diupgrade ke Google Maps API nanti)
-            pickupInput.value = `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`;
-            calculateDistance(); // Hitung harga setelah dapat lokasi
-        }, () => {
-            alert("Gagal mengambil lokasi. Pastikan GPS aktif.");
-            pickupInput.value = "Area Pusat Kota (Manual)";
-        });
+        // Beri delay sedikit agar animasinya terasa "bekerja"
+        setTimeout(() => {
+            navigator.geolocation.getCurrentPosition((position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                
+                // Simpan koordinat ke input tersembunyi
+                document.getElementById('cust-pickup-coords').value = `${lat},${lon}`;
+
+                // 2. Berubah ke status Locked
+                btn.classList.remove('scanning');
+                btn.classList.add('location-locked');
+                txt.innerText = "COORDINATES SECURED";
+                icon.innerText = "📍";
+                
+                // Hitung ulang harga jika diperlukan
+                if(typeof calculateDistance === "function") calculateDistance();
+                
+            }, (error) => {
+                btn.classList.remove('scanning');
+                txt.innerText = "SIGNAL LOST - TAP TO RETRY";
+                icon.innerText = "❌";
+                alert("GPS Error: " + error.message);
+            });
+        }, 1500); // Delay simulasi scanning 1.5 detik
+    } else {
+        alert("Browser tidak mendukung GPS.");
     }
 }
+
 
 // 2. Simulasi Hitung Harga Berdasarkan Jarak
 function calculateDistance() {
