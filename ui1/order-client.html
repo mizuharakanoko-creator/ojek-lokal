@@ -136,6 +136,56 @@
     text-shadow: 0 0 5px var(--p-cyan);
                }
     
+
+
+        /* Container Tracker */
+.status-tracker {
+    margin-top: 30px;
+    padding: 15px;
+    border: 1px dashed #444;
+    background: rgba(0, 255, 242, 0.02);
+    display: none; /* Sembunyi sebelum ada misi */
+}
+
+.tracker-header {
+    font-size: 10px;
+    color: var(--p-cyan);
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.status-box {
+    padding: 10px;
+    text-align: center;
+    font-weight: bold;
+    text-transform: uppercase;
+    border: 1px solid #333;
+    letter-spacing: 2px;
+    transition: 0.5s;
+}
+
+/* Animasi Pulse untuk mencari driver */
+.status-searching {
+    color: #888;
+    border-color: #444;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
+/* Status saat Driver Mengambil Misi */
+.status-accepted {
+    background: var(--p-purple);
+    color: #fff;
+    border-color: var(--p-cyan);
+    box-shadow: 0 0 15px var(--p-purple);
+    }
     
     
     </style>
@@ -160,12 +210,14 @@
         <input type="text" id="cust-name" readonly style="background-color: #111; color: var(--p-cyan);">
     </div>
 
-<div class="form-group" style="display: flex; align-items: center; gap: 10px; background: #111; padding: 10px; border: 1px solid #333;">
-    <input type="checkbox" id="is-urgent" style="width: 20px; height: 20px; cursor: pointer;">
-    <label for="is-urgent" style="margin-bottom: 0; cursor: pointer; color: var(--p-cyan); font-size: 12px;">
-        MARK AS URGENT
-    </label>
+<div class="form-group">
+    <label>Mission Priority</label>
+    <div class="cyber-checkbox-wrapper" onclick="document.getElementById('is-urgent').click()">
+        <input type="checkbox" id="is-urgent" onclick="event.stopPropagation()">
+        <span class="cyber-label">Activate Chaos Rank (Urgent)</span>
+    </div>
 </div>
+
 
 
     <div class="form-group">
@@ -184,10 +236,26 @@
     </div>
 
     <button class="btn-send" onclick="sendMission()">Broadcast Quest</button>
+
+    <div id="mission-tracker" class="status-tracker">
+    <div class="tracker-header">
+        <span>ACTIVE SIGNAL TRACKER</span>
+        <span id="mission-id-display" style="font-size: 8px; color: #555;">ID: ---</span>
+    </div>
+    <div id="status-display" class="status-box status-searching">
+        SCANNING FOR NEAREST DRIVER...
+    </div>
+    <div id="driver-info" style="margin-top: 10px; font-size: 11px; color: var(--p-cyan); display: none;">
+        DRIVER DETECTED: <span id="active-driver-name" style="color: #fff;">-</span>
+    </div>
+    </div>
+    
+
+
 </div>
 
 <script>
-    // === 1. CONFIG FIREBASE (Sesuai Database Anda) ===
+    // 1. KONFIGURASI (Gunakan data asli Anda)
     const firebaseConfig = {
         apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
         authDomain: "ojeklokal-42b84.firebaseapp.com",
@@ -201,63 +269,42 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // === 2. AUTH CHECK & PROFILE LOAD ===
+    // 2. CEK LOGIN
     const currentUID = localStorage.getItem('current_customer_id');
-
-    if (!currentUID) {
-        alert("ACCESS DENIED: Silahkan login terlebih dahulu.");
-        window.location.href = 'login.html';
-    }
+    if (!currentUID) { window.location.href = 'login.html'; }
 
     let userProfile = {}; 
 
-    // Tarik Data Profil Pemesan secara Real-time
+    // 3. AMBIL PROFIL (Otomatis jalan saat halaman dibuka)
     db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
         userProfile = snapshot.val();
         if (userProfile) {
             document.getElementById('display-name').innerText = userProfile.name;
             document.getElementById('display-reputation').innerText = "RANK: " + userProfile.reputation;
             document.getElementById('cust-name').value = userProfile.name;
-        } else {
-            alert("Sistem: ID tidak ditemukan di Database.");
-            logout();
         }
     });
 
-    // === 3. FUNGSI KIRIM MISI KE DRIVER ===
+    // 4. FUNGSI KIRIM MISI (Hanya jalan saat tombol diklik)
     function sendMission() {
-        
-
-        // Jika diceklis maka CHAOS, jika tidak maka MORTAL
-const rank = document.getElementById('is-urgent').checked ? "URGENT" : "NORMAL";
-        
+        const isUrgent = document.getElementById('is-urgent').checked;
+        const rank = isUrgent ? "CHAOS" : "MORTAL";
         const price = document.getElementById('cust-price').value;
         const pickup = document.getElementById('cust-pickup').value;
         const note = document.getElementById('cust-note').value;
 
-        if(!price || !pickup) {
-            alert("SISTEM: Harap lengkapi detail misi!");
-            return;
-        }
-
-        // Simpan misi baru ke folder 'missions'
         const missionRef = db.ref('missions').push();
+        const mID = missionRef.key;
+
         missionRef.set({
-            id: missionRef.key,
+            id: mID,
             clientId: currentUID,
             clientName: userProfile.name,
-            
-            // DATA REPUTASI (Dilihat oleh Driver)
             stats: {
                 joinDate: userProfile.joinDate,
                 totalOrders: userProfile.totalOrders,
-                cancellations: userProfile.cancellations,
-                likes: userProfile.likes,
-                dislikes: userProfile.dislikes,
                 reputation: userProfile.reputation
             },
-
-            // DETAIL PESANAN
             price: parseInt(price),
             pickup: pickup,
             note: note,
@@ -265,14 +312,30 @@ const rank = document.getElementById('is-urgent').checked ? "URGENT" : "NORMAL";
             status: "available",
             timestamp: Date.now()
         }).then(() => {
-            // Update total order di database profil pemesan
-            db.ref('users_customer/' + currentUID).update({
-                totalOrders: (userProfile.totalOrders || 0) + 1
-            });
+            // Tampilkan panel tracker
+            document.getElementById('mission-tracker').style.display = 'block';
             
-            alert("QUEST PUBLISHED! Sinyal telah dikirim ke hub driver.");
-        }).catch((err) => {
-            alert("ERROR: " + err.message);
+            // PANGGIL TRACKER UNTUK MONITORING (Langkah Penting)
+            trackMissionStatus(mID);
+
+            alert("QUEST PUBLISHED!");
+        });
+    }
+
+    // 5. FUNGSI TRACKER (Diletakkan di luar agar bisa dipantau terus-menerus)
+    function trackMissionStatus(idMisi) {
+        const display = document.getElementById('status-display');
+        
+        db.ref('missions/' + idMisi).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            if (data.status === "accepted") {
+                display.innerText = "DRIVER EN ROUTE";
+                display.className = "status-box status-accepted";
+                document.getElementById('driver-info').style.display = 'block';
+                document.getElementById('active-driver-name').innerText = data.driverName || "S-Class Driver";
+            }
         });
     }
 
@@ -281,6 +344,7 @@ const rank = document.getElementById('is-urgent').checked ? "URGENT" : "NORMAL";
         window.location.href = 'login.html';
     }
 </script>
+
 
 </body>
 </html>
