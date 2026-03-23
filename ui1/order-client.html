@@ -12,94 +12,87 @@
             --p-cyan: #00fff2;
             --p-purple: #bc00ff;
             --p-gold: #ffcc00;
-            --p-red: #ff0044;
             --bg-dark: #050505;
         }
 
         body {
             background-color: var(--bg-dark);
             color: #fff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             margin: 0; padding: 20px;
-            display: flex; justify-content: center;
         }
 
         .order-container {
             width: 100%; max-width: 400px;
+            margin: auto;
             border: 2px solid #222;
             padding: 20px;
-            background: linear-gradient(145deg, #0a0a0a, #111);
-            position: relative;
+            background: #0a0a0a;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
         }
 
-        .terminal-header {
-            border-bottom: 1px solid var(--p-cyan);
-            padding-bottom: 10px; margin-bottom: 20px;
+        /* Profile Ribbon Baru */
+        .user-ribbon {
+            background: rgba(188, 0, 255, 0.1);
+            border: 1px solid var(--p-purple);
+            padding: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
+
+        .user-info span { display: block; }
+        #display-name { font-weight: bold; color: var(--p-cyan); font-size: 14px; }
+        #display-reputation { font-size: 10px; color: var(--p-gold); letter-spacing: 1px; }
 
         .terminal-header h2 {
-            margin: 0; font-size: 18px; color: var(--p-cyan);
-            letter-spacing: 2px; text-transform: uppercase;
+            margin: 0 0 20px 0; font-size: 16px; color: var(--p-cyan);
+            border-bottom: 1px solid #333; padding-bottom: 10px;
         }
 
         .form-group { margin-bottom: 15px; }
-
-        label {
-            display: block; font-size: 10px; color: #888;
-            margin-bottom: 5px; text-transform: uppercase;
-        }
-
+        label { display: block; font-size: 10px; color: #888; margin-bottom: 5px; text-transform: uppercase; }
+        
         input, textarea, select {
             width: 100%; padding: 12px;
             background: #000; border: 1px solid #333;
-            color: #fff; box-sizing: border-box;
-            font-size: 14px; outline: none;
+            color: #fff; box-sizing: border-box; outline: none;
         }
-
-        input:focus { border-color: var(--p-purple); }
 
         .btn-send {
             width: 100%; padding: 15px;
             background: var(--p-purple); color: #fff;
             border: none; font-weight: bold; cursor: pointer;
-            text-transform: uppercase; letter-spacing: 2px;
-            margin-top: 10px;
             clip-path: polygon(5% 0, 100% 0, 95% 100%, 0 100%);
         }
 
-        .btn-send:active { transform: scale(0.98); }
-
-        /* Default Values Styling */
-        .default-tag {
-            font-size: 9px; color: var(--p-gold); margin-top: 4px; display: block;
-        }
+        .logout-btn { background: none; border: 1px solid #444; color: #888; font-size: 10px; padding: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div class="order-container">
+    <div class="user-ribbon">
+        <div class="user-info">
+            <span id="display-name">LOADING...</span>
+            <span id="display-reputation">RANK: CHECKING...</span>
+        </div>
+        <button class="logout-btn" onclick="logout()">LOGOUT</button>
+    </div>
+
     <div class="terminal-header">
-        <h2>Publish New Quest</h2>
+        <h2>PUBLISH NEW QUEST</h2>
     </div>
 
     <div class="form-group">
-        <label>Client Identity (ID)</label>
-        <input type="text" id="cust-name" placeholder="Contoh: USER_ANON_12" value="PLAYER_ONE">
-        <span class="default-tag">Auto-set: Berdasarkan akun aktif</span>
-    </div>
-
-    <div class="form-group">
-        <label>Quest Rank / Risk Level</label>
-        <select id="cust-rank">
-            <option value="MORTAL">MORTAL (Aman/Normal)</option>
-            <option value="CHAOS">CHAOS (Resiko Tinggi/Mendesak)</option>
-        </select>
+        <label>Client Name (Verified)</label>
+        <input type="text" id="cust-name" readonly>
     </div>
 
     <div class="form-group">
         <label>Bounty Reward (IDR)</label>
-        <input type="number" id="cust-price" placeholder="Masukkan harga..." value="15000">
-        <span class="default-tag">Default: Minimal Rp 15.000</span>
+        <input type="number" id="cust-price" value="15000">
     </div>
 
     <div class="form-group">
@@ -109,61 +102,85 @@
 
     <div class="form-group">
         <label>Mission Briefing (Notes)</label>
-        <textarea id="cust-note" rows="3" placeholder="Contoh: Bawa barang pecah belah atau jemput di gang sempit.">Antar tepat waktu, jangan lewat jalan utama.</textarea>
+        <textarea id="cust-note" rows="3">Antar tepat waktu, jangan lewat jalan utama.</textarea>
     </div>
 
-    <button class="btn-send" onclick="sendMission()">Publish Mission</button>
+    <button class="btn-send" onclick="sendMission()">SEND TO DRIVERS</button>
 </div>
 
 <script>
-    // === FIREBASE CONFIGURATION ===
+    // === 1. CONFIG FIREBASE ===
     const firebaseConfig = {
-        apiKey: "AIza...", 
+        apiKey: "AIza...", // Sesuaikan dengan milik Anda
         authDomain: "ojeklokal-42b84.firebaseapp.com",
         databaseURL: "https://ojeklokal-42b84-default-rtdb.firebaseio.com",
         projectId: "ojeklokal-42b84",
-        storageBucket: "ojeklokal-42b84.appspot.com",
-        messagingSenderId: "...",
-        appId: "..."
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    // === 2. AUTH CHECK & PROFILE LOAD ===
+    const currentUID = localStorage.getItem('current_customer_id');
+    if (!currentUID) {
+        window.location.href = 'register-client.html';
+    }
+
+    let userProfile = {};
+
+    // Ambil data profil dari folder users_customer
+    db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
+        userProfile = snapshot.val();
+        if (userProfile) {
+            document.getElementById('display-name').innerText = userProfile.name;
+            document.getElementById('display-reputation').innerText = "RANK: " + userProfile.reputation;
+            document.getElementById('cust-name').value = userProfile.name;
+        } else {
+            alert("Sistem: ID tidak terdaftar.");
+            logout();
+        }
+    });
+
+    // === 3. KIRIM MISI ===
     function sendMission() {
-        const name = document.getElementById('cust-name').value;
-        const rank = document.getElementById('cust-rank').value;
         const price = document.getElementById('cust-price').value;
         const pickup = document.getElementById('cust-pickup').value;
         const note = document.getElementById('cust-note').value;
 
-        if(!name || !price || !pickup) {
-            alert("Sistem: Data tidak lengkap. Misi gagal diterbitkan.");
-            return;
-        }
+        if(!price || !pickup) return alert("Lengkapi detail!");
 
-        // Push data ke folder 'missions' di Firebase
         const missionRef = db.ref('missions').push();
         missionRef.set({
             id: missionRef.key,
-            client: name,
-            rank: rank,
+            clientId: currentUID,
+            clientName: userProfile.name,
+            
+            // DATA REPUTASI DARI DATABASE PEMESAN
+            stats: {
+                joinDate: userProfile.joinDate,
+                totalOrders: userProfile.totalOrders,
+                cancellations: userProfile.cancellations,
+                likes: userProfile.likes,
+                dislikes: userProfile.dislikes,
+                reputation: userProfile.reputation
+            },
+
             price: parseInt(price),
             pickup: pickup,
             note: note,
-            status: "available", // Status awal agar muncul di Driver
-            timestamp: Date.now(),
-            // Data tambahan untuk "Peringkat Keburukan" Driver
-            successRate: 100, 
-            joinDate: "2026",
-            totalMissions: Math.floor(Math.random() * 10) // Contoh data dummy
+            status: "available",
+            timestamp: Date.now()
         }).then(() => {
-            alert("MISSION PUBLISHED! Cek Mission Hub Driver.");
-            // Reset form atau redirect
-        }).catch((err) => {
-            console.error(err);
-            alert("System Error: Koneksi database terputus.");
+            // Update jumlah order di profil user
+            db.ref('users_customer/' + currentUID).update({
+                totalOrders: userProfile.totalOrders + 1
+            });
+            alert("MISI BERHASIL DITERBITKAN!");
         });
+    }
+
+    function logout() {
+        localStorage.removeItem('current_customer_id');
+        window.location.href = 'register-client.html';
     }
 </script>
 
