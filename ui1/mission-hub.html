@@ -549,7 +549,73 @@
             // Play sound success
             document.getElementById('snd-success').play();
         }
+
+
+
+                // === 14. SISTEM GETAR (HAPTIC FEEDBACK) ===
+        function triggerVibration(pattern = "short") {
+            // Cek apakah browser mendukung Vibration API
+            if (!("vibrate" in navigator)) return;
+
+            if (pattern === "short") {
+                navigator.vibrate(100); // Getar pendek 0.1 detik
+            } else if (pattern === "long") {
+                navigator.vibrate([200, 100, 200]); // Getar putus-putus
+            } else if (pattern === "emergency") {
+                navigator.vibrate([500, 100, 500, 100, 500]); // Getar kuat (Misi Masuk)
+            }
+        }
+
+        // === 15. UPDATE GENERATOR MISI (DENGAN ANTI-FRAUD) ===
+        function generateGhostOrder() {
+            if(!userData.isOnline) return;
+
+            const missionBox = document.getElementById('mission-box');
+            const isScam = Math.random() > 0.7; // 30% peluang misi mencurigakan
+            const id = "ghost-" + Math.floor(Math.random() * 1000);
             
+            const fraudHTML = isScam ? `
+                <div class="fraud-check danger">⚠️ HIGH CANCELLATION RISK! [CHAOS RANK]</div>
+                <div class="info-list" style="border: 1px solid #ff0044; padding: 10px; background: rgba(255,0,68,0.1)">
+                    <p style="color:#ff0044"><b>SISTEM DETEKSI:</b> Akun ini memiliki riwayat 5x pembatalan berturut-turut.</p>
+                </div>
+            ` : `
+                <div class="fraud-check safe">REPUTATION: TRUSTWORTHY <span class="status-badge badge-mortal">MORTAL</span></div>
+            `;
+
+            const ghostHTML = `
+                <div class="quest-card ${isScam ? 'red-tier' : 'blue-tier'}" id="${id}" style="animation: slideIn 0.5s ease-out;">
+                    <summary onclick="triggerVibration('short')">
+                        <div class="q-summary-grid">
+                            <div class="q-client-name terminal-font">${isScam ? 'USER_ANON_X' : 'CITIZEN_01'}</div>
+                            <div class="q-meta-info">
+                                <span class="reward">Rp ${Math.floor(Math.random() * 20000 + 10000).toLocaleString('id-ID')}</span>
+                                <span class="timer" id="t-${id}">02:00</span>
+                            </div>
+                        </div>
+                    </summary>
+                    <div class="q-details">
+                        ${fraudHTML}
+                        <div class="action-row">
+                            <button class="btn-nego" onclick="openNego('${id}', '15.000')">NEGO</button>
+                            <button class="btn-apply" onclick="applyQuest('${id}', 20)">APPLY MISSION</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            missionBox.insertAdjacentHTML('afterbegin', ghostHTML); // Tambahkan ke paling atas
+            startMissionTimer(120, `t-${id}`, id);
+            
+            // Getar saat misi baru muncul!
+            triggerVibration(isScam ? "long" : "short");
+            showNotification(isScam ? "WARNING: Suspect order nearby!" : "New mission available", isScam ? "error" : "success");
+        }
+
+        // Modifikasi fungsi applyQuest agar bergetar saat sukses
+        // (Cukup tambahkan baris ini di dalam bagian 'if(isAccepted)' pada fungsi applyQuest Anda):
+        // triggerVibration("emergency");
+        
 
         
         
