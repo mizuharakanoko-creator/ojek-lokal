@@ -221,14 +221,46 @@
 
 
     <div class="form-group">
-        <label>Bounty Reward (IDR)</label>
-        <input type="number" id="cust-price" value="15000">
+    <label>Pickup Point</label>
+    <div style="display: flex; gap: 5px;">
+        <input type="text" id="cust-pickup" placeholder="Mencari lokasi..." readonly>
+        <button type="button" onclick="getCurrentLocation()" style="background: var(--p-cyan); color: #000; border: none; padding: 0 10px; cursor: pointer; font-weight: bold;">GPS</button>
     </div>
+</div>
 
-    <div class="form-group">
-        <label>Pickup Location</label>
-        <input type="text" id="cust-pickup" placeholder="Lokasi jemput..." value="Pusat Kota">
+<div class="form-group">
+    <label>Destination (Step 1: Kecamatan)</label>
+    <select id="dest-kecamatan" onchange="loadCities(this.value)">
+        <option value="">-- Pilih Kecamatan --</option>
+    </select>
+</div>
+
+<div class="form-group" id="city-wrapper" style="display:none;">
+    <label>Destination (Step 2: Kelurahan/Kota)</label>
+    <select id="dest-city" onchange="calculateDistance()">
+        <option value="">-- Pilih Kelurahan/Kota --</option>
+    </select>
+</div>
+
+<div class="form-group">
+    <label>Choose Bounty Package</label>
+    <div id="price-options" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+        <div class="price-card" onclick="selectPrice(this, 'hemat')">
+            <span style="font-size: 9px;">HEMAT</span>
+            <div id="price-hemat">0</div>
+        </div>
+        <div class="price-card" onclick="selectPrice(this, 'reguler')">
+            <span style="font-size: 9px;">REGULER</span>
+            <div id="price-reguler">0</div>
+        </div>
+        <div class="price-card" onclick="selectPrice(this, 'express')">
+            <span style="font-size: 9px;">EXPRESS</span>
+            <div id="price-express">0</div>
+        </div>
     </div>
+    <input type="hidden" id="final-price" value="0">
+</div>
+
 
     <div class="form-group">
         <label>Mission Briefing (Notes)</label>
@@ -255,6 +287,59 @@
 </div>
 
 <script>
+
+
+    // 1. Ambil Lokasi GPS Otomatis
+function getCurrentLocation() {
+    const pickupInput = document.getElementById('cust-pickup');
+    pickupInput.value = "Menghubungi Satelit...";
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            // Kita gunakan Reverse Geocoding sederhana (Bisa diupgrade ke Google Maps API nanti)
+            pickupInput.value = `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`;
+            calculateDistance(); // Hitung harga setelah dapat lokasi
+        }, () => {
+            alert("Gagal mengambil lokasi. Pastikan GPS aktif.");
+            pickupInput.value = "Area Pusat Kota (Manual)";
+        });
+    }
+}
+
+// 2. Simulasi Hitung Harga Berdasarkan Jarak
+function calculateDistance() {
+    // Simulasi jarak acak (nanti bisa diganti dengan rumus Haversine/Google Maps)
+    const distance = Math.floor(Math.random() * 10) + 2; // Jarak 2-12km
+    
+    let hemat = distance * 2000;
+    let reguler = (distance * 3000) + 2000;
+    let express = distance * 5000;
+
+    // Minimal 10 RB
+    document.getElementById('price-hemat').innerText = Math.max(10000, hemat).toLocaleString();
+    document.getElementById('price-reguler').innerText = Math.max(10000, reguler).toLocaleString();
+    document.getElementById('price-express').innerText = Math.max(10000, express).toLocaleString();
+}
+
+function selectPrice(element, type) {
+    // Reset style semua kartu
+    document.querySelectorAll('.price-card').forEach(card => card.style.borderColor = '#333');
+    // Highlight yang dipilih
+    element.style.borderColor = 'var(--p-cyan)';
+    
+    const priceText = element.querySelector('div').innerText.replace(/\D/g,'');
+    document.getElementById('final-price').value = priceText;
+}
+
+// Panggil initWilayah saat halaman siap
+window.onload = () => {
+    if(typeof initWilayah === "function") initWilayah();
+};
+
+
+    
     // 1. KONFIGURASI (Gunakan data asli Anda)
     const firebaseConfig = {
         apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
