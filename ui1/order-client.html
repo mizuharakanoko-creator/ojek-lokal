@@ -31,7 +31,7 @@
             box-shadow: 0 0 15px rgba(0,0,0,0.5);
         }
 
-        /* Profile Ribbon Baru */
+        /* Profile Ribbon */
         .user-ribbon {
             background: rgba(188, 0, 255, 0.1);
             border: 1px solid var(--p-purple);
@@ -43,12 +43,13 @@
         }
 
         .user-info span { display: block; }
-        #display-name { font-weight: bold; color: var(--p-cyan); font-size: 14px; }
+        #display-name { font-weight: bold; color: var(--p-cyan); font-size: 14px; text-transform: uppercase; }
         #display-reputation { font-size: 10px; color: var(--p-gold); letter-spacing: 1px; }
 
         .terminal-header h2 {
             margin: 0 0 20px 0; font-size: 16px; color: var(--p-cyan);
             border-bottom: 1px solid #333; padding-bottom: 10px;
+            text-transform: uppercase; letter-spacing: 1px;
         }
 
         .form-group { margin-bottom: 15px; }
@@ -60,12 +61,17 @@
             color: #fff; box-sizing: border-box; outline: none;
         }
 
+        input:focus, textarea:focus { border-color: var(--p-cyan); }
+
         .btn-send {
             width: 100%; padding: 15px;
             background: var(--p-purple); color: #fff;
             border: none; font-weight: bold; cursor: pointer;
             clip-path: polygon(5% 0, 100% 0, 95% 100%, 0 100%);
+            text-transform: uppercase; letter-spacing: 1px;
         }
+
+        .btn-send:active { transform: scale(0.98); opacity: 0.9; }
 
         .logout-btn { background: none; border: 1px solid #444; color: #888; font-size: 10px; padding: 5px; cursor: pointer; }
     </style>
@@ -75,19 +81,27 @@
 <div class="order-container">
     <div class="user-ribbon">
         <div class="user-info">
-            <span id="display-name">LOADING...</span>
-            <span id="display-reputation">RANK: CHECKING...</span>
+            <span id="display-name">INITIALIZING...</span>
+            <span id="display-reputation">RANK: ---</span>
         </div>
         <button class="logout-btn" onclick="logout()">LOGOUT</button>
     </div>
 
     <div class="terminal-header">
-        <h2>PUBLISH NEW QUEST</h2>
+        <h2>Publish New Quest</h2>
     </div>
 
     <div class="form-group">
-        <label>Client Name (Verified)</label>
-        <input type="text" id="cust-name" readonly>
+        <label>Client Identity (Verified)</label>
+        <input type="text" id="cust-name" readonly style="background-color: #111; color: var(--p-cyan);">
+    </div>
+
+    <div class="form-group">
+        <label>Quest Rank / Difficulty</label>
+        <select id="cust-rank">
+            <option value="MORTAL">MORTAL (Normal Order)</option>
+            <option value="CHAOS">CHAOS (Urgent / High Risk)</option>
+        </select>
     </div>
 
     <div class="form-group">
@@ -97,37 +111,43 @@
 
     <div class="form-group">
         <label>Pickup Location</label>
-        <input type="text" id="cust-pickup" placeholder="Titik Jemput..." value="Area Pusat Kota">
+        <input type="text" id="cust-pickup" placeholder="Lokasi jemput..." value="Pusat Kota">
     </div>
 
     <div class="form-group">
         <label>Mission Briefing (Notes)</label>
-        <textarea id="cust-note" rows="3">Antar tepat waktu, jangan lewat jalan utama.</textarea>
+        <textarea id="cust-note" rows="3">Tolong antar tepat waktu.</textarea>
     </div>
 
-    <button class="btn-send" onclick="sendMission()">SEND TO DRIVERS</button>
+    <button class="btn-send" onclick="sendMission()">Broadcast Quest</button>
 </div>
 
 <script>
-    // === 1. CONFIG FIREBASE ===
+    // === 1. CONFIG FIREBASE (Sesuai Database Anda) ===
     const firebaseConfig = {
-        apiKey: "AIza...", // Sesuaikan dengan milik Anda
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
         authDomain: "ojeklokal-42b84.firebaseapp.com",
-        databaseURL: "https://ojeklokal-42b84-default-rtdb.firebaseio.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
         projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
     };
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     // === 2. AUTH CHECK & PROFILE LOAD ===
     const currentUID = localStorage.getItem('current_customer_id');
+
     if (!currentUID) {
-        window.location.href = 'register-client.html';
+        alert("ACCESS DENIED: Silahkan login terlebih dahulu.");
+        window.location.href = 'login.html';
     }
 
-    let userProfile = {};
+    let userProfile = {}; 
 
-    // Ambil data profil dari folder users_customer
+    // Tarik Data Profil Pemesan secara Real-time
     db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
         userProfile = snapshot.val();
         if (userProfile) {
@@ -135,109 +155,31 @@
             document.getElementById('display-reputation').innerText = "RANK: " + userProfile.reputation;
             document.getElementById('cust-name').value = userProfile.name;
         } else {
-            alert("Sistem: ID tidak terdaftar.");
+            alert("Sistem: ID tidak ditemukan di Database.");
             logout();
         }
     });
 
-    // === 3. KIRIM MISI ===
-    function sendMission() {
-        const price = document.getElementById('cust-price').value;
-        const pickup = document.getElementById('cust-pickup').value;
-        const note = document.getElementById('cust-note').value;
-
-        if(!price || !pickup) return alert("Lengkapi detail!");
-
-        const missionRef = db.ref('missions').push();
-        missionRef.set({
-            id: missionRef.key,
-            clientId: currentUID,
-            clientName: userProfile.name,
-            
-            // DATA REPUTASI DARI DATABASE PEMESAN
-            stats: {
-                joinDate: userProfile.joinDate,
-                totalOrders: userProfile.totalOrders,
-                cancellations: userProfile.cancellations,
-                likes: userProfile.likes,
-                dislikes: userProfile.dislikes,
-                reputation: userProfile.reputation
-            },
-
-            price: parseInt(price),
-            pickup: pickup,
-            note: note,
-            status: "available",
-            timestamp: Date.now()
-        }).then(() => {
-            // Update jumlah order di profil user
-            db.ref('users_customer/' + currentUID).update({
-                totalOrders: userProfile.totalOrders + 1
-            });
-            alert("MISI BERHASIL DITERBITKAN!");
-        });
-    }
-
-    function logout() {
-        localStorage.removeItem('current_customer_id');
-        window.location.href = 'register-client.html';
-    }
-
-
-
-
-
-
-
-
-    
-    // 1. Ambil ID dari LocalStorage (Hasil dari register tadi)
-    const currentUID = localStorage.getItem('current_customer_id');
-
-    // Jika tidak ada ID, tendang balik ke halaman register
-    if (!currentUID) {
-        alert("ACCESS DENIED: Harap registrasi/login terlebih dahulu.");
-        window.location.href = 'register-client.html';
-    }
-
-    let userProfile = {}; // Penampung data profil asli
-
-    // 2. Tarik Data Profil dari Firebase secara Real-time
-    db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
-        userProfile = snapshot.val();
-        if (userProfile) {
-            // Tampilkan info profil di UI (Opsional: buat elemen info di atas form)
-            document.getElementById('display-name').innerText = userProfile.name;
-            document.getElementById('display-reputation').innerText = userProfile.reputation;
-            
-            // Set default value di input nama (Readonly agar tidak bisa dipalsukan)
-            const nameInput = document.getElementById('cust-name');
-            nameInput.value = userProfile.name;
-            nameInput.readOnly = true;
-            nameInput.style.backgroundColor = "#111";
-            nameInput.style.color = "var(--p-cyan)";
-        } else {
-            alert("Sistem: ID tidak ditemukan di Database Pusat.");
-            window.location.href = 'register-client.html';
-        }
-    });
-
-    // 3. Modifikasi Fungsi Kirim Misi (Kirim data Reputation ke Driver)
+    // === 3. FUNGSI KIRIM MISI KE DRIVER ===
     function sendMission() {
         const rank = document.getElementById('cust-rank').value;
         const price = document.getElementById('cust-price').value;
         const pickup = document.getElementById('cust-pickup').value;
         const note = document.getElementById('cust-note').value;
 
-        if(!price || !pickup) return alert("Lengkapi detail misi!");
+        if(!price || !pickup) {
+            alert("SISTEM: Harap lengkapi detail misi!");
+            return;
+        }
 
+        // Simpan misi baru ke folder 'missions'
         const missionRef = db.ref('missions').push();
         missionRef.set({
             id: missionRef.key,
-            clientId: currentUID, // ID Unik Pemesan
+            clientId: currentUID,
             clientName: userProfile.name,
             
-            // DATA REPUTASI (Ini yang akan dilihat Driver)
+            // DATA REPUTASI (Dilihat oleh Driver)
             stats: {
                 joinDate: userProfile.joinDate,
                 totalOrders: userProfile.totalOrders,
@@ -255,20 +197,21 @@
             status: "available",
             timestamp: Date.now()
         }).then(() => {
-            // Setelah kirim misi, tambahkan +1 ke TotalOrders si Pemesan
+            // Update total order di database profil pemesan
             db.ref('users_customer/' + currentUID).update({
-                totalOrders: userProfile.totalOrders + 1
+                totalOrders: (userProfile.totalOrders || 0) + 1
             });
             
-            alert("QUEST PUBLISHED! Driver akan segera mendeteksi sinyal Anda.");
+            alert("QUEST PUBLISHED! Sinyal telah dikirim ke hub driver.");
+        }).catch((err) => {
+            alert("ERROR: " + err.message);
         });
     }
-    
 
-
-
-
-    
+    function logout() {
+        localStorage.removeItem('current_customer_id');
+        window.location.href = 'login.html';
+    }
 </script>
 
 </body>
