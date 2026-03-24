@@ -61,6 +61,84 @@ const dataWilayah = {
         lat: -6.8324, lng: 108.4354, diff: 1.4,
         desa: ["Pasawahan", "Cidahu", "Cimara", "Kaduela", "Padamatang", "Paniis", "Singkup"]
     },
+        "Garawangi": {
+        lat: -6.9956, lng: 108.5234, diff: 1.1,
+        desa: ["Garawangi", "Cikananga", "Cirukem", "Giriwaringin", "Kutakembaran", "Mancagar", "Purwasari", "Tambakbaya"]
+    },
+    "Lebakwangi": {
+        lat: -7.0012, lng: 108.5642, diff: 1.0,
+        desa: ["Lebakwangi", "Bendungan", "Cipasung", "Langseb", "Mancagar", "Pagundan", "Pasayangan"]
+    },
+    "Cimahi (Kuningan)": {
+        lat: -7.0345, lng: 108.6721, diff: 1.1,
+        desa: ["Cimahi", "Batuasri", "Cikeusal", "Gunungaci", "Mulyajaya", "Sukajaya"]
+    },
+    "Cibingbin": {
+        lat: -7.0812, lng: 108.7321, diff: 1.2,
+        desa: ["Cibingbin", "Bantarpanjang", "Cisaat", "Ciujung", "Dukuhbadag", "Sindangjawa", "Sukaharja"]
+    },
+    "Ciwaru": {
+        lat: -7.0812, lng: 108.6321, diff: 1.3,
+        desa: ["Ciwaru", "Baok", "Citikur", "Garajati", "Linggajaya", "Sagaranten", "Sumberjaya"]
+    },
+    "Karangkancana": {
+        lat: -7.1123, lng: 108.6521, diff: 1.4,
+        desa: ["Karangkancana", "Cihanjaro", "Jabareanti", "Margacina", "Sukamaju", "Tanjungkertha"]
+    },
+    "Cilebak": {
+        lat: -7.1645, lng: 108.5121, diff: 1.5,
+        desa: ["Cilebak", "Cabulan", "Cisakti", "Jalatrang", "Legokherang", "Patala"]
+    },
+    "Hantara": {
+        lat: -7.0812, lng: 108.4923, diff: 1.4,
+        desa: ["Hantara", "Bunigeulis", "Cikiray", "Pasiragung", "Trijaya"]
+    },
+    "Ciniru": {
+        lat: -7.0542, lng: 108.5212, diff: 1.3,
+        desa: ["Ciniru", "Cijemit", "Cipedes", "Longkewang", "Pamupukan", "Pinara"]
+    },
+    "Sindangagung": {
+        lat: -6.9721, lng: 108.5142, diff: 1.0,
+        desa: ["Sindangagung", "Babakanreuma", "Balong", "Kertawangunan", "Kertayasa", "Mekarmukti"]
+        }
+        "Cigandamekar": {
+        lat: -6.8745, lng: 108.5122, diff: 1.1,
+        desa: ["Babakanjati", "Bunarigede", "Cigandamekar", "Indraprahasta", "Koreak", "Sangkanerang", "Timbang"]
+    },
+    "Pancalang": {
+        lat: -6.8021, lng: 108.4982, diff: 1.2,
+        desa: ["Pancalang", "Mekarjaya", "Patalagan", "Rajawetan", "Sarewu", "Sindangkempeng", "Tajurbuntu"]
+    },
+    "Japara": {
+        lat: -6.9245, lng: 108.5231, diff: 1.1,
+        desa: ["Japara", "Cengal", "Cikeleng", "Dukuhdalem", "Kalimati", "Rajadanu", "Singkup"]
+    },
+    "Kramatmulya": {
+        lat: -6.9452, lng: 108.4921, diff: 1.0,
+        desa: ["Kramatmulya", "Bohtong", "Cikaso", "Cilaja", "Gereba", "Kalapagunung", "Pajambon", "Ragawacana"]
+    },
+    "Cipicung": {
+        lat: -6.9412, lng: 108.5423, diff: 1.1,
+        desa: ["Cipicung", "Cimaranten", "Mekarsari", "Muncungela", "Pamulihan", "Salareuma", "Sugandajaya"]
+    },
+    "Maleber": {
+        lat: -7.0123, lng: 108.5942, diff: 1.1,
+        desa: ["Maleber", "Bunigeulis", "Cigedang", "Galaherang", "Kaduagung", "Mekarsari", "Padamulya"]
+    },
+    "Kalimanggis": {
+        lat: -6.9712, lng: 108.6321, diff: 1.0,
+        desa: ["Kalimanggis", "Cipasung", "Kalimanggis Kulon", "Kalimanggis Wetan", "Kertawana", "Pinigara"]
+    },
+    "Cibeureum": {
+        lat: -7.0512, lng: 108.6921, diff: 1.2,
+        desa: ["Cibeureum", "Cikadu", "Cimara", "Kawungsari", "Sukamaju", "Sukanegeara", "Tarikolot"]
+    },
+    "Nusaherang": {
+        lat: -7.0145, lng: 108.4421, diff: 1.2,
+        desa: ["Nusaherang", "Ciamis", "Ciawi", "Haurkuning", "Jurasari", "Windusari"]
+            }
+            
+        
         
     // NANTI LANJUTKAN CICILAN KECAMATAN LAIN DI SINI
 };
