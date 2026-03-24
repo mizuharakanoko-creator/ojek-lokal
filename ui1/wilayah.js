@@ -1,21 +1,31 @@
 // wilayah.js - Database Presisi Kabupaten Kuningan
 const dataWilayah = {
-    "Cigugur": {
-        // Titik pusat kecamatan (Kantor Camat)
-        lat: -6.9754, lng: 108.4594, 
+        "Cigugur": {
+        lat: -6.9754, lng: 108.4594,
         desa: [
-            { name: "Cigugur", lat: -6.9754, lng: 108.4594, diff: 1.0 },
-            { name: "Sukamulya", lat: -6.9832, lng: 108.4635, diff: 1.0 },
-            { name: "Cigadung", lat: -6.9885, lng: 108.4752, diff: 1.0 },
-            { name: "Panyuran", lat: -6.9654, lng: 108.4682, diff: 1.1 },
-            { name: "Cisantana", lat: -6.9542, lng: 108.4215, diff: 1.6 }, // Tinggi & Jauh
-            { name: "Cileuleuy", lat: -6.9954, lng: 108.4421, diff: 1.3 }, // Area Tanjakan
-            { name: "Babakanmulya", lat: -6.9621, lng: 108.4512, diff: 1.2 },
-            { name: "Cipari", lat: -6.9642, lng: 108.4452, diff: 1.2 },
-            { name: "Winduherang", lat: -6.9712, lng: 108.4721, diff: 1.0 },
-            { name: "Gunungkeling", lat: -6.9582, lng: 108.4785, diff: 1.1 }
+            // Kelurahan & Desa Inti
+            { name: "Kelurahan Cigugur", lat: -6.9754, lng: 108.4594, diff: 1.0 },
+            { name: "Kelurahan Cigadung", lat: -6.9885, lng: 108.4612, diff: 1.0 },
+            { name: "Babakan Cigadung", lat: -6.9912, lng: 108.4654, diff: 1.1 },
+            { name: "Kelurahan Sukamulya", lat: -6.9832, lng: 108.4721, diff: 1.0 },
+            { name: "Kelurahan Cipari", lat: -6.9642, lng: 108.4521, diff: 1.0 },
+            { name: "Kelurahan Winduherang", lat: -6.9712, lng: 108.4782, diff: 1.0 },
+            { name: "Desa Babakanmulya", lat: -6.9621, lng: 108.4452, diff: 1.1 },
+            { name: "Desa Gunungkeling", lat: -6.9582, lng: 108.4521, diff: 1.1 },
+            
+            // Area Cileuleuy
+            { name: "Desa Cileuleuy", lat: -6.9954, lng: 108.4412, diff: 1.2 },
+            { name: "Bojong (Cileuleuy)", lat: -7.0012, lng: 108.4354, diff: 1.2 },
+
+            // Area Cisantana & Dataran Tinggi (High Difficulty)
+            { name: "Desa Cisantana", lat: -6.9542, lng: 108.4254, diff: 1.4 },
+            { name: "Dusun Dano (Cisantana)", lat: -6.9482, lng: 108.4212, diff: 1.5 },
+            { name: "Dusun Palutungan (Cisantana)", lat: -6.9385, lng: 108.4121, diff: 1.6 },
+            { name: "Dusun Cigowong (Cisantana)", lat: -6.9452, lng: 108.4054, diff: 1.6 },
+            { name: "Desa Puncak", lat: -6.9412, lng: 108.4321, diff: 1.5 }
         ]
     },
+
 
         "Cilimus": {
         lat: -6.8864, lng: 108.4947,
