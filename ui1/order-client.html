@@ -360,7 +360,9 @@
 
 <script src="wilayah.js"></script>
     
-    <script>
+    
+
+<script>
     // 1. KONFIGURASI FIREBASE
     const firebaseConfig = {
         apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
@@ -375,12 +377,11 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // 2. GLOBAL VARIABLES & AUTH CHECK
+    // 2. GLOBAL VARIABLES
     const currentUID = localStorage.getItem('current_customer_id');
     if (!currentUID) { window.location.href = 'login.html'; }
     let userProfile = {}; 
 
-    // Load Data Profil & Inisialisasi Wilayah
     window.onload = () => {
         if(typeof initWilayah === "function") initWilayah();
         
@@ -394,7 +395,7 @@
         });
     };
 
-    // 3. LOGIKA GPS (PICKUP POINT)
+    // 3. LOGIKA GPS & REVERSE GEOCODE (Nama Tempat Otomatis)
     function handleGPS() {
         const btn = document.getElementById('btn-location');
         const txt = document.getElementById('gps-text');
@@ -405,50 +406,75 @@
         icon.innerText = "⌛";
 
         if (navigator.geolocation) {
-            setTimeout(() => {
-                navigator.geolocation.getCurrentPosition((position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    
-                    document.getElementById('cust-pickup-coords').value = `${lat},${lon}`;
-                    btn.classList.remove('scanning');
-                    btn.classList.add('location-locked');
-                    txt.innerText = "COORDINATES SECURED";
-                    icon.innerText = "📍";
-                    
-                    // Cek apakah pintu tarif bisa dibuka
-                    checkRequirementsForPrice();
-                }, (error) => {
-                    btn.classList.remove('scanning');
-                    txt.innerText = "SIGNAL LOST - RETRY";
-                    icon.innerText = "❌";
-                    alert("GPS Error: " + error.message);
-                });
-            }, 1500);
+            navigator.geolocation.getCurrentPosition((position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                
+                document.getElementById('cust-pickup-coords').value = `${lat},${lon}`;
+
+                // Mengambil nama tempat secara gratis (OpenStreetMap)
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const road = data.address.road || data.address.village || "COORDINATES SECURED";
+                        btn.classList.remove('scanning');
+                        btn.classList.add('location-locked');
+                        txt.innerText = road.toUpperCase();
+                        icon.innerText = "📍";
+                        checkRequirementsForPrice();
+                    });
+            }, (error) => {
+                btn.classList.remove('scanning');
+                txt.innerText = "SIGNAL LOST - RETRY";
+                icon.innerText = "❌";
+                alert("GPS Error: " + error.message);
+            });
         }
     }
 
-    // 4. LOGIKA DESTINATION & HARGA (BOUNTY)
+    // 4. HITUNG JARAK & TARIF DINAMIS (Haversine & Terrain Multiplier)
+    function calculateRealDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Radius Bumi (KM)
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
     function checkRequirementsForPrice() {
-        const city = document.getElementById('dest-city').value;
+        const cityIdx = document.getElementById('dest-city').value;
+        const wilayahKey = document.getElementById('dest-kecamatan').value;
         const coords = document.getElementById('cust-pickup-coords').value;
 
-        if (city && coords) {
-            calculateDistance();
-            const section = document.getElementById('price-section');
-            section.classList.add('price-section-show');
+        if (cityIdx !== "" && coords !== "") {
+            const [lat1, lon1] = coords.split(',').map(Number);
+            const destData = dataWilayah[wilayahKey][cityIdx];
+            
+            let distanceKM = calculateRealDistance(lat1, lon1, destData.lat, destData.lng);
+            let difficulty = destData.diff || 1.0;
+
+            // Tampilkan bagian tarif dengan animasi
+            document.getElementById('price-section').classList.add('price-section-show');
+            
+            updateBountyDisplay(distanceKM, difficulty);
         }
     }
 
-    function calculateDistance() {
-        const distance = Math.floor(Math.random() * 10) + 2; 
-        const h = Math.max(10000, distance * 2000);
-        const r = Math.max(10000, (distance * 3000) + 2000);
-        const e = Math.max(10000, distance * 5000);
+    function updateBountyDisplay(km, diff) {
+        // Rumus: (Jarak * Harga/KM) * Faktor Medan
+        const h = (km * 2000) * diff;
+        const r = (km * 3500) * diff;
+        const e = (km * 5000) * diff;
 
-        document.getElementById('price-hemat').innerText = h.toLocaleString();
-        document.getElementById('price-reguler').innerText = r.toLocaleString();
-        document.getElementById('price-express').innerText = e.toLocaleString();
+        // Minimal tarif 10.000
+        document.getElementById('price-hemat').innerText = Math.max(10000, h).toLocaleString('id-ID');
+        document.getElementById('price-reguler').innerText = Math.max(10000, r).toLocaleString('id-ID');
+        document.getElementById('price-express').innerText = Math.max(10000, e).toLocaleString('id-ID');
+        
+        // Info Jarak Terdeteksi
+        console.log(`Distance: ${km.toFixed(2)} KM | Multiplier: x${diff}`);
     }
 
     function selectPrice(element, type) {
@@ -458,16 +484,18 @@
         document.getElementById('final-price').value = priceValue;
     }
 
-    // 5. KIRIM MISI (SEND TO DRIVERS)
+    // 5. KIRIM MISI KE FIREBASE
     function sendMission() {
-        const pickup = document.getElementById('cust-pickup-coords').value;
+        const pickupCoords = document.getElementById('cust-pickup-coords').value;
         const price = document.getElementById('final-price').value;
-        const destination = document.getElementById('dest-city').value;
+        const cityIdx = document.getElementById('dest-city').value;
+        const wilayahKey = document.getElementById('dest-kecamatan').value;
 
-        if(!pickup || price == "0" || !destination) {
-            return alert("SISTEM: Lokasi & Tarif belum lengkap!");
+        if(!pickupCoords || price == "0" || cityIdx == "") {
+            return alert("SISTEM: Lokasi atau Paket Bounty belum dipilih!");
         }
 
+        const destName = dataWilayah[wilayahKey][cityIdx].name;
         const isUrgent = document.getElementById('is-urgent').checked;
         const missionRef = db.ref('missions').push();
         const mID = missionRef.key;
@@ -477,12 +505,12 @@
             clientId: currentUID,
             clientName: userProfile.name,
             stats: {
-                totalOrders: userProfile.totalOrders || 0,
+                totalOrders: (userProfile.totalOrders || 0) + 1,
                 reputation: userProfile.reputation
             },
             price: parseInt(price),
-            pickup: pickup, // Koordinat GPS
-            destination: destination,
+            pickup: pickupCoords, 
+            destination: destName,
             note: document.getElementById('cust-note').value,
             rank: isUrgent ? "CHAOS" : "MORTAL",
             status: "available",
@@ -494,7 +522,7 @@
             db.ref('users_customer/' + currentUID).update({
                 totalOrders: (userProfile.totalOrders || 0) + 1
             });
-            alert("QUEST PUBLISHED!");
+            alert("QUEST PUBLISHED! Sinyal telah disebarkan.");
         });
     }
 
@@ -515,7 +543,8 @@
         localStorage.removeItem('current_customer_id');
         window.location.href = 'login.html';
     }
-</script>
+                    </script>
+    
     
 
 
