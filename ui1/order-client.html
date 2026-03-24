@@ -375,7 +375,6 @@
 <script src="wilayah.js"></script>
     
     
-
 <script>
     // 1. KONFIGURASI FIREBASE
     const firebaseConfig = {
@@ -399,7 +398,6 @@
     let userProfile = {}; 
 
     window.onload = () => {
-        // Inisialisasi list kecamatan ke dropdown
         const kecSelect = document.getElementById('dest-kecamatan');
         for (let kec in dataWilayah) {
             let opt = document.createElement('option');
@@ -408,127 +406,107 @@
             kecSelect.appendChild(opt);
         }
         
-        // Load Profile
         db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
             userProfile = snapshot.val();
             if (userProfile) {
                 document.getElementById('display-name').innerText = userProfile.name;
-                document.getElementById('display-reputation').innerText = "RANK: " + userProfile.reputation;
+                document.getElementById('display-reputation').innerText = "LEVEL: " + userProfile.reputation;
                 document.getElementById('cust-name').value = userProfile.name;
             }
         });
     };
 
-    
-    // 3. LOGIKA DROPDOWN & WILAYAH (Sudah ditambah fitur kosongkan search)
-function loadCities(kecamatan) {
-    const citySelect = document.getElementById('dest-city');
-    const wrapper = document.getElementById('city-wrapper');
-    const searchInput = document.getElementById('destinationSearch');
-    
-    // Kosongkan search box jika user memilih dari dropdown manual
-    // (Kecuali jika dipicu oleh fungsi selectFromSearch)
-    if (document.activeElement !== searchInput) {
-        searchInput.value = '';
-    }
-
-    if (!citySelect || !wrapper) return;
-    citySelect.innerHTML = '<option value="">-- PILIH DESA/AREA --</option>';
-    
-    if (kecamatan && dataWilayah[kecamatan]) {
-        wrapper.style.display = 'block';
-        dataWilayah[kecamatan].desa.forEach((desa, index) => {
-            let opt = document.createElement('option');
-            opt.value = index; 
-            opt.innerText = desa.name;
-            citySelect.appendChild(opt);
-        });
-    } else {
-        wrapper.style.display = 'none';
-    }
-}
-
-// 4. SISTEM GLOBAL SEARCH (FIXED: Sinkron Dua Arah)
-const searchInput = document.getElementById('destinationSearch');
-const suggestionBox = document.getElementById('searchSuggestions');
-
-searchInput.addEventListener('input', function() {
-    const keyword = this.value.toLowerCase();
-    suggestionBox.innerHTML = ''; 
-
-    if (keyword.length < 2) {
-        suggestionBox.style.display = 'none';
-        return;
-    }
-
-    let matches = [];
-    for (let kec in dataWilayah) {
-        dataWilayah[kec].desa.forEach((desa, index) => {
-            if (desa.name && desa.name.toLowerCase().includes(keyword)) {
-                matches.push({
-                    name: desa.name,
-                    kec: kec,
-                    index: index
-                });
-            }
-        });
-    }
-
-    if (matches.length > 0) {
-        suggestionBox.style.display = 'block';
-        suggestionBox.style.zIndex = "9999"; 
+    // 3. LOGIKA DROPDOWN & WILAYAH
+    function loadCities(kecamatan) {
+        const citySelect = document.getElementById('dest-city');
+        const wrapper = document.getElementById('city-wrapper');
+        const searchInput = document.getElementById('destinationSearch');
         
-        matches.slice(0, 8).forEach(match => {
-            const div = document.createElement('div');
-            div.style = "padding: 12px; border-bottom: 1px solid #333; cursor: pointer; background: #1a1a1a; color: #fff; font-family: sans-serif;";
-            div.innerHTML = `<span style="color:#00ffcc; font-weight:bold;">${match.name.toUpperCase()}</span><br>
-                             <small style="color:#888;">Kecamatan ${match.kec}</small>`;
-            
-            div.onclick = function() {
-                // 1. Set nama di search box
-                searchInput.value = match.name.toUpperCase();
+        // Kosongkan search box jika user memilih dari dropdown manual
+        if (document.activeElement !== searchInput) {
+            searchInput.value = '';
+        }
+
+        if (!citySelect || !wrapper) return;
+        citySelect.innerHTML = '<option value="">-- PILIH DESA/AREA --</option>';
+        
+        if (kecamatan && dataWilayah[kecamatan]) {
+            wrapper.style.display = 'block';
+            dataWilayah[kecamatan].desa.forEach((desa, index) => {
+                let opt = document.createElement('option');
+                opt.value = index; 
+                opt.innerText = desa.name;
+                citySelect.appendChild(opt);
+            });
+        } else {
+            wrapper.style.display = 'none';
+        }
+    }
+
+    // 4. SISTEM GLOBAL SEARCH
+    const searchInput = document.getElementById('destinationSearch');
+    const suggestionBox = document.getElementById('searchSuggestions');
+
+    searchInput.addEventListener('input', function() {
+        const keyword = this.value.toLowerCase();
+        suggestionBox.innerHTML = ''; 
+
+        if (keyword.length < 2) {
+            suggestionBox.style.display = 'none';
+            return;
+        }
+
+        let matches = [];
+        for (let kec in dataWilayah) {
+            dataWilayah[kec].desa.forEach((desa, index) => {
+                if (desa.name && desa.name.toLowerCase().includes(keyword)) {
+                    matches.push({ name: desa.name, kec: kec, index: index });
+                }
+            });
+        }
+
+        if (matches.length > 0) {
+            suggestionBox.style.display = 'block';
+            suggestionBox.style.zIndex = "9999"; 
+            matches.slice(0, 8).forEach(match => {
+                const div = document.createElement('div');
+                div.style = "padding: 12px; border-bottom: 1px solid #333; cursor: pointer; background: #1a1a1a; color: #fff; font-family: sans-serif;";
+                div.innerHTML = `<span style="color:#00ffcc; font-weight:bold;">${match.name.toUpperCase()}</span><br><small style="color:#888;">Kecamatan ${match.kec}</small>`;
                 
-                // 2. Pilih Kecamatan di Dropdown
-                const kecSelect = document.getElementById('dest-kecamatan');
-                kecSelect.value = match.kec;
-                
-                // 3. Panggil loadCities TANPA menghapus isi searchInput
-                // Kita kunci fokus ke searchInput agar loadCities tidak mengosongkannya
-                searchInput.focus();
-                loadCities(match.kec);
-                
-                // 4. Pilih Desa di Dropdown (pakai delay agar render selesai)
-                setTimeout(() => {
-                    const citySelect = document.getElementById('dest-city');
-                    citySelect.value = match.index;
-                    suggestionBox.style.display = 'none';
+                div.onclick = function() {
+                    searchInput.value = match.name.toUpperCase();
+                    const kecSelect = document.getElementById('dest-kecamatan');
+                    kecSelect.value = match.kec;
                     
-                    // 5. Hitung harga otomatis
-                    if(typeof checkRequirementsForPrice === "function") checkRequirementsForPrice();
-                }, 100);
-            };
-            suggestionBox.appendChild(div);
-        });
-    } else {
-        suggestionBox.style.display = 'none';
-    }
-});
+                    searchInput.focus(); 
+                    loadCities(match.kec);
+                    
+                    setTimeout(() => {
+                        const citySelect = document.getElementById('dest-city');
+                        citySelect.value = match.index;
+                        suggestionBox.style.display = 'none';
+                        checkRequirementsForPrice();
+                    }, 150);
+                };
+                suggestionBox.appendChild(div);
+            });
+        } else {
+            suggestionBox.style.display = 'none';
+        }
+    });
 
-// Tambahan: Jika dropdown desa diklik manual, kosongkan search box
-document.getElementById('dest-city').addEventListener('change', function() {
-    if (document.activeElement === this) {
-        document.getElementById('destinationSearch').value = '';
-    }
-});
-
-
-
-    // 5. GPS & TRACKING
+    // 5. GPS & TRACKING (FIXED: High Accuracy)
     function handleGPS() {
         const btn = document.getElementById('btn-location');
         const txt = document.getElementById('gps-text');
         btn.classList.add('scanning');
-        txt.innerText = "TRIANGULATING...";
+        txt.innerText = "MENCARI SINYAL POSISI...";
+
+        const options = {
+            enableHighAccuracy: true, // PAKSA GPS PALING AKURAT
+            timeout: 7000,
+            maximumAge: 0
+        };
 
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((position) => {
@@ -539,19 +517,22 @@ document.getElementById('dest-city').addEventListener('change', function() {
                 fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
                     .then(res => res.json())
                     .then(data => {
-                        const road = data.address.road || data.address.village || "LOCATION SECURED";
+                        const road = data.address.road || data.address.village || data.address.suburb || "LOKASI DITEMUKAN";
                         btn.classList.remove('scanning');
                         btn.classList.add('location-locked');
                         txt.innerText = road.toUpperCase();
+                        // Langsung cek harga jika tujuan sudah ada
                         checkRequirementsForPrice();
                     });
             }, (error) => {
-                alert("GPS Error: " + error.message);
-            });
+                btn.classList.remove('scanning');
+                txt.innerText = "GAGAL! COBA KLIK LAGI";
+                alert("GPS Error: Pastikan Izin Lokasi Aktif");
+            }, options);
         }
     }
 
-    // 6. KALKULASI TARIF (HAVERSINE)
+    // 6. KALKULASI TARIF (FIXED: Pembulatan & Faktor Jalan)
     function calculateRealDistance(lat1, lon1, lat2, lon2) {
         const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -562,64 +543,51 @@ document.getElementById('dest-city').addEventListener('change', function() {
     }
 
     function checkRequirementsForPrice() {
-    const kecName = document.getElementById('dest-kecamatan').value;
-    const desaIdx = document.getElementById('dest-city').value;
-    const coords = document.getElementById('cust-pickup-coords').value;
+        const kecName = document.getElementById('dest-kecamatan').value;
+        const desaIdx = document.getElementById('dest-city').value;
+        const coords = document.getElementById('cust-pickup-coords').value;
 
-    if (kecName && desaIdx !== "" && coords) {
-        const [lat1, lon1] = coords.split(',').map(Number);
-        const selectedDesa = dataWilayah[kecName].desa[parseInt(desaIdx)];
-        
-        // 1. Hitung jarak garis lurus (Haversine)
-        let straightDistance = calculateRealDistance(lat1, lon1, selectedDesa.lat, selectedDesa.lng);
-        
-        // 2. Koreksi Jarak Jalan (Jarak Udara x 1.45 agar mirip Google Maps)
-        let distanceKM = straightDistance * 1.45; 
-        
-        // 3. Ambil tingkat kesulitan medan (diff)
-        let difficulty = selectedDesa.diff || 1.0;
+        if (kecName && desaIdx !== "" && coords) {
+            const [lat1, lon1] = coords.split(',').map(Number);
+            const selectedDesa = dataWilayah[kecName].desa[parseInt(desaIdx)];
+            
+            let straightDistance = calculateRealDistance(lat1, lon1, selectedDesa.lat, selectedDesa.lng);
+            let distanceKM = straightDistance * 1.5; // Faktor jalan Kuningan (banyak kelokan)
+            let difficulty = selectedDesa.diff || 1.0;
 
-        document.getElementById('price-section').style.display = 'block';
-        updateBountyDisplay(distanceKM, difficulty);
+            document.getElementById('price-section').style.display = 'block';
+            updateBountyDisplay(distanceKM, difficulty);
+        } else {
+            document.getElementById('price-section').style.display = 'none';
+        }
     }
-}
-
-function updateBountyDisplay(km, diff) {
-    // Rumus dasar: (Jarak * Harga/KM) * Faktor Medan
-    let h = (km * 2000) * diff;
-    let r = (km * 3000) * diff;
-    let e = (km * 4000) * diff;
-
-    // Fungsi Pembulatan ke Atas ke Ribuan Terdekat (Contoh: 18.200 -> 19.000)
-    // Ini sangat membantu sopir agar tidak pusing uang kembalian
-    const roundToThousands = (num) => Math.ceil(num / 1000) * 1000;
-
-    // Minimal tarif 10.000, lalu dibulatkan
-    const finalH = Math.max(10000, roundToThousands(h));
-    const finalR = Math.max(10000, roundToThousands(r));
-    const finalE = Math.max(15000, roundToThousands(e));
-
-    document.getElementById('price-hemat').innerText = finalH.toLocaleString('id-ID');
-    document.getElementById('price-reguler').innerText = finalR.toLocaleString('id-ID');
-    document.getElementById('price-express').innerText = finalE.toLocaleString('id-ID');
-    
-    console.log(`Real KM: ${km.toFixed(2)} | Diff: ${diff} | Hemat: ${finalH}`);
-}
-
 
     function updateBountyDisplay(km, diff) {
-        const h = (km * 2000) * diff;
-        const r = (km * 3000) * diff;
-        const e = (km * 4000) * diff;
+        // Rumus harga baru
+        let h = (km * 2000) * diff;
+        let r = (km * 3500) * diff;
+        let e = (km * 5000) * diff;
 
-        document.getElementById('price-hemat').innerText = Math.max(10000, Math.round(h)).toLocaleString('id-ID');
-        document.getElementById('price-reguler').innerText = Math.max(10000, Math.round(r)).toLocaleString('id-ID');
-        document.getElementById('price-express').innerText = Math.max(10000, Math.round(e)).toLocaleString('id-ID');
+        const roundToThousands = (num) => Math.ceil(num / 1000) * 1000;
+
+        const finalH = Math.max(10000, roundToThousands(h));
+        const finalR = Math.max(12000, roundToThousands(r));
+        const finalE = Math.max(15000, roundToThousands(e));
+
+        document.getElementById('price-hemat').innerText = finalH.toLocaleString('id-ID');
+        document.getElementById('price-reguler').innerText = finalR.toLocaleString('id-ID');
+        document.getElementById('price-express').innerText = finalE.toLocaleString('id-ID');
+        
+        console.log(`KM: ${km.toFixed(2)} | H: ${finalH} | R: ${finalR} | E: ${finalE}`);
     }
 
     function selectPrice(element, type) {
-        document.querySelectorAll('.price-card').forEach(card => card.style.borderColor = '#333');
+        document.querySelectorAll('.price-card').forEach(card => {
+            card.style.borderColor = '#333';
+            card.style.background = 'transparent';
+        });
         element.style.borderColor = '#00ffcc';
+        element.style.background = 'rgba(0, 255, 204, 0.1)';
         const priceValue = element.querySelector('div').innerText.replace(/\D/g,'');
         document.getElementById('final-price').value = priceValue;
     }
@@ -632,7 +600,7 @@ function updateBountyDisplay(km, diff) {
         const desaIdx = document.getElementById('dest-city').value;
 
         if(!pickupCoords || price == "0" || desaIdx == "") {
-            return alert("SISTEM: Lokasi atau Paket Bounty belum dipilih!");
+            return alert("MAAF: Lokasi jemput, tujuan, atau harga belum dipilih!");
         }
 
         const desaData = dataWilayah[kecName].desa[parseInt(desaIdx)];
@@ -647,11 +615,11 @@ function updateBountyDisplay(km, diff) {
             pickup: pickupCoords, 
             destination: desaData.name,
             note: document.getElementById('cust-note').value,
-            rank: isUrgent ? "CHAOS" : "MORTAL",
+            rank: isUrgent ? "DARURAT" : "BIASA",
             status: "available",
             timestamp: firebase.database.ServerValue.TIMESTAMP
         }).then(() => {
-            alert("QUEST PUBLISHED! Sinyal telah disebarkan.");
+            alert("PESANAN BERHASIL! Menunggu sopir menerima...");
         });
     }
 
@@ -659,8 +627,8 @@ function updateBountyDisplay(km, diff) {
         localStorage.removeItem('current_customer_id');
         window.location.href = 'login.html';
     }
-</script>
-
+                    </script>
+    
 
 
             
