@@ -419,29 +419,36 @@
         });
     };
 
-    // 3. LOGIKA DROPDOWN & WILAYAH
-    function loadCities(kecamatan) {
-        const citySelect = document.getElementById('dest-city');
-        const wrapper = document.getElementById('city-wrapper');
-        
-        if (!citySelect || !wrapper) return;
-        citySelect.innerHTML = '<option value="">-- PILIH DESA/AREA --</option>';
-        
-        if (kecamatan && dataWilayah[kecamatan]) {
-            wrapper.style.display = 'block';
-            dataWilayah[kecamatan].desa.forEach((desa, index) => {
-                let opt = document.createElement('option');
-                opt.value = index; // Gunakan index untuk memudahkan pencarian data
-                opt.innerText = desa.name;
-                citySelect.appendChild(opt);
-            });
-        } else {
-            wrapper.style.display = 'none';
-        }
+    
+    // 3. LOGIKA DROPDOWN & WILAYAH (Sudah ditambah fitur kosongkan search)
+function loadCities(kecamatan) {
+    const citySelect = document.getElementById('dest-city');
+    const wrapper = document.getElementById('city-wrapper');
+    const searchInput = document.getElementById('destinationSearch');
+    
+    // Kosongkan search box jika user memilih dari dropdown manual
+    // (Kecuali jika dipicu oleh fungsi selectFromSearch)
+    if (document.activeElement !== searchInput) {
+        searchInput.value = '';
     }
 
-    // 4. SISTEM GLOBAL SEARCH (FIXED)
-    // 4. SISTEM GLOBAL SEARCH (FIXED & STYLED)
+    if (!citySelect || !wrapper) return;
+    citySelect.innerHTML = '<option value="">-- PILIH DESA/AREA --</option>';
+    
+    if (kecamatan && dataWilayah[kecamatan]) {
+        wrapper.style.display = 'block';
+        dataWilayah[kecamatan].desa.forEach((desa, index) => {
+            let opt = document.createElement('option');
+            opt.value = index; 
+            opt.innerText = desa.name;
+            citySelect.appendChild(opt);
+        });
+    } else {
+        wrapper.style.display = 'none';
+    }
+}
+
+// 4. SISTEM GLOBAL SEARCH (FIXED: Sinkron Dua Arah)
 const searchInput = document.getElementById('destinationSearch');
 const suggestionBox = document.getElementById('searchSuggestions');
 
@@ -455,10 +462,8 @@ searchInput.addEventListener('input', function() {
     }
 
     let matches = [];
-    // Loop untuk mencari desa di dalam dataWilayah
     for (let kec in dataWilayah) {
         dataWilayah[kec].desa.forEach((desa, index) => {
-            // Pastikan kita mengakses properti .name karena desa adalah Object
             if (desa.name && desa.name.toLowerCase().includes(keyword)) {
                 matches.push({
                     name: desa.name,
@@ -471,33 +476,34 @@ searchInput.addEventListener('input', function() {
 
     if (matches.length > 0) {
         suggestionBox.style.display = 'block';
-        // Tambahkan z-index tinggi agar tidak tertutup dropdown bawah
         suggestionBox.style.zIndex = "9999"; 
         
         matches.slice(0, 8).forEach(match => {
             const div = document.createElement('div');
-            // Style agar teks terbaca (Latar gelap, teks neon)
             div.style = "padding: 12px; border-bottom: 1px solid #333; cursor: pointer; background: #1a1a1a; color: #fff; font-family: sans-serif;";
-            
             div.innerHTML = `<span style="color:#00ffcc; font-weight:bold;">${match.name.toUpperCase()}</span><br>
                              <small style="color:#888;">Kecamatan ${match.kec}</small>`;
             
             div.onclick = function() {
-                // Set value ke input search
+                // 1. Set nama di search box
                 searchInput.value = match.name.toUpperCase();
                 
-                // Sinkronisasi otomatis ke Dropdown Original
+                // 2. Pilih Kecamatan di Dropdown
                 const kecSelect = document.getElementById('dest-kecamatan');
-                const citySelect = document.getElementById('dest-city');
-                
                 kecSelect.value = match.kec;
-                loadCities(match.kec); // Panggil fungsi load desa
                 
-                // Beri jeda dikit agar dropdown desa sempat terisi
+                // 3. Panggil loadCities TANPA menghapus isi searchInput
+                // Kita kunci fokus ke searchInput agar loadCities tidak mengosongkannya
+                searchInput.focus();
+                loadCities(match.kec);
+                
+                // 4. Pilih Desa di Dropdown (pakai delay agar render selesai)
                 setTimeout(() => {
+                    const citySelect = document.getElementById('dest-city');
                     citySelect.value = match.index;
                     suggestionBox.style.display = 'none';
-                    // Trigger hitung harga
+                    
+                    // 5. Hitung harga otomatis
                     if(typeof checkRequirementsForPrice === "function") checkRequirementsForPrice();
                 }, 100);
             };
@@ -507,6 +513,14 @@ searchInput.addEventListener('input', function() {
         suggestionBox.style.display = 'none';
     }
 });
+
+// Tambahan: Jika dropdown desa diklik manual, kosongkan search box
+document.getElementById('dest-city').addEventListener('change', function() {
+    if (document.activeElement === this) {
+        document.getElementById('destinationSearch').value = '';
+    }
+});
+
 
 
     // 5. GPS & TRACKING
