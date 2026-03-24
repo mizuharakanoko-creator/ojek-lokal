@@ -296,6 +296,19 @@
 </div>
 
 
+
+
+<div class="search-container" style="margin: 15px; position: relative;">
+    <input type="text" id="destinationSearch" placeholder="Cari Desa/Dusun Tujuan..." 
+           style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px;">
+    
+    <div id="searchSuggestions" style="display: none; position: absolute; width: 100%; 
+         background: white; border: 1px solid #ddd; z-index: 1000; max-height: 250px; 
+         overflow-y: auto; border-radius: 0 0 8px 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    </div>
+</div>
+    
+
 <div class="form-group">
     <label>DESTINATION (DISTRICT)</label>
     <select id="dest-kecamatan" onchange="loadCities(this.value)">
@@ -461,6 +474,159 @@ function loadCities(kecamatan) {
             });
         }
     }
+
+
+
+    const searchInput = document.getElementById('destinationSearch');
+const suggestionBox = document.getElementById('searchSuggestions');
+
+searchInput.addEventListener('input', function() {
+    const keyword = this.value.toLowerCase();
+    suggestionBox.innerHTML = ''; // Reset hasil sebelumnya
+
+    if (keyword.length < 2) {
+        suggestionBox.style.display = 'none';
+        return;
+    }
+
+    let matches = [];
+
+    // Loop ke SEMUA kecamatan dan SEMUA desa
+    for (let kec in dataWilayah) {
+        dataWilayah[kec].desa.forEach(desa => {
+            if (desa.name.toLowerCase().includes(keyword)) {
+                matches.push({
+                    namaDesa: desa.name,
+                    namaKec: kec,
+                    lat: desa.lat,
+                    lng: desa.lng,
+                    diff: desa.diff
+                });
+            }
+        });
+    }
+
+    // Tampilkan maksimal 10 hasil agar tidak kepanjangan
+    if (matches.length > 0) {
+        suggestionBox.style.display = 'block';
+        matches.slice(0, 10).forEach(match => {
+            const div = document.createElement('div');
+            div.style.padding = '12px';
+            div.style.borderBottom = '1px solid #eee';
+            div.style.cursor = 'pointer';
+            div.innerHTML = `<strong>${match.namaDesa}</strong> <br> <small style="color:#666">Kec. ${match.namaKec}</small>`;
+            
+            // Saat hasil diklik
+            div.onclick = function() {
+                searchInput.value = match.namaDesa;
+                suggestionBox.style.display = 'none';
+                
+                // Jalankan fungsi hitung tarif Anda di sini
+                // Contoh: setTujuan(match.lat, match.lng, match.diff);
+                console.log("Tujuan dipilih:", match);
+                pilihLokasiTujuan(match); 
+            };
+            suggestionBox.appendChild(div);
+        });
+    } else {
+        suggestionBox.style.display = 'none';
+    }
+});
+
+// Tutup suggestion box jika klik di luar area
+document.addEventListener('click', function(e) {
+    if (e.target !== searchInput) suggestionBox.style.display = 'none';
+});
+
+// Fungsi integrasi ke sistem tarif Anda
+function pilihLokasiTujuan(data) {
+    // Di sini Anda masukkan koordinat ke variabel tujuan global Anda
+    // agar tarif otomatis terhitung
+    tujuanTerpilih = {
+        lat: data.lat,
+        lng: data.lng,
+        diff: data.diff
+    };
+    
+    // Jika ada fungsi kalkulasi tarif, panggil di sini
+    // hitungTarifSekarang(); 
+    alert("Tujuan diset ke: " + data.namaDesa + " (Diff: " + data.diff + ")");
+                }
+
+
+    // 1. Fungsi Utama saat hasil pencarian diklik
+function selectFromSearch(match) {
+    const kecSelect = document.getElementById('dest-kecamatan');
+    const citySelect = document.getElementById('dest-city');
+    const cityWrapper = document.getElementById('city-wrapper');
+    const searchInput = document.getElementById('destinationSearch');
+
+    // A. Set Nilai di Search Input agar rapi
+    searchInput.value = match.namaDesa;
+
+    // B. Paksa Dropdown Kecamatan memilih kecamatan yang benar
+    kecSelect.value = match.namaKec;
+
+    // C. Jalankan fungsi loadCities (milik Anda) secara manual
+    // Ini penting agar dropdown desa terisi data
+    loadCities(match.namaKec);
+
+    // D. Munculkan wrapper desa dan pilih desanya
+    cityWrapper.style.display = 'block';
+    
+    // Beri sedikit delay (10ms) agar browser sempat merender isi dropdown desa
+    setTimeout(() => {
+        citySelect.value = match.namaDesa;
+        
+        // E. Jalankan fungsi hitung tarif Anda
+        if (typeof checkRequirementsForPrice === "function") {
+            checkRequirementsForPrice();
+        }
+    }, 10);
+
+    // Sembunyikan saran pencarian
+    document.getElementById('searchSuggestions').style.display = 'none';
+}
+
+// 2. Logika Live Search (Input Listener)
+document.getElementById('destinationSearch').addEventListener('input', function() {
+    const keyword = this.value.toLowerCase();
+    const suggestionBox = document.getElementById('searchSuggestions');
+    suggestionBox.innerHTML = '';
+
+    if (keyword.length < 2) {
+        suggestionBox.style.display = 'none';
+        return;
+    }
+
+    let matches = [];
+    for (let kec in dataWilayah) {
+        dataWilayah[kec].desa.forEach(desa => {
+            if (desa.name.toLowerCase().includes(keyword)) {
+                matches.push({
+                    namaDesa: desa.name,
+                    namaKec: kec
+                });
+            }
+        });
+    }
+
+    if (matches.length > 0) {
+        suggestionBox.style.display = 'block';
+        matches.slice(0, 8).forEach(match => {
+            const div = document.createElement('div');
+            div.style = "padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; background: #fff;";
+            div.innerHTML = `<strong>${match.namaDesa}</strong> <br> <small>Kec. ${match.namaKec}</small>`;
+            
+            // Panggil fungsi sinkronisasi saat diklik
+            div.onclick = () => selectFromSearch(match);
+            suggestionBox.appendChild(div);
+        });
+    } else {
+        suggestionBox.style.display = 'none';
+    }
+});
+        
 
     // 4. HITUNG JARAK & TARIF DINAMIS (Haversine & Terrain Multiplier)
     function calculateRealDistance(lat1, lon1, lat2, lon2) {
