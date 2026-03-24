@@ -21,6 +21,47 @@ const dataWilayah = {
             "Kasturi", "Winduhaji", "Ancaran", "Ciporang"
         ]
     },
+        "Kadugede": {
+        lat: -7.0012, lng: 108.4612, diff: 1.2,
+        desa: ["Kadugede", "Babatan", "Cipado", "Cisukadana", "Nusaherang", "Sindangjawa", "Tinggar", "Windujanten"]
+    },
+    "Darma": {
+        lat: -7.0423, lng: 108.4123, diff: 1.3,
+        desa: ["Darma", "Bakom", "Cigasong", "Cikupa", "Gunungsari", "Jagara", "Karangsari", "Paninggaran", "Parung", "Sakasari"]
+    },
+    "Selajambe": {
+        lat: -7.1212, lng: 108.4621, diff: 1.5,
+        desa: ["Selajambe", "Bagawat", "Cambereti", "Cantilan", "Jamberama", "Kutawaringin", "Padahurip"]
+    },
+    "Subang": {
+        lat: -7.1523, lng: 108.5421, diff: 1.5,
+        desa: ["Subang", "Cilebak", "Jatisari", "Pamulihan", "Situgede", "Tanggerang", "Bangunjaya"]
+    },
+    "Luragung": {
+        lat: -7.0212, lng: 108.6321, diff: 1.0,
+        desa: ["Luragung", "Cidahu", "Cikadu", "Dukuhpicung", "Margasari", "Sindangsari", "Wadasiluhur"]
+    },
+    "Ciawigebang": {
+        lat: -6.9634, lng: 108.5912, diff: 1.0,
+        desa: ["Ciawigebang", "Ciawilor", "Cidahu", "Geresik", "Kadurama", "Kapandayan", "Pajawanlor", "Sidaraja"]
+    },
+    "Cidahu": {
+        lat: -6.9212, lng: 108.6421, diff: 1.0,
+        desa: ["Cidahu", "Ceurik", "Cihideunggirang", "Cihideunghilir", "Datar", "Legok", "Nanggela"]
+    },
+    "Jalaksana": {
+        lat: -6.9124, lng: 108.4891, diff: 1.2,
+        desa: ["Jalaksana", "Babakanmulya", "Maniskidul", "Manislor", "Sadamantra", "Sangkanerang", "Sangkanurip"]
+    },
+    "Mandirancan": {
+        lat: -6.8156, lng: 108.4735, diff: 1.3,
+        desa: ["Mandirancan", "Cadeba", "Cisantana", "Nanggela", "Salakadomas", "Sukasari", "Trijaya"]
+    },
+    "Pasawahan": {
+        lat: -6.8324, lng: 108.4354, diff: 1.4,
+        desa: ["Pasawahan", "Cidahu", "Cimara", "Kaduela", "Padamatang", "Paniis", "Singkup"]
+    },
+        
     // NANTI LANJUTKAN CICILAN KECAMATAN LAIN DI SINI
 };
 
