@@ -422,7 +422,6 @@
         const wrapper = document.getElementById('city-wrapper');
         const searchInput = document.getElementById('destinationSearch');
         
-        // Kosongkan search box jika user memilih dari dropdown manual
         if (document.activeElement !== searchInput) {
             searchInput.value = '';
         }
@@ -495,18 +494,14 @@
         }
     });
 
-    // 5. GPS & TRACKING (FIXED: High Accuracy)
+    // 5. GPS & TRACKING (High Accuracy)
     function handleGPS() {
         const btn = document.getElementById('btn-location');
         const txt = document.getElementById('gps-text');
         btn.classList.add('scanning');
         txt.innerText = "MENCARI SINYAL POSISI...";
 
-        const options = {
-            enableHighAccuracy: true, // PAKSA GPS PALING AKURAT
-            timeout: 7000,
-            maximumAge: 0
-        };
+        const options = { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 };
 
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((position) => {
@@ -521,7 +516,6 @@
                         btn.classList.remove('scanning');
                         btn.classList.add('location-locked');
                         txt.innerText = road.toUpperCase();
-                        // Langsung cek harga jika tujuan sudah ada
                         checkRequirementsForPrice();
                     });
             }, (error) => {
@@ -532,7 +526,7 @@
         }
     }
 
-    // 6. KALKULASI TARIF (FIXED: Pembulatan & Faktor Jalan)
+    // 6. KALKULASI TARIF (Faktor Jalan + Pembulatan)
     function calculateRealDistance(lat1, lon1, lat2, lon2) {
         const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -552,10 +546,9 @@
             const selectedDesa = dataWilayah[kecName].desa[parseInt(desaIdx)];
             
             let straightDistance = calculateRealDistance(lat1, lon1, selectedDesa.lat, selectedDesa.lng);
-            let distanceKM = straightDistance * 1.5; // Faktor jalan Kuningan (banyak kelokan)
+            let distanceKM = straightDistance * 1.5; // Koreksi kelokan jalan
             let difficulty = selectedDesa.diff || 1.0;
 
-            document.getElementById('price-section').style.display = 'block';
             updateBountyDisplay(distanceKM, difficulty);
         } else {
             document.getElementById('price-section').style.display = 'none';
@@ -563,10 +556,10 @@
     }
 
     function updateBountyDisplay(km, diff) {
-        // Rumus harga baru
+        // Update Hitungan: 2000, 3000, 4000
         let h = (km * 2000) * diff;
-        let r = (km * 3500) * diff;
-        let e = (km * 5000) * diff;
+        let r = (km * 3000) * diff;
+        let e = (km * 4000) * diff;
 
         const roundToThousands = (num) => Math.ceil(num / 1000) * 1000;
 
@@ -574,20 +567,24 @@
         const finalR = Math.max(12000, roundToThousands(r));
         const finalE = Math.max(15000, roundToThousands(e));
 
+        // Sinkronisasi dengan ID HTML baru
         document.getElementById('price-hemat').innerText = finalH.toLocaleString('id-ID');
         document.getElementById('price-reguler').innerText = finalR.toLocaleString('id-ID');
         document.getElementById('price-express').innerText = finalE.toLocaleString('id-ID');
         
-        console.log(`KM: ${km.toFixed(2)} | H: ${finalH} | R: ${finalR} | E: ${finalE}`);
+        document.getElementById('price-section').style.display = 'block';
     }
 
     function selectPrice(element, type) {
         document.querySelectorAll('.price-card').forEach(card => {
             card.style.borderColor = '#333';
             card.style.background = 'transparent';
+            card.style.boxShadow = 'none';
         });
         element.style.borderColor = '#00ffcc';
         element.style.background = 'rgba(0, 255, 204, 0.1)';
+        element.style.boxShadow = '0 0 10px #00ffcc';
+        
         const priceValue = element.querySelector('div').innerText.replace(/\D/g,'');
         document.getElementById('final-price').value = priceValue;
     }
@@ -627,7 +624,8 @@
         localStorage.removeItem('current_customer_id');
         window.location.href = 'login.html';
     }
-                    </script>
+            </script>
+    
     
 
 
