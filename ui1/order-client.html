@@ -436,52 +436,73 @@
     }
 
     // 4. SISTEM GLOBAL SEARCH (FIXED)
-    const searchInput = document.getElementById('destinationSearch');
-    const suggestionBox = document.getElementById('searchSuggestions');
+    // 4. SISTEM GLOBAL SEARCH (FIXED & STYLED)
+const searchInput = document.getElementById('destinationSearch');
+const suggestionBox = document.getElementById('searchSuggestions');
 
-    searchInput.addEventListener('input', function() {
-        const keyword = this.value.toLowerCase();
-        suggestionBox.innerHTML = ''; 
+searchInput.addEventListener('input', function() {
+    const keyword = this.value.toLowerCase();
+    suggestionBox.innerHTML = ''; 
 
-        if (keyword.length < 2) {
-            suggestionBox.style.display = 'none';
-            return;
-        }
+    if (keyword.length < 2) {
+        suggestionBox.style.display = 'none';
+        return;
+    }
 
-        let matches = [];
-        for (let kec in dataWilayah) {
-            dataWilayah[kec].desa.forEach((desa, index) => {
-                if (desa.name.toLowerCase().includes(keyword)) {
-                    matches.push({ name: desa.name, kec: kec, index: index });
-                }
-            });
-        }
+    let matches = [];
+    // Loop untuk mencari desa di dalam dataWilayah
+    for (let kec in dataWilayah) {
+        dataWilayah[kec].desa.forEach((desa, index) => {
+            // Pastikan kita mengakses properti .name karena desa adalah Object
+            if (desa.name && desa.name.toLowerCase().includes(keyword)) {
+                matches.push({
+                    name: desa.name,
+                    kec: kec,
+                    index: index
+                });
+            }
+        });
+    }
 
-        if (matches.length > 0) {
-            suggestionBox.style.display = 'block';
-            matches.slice(0, 8).forEach(match => {
-                const div = document.createElement('div');
-                div.style = "padding:12px; border-bottom:1px solid #333; cursor:pointer; background:#1a1a1a; color:#00ffcc;";
-                div.innerHTML = `<strong>${match.name}</strong><br><small style="color:#888">Kec. ${match.kec}</small>`;
+    if (matches.length > 0) {
+        suggestionBox.style.display = 'block';
+        // Tambahkan z-index tinggi agar tidak tertutup dropdown bawah
+        suggestionBox.style.zIndex = "9999"; 
+        
+        matches.slice(0, 8).forEach(match => {
+            const div = document.createElement('div');
+            // Style agar teks terbaca (Latar gelap, teks neon)
+            div.style = "padding: 12px; border-bottom: 1px solid #333; cursor: pointer; background: #1a1a1a; color: #fff; font-family: sans-serif;";
+            
+            div.innerHTML = `<span style="color:#00ffcc; font-weight:bold;">${match.name.toUpperCase()}</span><br>
+                             <small style="color:#888;">Kecamatan ${match.kec}</small>`;
+            
+            div.onclick = function() {
+                // Set value ke input search
+                searchInput.value = match.name.toUpperCase();
                 
-                div.onclick = () => {
-                    // Sinkronisasi ke Dropdown
-                    document.getElementById('dest-kecamatan').value = match.kec;
-                    loadCities(match.kec);
-                    
-                    setTimeout(() => {
-                        document.getElementById('dest-city').value = match.index;
-                        searchInput.value = match.name;
-                        suggestionBox.style.display = 'none';
-                        checkRequirementsForPrice(); // Hitung harga otomatis
-                    }, 50);
-                };
-                suggestionBox.appendChild(div);
-            });
-        } else {
-            suggestionBox.style.display = 'none';
-        }
-    });
+                // Sinkronisasi otomatis ke Dropdown Original
+                const kecSelect = document.getElementById('dest-kecamatan');
+                const citySelect = document.getElementById('dest-city');
+                
+                kecSelect.value = match.kec;
+                loadCities(match.kec); // Panggil fungsi load desa
+                
+                // Beri jeda dikit agar dropdown desa sempat terisi
+                setTimeout(() => {
+                    citySelect.value = match.index;
+                    suggestionBox.style.display = 'none';
+                    // Trigger hitung harga
+                    if(typeof checkRequirementsForPrice === "function") checkRequirementsForPrice();
+                }, 100);
+            };
+            suggestionBox.appendChild(div);
+        });
+    } else {
+        suggestionBox.style.display = 'none';
+    }
+});
+
 
     // 5. GPS & TRACKING
     function handleGPS() {
