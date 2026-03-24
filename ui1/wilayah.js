@@ -1,40 +1,41 @@
-// wilayah.js - Database Wilayah Layanan
+// wilayah.js - Database Wilayah Layanan Masif
 const dataWilayah = {
-    "Bandung Kota": [
-        "Andir", "Antapani", "Arcamanik", "Astana Anyar", "Babakan Ciparay", 
-        "Bandung Kidul", "Bandung Kulon", "Bandung Nyengseret", "Bandung Wetan", 
-        "Batununggal", "Bojongloa Kaler", "Bojongloa Kidul", "Buahbatu", 
-        "Cibeunying Kaler", "Cibeunying Kidul", "Cibiru", "Cicendo", 
-        "Cidadap", "Cinambo", "Coblong", "Gedebage", "Kiaracondong", 
-        "Lengkong", "Mandalajati", "Panyileukan", "Rancasari", 
-        "Regol", "Sukajadi", "Sukasari", "Sumur Bandung", "Ujungberung"
+    "DKI Jakarta": [
+        "Jakarta Pusat", "Jakarta Barat", "Jakarta Selatan", "Jakarta Timur", "Jakarta Utara", "Kepulauan Seribu"
     ],
-    "Kabupaten Bandung": [
-        "Arjasari", "Baleendah", "Banjaran", "Bohtongsoang", "Cangkuang", 
-        "Cicalengka", "Cikancung", "Cilengkrang", "Cileunyi", "Cimaung", 
-        "Cimeunyan", "Ciparay", "Ciwidey", "Dayeuhkolot", "Ibun", 
-        "Katapang", "Kertasari", "Kutawaringin", "Majalaya", "Margaasih", 
-        "Margahayu", "Nagreg", "Pacet", "Pameungpeuk", "Pangalengan", 
-        "Paseh", "Pasirjambu", "Rancabali", "Solokanjeruk", "Soreang"
+    "Bandung Raya": [
+        "Bandung Kota", "Kabupaten Bandung", "Bandung Barat", "Cimahi"
     ],
-    "Bandung Barat": [
-        "Batujajar", "Cihampelas", "Cikalongwetan", "Cililin", "Cipatat", 
-        "Cipeundeuy", "Cipongkor", "Cisarua", "Gununghalu", "Lembang", 
-        "Ngamprah", "Padalarang", "Parongpong", "Rongga", "Sindangkerta", "Saguling"
+    "Bogor & Depok": [
+        "Bogor Kota", "Kabupaten Bogor", "Depok Kota"
     ],
-    "Cimahi": [
-        "Cimahi Selatan", "Cimahi Tengah", "Cimahi Utara"
+    "Tangerang Raya": [
+        "Tangerang Kota", "Tangerang Selatan", "Kabupaten Tangerang"
+    ],
+    "Bekasi": [
+        "Bekasi Kota", "Kabupaten Bekasi"
+    ],
+    "Priangan Timur": [
+        "Garut", "Tasikmalaya", "Ciamis", "Banjar", "Pangandaran"
+    ],
+    "Cirebon Raya": [
+        "Cirebon Kota", "Kabupaten Cirebon", "Indramayu", "Majalengka", "Kuningan"
+    ],
+    "Jawa Barat Utara": [
+        "Karawang", "Subang", "Purwakarta"
+    ],
+    "Sukabumi & Cianjur": [
+        "Sukabumi Kota", "Kabupaten Sukabumi", "Cianjur"
     ]
 };
 
-// Fungsi untuk mengisi Dropdown Kecamatan saat halaman dimuat
+// Fungsi inisialisasi Dropdown Step 1
 function initWilayah() {
     const kecSelect = document.getElementById('dest-kecamatan');
     if (!kecSelect) return;
-
-    kecSelect.innerHTML = '<option value="">-- Pilih Wilayah --</option>';
+    kecSelect.innerHTML = '<option value="">-- Pilih Wilayah Besar --</option>';
     
-    for (let wilayah dalam dataWilayah) {
+    for (let wilayah in dataWilayah) {
         let opt = document.createElement('option');
         opt.value = wilayah;
         opt.innerHTML = wilayah;
@@ -42,14 +43,13 @@ function initWilayah() {
     }
 }
 
-// Fungsi untuk mengisi Dropdown Kelurahan setelah Kecamatan dipilih
+// Fungsi inisialisasi Dropdown Step 2
 function loadCities(wilayah) {
     const citySelect = document.getElementById('dest-city');
     const wrapper = document.getElementById('city-wrapper');
-    
     if (!citySelect || !wrapper) return;
 
-    citySelect.innerHTML = '<option value="">-- Pilih Kecamatan/Kelurahan --</option>';
+    citySelect.innerHTML = '<option value="">-- Pilih Kota/Kabupaten --</option>';
     
     if (wilayah && dataWilayah[wilayah]) {
         wrapper.style.display = 'block';
