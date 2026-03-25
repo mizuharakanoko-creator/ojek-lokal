@@ -389,178 +389,235 @@
     
     
 <script>
-                                            matches.push({ name: desa.name, kec: kec, index: index });
+                                                
 
 
-    // 1. KONFIGURASI FIREBASE
-const firebaseConfig = {
-    apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
-    authDomain: "ojeklokal-42b84.firebaseapp.com",
-    databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "ojeklokal-42b84",
-    storageBucket: "ojeklokal-42b84.firebasestorage.app",
-    messagingSenderId: "320198748498",
-    appId: "1:320198748498:web:3e6038249edc6af20b328b"
-};
 
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
-const db = firebase.database();
+        // 1. KONFIGURASI FIREBASE
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
+    };
 
-// 2. GLOBAL VARIABLES
-const currentUID = localStorage.getItem('current_customer_id');
-let userProfile = {};
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database();
 
-if (!currentUID) { window.location.href = 'login.html'; }
+    // 2. GLOBAL VARIABLES
+    const currentUID = localStorage.getItem('current_customer_id');
+    const activeMissionID = localStorage.getItem('active_mission_id');
+    let userProfile = {}; 
 
-window.onload = () => {
-    // --- A. ANTI-LOOP & VALIDASI ---
-    const savedMissionID = localStorage.getItem('active_mission_id');
-    if (savedMissionID && savedMissionID !== "null") {
-        db.ref('missions/' + savedMissionID).once('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data && (data.status === "searching" || data.status === "on_process")) {
-                window.location.replace('waiting-client.html');
-            } else {
-                localStorage.removeItem('active_mission_id');
+    if (!currentUID) { window.location.href = 'login.html'; }
+
+    // --- FUNGSI 1: INITIALIZATION (WINDOW ONLOAD) ---
+    window.onload = () => {
+        // Anti-Loop: Cek apakah misi benar-benar ada di DB sebelum redirect
+        if (activeMissionID && activeMissionID !== "null") {
+            db.ref('missions/' + activeMissionID).once('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data && (data.status === "searching" || data.status === "on_process")) {
+                    window.location.replace('waiting-client.html');
+                } else {
+                    localStorage.removeItem('active_mission_id');
+                }
+            });
+        }
+
+        // Load Dropdown Kecamatan
+        const kecSelect = document.getElementById('dest-kecamatan');
+        if (kecSelect && typeof dataWilayah !== 'undefined') {
+            kecSelect.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+            for (let kec in dataWilayah) {
+                let opt = document.createElement('option');
+                opt.value = kec;
+                opt.innerText = kec.toUpperCase();
+                kecSelect.appendChild(opt);
+            }
+        }
+
+        // Ambil Data Profil
+        db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
+            const profile = snapshot.val();
+            if (profile) {
+                userProfile = profile; 
+                document.getElementById('display-name').innerText = profile.name;
+                document.getElementById('display-reputation').innerText = "LEVEL: " + (profile.reputation || '0');
+                document.getElementById('cust-name').value = profile.name;
             }
         });
+    };
+
+    // --- FUNGSI 2: LOAD CITIES (DROPDOWN) ---
+    function loadCities(kecamatan) {
+        const citySelect = document.getElementById('dest-city');
+        const wrapper = document.getElementById('city-wrapper');
+        if (!citySelect || !wrapper) return;
+        
+        citySelect.innerHTML = '<option value="">--- PILIH DESA/AREA ---</option>';
+        if (kecamatan && dataWilayah[kecamatan]) {
+            wrapper.style.display = 'block';
+            dataWilayah[kecamatan].desa.forEach((desa, index) => {
+                let opt = document.createElement('option');
+                opt.value = index;
+                opt.innerText = desa.name;
+                citySelect.appendChild(opt);
+            });
+        } else {
+            wrapper.style.display = 'none';
+        }
     }
 
-    // --- B. ISI DROPDOWN KECAMATAN ---
-    const kecSelect = document.getElementById('dest-kecamatan');
-    if (kecSelect && typeof dataWilayah !== 'undefined') {
-        kecSelect.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+    // --- FUNGSI 3: GLOBAL SEARCH (AUTOCOMPLETE) ---
+    const searchInput = document.getElementById('destinationSearch');
+    const suggestionBox = document.getElementById('searchSuggestions');
+
+    searchInput.addEventListener('input', function() {
+        const keyword = this.value.toLowerCase();
+        suggestionBox.innerHTML = ''; 
+        if (keyword.length < 2) { suggestionBox.style.display = 'none'; return; }
+
+        let matches = [];
         for (let kec in dataWilayah) {
-            let opt = document.createElement('option');
-            opt.value = kec;
-            opt.innerText = kec.toUpperCase();
-            kecSelect.appendChild(opt);
+            dataWilayah[kec].desa.forEach((desa, index) => {
+                if (desa.name && desa.name.toLowerCase().includes(keyword)) {
+                    matches.push({ name: desa.name, kec: kec, index: index });
+                }
+            });
+        }
+
+        if (matches.length > 0) {
+            suggestionBox.style.display = 'block';
+            matches.slice(0, 8).forEach(match => {
+                const div = document.createElement('div');
+                div.className = "suggestion-item"; // Tambahkan style di CSS jika perlu
+                div.style = "padding: 12px; border-bottom: 1px solid #333; cursor: pointer; background: #1a1a1a;";
+                div.innerHTML = `<span style="color:#00ffcc;">${match.name.toUpperCase()}</span><br><small>Kec ${match.kec}</small>`;
+                div.onclick = function() {
+                    searchInput.value = match.name.toUpperCase();
+                    document.getElementById('dest-kecamatan').value = match.kec;
+                    loadCities(match.kec);
+                    setTimeout(() => {
+                        document.getElementById('dest-city').value = match.index;
+                        suggestionBox.style.display = 'none';
+                        checkRequirementsForPrice();
+                    }, 200);
+                };
+                suggestionBox.appendChild(div);
+            });
+        } else { suggestionBox.style.display = 'none'; }
+    });
+
+    // --- FUNGSI 4: GPS HANDLE ---
+    function handleGPS() {
+        const btn = document.getElementById('btn-location');
+        const txt = document.getElementById('gps-text');
+        btn.classList.add('scanning');
+        txt.innerText = "MENCARI SINYAL...";
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const coords = `${pos.coords.latitude},${pos.coords.longitude}`;
+                document.getElementById('cust-pickup-coords').value = coords;
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`)
+                    .then(res => res.json()).then(data => {
+                        const road = data.address.road || data.address.village || "LOKASI DITEMUKAN";
+                        btn.classList.remove('scanning'); btn.classList.add('location-locked');
+                        txt.innerText = road.toUpperCase();
+                        checkRequirementsForPrice();
+                    });
+            }, () => { 
+                btn.classList.remove('scanning'); alert("Gagal ambil GPS"); 
+            }, { enableHighAccuracy: true });
         }
     }
 
-    // --- C. AMBIL PROFIL ---
-    db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
-        const profile = snapshot.val();
-        if (profile) {
-            userProfile = profile; 
-            document.getElementById('display-name').innerText = profile.name;
-            document.getElementById('display-reputation').innerText = "LEVEL: " + (profile.reputation || '0');
-            document.getElementById('cust-name').value = profile.name;
+    // --- FUNGSI 5: CALCULATE DISTANCE (HAVERSINE) ---
+    function calculateRealDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    // --- FUNGSI 6: UPDATE BOUNTY (HARGA) ---
+    function updateBountyDisplay(km, diff) {
+        const roundToThousands = (num) => Math.ceil(num / 1000) * 1000;
+        document.getElementById('price-hemat').innerText = Math.max(10000, roundToThousands((km * 2000) * diff)).toLocaleString('id-ID');
+        document.getElementById('price-reguler').innerText = Math.max(12000, roundToThousands((km * 3000) * diff)).toLocaleString('id-ID');
+        document.getElementById('price-express').innerText = Math.max(15000, roundToThousands((km * 4000) * diff)).toLocaleString('id-ID');
+    }
+
+    // --- FUNGSI 7: CHECK REQUIREMENTS ---
+    function checkRequirementsForPrice() {
+        const kec = document.getElementById('dest-kecamatan').value;
+        const desaIdx = document.getElementById('dest-city').value;
+        const coords = document.getElementById('cust-pickup-coords').value;
+        if (kec && desaIdx !== "") {
+            const desa = dataWilayah[kec].desa[parseInt(desaIdx)];
+            let lat1, lon1;
+            if (coords && coords.includes(',')) {
+                [lat1, lon1] = coords.split(',').map(Number);
+            } else { lat1 = desa.lat; lon1 = desa.lng; }
+            
+            const dist = calculateRealDistance(lat1, lon1, desa.lat, desa.lng);
+            updateBountyDisplay(dist * 1.5, desa.diff || 1.0);
+            document.getElementById('price-section').style.display = 'block';
+            document.getElementById('price-section').classList.add('price-section-show');
         }
-    });
-};
-
-// 3. FUNGSI GPS
-function handleGPS() {
-    const btn = document.getElementById('btn-location');
-    const txt = document.getElementById('gps-text');
-    btn.classList.add('scanning');
-    txt.innerText = "MENCARI POSISI...";
-
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((position) => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            document.getElementById('cust-pickup-coords').value = lat + "," + lon;
-
-            fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lon)
-                .then(res => res.json())
-                .then(data => {
-                    const road = data.address.road || data.address.village || "LOKASI TERKUNCI";
-                    btn.classList.remove('scanning');
-                    btn.classList.add('location-locked');
-                    txt.innerText = road.toUpperCase();
-                    checkRequirementsForPrice();
-                });
-        }, () => {
-            btn.classList.remove('scanning');
-            txt.innerText = "GPS ERROR!";
-        });
-    }
-}
-
-// 4. LOGIKA WILAYAH & HARGA
-function loadCities(kecamatan) {
-    const citySelect = document.getElementById('dest-city');
-    const wrapper = document.getElementById('city-wrapper');
-    if (!citySelect || !wrapper) return;
-    citySelect.innerHTML = '<option value="">--- PILIH DESA ---</option>';
-    if (kecamatan && dataWilayah[kecamatan]) {
-        wrapper.style.display = 'block';
-        dataWilayah[kecamatan].desa.forEach((desa, index) => {
-            let opt = document.createElement('option');
-            opt.value = index;
-            opt.innerText = desa.name;
-            citySelect.appendChild(opt);
-        });
-    } else { wrapper.style.display = 'none'; }
-}
-
-function checkRequirementsForPrice() {
-    const kecName = document.getElementById('dest-kecamatan').value;
-    const desaIdx = document.getElementById('dest-city').value;
-    const priceSection = document.getElementById('price-section');
-    if (kecName && desaIdx !== "") {
-        priceSection.style.display = 'block';
-        priceSection.classList.add('price-section-show');
-        // Contoh kalkulasi sederhana agar harga muncul
-        document.getElementById('price-hemat').innerText = "10.000";
-        document.getElementById('price-reguler').innerText = "15.000";
-        document.getElementById('price-express').innerText = "20.000";
-    }
-}
-
-function selectPrice(element, type) {
-    document.querySelectorAll('.price-card').forEach(card => {
-        card.style.borderColor = "#333";
-        card.style.background = "transparent";
-    });
-    element.style.borderColor = "#00ffcc";
-    element.style.background = "rgba(0, 255, 204, 0.1)";
-    const rawPrice = element.querySelector('div').innerText.replace(/\D/g, '');
-    document.getElementById('final-price').value = rawPrice;
-}
-
-// 5. KIRIM DATA KE FIREBASE
-async function sendMission() {
-    const pickupCoords = document.getElementById('cust-pickup-coords').value;
-    const price = document.getElementById('final-price').value;
-    const kecName = document.getElementById('dest-kecamatan').value;
-    const desaIdx = document.getElementById('dest-city').value;
-
-    if (!pickupCoords || !price || price === "0") {
-        return alert("Lengkapi lokasi dan pilih harga!");
     }
 
-    try {
-        const desaData = dataWilayah[kecName].desa[parseInt(desaIdx)];
-        const missionRef = db.ref('missions').push();
-        const mKey = missionRef.key;
-
-        await missionRef.set({
-            id: mKey,
-            clientId: currentUID,
-            clientName: userProfile.name || "User",
-            price: parseInt(price),
-            pickup: pickupCoords,
-            destination: desaData.name,
-            status: "searching",
-            timestamp: firebase.database.ServerValue.TIMESTAMP
-        });
-
-        localStorage.setItem('active_mission_id', mKey);
-        window.location.replace('waiting-client.html');
-    } catch (e) { alert("Error: " + e.message); }
-}
-
-function logout() {
-    localStorage.clear();
-    window.location.href = 'login.html';
+    // --- FUNGSI 8: SELECT PRICE ---
+    function selectPrice(element, type) {
+        document.querySelectorAll('.price-card').forEach(c => { c.style.borderColor = "#333"; c.style.background = "none"; });
+        element.style.borderColor = "#00ffcc"; element.style.background = "rgba(0,255,204,0.1)";
+        document.getElementById('final-price').value = element.querySelector('div').innerText.replace(/\D/g, '');
     }
+
+    // --- FUNGSI 9: SEND MISSION (FIREBASE) ---
+    async function sendMission() {
+        const coords = document.getElementById('cust-pickup-coords').value;
+        const price = document.getElementById('final-price').value;
+        const kec = document.getElementById('dest-kecamatan').value;
+        const desaIdx = document.getElementById('dest-city').value;
+
+        if (!coords || !price || price === "0") return alert("Lengkapi data dan pilih harga!");
+
+        try {
+            const desa = dataWilayah[kec].desa[parseInt(desaIdx)];
+            const mRef = db.ref('missions').push();
+            const mKey = mRef.key;
+
+            localStorage.setItem('active_mission_id', mKey); // Simpan ID dulu
+
+            await mRef.set({
+                id: mKey,
+                clientId: currentUID,
+                clientName: userProfile.name || "Customer",
+                price: parseInt(price),
+                pickup: coords,
+                destination: desa.name,
+                rank: document.getElementById('is-urgent').checked ? "DARURAT" : "BIASA",
+                status: "searching",
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            window.location.replace('waiting-client.html');
+        } catch (e) { alert("Error: " + e.message); }
+    }
+
+    function logout() { localStorage.clear(); window.location.href = 'login.html'; }
     
-
+        
+          
 
     
 </script>
