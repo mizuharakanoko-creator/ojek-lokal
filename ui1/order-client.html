@@ -229,17 +229,29 @@
 
 
         #price-section {
-    display: none; /* Sembunyi di awal */
+    display: none; /* Tetap sembunyi di awal */
     opacity: 0;
     transform: translateY(20px);
-    transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    
+    /* TAMBAHAN AGAR TIDAK TERTIMPA */
+    position: relative; 
+    z-index: 10; 
+    width: 100%;
+    margin-top: 25px;    /* Memberi jarak atas agar tidak mepet */
+    margin-bottom: 25px; /* Memberi jarak bawah */
+    clear: both;         /* Memastikan elemen bersih dari float */
+    pointer-events: auto; /* Memastikan input sentuhan aktif */
 }
 
 .price-section-show {
     display: block !important;
     opacity: 1 !important;
     transform: translateY(0) !important;
+    /* Memastikan elemen benar-benar terlihat dan mengambil ruang di layar */
+    visibility: visible !important; 
 }
+
 
 .price-card {
     border: 1px solid #333;
@@ -565,29 +577,7 @@ function loadCities(kecamatan) {
         document.getElementById('price-reguler').innerText = finalR.toLocaleString('id-ID');
         document.getElementById('price-express').innerText = finalE.toLocaleString('id-ID');
         
-      function checkRequirementsForPrice() {
-    const kecName = document.getElementById('dest-kecamatan').value;
-    const desaIdx = document.getElementById('dest-city').value;
-    const coords = document.getElementById('cust-pickup-coords').value;
-
-    console.log("DEBUG:", { kecName, desaIdx, coords }); // Lihat ini di F12/Inspect
-
-    if (kecName && desaIdx !== "" && coords && coords !== "0,0") {
-        const [lat1, lon1] = coords.split(',').map(Number);
-        const selectedDesa = dataWilayah[kecName].desa[parseInt(desaIdx)];
-
-        let straightDistance = calculateRealDistance(lat1, lon1, selectedDesa.lat, selectedDesa.lng);
-        let distanceKM = straightDistance * 1.5;
-        let difficulty = selectedDesa.diff || 1.0;
-
-        updateBountyDisplay(distanceKM, difficulty);
-        document.getElementById('price-section').style.display = 'block'; // Pastikan muncul
-    } else {
-        // Jika tarif tidak muncul, mungkin coords Anda masih kosong
-        console.warn("Syarat belum terpenuhi untuk menghitung harga.");
-        document.getElementById('price-section').style.display = 'none';
-    }
-}
+      
         
   document.getElementById('price-section').style.display = 'block';
     }
@@ -596,60 +586,115 @@ function loadCities(kecamatan) {
 function checkRequirementsForPrice() {
     const kecElement = document.getElementById('dest-kecamatan');
     const desaElement = document.getElementById('dest-city');
-    const coordsElement = document.getElementById('cust-pickup-coords');
+    const coordsElement = document.getElementById('cust-pickup-coords'function checkRequirementsForPrice() {
+    const kecName = document.getElementById('dest-kecamatan').value;
+    const desaIdx = document.getElementById('dest-city').value;
+    const coords = document.getElementById('cust-pickup-coords').value;
+);
     const priceSection = document.getElementById('price-section');
 
     // SISTEM PERINGATAN (Jika ID di HTML salah ketik)
     if (!kecElement) return console.error("Error: ID 'dest-kecamatan' tidak ditemukan!");
     if (!desaElement) return console.error("Error: ID 'dest-city' tidak ditemukan!");
     if (!coordsElement) return console.error("Error: ID 'cust-pickup-coords' tidak ditemukan!");
-    if (!priceSection) return console.error("Error: ID 'price-section' tidak ditemukan!");
 
-    const kecName = kecElement.value;
-    const desaIdx = desaElement.value;
-    const coords = coordsElement.value;
 
-    // Logika munculkan tarif: Cukup pilih Kecamatan & Desa saja
-    if (kecName && desaIdx !== "") {
-        const selectedDesa = dataWilayah[kecName].desa[parseInt(desaIdx)];
-        
-        let lat1, lon1;
-        // Jika GPS aktif, gunakan koordinat asli. Jika tidak, gunakan koordinat desa (jarak 0)
-        if (coords && coords !== "0,0" && coords.includes(',')) {
-            [lat1, lon1] = coords.split(',').map(Number);
-        } else {
-            lat1 = selectedDesa.lat;
-            lon1 = selectedDesa.lng;
-            console.warn("GPS belum siap, menggunakan kalkulasi jarak minimum.");
-        }
 
-        const straightDistance = calculateRealDistance(lat1, lon1, selectedDesa.lat, selectedDesa.lng);
-        const distanceKM = straightDistance * 1.5; // Koreksi kelokan jalan
-        const difficulty = selectedDesa.diff || 1.0;
 
-        // Update angka tarif
-        updateBountyDisplay(distanceKM, difficulty);
-        
-        // PAKSA PANEL MUNCUL (Menghilangkan display: none)
-        priceSection.style.display = 'block';
-        priceSection.style.visibility = 'visible';
-        priceSection.style.opacity = '1';
-        
-        console.log("Tarif Berhasil Dihitung untuk:", selectedDesa.name);
-    } else {
-        priceSection.style.display = 'none';
+    // --- 6. KALKULASI TARIF (Faktor Jalan + Pembulatan) ---
+    function calculateRealDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Radius bumi dalam KM
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
     }
-}
 
-    // 7. KIRIM DATA KE FIREBASE
+    function updateBountyDisplay(km, diff) {
+        // Kalkulasi dasar tarif
+        let h = (km * 2000) * diff;
+        let r = (km * 3000) * diff;
+        let e = (km * 4000) * diff;
+
+        const roundToThousands = (num) => Math.ceil(num / 1000) * 1000;
+
+        // Batas tarif minimum
+        const finalH = Math.max(10000, roundToThousands(h));
+        const finalR = Math.max(12000, roundToThousands(r));
+        const finalE = Math.max(15000, roundToThousands(e));
+
+        // Update teks ke UI
+        document.getElementById('price-hemat').innerText = finalH.toLocaleString('id-ID');
+        document.getElementById('price-reguler').innerText = finalR.toLocaleString('id-ID');
+        document.getElementById('price-express').innerText = finalE.toLocaleString('id-ID');
+    }
+
+    function checkRequirementsForPrice() {
+        const kecName = document.getElementById('dest-kecamatan').value;
+        const desaIdx = document.getElementById('dest-city').value;
+        const coords = document.getElementById('cust-pickup-coords').value;
+        const priceSection = document.getElementById('price-section');
+
+        if (!priceSection) return;
+
+        // Syarat: Kecamatan dan Desa minimal harus sudah dipilih
+        if (kecName && desaIdx !== "") {
+            const selectedDesa = dataWilayah[kecName].desa[parseInt(desaIdx)];
+            
+            let lat1, lon1;
+            // Gunakan GPS jika ada, jika tidak gunakan koordinat desa (jarak 0) agar panel tetap muncul
+            if (coords && coords !== "0,0" && coords.includes(',')) {
+                [lat1, lon1] = coords.split(',').map(Number);
+            } else {
+                lat1 = selectedDesa.lat;
+                lon1 = selectedDesa.lng;
+            }
+
+            const straightDistance = calculateRealDistance(lat1, lon1, selectedDesa.lat, selectedDesa.lng);
+            const distanceKM = straightDistance * 1.5; // Koreksi kelokan jalan
+            const difficulty = selectedDesa.diff || 1.0;
+
+            updateBountyDisplay(distanceKM, difficulty);
+            
+            // Munculkan panel dengan animasi class
+            priceSection.classList.add('price-section-show');
+        } else {
+            priceSection.classList.remove('price-section-show');
+        }
+    }
+
+    // Fungsi tambahan agar harga tersimpan saat kartu diklik
+    function selectPrice(element, type) {
+        // Efek visual pilihan
+        document.querySelectorAll('.price-card').forEach(card => {
+            card.style.borderColor = "#333";
+            card.style.background = "transparent";
+        });
+        element.style.borderColor = "#00ffcc";
+        element.style.background = "rgba(0, 255, 204, 0.1)";
+
+        // Ambil angka dan simpan ke input hidden 'final-price'
+        const rawPrice = element.querySelector('div').innerText.replace(/\D/g, '');
+        document.getElementById('final-price').value = rawPrice;
+    }
+
+    // --- 7. KIRIM DATA KE FIREBASE ---
     function sendMission() {
         const pickupCoords = document.getElementById('cust-pickup-coords').value;
         const price = document.getElementById('final-price').value;
         const kecName = document.getElementById('dest-kecamatan').value;
         const desaIdx = document.getElementById('dest-city').value;
 
-        if(!pickupCoords || price == "0" || desaIdx == "") {
-            return alert("MAAF: Lokasi jemput, tujuan, atau harga belum dipilih!");
+        // Validasi ketat sebelum kirim ke Firebase
+        if (!pickupCoords || pickupCoords === "0,0") {
+            return alert("MAAF: Lokasi jemput belum terdeteksi!");
+        }
+        if (price === "0" || price === "") {
+            return alert("MAAF: Silakan pilih salah satu paket harga!");
+        }
+        if (desaIdx === "") {
+            return alert("MAAF: Tujuan belum dipilih!");
         }
 
         const desaData = dataWilayah[kecName].desa[parseInt(desaIdx)];
@@ -659,7 +704,7 @@ function checkRequirementsForPrice() {
         missionRef.set({
             id: missionRef.key,
             clientId: currentUID,
-            clientName: userProfile.name,
+            clientName: userProfile.name || "Customer",
             price: parseInt(price),
             pickup: pickupCoords, 
             destination: desaData.name,
@@ -669,13 +714,18 @@ function checkRequirementsForPrice() {
             timestamp: firebase.database.ServerValue.TIMESTAMP
         }).then(() => {
             alert("PESANAN BERHASIL! Menunggu sopir menerima...");
+            location.reload(); // Refresh halaman setelah sukses
+        }).catch((error) => {
+            console.error("Firebase Error:", error);
+            alert("Gagal mengirim pesanan.");
         });
     }
 
     function logout() {
         localStorage.removeItem('current_customer_id');
         window.location.href = 'login.html';
-    }
+            }
+                
             </script>
     
     
