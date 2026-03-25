@@ -419,60 +419,63 @@
 
     let userProfile = {}; 
 
+
+
+
+    
     window.onload = () => {
-        // --- 1. CEK MISI AKTIF (DOUBLE CHECK FIREBASE) ---
-        if (activeMissionID && activeMissionID !== "null") {
-            db.ref('missions/' + activeMissionID).once('value', (snapshot) => {
-                const data = snapshot.val();
-                // Hanya lempar ke waiting jika data benar-benar ada di database
-                if (data && (data.status === "available" || data.status === "on_process")) {
-                    window.location.href = 'waiting-client.html';
-                } else {
-                    // Jika di database sudah tidak ada, hapus jejak di storage
-                    localStorage.removeItem('active_mission_id');
-                }
-            });
-        }
-
-        // --- 2. INISIALISASI DROPDOWN KECAMATAN ---
-        const kecSelect = document.getElementById('dest-kecamatan');
-        if (kecSelect && typeof dataWilayah !== 'undefined') {
-            kecSelect.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
-            for (let kec in dataWilayah) {
-                let opt = document.createElement('option');
-                opt.value = kec;
-                opt.innerText = kec.toUpperCase();
-                kecSelect.appendChild(opt);
-            }
+    // --- 1. PINTU OTOMATIS (VERSI ANTI-STUCK) ---
+    // Cek apakah ada ID misi di memori browser
+    if (activeMissionID && activeMissionID !== "null") {
+        
+        // Tanyakan ke Firebase: "Misi ini beneran masih ada di database gak?"
+        db.ref('missions/' + activeMissionID).once('value').then((snapshot) => {
+            const data = snapshot.val();
             
-            // Pasang kembali event listener onchange
-            kecSelect.onchange = function() {
-                loadCities(this.value);
-            };
-        }
-
-        // --- 3. AMBIL DATA PROFIL USER ---
-        db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
-            const profile = snapshot.val(); 
-            if (profile) {
-                userProfile = profile; // Update variabel global
-                const displayName = document.getElementById('display-name');
-                const displayRep = document.getElementById('display-reputation');
-                const custNameInput = document.getElementById('cust-name');
-
-                if (displayName) displayName.innerText = profile.name;
-                if (displayRep) displayRep.innerText = "LEVEL: " + (profile.reputation || '0');
-                if (custNameInput) custNameInput.value = profile.name;
+            // SYARAT TETAP DI HALAMAN WAITING:
+            // Data harus ada di database DAN statusnya belum selesai/batal
+            if (data && (data.status === "searching" || data.status === "on_process")) {
+                console.log("Misi aktif ditemukan, lanjut ke halaman tunggu...");
+                window.location.href = 'waiting-client.html';
+            } else {
+                // JIKA DATA TIDAK ADA DI FIREBASE:
+                // Artinya misi sudah dihapus/batal/expired. Bersihkan memori!
+                console.log("Misi tidak valid di database. Membersihkan cache...");
+                localStorage.removeItem('active_mission_id');
+                // User tetap di halaman order-client.html
             }
-        }, (error) => {
-            console.error("Firebase Error (Profile):", error);
+        }).catch((error) => {
+            console.error("Gagal verifikasi misi:", error);
+            // Jika error koneksi, amannya hapus saja agar tidak terjebak loop
+            localStorage.removeItem('active_mission_id');
         });
+    }
 
-        // Jalankan cleanup mission lama
-        if (typeof cleanupOldMissions === "function") {
-            cleanupOldMissions();
+    // --- 2. INISIALISASI FORM SEPERTI BIASA ---
+    const kecSelect = document.getElementById('dest-kecamatan');
+    if (kecSelect && typeof dataWilayah !== 'undefined') {
+        kecSelect.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+        for (let kec in dataWilayah) {
+            let opt = document.createElement('option');
+            opt.value = kec;
+            opt.innerText = kec.toUpperCase();
+            kecSelect.appendChild(opt);
         }
-    }; // Akhir dari window.onload
+        kecSelect.onchange = function() { loadCities(this.value); };
+    }
+
+    // --- 3. AMBIL DATA PROFIL USER ---
+    db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
+        const profile = snapshot.val();
+        if (profile) {
+            userProfile = profile; 
+            document.getElementById('display-name').innerText = profile.name;
+            document.getElementById('display-reputation').innerText = "LEVEL: " + (profile.reputation || '0');
+            document.getElementById('cust-name').value = profile.name;
+        }
+    });
+};
+    // Akhir dari window.onload
     
 
     
