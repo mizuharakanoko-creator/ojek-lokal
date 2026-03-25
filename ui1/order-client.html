@@ -405,37 +405,67 @@
     }
     const db = firebase.database();
 
-    // 2. GLOBAL VARIABLES
+
+
+        // 2. GLOBAL VARIABLES
     const currentUID = localStorage.getItem('current_customer_id');
-    if (!currentUID) { window.location.href = 'login.html'; }
+    const activeMissionID = localStorage.getItem('active_mission_id');
+
+    // Proteksi Login
+    if (!currentUID) { 
+        window.location.href = 'login.html'; 
+    }
+
     let userProfile = {}; 
 
     window.onload = () => {
+        // --- A. PINTU OTOMATIS KE HALAMAN TUNGGU ---
+        // Jika masih ada misi aktif, jangan biarkan user di halaman ini
+        if (activeMissionID) {
+            window.location.href = 'waiting-client.html';
+            return; // Hentikan eksekusi kode di bawahnya
+        }
+
+        // --- B. INISIALISASI FORM ORDER ---
         const kecSelect = document.getElementById('dest-kecamatan');
         
         // Load Daftar Kecamatan ke Dropdown
-        for (let kec in dataWilayah) {
-            let opt = document.createElement('option');
-            opt.value = kec;
-            opt.innerText = kec.toUpperCase();
-            kecSelect.appendChild(opt);
-        }
+        if (kecSelect) {
+            for (let kec in dataWilayah) {
+                let opt = document.createElement('option');
+                opt.value = kec;
+                opt.innerText = kec.toUpperCase();
+                kecSelect.appendChild(opt);
+            }
 
-        // Tambahkan Event Listener Manual untuk Dropdown Kecamatan
-        kecSelect.onchange = function() {
-            loadCities(this.value);
-        };
+            // Event Listener untuk Dropdown Kecamatan
+            kecSelect.onchange = function() {
+                loadCities(this.value);
+            };
+        }
         
-        // Ambil Data Profil User
+        // --- C. AMBIL DATA PROFIL USER ---
         db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
             userProfile = snapshot.val();
             if (userProfile) {
-                document.getElementById('display-name').innerText = userProfile.name;
-                document.getElementById('display-reputation').innerText = "LEVEL: " + userProfile.reputation;
-                document.getElementById('cust-name').value = userProfile.name;
+                const displayName = document.getElementById('display-name');
+                const displayRep = document.getElementById('display-reputation');
+                const custNameInput = document.getElementById('cust-name');
+
+                if (displayName) displayName.innerText = userProfile.name;
+                if (displayRep) displayRep.innerText = "LEVEL: " + userProfile.reputation;
+                if (custNameInput) custNameInput.value = userProfile.name;
             }
         });
+
+        // Jalankan pembersihan sampah data lama (opsional)
+        if (typeof cleanupOldMissions === "function") {
+            cleanupOldMissions();
+        }
     };
+
+
+    
 
     // 3. LOGIKA DROPDOWN & WILAYAH
     function loadCities(kecamatan) {
@@ -607,52 +637,58 @@
     }
 
 
-    // 7. FIREBASE SEND (REVISI)
+    // 7. FIREBASE SEND (VERSI REDIRECT KE HALAMAN TUNGGU)
 async function sendMission() {
     const pickupCoords = document.getElementById('cust-pickup-coords').value;
     const price = document.getElementById('final-price').value;
     const kecName = document.getElementById('dest-kecamatan').value;
     const desaIdx = document.getElementById('dest-city').value;
 
+    // Validasi input
     if (!pickupCoords || pickupCoords === "0,0" || price === "0" || desaIdx === "") {
         return alert("MAAF: Lokasi jemput, tujuan, atau harga belum dipilih!");
     }
 
-    // --- LOGIKA CLEANUP SEBELUM PESAN BARU ---
-    // Cari misi lama milik user ini yang masih 'available' dan hapus agar database bersih
-    const oldMissions = await db.ref('missions').orderByChild('clientId').equalTo(currentUID).once('value');
-    oldMissions.forEach(child => {
-        if (child.val().status === "available") {
-            child.ref.remove();
-        }
-    });
-    // -----------------------------------------
+    try {
+        // --- LOGIKA CLEANUP: Hapus pesanan 'available' lama milik user ini ---
+        const oldMissions = await db.ref('missions').orderByChild('clientId').equalTo(currentUID).once('value');
+        oldMissions.forEach(child => {
+            if (child.val().status === "available") {
+                child.ref.remove();
+            }
+        });
 
-    const desaData = dataWilayah[kecName].desa[parseInt(desaIdx)];
-    const isUrgent = document.getElementById('is-urgent').checked;
-    const missionRef = db.ref('missions').push();
+        // Data tujuan
+        const desaData = dataWilayah[kecName].desa[parseInt(desaIdx)];
+        const isUrgent = document.getElementById('is-urgent').checked;
+        const missionRef = db.ref('missions').push();
 
-    missionRef.set({
-        id: missionRef.key,
-        clientId: currentUID,
-        clientName: userProfile.name || "Customer",
-        price: parseInt(price),
-        pickup: pickupCoords, 
-        destination: desaData.name,
-        note: document.getElementById('cust-note').value,
-        rank: isUrgent ? "DARURAT" : "BIASA",
-        status: "available",
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-    }).then(() => {
-        alert("PESANAN BERHASIL! Menunggu sopir menerima...");
-        
-        // Simpan ID misi aktif di localStorage untuk dipantau
+        // Kirim data baru
+        await missionRef.set({
+            id: missionRef.key,
+            clientId: currentUID,
+            clientName: userProfile.name || "Customer",
+            price: parseInt(price),
+            pickup: pickupCoords, 
+            destination: desaData.name,
+            note: document.getElementById('cust-note').value,
+            rank: isUrgent ? "DARURAT" : "BIASA",
+            status: "available",
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        // Simpan ID misi di localStorage agar halaman tunggu tahu apa yang harus dipantau
         localStorage.setItem('active_mission_id', missionRef.key);
         
-        // Jalankan pemantau status (Auto-delete jika selesai/batal)
-        watchMissionStatus(missionRef.key);
-    });
-}
+        // PINDAH KE HALAMAN TUNGGU
+        window.location.href = 'waiting-client.html';
+
+    } catch (error) {
+        console.error("Firebase Error:", error);
+        alert("Gagal mengirim pesanan, silakan coba lagi.");
+    }
+    }
+                                          
 
 
 
