@@ -584,35 +584,55 @@
 
     // --- FUNGSI 9: SEND MISSION (FIREBASE) ---
     async function sendMission() {
-        const coords = document.getElementById('cust-pickup-coords').value;
-        const price = document.getElementById('final-price').value;
-        const kec = document.getElementById('dest-kecamatan').value;
-        const desaIdx = document.getElementById('dest-city').value;
+    const pickupCoords = document.getElementById('cust-pickup-coords').value;
+    const price = document.getElementById('final-price').value;
+    const kecName = document.getElementById('dest-kecamatan').value;
+    const desaIdx = document.getElementById('dest-city').value;
+    const note = document.getElementById('cust-note').value;
+    const isUrgent = document.getElementById('is-urgent').checked;
 
-        if (!coords || !price || price === "0") return alert("Lengkapi data dan pilih harga!");
-
-        try {
-            const desa = dataWilayah[kec].desa[parseInt(desaIdx)];
-            const mRef = db.ref('missions').push();
-            const mKey = mRef.key;
-
-            localStorage.setItem('active_mission_id', mKey); // Simpan ID dulu
-
-            await mRef.set({
-                id: mKey,
-                clientId: currentUID,
-                clientName: userProfile.name || "Customer",
-                price: parseInt(price),
-                pickup: coords,
-                destination: desa.name,
-                rank: document.getElementById('is-urgent').checked ? "DARURAT" : "BIASA",
-                status: "searching",
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
-
-            window.location.replace('waiting-client.html');
-        } catch (e) { alert("Error: " + e.message); }
+    if (!pickupCoords || !price || price === "0") {
+        return alert("LENGKAPI DATA: Lokasi & Paket Ongkos wajib dipilih!");
     }
+
+    // 1. Ambil referensi desa
+    const desaData = dataWilayah[kecName].desa[parseInt(desaIdx)];
+    
+    // 2. Buat ID Misi baru di Firebase
+    const missionRef = db.ref('missions').push();
+    const mKey = missionRef.key;
+
+    const missionData = {
+        id: mKey,
+        clientId: currentUID,
+        clientName: userProfile.name || "Customer",
+        price: parseInt(price),
+        pickup: pickupCoords,
+        destination: desaData.name,
+        note: note || "Tolong antar tepat waktu.",
+        rank: isUrgent ? "DARURAT" : "BIASA",
+        status: "searching",
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    };
+
+    console.log("Mencoba mengirim misi...");
+
+    // 3. KIRIM DAN TUNGGU (PENTING!)
+    missionRef.set(missionData)
+        .then(() => {
+            // HANYA pindah halaman JIKA data sudah sukses masuk ke database
+            console.log("Data sukses terkirim!");
+            localStorage.setItem('active_mission_id', mKey);
+            window.location.replace('waiting-client.html');
+        })
+        .catch((error) => {
+            console.error("Gagal kirim ke Firebase:", error);
+            alert("Koneksi gagal: " + error.message);
+        });
+        }
+        
+
+        
 
     function logout() { localStorage.clear(); window.location.href = 'login.html'; }
     
