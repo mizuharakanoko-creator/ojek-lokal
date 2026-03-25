@@ -389,7 +389,7 @@
     
     
 <script>
-    // 1. KONFIGURASI FIREBASE
+            // 1. KONFIGURASI FIREBASE
     const firebaseConfig = {
         apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
         authDomain: "ojeklokal-42b84.firebaseapp.com",
@@ -412,13 +412,21 @@
 
     window.onload = () => {
         const kecSelect = document.getElementById('dest-kecamatan');
+        
+        // Load Daftar Kecamatan ke Dropdown
         for (let kec in dataWilayah) {
             let opt = document.createElement('option');
             opt.value = kec;
             opt.innerText = kec.toUpperCase();
             kecSelect.appendChild(opt);
         }
+
+        // Tambahkan Event Listener Manual untuk Dropdown Kecamatan
+        kecSelect.onchange = function() {
+            loadCities(this.value);
+        };
         
+        // Ambil Data Profil User
         db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
             userProfile = snapshot.val();
             if (userProfile) {
@@ -429,40 +437,33 @@
         });
     };
 
-    // --- 3. LOGIKA DROPDOWN & WILAYAH (VERSI UPDATE OTOMATIS) ---
-function loadCities(kecamatan) {
-    const citySelect = document.getElementById('dest-city');
-    const wrapper = document.getElementById('city-wrapper');
-    const searchInput = document.getElementById('destinationSearch');
+    // 3. LOGIKA DROPDOWN & WILAYAH
+    function loadCities(kecamatan) {
+        const citySelect = document.getElementById('dest-city');
+        const wrapper = document.getElementById('city-wrapper');
+        const searchInput = document.getElementById('destinationSearch');
 
-    // Reset pencarian jika sedang tidak fokus
-    if (document.activeElement !== searchInput) {
-        searchInput.value = '';
+        if (!citySelect || !wrapper) return;
+        
+        citySelect.innerHTML = '<option value="">--- PILIH DESA/AREA ---</option>';
+
+        if (kecamatan && dataWilayah[kecamatan]) {
+            wrapper.style.display = 'block';
+            dataWilayah[kecamatan].desa.forEach((desa, index) => {
+                let opt = document.createElement('option');
+                opt.value = index;
+                opt.innerText = desa.name;
+                citySelect.appendChild(opt);
+            });
+
+            // Picu hitung harga saat desa dipilih
+            citySelect.onchange = function() {
+                checkRequirementsForPrice(); 
+            };
+        } else {
+            wrapper.style.display = 'none';
+        }
     }
-
-    if (!citySelect || !wrapper) return;
-    
-    // Reset isi dropdown desa
-    citySelect.innerHTML = '<option value="">--- PILIH DESA/AREA ---</option>';
-
-    if (kecamatan && dataWilayah[kecamatan]) {
-        wrapper.style.display = 'block';
-        dataWilayah[kecamatan].desa.forEach((desa, index) => {
-            let opt = document.createElement('option');
-            opt.value = index;
-            opt.innerText = desa.name;
-            citySelect.appendChild(opt);
-        });
-
-        // PERBAIKAN: Perintahkan sistem hitung harga saat desa dipilih
-        citySelect.onchange = function() {
-            checkRequirementsForPrice(); 
-        };
-
-    } else {
-        wrapper.style.display = 'none';
-    }
-}
 
     // 4. SISTEM GLOBAL SEARCH
     const searchInput = document.getElementById('destinationSearch');
@@ -491,20 +492,16 @@ function loadCities(kecamatan) {
             suggestionBox.style.zIndex = "9999"; 
             matches.slice(0, 8).forEach(match => {
                 const div = document.createElement('div');
-                div.style = "padding: 12px; border-bottom: 1px solid #333; cursor: pointer; background: #1a1a1a; color: #fff; font-family: sans-serif;";
+                div.style = "padding: 12px; border-bottom: 1px solid #333; cursor: pointer; background: #1a1a1a; color: #fff;";
                 div.innerHTML = `<span style="color:#00ffcc; font-weight:bold;">${match.name.toUpperCase()}</span><br><small style="color:#888;">Kecamatan ${match.kec}</small>`;
                 
                 div.onclick = function() {
                     searchInput.value = match.name.toUpperCase();
-                    const kecSelect = document.getElementById('dest-kecamatan');
-                    kecSelect.value = match.kec;
-                    
-                    searchInput.focus(); 
+                    document.getElementById('dest-kecamatan').value = match.kec;
                     loadCities(match.kec);
                     
                     setTimeout(() => {
-                        const citySelect = document.getElementById('dest-city');
-                        citySelect.value = match.index;
+                        document.getElementById('dest-city').value = match.index;
                         suggestionBox.style.display = 'none';
                         checkRequirementsForPrice();
                     }, 150);
@@ -516,14 +513,12 @@ function loadCities(kecamatan) {
         }
     });
 
-    // 5. GPS & TRACKING (High Accuracy)
+    // 5. GPS & TRACKING
     function handleGPS() {
         const btn = document.getElementById('btn-location');
         const txt = document.getElementById('gps-text');
         btn.classList.add('scanning');
         txt.innerText = "MENCARI SINYAL POSISI...";
-
-        const options = { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 };
 
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition((position) => {
@@ -544,11 +539,11 @@ function loadCities(kecamatan) {
                 btn.classList.remove('scanning');
                 txt.innerText = "GAGAL! COBA KLIK LAGI";
                 alert("GPS Error: Pastikan Izin Lokasi Aktif");
-            }, options);
+            }, { enableHighAccuracy: true, timeout: 7000 });
         }
     }
 
-    // 6. KALKULASI TARIF (Faktor Jalan + Pembulatan)
+    // 6. KALKULASI TARIF
     function calculateRealDistance(lat1, lon1, lat2, lon2) {
         const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -558,73 +553,16 @@ function loadCities(kecamatan) {
         return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
     }
 
-    
-
     function updateBountyDisplay(km, diff) {
-        // Update Hitungan: 2000, 3000, 4000
         let h = (km * 2000) * diff;
         let r = (km * 3000) * diff;
         let e = (km * 4000) * diff;
 
         const roundToThousands = (num) => Math.ceil(num / 1000) * 1000;
-
         const finalH = Math.max(10000, roundToThousands(h));
         const finalR = Math.max(12000, roundToThousands(r));
         const finalE = Math.max(15000, roundToThousands(e));
 
-        // Sinkronisasi dengan ID HTML baru
-        document.getElementById('price-hemat').innerText = finalH.toLocaleString('id-ID');
-        document.getElementById('price-reguler').innerText = finalR.toLocaleString('id-ID');
-        document.getElementById('price-express').innerText = finalE.toLocaleString('id-ID');
-        
-      
-        
-  document.getElementById('price-section').style.display = 'block';
-    }
-
-    
-function checkRequirementsForPrice() {
-    const kecElement = document.getElementById('dest-kecamatan');
-    const desaElement = document.getElementById('dest-city');
-    const coordsElement = document.getElementById('cust-pickup-coords'function checkRequirementsForPrice() {
-    const kecName = document.getElementById('dest-kecamatan').value;
-    const desaIdx = document.getElementById('dest-city').value;
-    const coords = document.getElementById('cust-pickup-coords').value;
-);
-    const priceSection = document.getElementById('price-section');
-
-    // SISTEM PERINGATAN (Jika ID di HTML salah ketik)
-    if (!kecElement) return console.error("Error: ID 'dest-kecamatan' tidak ditemukan!");
-    if (!desaElement) return console.error("Error: ID 'dest-city' tidak ditemukan!");
-    if (!coordsElement) return console.error("Error: ID 'cust-pickup-coords' tidak ditemukan!");
-
-
-
-
-    // --- 6. KALKULASI TARIF (Faktor Jalan + Pembulatan) ---
-    function calculateRealDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371; // Radius bumi dalam KM
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-    }
-
-    function updateBountyDisplay(km, diff) {
-        // Kalkulasi dasar tarif
-        let h = (km * 2000) * diff;
-        let r = (km * 3000) * diff;
-        let e = (km * 4000) * diff;
-
-        const roundToThousands = (num) => Math.ceil(num / 1000) * 1000;
-
-        // Batas tarif minimum
-        const finalH = Math.max(10000, roundToThousands(h));
-        const finalR = Math.max(12000, roundToThousands(r));
-        const finalE = Math.max(15000, roundToThousands(e));
-
-        // Update teks ke UI
         document.getElementById('price-hemat').innerText = finalH.toLocaleString('id-ID');
         document.getElementById('price-reguler').innerText = finalR.toLocaleString('id-ID');
         document.getElementById('price-express').innerText = finalE.toLocaleString('id-ID');
@@ -636,37 +574,27 @@ function checkRequirementsForPrice() {
         const coords = document.getElementById('cust-pickup-coords').value;
         const priceSection = document.getElementById('price-section');
 
-        if (!priceSection) return;
-
-        // Syarat: Kecamatan dan Desa minimal harus sudah dipilih
         if (kecName && desaIdx !== "") {
             const selectedDesa = dataWilayah[kecName].desa[parseInt(desaIdx)];
-            
             let lat1, lon1;
-            // Gunakan GPS jika ada, jika tidak gunakan koordinat desa (jarak 0) agar panel tetap muncul
+
             if (coords && coords !== "0,0" && coords.includes(',')) {
                 [lat1, lon1] = coords.split(',').map(Number);
             } else {
-                lat1 = selectedDesa.lat;
-                lon1 = selectedDesa.lng;
+                lat1 = selectedDesa.lat; lon1 = selectedDesa.lng;
             }
 
-            const straightDistance = calculateRealDistance(lat1, lon1, selectedDesa.lat, selectedDesa.lng);
-            const distanceKM = straightDistance * 1.5; // Koreksi kelokan jalan
-            const difficulty = selectedDesa.diff || 1.0;
-
-            updateBountyDisplay(distanceKM, difficulty);
+            const dist = calculateRealDistance(lat1, lon1, selectedDesa.lat, selectedDesa.lng);
+            updateBountyDisplay(dist * 1.5, selectedDesa.diff || 1.0);
             
-            // Munculkan panel dengan animasi class
             priceSection.classList.add('price-section-show');
+            priceSection.style.display = 'block'; 
         } else {
-            priceSection.classList.remove('price-section-show');
+            if(priceSection) priceSection.classList.remove('price-section-show');
         }
     }
 
-    // Fungsi tambahan agar harga tersimpan saat kartu diklik
     function selectPrice(element, type) {
-        // Efek visual pilihan
         document.querySelectorAll('.price-card').forEach(card => {
             card.style.borderColor = "#333";
             card.style.background = "transparent";
@@ -674,27 +602,19 @@ function checkRequirementsForPrice() {
         element.style.borderColor = "#00ffcc";
         element.style.background = "rgba(0, 255, 204, 0.1)";
 
-        // Ambil angka dan simpan ke input hidden 'final-price'
         const rawPrice = element.querySelector('div').innerText.replace(/\D/g, '');
         document.getElementById('final-price').value = rawPrice;
     }
 
-    // --- 7. KIRIM DATA KE FIREBASE ---
+    // 7. FIREBASE SEND
     function sendMission() {
         const pickupCoords = document.getElementById('cust-pickup-coords').value;
         const price = document.getElementById('final-price').value;
         const kecName = document.getElementById('dest-kecamatan').value;
         const desaIdx = document.getElementById('dest-city').value;
 
-        // Validasi ketat sebelum kirim ke Firebase
-        if (!pickupCoords || pickupCoords === "0,0") {
-            return alert("MAAF: Lokasi jemput belum terdeteksi!");
-        }
-        if (price === "0" || price === "") {
-            return alert("MAAF: Silakan pilih salah satu paket harga!");
-        }
-        if (desaIdx === "") {
-            return alert("MAAF: Tujuan belum dipilih!");
+        if (!pickupCoords || pickupCoords === "0,0" || price === "0" || desaIdx === "") {
+            return alert("MAAF: Lokasi jemput, tujuan, atau harga belum dipilih!");
         }
 
         const desaData = dataWilayah[kecName].desa[parseInt(desaIdx)];
@@ -714,10 +634,7 @@ function checkRequirementsForPrice() {
             timestamp: firebase.database.ServerValue.TIMESTAMP
         }).then(() => {
             alert("PESANAN BERHASIL! Menunggu sopir menerima...");
-            location.reload(); // Refresh halaman setelah sukses
-        }).catch((error) => {
-            console.error("Firebase Error:", error);
-            alert("Gagal mengirim pesanan.");
+            location.reload();
         });
     }
 
@@ -725,8 +642,10 @@ function checkRequirementsForPrice() {
         localStorage.removeItem('current_customer_id');
         window.location.href = 'login.html';
             }
+                    
+                                
                 
-            </script>
+</script>
     
     
 
