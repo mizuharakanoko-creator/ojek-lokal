@@ -6,38 +6,61 @@
     <title>Mencari Driver - Ojek Lokal</title>
     <link rel="stylesheet" href="style.css"> 
     <style>
-        .waiting-container { padding: 20px; text-align: center; color: white; }
-        .loader { border: 4px solid #333; border-top: 4px solid #00ffcc; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        :root { --p-cyan: #00ffcc; --p-red: #ff4d4d; --p-orange: #ffb84d; }
+        body { background: #0d0d0d; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        .waiting-container { padding: 20px; text-align: center; color: white; max-width: 500px; margin: auto; }
+        
+        /* Loader & Timer Style */
+        .loader { border: 4px solid #333; border-top: 4px solid var(--p-cyan); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        .edu-card { background: rgba(255, 165, 0, 0.1); border: 1px solid orange; padding: 15px; border-radius: 10px; margin: 20px 0; font-size: 0.9em; line-height: 1.4; color: #ffb84d; }
+        #timer-status { font-family: 'Courier New', Courier, monospace; font-size: 1.2em; color: var(--p-cyan); margin: 10px 0; font-weight: bold; }
+        .blink { animation: blinker 1s linear infinite; color: var(--p-red) !important; }
+        @keyframes blinker { 50% { opacity: 0; } }
+
+        .edu-card { background: rgba(255, 165, 0, 0.05); border: 1px dashed var(--p-orange); padding: 15px; border-radius: 10px; margin: 20px 0; font-size: 0.85em; color: var(--p-orange); text-align: left; }
         
-        .driver-card { background: #1a1a1a; border: 1px solid #333; border-left: 4px solid #00ffcc; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: left; display: flex; justify-content: space-between; align-items: center; }
-        .driver-info h4 { margin: 0; color: #00ffcc; }
-        .driver-info small { color: #888; }
-        .btn-choose { background: #00ffcc; color: black; border: none; padding: 8px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; }
-        .btn-cancel { background: #ff4d4d; color: white; border: none; padding: 10px; width: 100%; border-radius: 8px; margin-top: 20px; font-weight: bold; }
+        /* Driver Cards */
+        .driver-card { background: #1a1a1a; border: 1px solid #333; border-left: 4px solid var(--p-cyan); padding: 15px; border-radius: 8px; margin-bottom: 12px; text-align: left; display: flex; justify-content: space-between; align-items: center; animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .driver-info h4 { margin: 0; color: var(--p-cyan); letter-spacing: 1px; }
+        .driver-info small { color: #888; display: block; margin-top: 3px; }
+        
+        .btn-choose { background: var(--p-cyan); color: black; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-choose:active { transform: scale(0.95); }
+
+        .btn-cancel { background: transparent; color: #666; border: 1px solid #333; padding: 12px; width: 100%; border-radius: 8px; margin-top: 20px; font-weight: bold; cursor: pointer; }
+        .btn-cancel:hover { color: var(--p-red); border-color: var(--p-red); }
+
+        /* Dialog Cari Ulang */
+        #retry-dialog { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; justify-content: center; align-items: center; flex-direction: column; padding: 20px; box-sizing: border-box; }
     </style>
 </head>
-<body style="background: #0d0d0d;">
+<body>
 
     <div class="waiting-container">
         <div class="loader"></div>
-        <h2>MENCARI DRIVER...</h2>
+        <h2 style="margin-bottom: 5px;">MENCARI DRIVER</h2>
+        <div id="timer-status">01:30</div>
         
         <div class="edu-card">
-            <strong>INFO OJEK LOKAL:</strong><br>
-            Aplikasi ini masih baru. Jika belum ada driver yang muncul, mungkin belum ada sopir yang standby di area Anda. Mohon kesabaran Anda menunggu sejenak.
+            <strong>TIPS:</strong> Driver di area Anda akan segera muncul di bawah. Pastikan GPS Anda aktif dan tetap di halaman ini.
         </div>
 
-        <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
-
-        <h3 style="text-align: left;">Driver yang melamar:</h3>
         <div id="driver-list">
-            <p id="empty-msg" style="color: #666; font-style: italic; margin-top: 20px;">Belum ada pelamar...</p>
+            <p id="empty-msg" style="color: #444; font-style: italic; margin-top: 30px;">Menunggu respon driver terdekat...</p>
         </div>
 
         <button onclick="cancelOrder()" class="btn-cancel">BATALKAN PESANAN</button>
+    </div>
+
+    <div id="retry-dialog">
+        <h3 style="color: var(--p-orange);">WAKTU HABIS</h3>
+        <p style="color: #ccc; text-align: center;">Belum ada driver yang merespon. Anda ingin mencari ulang atau kembali?</p>
+        <button onclick="location.reload()" class="btn-choose" style="width: 200px; margin-bottom: 10px;">CARI ULANG</button>
+        <button onclick="exitWaiting()" class="btn-cancel" style="width: 200px; border-color: #444;">KEMBALI</button>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -50,84 +73,115 @@
         const db = firebase.database();
 
         const missionId = localStorage.getItem('active_mission_id');
-        const currentUID = localStorage.getItem('current_customer_id');
+        
+        // SAFETY CHECK: Jika login tapi ID misi tidak ada, langsung tendang ke menu order
+        if (!missionId || missionId === "null") { 
+            window.location.replace('order-client.html'); 
+        }
 
-        if (!missionId) { window.location.href = 'order-client.html'; }
-
-        // --- 2. MONITORING PESANAN & PELAMAR ---
         const mRef = db.ref('missions/' + missionId);
 
+        // --- 2. MONITORING REALTIME ---
         mRef.on('value', (snapshot) => {
             const data = snapshot.val();
+            
+            // Jika data dihapus di Firebase (Admin/Batal)
             if (!data) {
-                alert("Pesanan telah dibatalkan atau berakhir.");
                 exitWaiting();
                 return;
             }
 
-            // Jika driver sudah dipilih (proses dimulai)
+            // Jika driver sudah dipilih
             if (data.status === "on_process") {
-                alert("Driver sedang menuju lokasi Anda!");
-                // window.location.href = 'tracking-client.html';
-            }
-
-            // Tampilkan Daftar Pelamar (Bidders)
-            displayBidders(data.bidders);
-        });
-
-        function displayBidders(bidders) {
-            const listDiv = document.getElementById('driver-list');
-            const emptyMsg = document.getElementById('empty-msg');
-            listDiv.innerHTML = "";
-
-            if (!bidders) {
-                listDiv.appendChild(emptyMsg);
+                mRef.off(); // Matikan listener
+                alert("Driver Ditemukan! Mengalihkan ke halaman tracking...");
+                localStorage.setItem('isSearchingDriver', 'false');
+                window.location.href = 'tracking-client.html';
                 return;
             }
 
-            for (let driverId in bidders) {
+            displayBidders(data.bidders);
+        });
+
+        // --- 3. TIMER 90 DETIK ---
+        let countdown = 90; 
+        const timerEl = document.getElementById('timer-status');
+
+        const timerInterval = setInterval(() => {
+            countdown--;
+            let min = Math.floor(countdown / 60);
+            let sec = countdown % 60;
+            timerEl.innerText = `${min}:${sec < 10 ? '0'+sec : sec}`;
+
+            if (countdown <= 15) { timerEl.classList.add('blink'); }
+
+            if (countdown <= 0) {
+                clearInterval(timerInterval);
+                checkTimeout();
+            }
+        }, 1000);
+
+        function checkTimeout() {
+            mRef.once('value').then((snapshot) => {
+                const data = snapshot.val();
+                if (data && data.status === "searching") {
+                    document.getElementById('retry-dialog').style.display = 'flex';
+                }
+            });
+        }
+
+        // --- 4. LOGIKA DRIVER ---
+        function displayBidders(bidders) {
+            const listDiv = document.getElementById('driver-list');
+            listDiv.innerHTML = "";
+
+            if (!bidders) {
+                listDiv.innerHTML = '<p id="empty-msg" style="color: #444; font-style: italic; margin-top: 30px;">Menunggu respon driver terdekat...</p>';
+                return;
+            }
+
+            Object.keys(bidders).forEach(driverId => {
                 const driver = bidders[driverId];
                 const card = document.createElement('div');
                 card.className = "driver-card";
                 card.innerHTML = `
                     <div class="driver-info">
                         <h4>${driver.name.toUpperCase()}</h4>
-                        <small>Rating: ⭐ ${driver.rating || 'Baru'}</small><br>
-                        <small>Motor: ${driver.vehicle || '-'}</small>
+                        <small>⭐ ${driver.rating || '5.0'} • ${driver.vehicle || 'Motor'}</small>
                     </div>
                     <button onclick="chooseDriver('${driverId}', '${driver.name}')" class="btn-choose">PILIH</button>
                 `;
                 listDiv.appendChild(card);
-            }
+            });
         }
 
-        // --- 3. LOGIKA PILIH DRIVER ---
         function chooseDriver(driverId, driverName) {
-            if (confirm("Pilih " + driverName + " sebagai driver Anda?")) {
+            if (confirm(`Pilih ${driverName} sebagai driver Anda?`)) {
                 mRef.update({
                     status: "on_process",
                     driverId: driverId,
-                    driverName: driverName,
-                    bidders: null // Hapus daftar pelamar lain
-                }).then(() => {
-                    alert("Driver dikonfirmasi!");
-                });
+                    driverName: driverName
+                }).catch(err => alert("Gagal memilih driver. Coba lagi."));
             }
         }
 
-        // --- 4. PEMBATALAN ---
+        // --- 5. CLEANUP & EXIT ---
         function cancelOrder() {
             if (confirm("Yakin ingin membatalkan pesanan?")) {
-                mRef.remove().then(() => {
-                    exitWaiting();
-                });
+                mRef.remove().then(() => exitWaiting());
             }
         }
 
         function exitWaiting() {
+            mRef.off(); // Hentikan sinkronisasi Firebase
             localStorage.removeItem('active_mission_id');
-            window.location.href = 'order-client.html';
+            localStorage.removeItem('isSearchingDriver'); 
+            window.location.replace('order-client.html');
         }
+
+        // Mencegah Back Button Browser
+        window.history.pushState(null, null, window.location.href);
+        window.onpopstate = function() { window.history.go(1); };
     </script>
 </body>
 </html>
