@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mencari Driver - Ojek Lokal</title>
+    <link rel="stylesheet" href="style.css"> 
+    <style>
+        .waiting-container { padding: 20px; text-align: center; color: white; }
+        .loader { border: 4px solid #333; border-top: 4px solid #00ffcc; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .edu-card { background: rgba(255, 165, 0, 0.1); border: 1px solid orange; padding: 15px; border-radius: 10px; margin: 20px 0; font-size: 0.9em; line-height: 1.4; color: #ffb84d; }
+        
+        .driver-card { background: #1a1a1a; border: 1px solid #333; border-left: 4px solid #00ffcc; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+        .driver-info h4 { margin: 0; color: #00ffcc; }
+        .driver-info small { color: #888; }
+        .btn-choose { background: #00ffcc; color: black; border: none; padding: 8px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        .btn-cancel { background: #ff4d4d; color: white; border: none; padding: 10px; width: 100%; border-radius: 8px; margin-top: 20px; font-weight: bold; }
+    </style>
+</head>
+<body style="background: #0d0d0d;">
+
+    <div class="waiting-container">
+        <div class="loader"></div>
+        <h2>MENCARI DRIVER...</h2>
+        
+        <div class="edu-card">
+            <strong>INFO OJEK LOKAL:</strong><br>
+            Aplikasi ini masih baru. Jika belum ada driver yang muncul, mungkin belum ada sopir yang standby di area Anda. Mohon kesabaran Anda menunggu sejenak.
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
+
+        <h3 style="text-align: left;">Driver yang melamar:</h3>
+        <div id="driver-list">
+            <p id="empty-msg" style="color: #666; font-style: italic; margin-top: 20px;">Belum ada pelamar...</p>
+        </div>
+
+        <button onclick="cancelOrder()" class="btn-cancel">BATALKAN PESANAN</button>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <script>
+        // --- 1. CONFIG & INIT ---
+        const firebaseConfig = { /* PASTE CONFIG ANDA DI SINI */ };
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        const db = firebase.database();
+
+        const missionId = localStorage.getItem('active_mission_id');
+        const currentUID = localStorage.getItem('current_customer_id');
+
+        if (!missionId) { window.location.href = 'order-client.html'; }
+
+        // --- 2. MONITORING PESANAN & PELAMAR ---
+        const mRef = db.ref('missions/' + missionId);
+
+        mRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) {
+                alert("Pesanan telah dibatalkan atau berakhir.");
+                exitWaiting();
+                return;
+            }
+
+            // Jika driver sudah dipilih (proses dimulai)
+            if (data.status === "on_process") {
+                alert("Driver sedang menuju lokasi Anda!");
+                // window.location.href = 'tracking-client.html';
+            }
+
+            // Tampilkan Daftar Pelamar (Bidders)
+            displayBidders(data.bidders);
+        });
+
+        function displayBidders(bidders) {
+            const listDiv = document.getElementById('driver-list');
+            const emptyMsg = document.getElementById('empty-msg');
+            listDiv.innerHTML = "";
+
+            if (!bidders) {
+                listDiv.appendChild(emptyMsg);
+                return;
+            }
+
+            for (let driverId in bidders) {
+                const driver = bidders[driverId];
+                const card = document.createElement('div');
+                card.className = "driver-card";
+                card.innerHTML = `
+                    <div class="driver-info">
+                        <h4>${driver.name.toUpperCase()}</h4>
+                        <small>Rating: ⭐ ${driver.rating || 'Baru'}</small><br>
+                        <small>Motor: ${driver.vehicle || '-'}</small>
+                    </div>
+                    <button onclick="chooseDriver('${driverId}', '${driver.name}')" class="btn-choose">PILIH</button>
+                `;
+                listDiv.appendChild(card);
+            }
+        }
+
+        // --- 3. LOGIKA PILIH DRIVER ---
+        function chooseDriver(driverId, driverName) {
+            if (confirm("Pilih " + driverName + " sebagai driver Anda?")) {
+                mRef.update({
+                    status: "on_process",
+                    driverId: driverId,
+                    driverName: driverName,
+                    bidders: null // Hapus daftar pelamar lain
+                }).then(() => {
+                    alert("Driver dikonfirmasi!");
+                });
+            }
+        }
+
+        // --- 4. PEMBATALAN ---
+        function cancelOrder() {
+            if (confirm("Yakin ingin membatalkan pesanan?")) {
+                mRef.remove().then(() => {
+                    exitWaiting();
+                });
+            }
+        }
+
+        function exitWaiting() {
+            localStorage.removeItem('active_mission_id');
+            window.location.href = 'order-client.html';
+        }
+    </script>
+</body>
+</html>
