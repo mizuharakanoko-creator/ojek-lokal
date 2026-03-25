@@ -407,7 +407,8 @@
 
 
 
-        // 2. GLOBAL VARIABLES
+        
+        // === 2. GLOBAL VARIABLES & INITIALIZATION ===
     const currentUID = localStorage.getItem('current_customer_id');
     const activeMissionID = localStorage.getItem('active_mission_id');
 
@@ -419,68 +420,60 @@
     let userProfile = {}; 
 
     window.onload = () => {
-    // --- A. PROTEKSI & PINTU OTOMATIS (SINKRON DENGAN DATABASE) ---
-    if (activeMissionID) {
-        // Cek dulu ke Firebase apakah misi ini memang masih aktif
-        db.ref('missions/' + activeMissionID).once('value', (snapshot) => {
-            const data = snapshot.val();
-            
-            // JIKA MISI ADA DAN STATUSNYA MASIH PROSES/CARI
-            if (data && (data.status === "available" || data.status === "on_process")) {
-                window.location.href = 'waiting-client.html';
-            } else {
-                // JIKA DATA SUDAH DIHAPUS DI FIREBASE, BERSIHKAN LOCALSTORAGE
-                console.log("Misi lama terdeteksi tapi sudah tidak ada di server. Resetting...");
-                localStorage.removeItem('active_mission_id');
-                // Biarkan user tetap di sini (halaman order)
+        // --- 1. CEK MISI AKTIF (DOUBLE CHECK FIREBASE) ---
+        if (activeMissionID && activeMissionID !== "null") {
+            db.ref('missions/' + activeMissionID).once('value', (snapshot) => {
+                const data = snapshot.val();
+                // Hanya lempar ke waiting jika data benar-benar ada di database
+                if (data && (data.status === "available" || data.status === "on_process")) {
+                    window.location.href = 'waiting-client.html';
+                } else {
+                    // Jika di database sudah tidak ada, hapus jejak di storage
+                    localStorage.removeItem('active_mission_id');
+                }
+            });
+        }
+
+        // --- 2. INISIALISASI DROPDOWN KECAMATAN ---
+        const kecSelect = document.getElementById('dest-kecamatan');
+        if (kecSelect && typeof dataWilayah !== 'undefined') {
+            kecSelect.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+            for (let kec in dataWilayah) {
+                let opt = document.createElement('option');
+                opt.value = kec;
+                opt.innerText = kec.toUpperCase();
+                kecSelect.appendChild(opt);
             }
-        });
-    }
-
-    // --- B. INISIALISASI FORM SEPERTI BIASA ---
-    const kecSelect = document.getElementById('dest-kecamatan');
-    if (kecSelect) {
-        for (let kec in dataWilayah) {
-            let opt = document.createElement('option');
-            opt.value = kec;
-            opt.innerText = kec.toUpperCase();
-            kecSelect.appendChild(opt);
+            
+            // Pasang kembali event listener onchange
+            kecSelect.onchange = function() {
+                loadCities(this.value);
+            };
         }
-        kecSelect.onchange = function() { loadCities(this.value); };
-    }
-    
-    // Ambil Profil
-    db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
-        const userProfile = snapshot.val();
-        if (userProfile) {
-            document.getElementById('display-name').innerText = userProfile.name;
-            document.getElementById('display-reputation').innerText = "LEVEL: " + userProfile.reputation;
-            document.getElementById('cust-name').value = userProfile.name;
-        }
-    });
-};
 
-        
-        // --- C. AMBIL DATA PROFIL USER ---
+        // --- 3. AMBIL DATA PROFIL USER ---
         db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
-            userProfile = snapshot.val();
-            if (userProfile) {
+            const profile = snapshot.val(); 
+            if (profile) {
+                userProfile = profile; // Update variabel global
                 const displayName = document.getElementById('display-name');
                 const displayRep = document.getElementById('display-reputation');
                 const custNameInput = document.getElementById('cust-name');
 
-                if (displayName) displayName.innerText = userProfile.name;
-                if (displayRep) displayRep.innerText = "LEVEL: " + userProfile.reputation;
-                if (custNameInput) custNameInput.value = userProfile.name;
+                if (displayName) displayName.innerText = profile.name;
+                if (displayRep) displayRep.innerText = "LEVEL: " + (profile.reputation || '0');
+                if (custNameInput) custNameInput.value = profile.name;
             }
+        }, (error) => {
+            console.error("Firebase Error (Profile):", error);
         });
 
-        // Jalankan pembersihan sampah data lama (opsional)
+        // Jalankan cleanup mission lama
         if (typeof cleanupOldMissions === "function") {
             cleanupOldMissions();
         }
-    };
-
+    }; // Akhir dari window.onload
+    
 
     
 
