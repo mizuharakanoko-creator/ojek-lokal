@@ -592,19 +592,54 @@ function loadCities(kecamatan) {
   document.getElementById('price-section').style.display = 'block';
     }
 
-    function selectPrice(element, type) {
-        document.querySelectorAll('.price-card').forEach(card => {
-            card.style.borderColor = '#333';
-            card.style.background = 'transparent';
-            card.style.boxShadow = 'none';
-        });
-        element.style.borderColor = '#00ffcc';
-        element.style.background = 'rgba(0, 255, 204, 0.1)';
-        element.style.boxShadow = '0 0 10px #00ffcc';
+    
+function checkRequirementsForPrice() {
+    const kecElement = document.getElementById('dest-kecamatan');
+    const desaElement = document.getElementById('dest-city');
+    const coordsElement = document.getElementById('cust-pickup-coords');
+    const priceSection = document.getElementById('price-section');
+
+    // SISTEM PERINGATAN (Jika ID di HTML salah ketik)
+    if (!kecElement) return console.error("Error: ID 'dest-kecamatan' tidak ditemukan!");
+    if (!desaElement) return console.error("Error: ID 'dest-city' tidak ditemukan!");
+    if (!coordsElement) return console.error("Error: ID 'cust-pickup-coords' tidak ditemukan!");
+    if (!priceSection) return console.error("Error: ID 'price-section' tidak ditemukan!");
+
+    const kecName = kecElement.value;
+    const desaIdx = desaElement.value;
+    const coords = coordsElement.value;
+
+    // Logika munculkan tarif: Cukup pilih Kecamatan & Desa saja
+    if (kecName && desaIdx !== "") {
+        const selectedDesa = dataWilayah[kecName].desa[parseInt(desaIdx)];
         
-        const priceValue = element.querySelector('div').innerText.replace(/\D/g,'');
-        document.getElementById('final-price').value = priceValue;
+        let lat1, lon1;
+        // Jika GPS aktif, gunakan koordinat asli. Jika tidak, gunakan koordinat desa (jarak 0)
+        if (coords && coords !== "0,0" && coords.includes(',')) {
+            [lat1, lon1] = coords.split(',').map(Number);
+        } else {
+            lat1 = selectedDesa.lat;
+            lon1 = selectedDesa.lng;
+            console.warn("GPS belum siap, menggunakan kalkulasi jarak minimum.");
+        }
+
+        const straightDistance = calculateRealDistance(lat1, lon1, selectedDesa.lat, selectedDesa.lng);
+        const distanceKM = straightDistance * 1.5; // Koreksi kelokan jalan
+        const difficulty = selectedDesa.diff || 1.0;
+
+        // Update angka tarif
+        updateBountyDisplay(distanceKM, difficulty);
+        
+        // PAKSA PANEL MUNCUL (Menghilangkan display: none)
+        priceSection.style.display = 'block';
+        priceSection.style.visibility = 'visible';
+        priceSection.style.opacity = '1';
+        
+        console.log("Tarif Berhasil Dihitung untuk:", selectedDesa.name);
+    } else {
+        priceSection.style.display = 'none';
     }
+}
 
     // 7. KIRIM DATA KE FIREBASE
     function sendMission() {
