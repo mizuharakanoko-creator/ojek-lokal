@@ -419,30 +419,47 @@
     let userProfile = {}; 
 
     window.onload = () => {
-        // --- A. PINTU OTOMATIS KE HALAMAN TUNGGU ---
-        // Jika masih ada misi aktif, jangan biarkan user di halaman ini
-        if (activeMissionID) {
-            window.location.href = 'waiting-client.html';
-            return; // Hentikan eksekusi kode di bawahnya
-        }
-
-        // --- B. INISIALISASI FORM ORDER ---
-        const kecSelect = document.getElementById('dest-kecamatan');
-        
-        // Load Daftar Kecamatan ke Dropdown
-        if (kecSelect) {
-            for (let kec in dataWilayah) {
-                let opt = document.createElement('option');
-                opt.value = kec;
-                opt.innerText = kec.toUpperCase();
-                kecSelect.appendChild(opt);
+    // --- A. PROTEKSI & PINTU OTOMATIS (SINKRON DENGAN DATABASE) ---
+    if (activeMissionID) {
+        // Cek dulu ke Firebase apakah misi ini memang masih aktif
+        db.ref('missions/' + activeMissionID).once('value', (snapshot) => {
+            const data = snapshot.val();
+            
+            // JIKA MISI ADA DAN STATUSNYA MASIH PROSES/CARI
+            if (data && (data.status === "available" || data.status === "on_process")) {
+                window.location.href = 'waiting-client.html';
+            } else {
+                // JIKA DATA SUDAH DIHAPUS DI FIREBASE, BERSIHKAN LOCALSTORAGE
+                console.log("Misi lama terdeteksi tapi sudah tidak ada di server. Resetting...");
+                localStorage.removeItem('active_mission_id');
+                // Biarkan user tetap di sini (halaman order)
             }
+        });
+    }
 
-            // Event Listener untuk Dropdown Kecamatan
-            kecSelect.onchange = function() {
-                loadCities(this.value);
-            };
+    // --- B. INISIALISASI FORM SEPERTI BIASA ---
+    const kecSelect = document.getElementById('dest-kecamatan');
+    if (kecSelect) {
+        for (let kec in dataWilayah) {
+            let opt = document.createElement('option');
+            opt.value = kec;
+            opt.innerText = kec.toUpperCase();
+            kecSelect.appendChild(opt);
         }
+        kecSelect.onchange = function() { loadCities(this.value); };
+    }
+    
+    // Ambil Profil
+    db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
+        const userProfile = snapshot.val();
+        if (userProfile) {
+            document.getElementById('display-name').innerText = userProfile.name;
+            document.getElementById('display-reputation').innerText = "LEVEL: " + userProfile.reputation;
+            document.getElementById('cust-name').value = userProfile.name;
+        }
+    });
+};
+
         
         // --- C. AMBIL DATA PROFIL USER ---
         db.ref('users_customer/' + currentUID).on('value', (snapshot) => {
@@ -735,9 +752,12 @@ cleanupOldMissions();
     
 
     function logout() {
-        localStorage.removeItem('current_customer_id');
-        window.location.href = 'login.html';
-            }
+    localStorage.removeItem('current_customer_id');
+    localStorage.removeItem('active_mission_id'); // TAMBAHKAN INI
+    localStorage.clear(); // Opsional: Bersihkan semua
+    window.location.href = 'login.html';
+}
+
                     
                                 
                 
