@@ -663,50 +663,74 @@ setInterval(() => {
 
 
 
+        
 
-        // === 15. UPDATE GENERATOR MISI (SINKRONISASI 100 NAMA & ANTI-FRAUD) ===
+
+        // === 15. UPDATE GENERATOR MISI (SINKRONISASI 100 NAMA KTP & ANTI-FRAUD) ===
 function generateGhostOrder() {
     if(!userData.isOnline) return;
 
-    const missionBox = document.getElementById('mission-box');
-    const id = "ghost-" + Math.floor(Math.random() * 1000);
+    const missionBox = document.getElementById('mission-box') || document.querySelector('.mission-container');
+    const id = "ghost-" + Math.floor(Math.random() * 9000);
     
-    // Ambil Nama dari Database Nomor 1
-    const randomName = ghostNames[Math.floor(Math.random() * ghostNames.length)];
+    // 1. Ambil Nama dari Database Nomor 1 (100 Nama Sipil)
+    const rawName = ghostNames[Math.floor(Math.random() * ghostNames.length)];
     
-    // Logika Acak untuk Profil Pemesan (Sesuai kode lama Anda)
-    const isScam = Math.random() > 0.7;
-    const successRate = isScam ? Math.floor(Math.random() * 40 + 10) : Math.floor(Math.random() * 20 + 80);
-    const joinYear = Math.floor(Math.random() * 3 + 2023);
-    const cancelCount = isScam ? Math.floor(Math.random() * 50 + 20) : Math.floor(Math.random() * 5);
+    // 2. Logika Variasi Nama (Contoh: "Bambang Setiawan" jadi "Bambang S.")
+    const nameParts = rawName.split(' ');
+    const displayName = Math.random() > 0.6 
+        ? (nameParts[0] + (nameParts[1] ? " " + nameParts[1].charAt(0) + "." : "")) 
+        : rawName;
+    
+    // 3. Logika Acak Profil & Anti-Fraud
+    const isScam = Math.random() > 0.75; // 25% resiko chaos
+    const successRate = isScam ? Math.floor(Math.random() * 40 + 10) : Math.floor(Math.random() * 15 + 85);
+    const joinYear = Math.floor(Math.random() * 3 + 2022);
+    const cancelCount = isScam ? Math.floor(Math.random() * 40 + 15) : Math.floor(Math.random() * 5);
+    const price = Math.floor(Math.random() * 35000 + 12000);
 
-    let rankLabel = successRate > 95 ? "TRUSTWORTHY" : (successRate < 50 ? "CHAOS" : "MORTAL");
+    // Tentukan Label Rank (Sesuai sistem Anda)
+    let rankLabel = "MORTAL";
+    if (successRate > 96) rankLabel = "TRUSTWORTHY";
+    if (successRate < 50) rankLabel = "CHAOS";
 
     const ghostHTML = `
         <div class="quest-card ${isScam ? 'red-tier' : 'blue-theme'}" id="${id}" style="animation: slideIn 0.5s ease-out;">
             <summary onclick="triggerVibration('short')">
                 <div class="q-summary-grid">
-                    <div class="q-client-name terminal-font">${randomName}</div>
+                    <div class="q-client-name terminal-font">${displayName}</div>
                     <div class="q-meta-info">
-                        <span class="reward">Rp ${Math.floor(Math.random() * 30000 + 10000).toLocaleString('id-ID')}</span>
-                        <span class="timer" id="t-${id}">02:30</span>
+                        <span class="reward">Rp ${price.toLocaleString('id-ID')}</span>
+                        <span class="timer" id="t-${id}">03:00</span>
                     </div>
                 </div>
             </summary>
             <div class="q-details">
-                ${isScam ? `<div class="fraud-check danger">⚠️ HIGH RISK: ${rankLabel}</div>` : `<div class="fraud-check safe">REPUTATION: ${rankLabel}</div>`}
+                ${isScam 
+                    ? `<div class="fraud-check danger">⚠️ HIGH RISK DETECTED: ${rankLabel}</div>` 
+                    : `<div class="fraud-check safe">REPUTATION: ${rankLabel}</div>`
+                }
                 
                 <div class="client-profile-box">
-                    <div class="profile-row"><span>Member Since:</span><span>Oct ${joinYear}</span></div>
-                    <div class="profile-row"><span>Cancellations:</span><span class="${isScam ? 'txt-warning' : ''}">${cancelCount} Times</span></div>
-                    <div class="profile-row"><span>Success Rate:</span><span class="${successRate < 50 ? 'txt-warning' : 'txt-safe'}">${successRate}%</span></div>
+                    <div class="profile-row">
+                        <span>Member Since:</span>
+                        <span>Oct ${joinYear}</span>
+                    </div>
+                    <div class="profile-row">
+                        <span>Cancellations:</span>
+                        <span class="${isScam ? 'txt-warning' : ''}">${cancelCount} Times</span>
+                    </div>
+                    <div class="profile-row">
+                        <span>Success Rate:</span>
+                        <span class="${successRate < 50 ? 'txt-warning' : 'txt-safe'}">${successRate}%</span>
+                    </div>
                     <div class="mini-rate-container">
                         <div class="mini-rate-fill" style="width: ${successRate}%; background: ${successRate < 50 ? 'var(--p-red)' : 'var(--p-cyan)'}"></div>
                     </div>
                 </div>
 
                 <div class="action-row">
-                    <button class="btn-nego" onclick="openNego('${id}', '20.000')">NEGO</button>
+                    <button class="btn-nego" onclick="openNego('${id}', '${price}')">NEGO</button>
                     <button class="btn-apply" onclick="applyQuest('${id}', 25)">APPLY</button>
                     <button class="btn-nego" style="color:var(--p-red); border-color:#500;" onclick="reportUser('${id}')">REPORT</button>
                 </div>
@@ -714,12 +738,28 @@ function generateGhostOrder() {
         </div>
     `;
 
-    missionBox.insertAdjacentHTML('afterbegin', ghostHTML);
-    startMissionTimer(150, `t-${id}`, id);
+    // Sisipkan ke kontainer misi
+    if (missionBox) {
+        missionBox.insertAdjacentHTML('afterbegin', ghostHTML);
+    }
+    
+    // Aktifkan Timer (180 detik / 3 menit)
+    startMissionTimer(180, `t-${id}`, id);
+    
+    // Feedback Haptic & Sound
     triggerVibration(isScam ? "long" : "short");
-    addLog(`Detected mission from ${randomName}`, isScam ? "error" : "info");
-}
+    
+    // Masukkan ke Journal Log (Nomor 21)
+    if (typeof addLog === "function") {
+        addLog(`Incoming mission from ${displayName}`, isScam ? "error" : "info");
+    }
+        }
+        
 
+
+
+
+        
 // === 16. SISTEM REPORT (PELAPORAN AKUN) ===
 function reportUser(cardId) {
     if(!confirm("Laporkan akun ini karena aktivitas mencurigakan?")) return;
