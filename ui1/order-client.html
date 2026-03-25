@@ -647,101 +647,96 @@
     }
 
 
-    // 7. FIREBASE SEND (VERSI REDIRECT KE HALAMAN TUNGGU)
+    
+
+    // 7. FIREBASE SEND (VERSI STABIL & SINKRON)
 async function sendMission() {
     const pickupCoords = document.getElementById('cust-pickup-coords').value;
     const price = document.getElementById('final-price').value;
     const kecName = document.getElementById('dest-kecamatan').value;
     const desaIdx = document.getElementById('dest-city').value;
+    const note = document.getElementById('cust-note').value;
+    const isUrgent = document.getElementById('is-urgent').checked;
 
-    // Validasi input
-    if (!pickupCoords || pickupCoords === "0,0" || price === "0" || desaIdx === "") {
-        return alert("MAAF: Lokasi jemput, tujuan, atau harga belum dipilih!");
+    // A. Validasi ketat
+    if (!pickupCoords || pickupCoords === "0,0" || !price || price === "0" || desaIdx === "") {
+        return alert("LENGKAPI DATA: Lokasi jemput, desa tujuan, dan paket ongkos harus dipilih!");
     }
 
     try {
-        // --- LOGIKA CLEANUP: Hapus pesanan 'available' lama milik user ini ---
-        const oldMissions = await db.ref('missions').orderByChild('clientId').equalTo(currentUID).once('value');
-        oldMissions.forEach(child => {
-            if (child.val().status === "available") {
-                child.ref.remove();
-            }
-        });
-
-        // Data tujuan
+        // B. Data desa & Misi
         const desaData = dataWilayah[kecName].desa[parseInt(desaIdx)];
-        const isUrgent = document.getElementById('is-urgent').checked;
         const missionRef = db.ref('missions').push();
+        const mKey = missionRef.key;
 
-        // Kirim data baru
-        await missionRef.set({
-            id: missionRef.key,
+        // C. Siapkan Data (Status: searching agar sinkron dengan timer)
+        const missionData = {
+            id: mKey,
             clientId: currentUID,
             clientName: userProfile.name || "Customer",
             price: parseInt(price),
             pickup: pickupCoords, 
             destination: desaData.name,
-            note: document.getElementById('cust-note').value,
+            note: note || "Tolong antar tepat waktu.",
             rank: isUrgent ? "DARURAT" : "BIASA",
-            status: "available",
+            status: "searching", 
             timestamp: firebase.database.ServerValue.TIMESTAMP
-        });
+        };
 
-        // Simpan ID misi di localStorage agar halaman tunggu tahu apa yang harus dipantau
-        localStorage.setItem('active_mission_id', missionRef.key);
+        // D. Simpan ID ke LocalStorage dulu (PENTING!)
+        // Supaya jika redirect terjadi, halaman tunggu sudah punya ID-nya
+        localStorage.setItem('active_mission_id', mKey);
+
+        // E. Kirim ke Firebase
+        await missionRef.set(missionData);
         
-        // PINDAH KE HALAMAN TUNGGU
-        window.location.href = 'waiting-client.html';
+        console.log("Misi Terkirim: " + mKey);
+        
+        // F. Pindah halaman dengan replace (agar tidak bisa di-back)
+        window.location.replace('waiting-client.html');
 
     } catch (error) {
         console.error("Firebase Error:", error);
-        alert("Gagal mengirim pesanan, silakan coba lagi.");
+        alert("GAGAL MENGIRIM: Pastikan internet stabil. Error: " + error.message);
     }
-    }
-                                          
+}
 
-
-
-
-    function watchMissionStatus(missionId) {
+// 8. MONITORING STATUS (Opsional di halaman ini)
+function watchMissionStatus(missionId) {
+    if(!missionId) return;
     const mRef = db.ref('missions/' + missionId);
     
     mRef.on('value', (snapshot) => {
         const data = snapshot.val();
-        if (!data) return;
+        if (!data) {
+            localStorage.removeItem('active_mission_id');
+            return;
+        }
 
-        // Jika misi selesai atau dibatalkan, hapus dari node 'missions'
         if (data.status === "completed" || data.status === "cancelled") {
-            alert("Misi telah " + data.status);
-            mRef.remove(); // Menghapus dari database agar tidak penuh
+            mRef.off();
             localStorage.removeItem('active_mission_id');
             location.reload();
         }
     });
-    }
-    
-
-
-
-    function cleanupOldMissions() {
-    const twentyMinutesAgo = Date.now() - (20 * 60 * 1000);
-    db.ref('missions')
-      .orderByChild('timestamp')
-      .endAt(twentyMinutesAgo)
-      .once('value', (snapshot) => {
-          snapshot.forEach((child) => {
-              // Hanya hapus yang statusnya masih 'available' (kadaluarsa)
-              if (child.val().status === "available") {
-                  child.ref.remove();
-              }
-          });
-      });
 }
 
-// Jalankan cleanup setiap kali user membuka aplikasi
-cleanupOldMissions();
+// 9. CLEANUP MISI LAMA (Dibuat sederhana tanpa Query Berat)
+function cleanupOldMissions() {
+    // Kita biarkan admin atau sistem driver yang membersihkan agar 
+    // client-side tidak berat/error karena Indexing Firebase.
+    console.log("Cleanup standby...");
+}
+
+// Jalankan monitoring jika ada misi aktif
+if (activeMissionID) {
+    watchMissionStatus(activeMissionID);
+}
     
 
+
+
+    
     
 
     function logout() {
