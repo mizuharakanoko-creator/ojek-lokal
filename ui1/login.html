@@ -104,43 +104,48 @@
     const db = firebase.database();
 
     function processLogin() {
-        const id = document.getElementById('login-id').value.trim();
-        const type = document.getElementById('login-type').value;
+    const id = document.getElementById('login-id').value.trim();
+    const type = document.getElementById('login-type').value;
 
-        if(!id) {
-            alert("SISTEM: Harap masukkan ID Akses Anda.");
-            return;
-        }
-
-        // Tentukan path pencarian berdasarkan tipe akun
-        const dbPath = (type === 'customer') ? 'users_customer/' : 'users_driver/';
-
-        console.log("Mencoba verifikasi ID:", id, "di folder:", dbPath);
-
-        // Cari ID di Firebase secara spesifik
-        db.ref(dbPath + id).once('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const userData = snapshot.val();
-                alert("ACCESS GRANTED! Welcome, " + userData.name);
-
-                if (type === 'customer') {
-                    // Simpan sesi Customer
-                    localStorage.setItem('current_customer_id', id);
-                    window.location.href = 'order-client.html';
-                } else {
-                    // Simpan sesi Driver
-                    localStorage.setItem('current_driver_id', id);
-                    window.location.href = 'mission-hub.html';
-                }
-            } else {
-                // Jika ID tidak ada di folder yang dipilih
-                alert("ACCESS DENIED: ID tidak ditemukan sebagai " + type.toUpperCase());
-            }
-        })
-        .catch((err) => {
-            alert("SYSTEM ERROR: " + err.message);
-        });
+    if(!id) {
+        alert("SISTEM: Harap masukkan ID Akses Anda.");
+        return;
     }
+
+    // PERBAIKAN DI SINI: Sesuaikan dengan nama folder di Firebase Anda
+    // Customer di folder 'users_customer', Driver di folder 'drivers'
+    const dbPath = (type === 'customer') ? 'users_customer/' : 'drivers/';
+
+    console.log("Mencoba verifikasi ID:", id, "di folder:", dbPath);
+
+    db.ref(dbPath + id).once('value', (snapshot) => {
+        if (snapshot.exists()) {
+            const userData = snapshot.val();
+            
+            // Nama field di database driver adalah 'nama' (huruf kecil)
+            // Sedangkan di customer mungkin 'name'. Kita antisipasi keduanya:
+            const displayName = userData.nama || userData.name || "User";
+            
+            alert("ACCESS GRANTED! Welcome, " + displayName);
+
+            if (type === 'customer') {
+                localStorage.setItem('current_customer_id', id);
+                window.location.href = 'order-client.html';
+            } else {
+                // Simpan data driver untuk digunakan di halaman mission-hub
+                localStorage.setItem('current_driver_id', id);
+                localStorage.setItem('driver_name', displayName);
+                window.location.href = 'mission-hub.html';
+            }
+        } else {
+            alert("ACCESS DENIED: ID tidak ditemukan di database " + type.toUpperCase());
+        }
+    })
+    .catch((err) => {
+        alert("SYSTEM ERROR: " + err.message);
+    });
+}
+
 </script>
 
 </body>
