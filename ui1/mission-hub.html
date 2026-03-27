@@ -43,6 +43,47 @@
     opacity: 0.8;
     text-shadow: none; /* Menghilangkan glow saat offline agar kontras */
 }
+
+
+.activity-log-container {
+    transition: all 0.3s ease;
+    border: 1px solid #222;
+    margin-top: 10px;
+}
+.log-body {
+    max-height: 150px;
+    overflow-y: auto;
+    transition: max-height 0.3s ease;
+}
+
+.radar-module {
+    height: 100px; /* Diperkecil dari sebelumnya */
+    margin-bottom: 5px;
+}
+.map-frame {
+    height: 100px;
+    background: linear-gradient(180deg, #050505 0%, #111 100%);
+    border: 1px solid #222;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.gps-overlay {
+    top: 10px;
+    left: 10px;
+    font-size: 14px; /* Ukuran teks GPS dipertegas tapi ringkas */
+}
+
+.log-item.success .log-msg { color: #00f3ff; } /* Sinyal/Misi */
+.log-item.error .log-msg { color: #ff003c; }   /* Error/Cancel */
+.log-item.info .log-msg { color: #aaa; }      /* Info Biasa */
+
+.log-body {
+    max-height: 120px; /* Membatasi tinggi kotak log agar tidak meluap */
+    overflow-y: hidden; /* Sembunyikan scrollbar agar bersih */
+}
+
+
 </style>
 
 </head>
@@ -109,14 +150,18 @@
 
     <div class="section-divider" style="height: 1px; background: #222; margin-bottom: 10px;"></div>
 
-    <section class="activity-log-container">
-        <div class="log-header">
-            <span class="terminal-font">SYSTEM_LOG_v1.0</span>
-            <button onclick="clearLog()" style="background:none; border:none; color:#555; font-size:10px;">[CLEAR]</button>
+    <section class="activity-log-container" id="log-container">
+    <div class="log-header" onclick="toggleLog()" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+        <span class="terminal-font">SYSTEM_LOG_v1.0</span>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <button onclick="clearLog(); event.stopPropagation();" style="background:none; border:none; color:#555; font-size:10px;">[CLEAR]</button>
+            <span id="log-chevron" style="color:var(--p-cyan); font-size:12px;">▼</span>
         </div>
-        <div id="log-list" class="log-body">
-            </div>
-    </section>
+    </div>
+    <div id="log-list" class="log-body">
+        </div>
+</section>
+
 </main>
 
 
@@ -195,8 +240,9 @@ setInterval(() => {
     if(userData.hp < userData.maxHp) { userData.hp = Math.min(userData.hp + regen, userData.maxHp); updateUI(); }
 }, 30000);
 
-// === 4. SYSTEM TOGGLE (GPS Real, Glitch & Battery Save) ===
-let gpsWatcher = null; // Variable untuk menghentikan pelacakan saat offline
+// === 4. SYSTEM TOGGLE (GPS Real, Anti-Spam & Visual Sync) ===
+let gpsWatcher = null; 
+let firstLock = true; // Agar log "Signal Stable" tidak nyepam
 
 function toggleSystem() {
     userData.isOnline = document.getElementById('online-toggle').checked;
@@ -205,35 +251,43 @@ function toggleSystem() {
     const gpsStatus = document.getElementById('gps-status');
 
     if (userData.isOnline) {
+        // Efek Awal saat mencari sinyal
         if(gpsStatus) { 
             gpsStatus.innerText = "SYNCING..."; 
             gpsStatus.className = "txt-cyan glitch-text"; 
         }
+        statusLabel.innerText = "CONNECTING...";
+        statusLabel.style.color = "gold";
 
-        // Menggunakan watchPosition: Lebih akurat & hanya update jika posisi berubah
         gpsWatcher = navigator.geolocation.watchPosition((pos) => {
             userCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             
+            // Logika Visual & Status
             statusLabel.innerText = "ONLINE";
             statusLabel.style.color = "var(--p-cyan)";
             if(radar) radar.classList.add('scanning');
             
+            // Efek GPS Live
             if(gpsStatus) { 
                 gpsStatus.innerText = "GPS: LIVE"; 
-                // Efek glitch muncul tiap kali koordinat terupdate (keren!)
                 gpsStatus.classList.add('glitch-text');
                 setTimeout(() => gpsStatus.classList.remove('glitch-text'), 2000);
             }
             
-            addLog("SIGNAL STABLE: Koordinat diperbarui.", "success");
-            listenToFirebase();
+            // Logika Log: Hanya muncul sekali agar tidak memenuhi layar
+            if (firstLock) {
+                addLog("SIGNAL ACQUIRED: Koordinat Real Terkunci.", "success");
+                firstLock = false; 
+            }
+
+            listenToFirebase(); // Jalankan pengambilan data misi
 
         }, (err) => {
             addLog("SIGNAL LOST: GPS Terputus!", "error");
             stopGPS();
         }, { 
             enableHighAccuracy: true, 
-            maximumAge: 30000, // Cache lokasi selama 30 detik (Hemat Baterai)
+            maximumAge: 30000, 
             timeout: 27000 
         });
 
@@ -242,55 +296,56 @@ function toggleSystem() {
     }
 }
 
-// Fungsi pembantu untuk mematikan GPS total saat Offline
+// Fungsi pembantu untuk mematikan sistem secara bersih
 function stopGPS() {
     if(gpsWatcher) navigator.geolocation.clearWatch(gpsWatcher);
     const statusLabel = document.getElementById('status-label');
     const gpsStatus = document.getElementById('gps-status');
     const radar = document.getElementById('radar-anim');
 
+    // Reset Semua Status
     statusLabel.innerText = "OFFLINE";
     statusLabel.style.color = "#fff";
     if(radar) radar.classList.remove('scanning');
+    
     if(gpsStatus) { 
         gpsStatus.innerText = "GPS: OFFLINE"; 
         gpsStatus.className = "txt-red"; 
     }
+    
     if(db) db.ref('missions').off();
+    
+    // Pastikan Switch & Data Sinkron
     document.getElementById('online-toggle').checked = false;
     userData.isOnline = false;
+    firstLock = true; // Reset agar saat online lagi, log muncul kembali
+    addLog("System Offline. GPS Disconnected.", "info");
 }
 
 
 
 
 
-// === 5. ORDER GENERATOR (Ghost & Real Firebase) ===
+
+// === 5. ORDER GENERATOR (Fixed for Real GPS) ===
 function generateGhostOrder() {
-    if(!userData.isOnline) return;
+    // Misi hanya muncul jika Online DAN GPS sudah terkunci (userCoords tidak null)
+    if(!userData.isOnline || !userCoords) return;
+
     const id = "ghost-" + Math.floor(Math.random() * 9999);
     
-    // Logika pembulatan ribuan: (Random * Range + Base) dibulatkan ke bawah per 1000
-    const rawPrice = Math.floor(Math.random() * 35000 + 12000);
-    const roundedPrice = Math.floor(rawPrice / 1000) * 1000; 
+    // Buat koordinat palsu yang dekat dengan driver (radius sekitar 0.01 derajat)
+    const fakeLat = userCoords.lat + (Math.random() * 0.02 - 0.01);
+    const fakeLng = userCoords.lng + (Math.random() * 0.02 - 0.01);
 
     renderMission({ 
         clientName: ghostNames[Math.floor(Math.random() * ghostNames.length)], 
-        price: roundedPrice 
+        price: Math.floor(Math.random() * 35000 + 12000),
+        lat: fakeLat,
+        lng: fakeLng
     }, id, true);
 }
 
-function listenToFirebase() {
-    if(!db) return;
-    db.ref('missions').on('value', (snap) => {
-        if (!userData.isOnline) return;
-        document.querySelectorAll('.quest-card[data-type="real"]').forEach(c => c.remove());
-        const data = snap.val();
-        if (data) Object.keys(data).forEach(k => { 
-            if (data[k].status === "searching") renderMission(data[k], k, false); 
-        });
-    });
-}
 
 
 // === 6. MISSION RENDERER (Real Distance Logic) ===
@@ -478,6 +533,56 @@ function playRobotVoice(text) {
         window.speechSynthesis.speak(utterance);
     }
 }
+
+// === 17. LOG MINIMIZER ENGINE ===
+function toggleLog() {
+    const logList = document.getElementById('log-list');
+    const chevron = document.getElementById('log-chevron');
+    
+    // Gunakan class CSS untuk transisi yang lebih halus
+    if (logList.classList.contains('minimized')) {
+        logList.classList.remove('minimized');
+        logList.style.display = "block";
+        chevron.innerText = "▼";
+    } else {
+        logList.classList.add('minimized');
+        logList.style.display = "none";
+        chevron.innerText = "▲";
+    }
+}
+
+
+
+// === 18. LOG ENGINE (Smart Auto-Cleaner) ===
+function addLog(msg, type = 'info') {
+    const logList = document.getElementById('log-list');
+    if (!logList) return;
+
+    // Ambil waktu lokal (Format 22:40)
+    const time = new Date().toLocaleTimeString('id-ID', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+
+    // Buat elemen log baru
+    const logItem = document.createElement('div');
+    logItem.className = `log-item ${type}`;
+    logItem.style.marginBottom = "3px";
+    logItem.style.fontSize = "10px";
+    logItem.innerHTML = `<span style="color:#555;">[${time}]</span> <span class="log-msg">${msg}</span>`;
+
+    // Masukkan log baru di posisi paling atas agar Driver langsung baca
+    logList.insertBefore(logItem, logList.firstChild);
+
+    // LOGIKA AUTO-CLEANER:
+    // Jika jumlah pesan di dalam log sudah lebih dari 20 baris
+    const maxLogs = 20;
+    while (logList.children.length > maxLogs) {
+        logList.removeChild(logList.lastChild); // Hapus yang paling bawah (paling lama)
+    }
+}
+
 
 
 </script>
