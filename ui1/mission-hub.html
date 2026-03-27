@@ -83,6 +83,92 @@
     overflow-y: hidden; /* Sembunyikan scrollbar agar bersih */
 }
 
+/* --- OVERLAY MODAL (Latar Belakang Gelap) --- */
+#global-modal {
+    display: none; /* Sembunyi secara default */
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9); /* Hitam pekat transparan */
+    backdrop-filter: blur(4px); /* Efek blur di belakang modal */
+    z-index: 10000; /* Pastikan di atas segalanya */
+    align-items: center;
+    justify-content: center;
+}
+
+/* Aktifkan Modal */
+#global-modal.active {
+    display: flex;
+}
+
+/* --- KOTAK KONTEN MODAL --- */
+.popup-content.modal-size {
+    width: 85%;
+    max-width: 350px;
+    background: #000;
+    border: 1px solid var(--p-cyan);
+    box-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
+    padding: 20px;
+    position: relative;
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+/* Animasi Muncul */
+@keyframes modalSlideIn {
+    from { opacity: 0; transform: scale(0.9) translateY(-20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Header Modal (Judul & Tombol X) */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #222;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+#modal-title {
+    font-family: 'TerminalFont', monospace;
+    color: var(--p-cyan);
+    font-size: 14px;
+    letter-spacing: 2px;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    color: #555;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+/* --- TOMBOL DI DALAM MODAL --- */
+.btn-cancel {
+    background: #111;
+    color: #fff;
+    border: 1px solid #333;
+    padding: 10px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.btn-apply {
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    transition: 0.2s;
+}
+
+.btn-apply:active {
+    transform: scale(0.95);
+    filter: brightness(1.2);
+}
+
+
+
 
 </style>
 
@@ -348,96 +434,167 @@ function generateGhostOrder() {
 
 
 
-// === 6. MISSION RENDERER (Real Distance Logic) ===
+// === 6. MISSION RENDERER (Final Version) ===
 function renderMission(data, id, isGhost) {
+    // 1. Validasi Awal: Jangan render jika ID sudah ada atau GPS belum siap
     if(document.getElementById(id) || !userCoords) return;
 
-    // 1. HITUNG JARAK ASLI (Bukan Random Lagi!)
-    // Jika ghost mission, kita buat koordinat palsu di sekitar driver agar masuk akal
+    // 2. Tentukan Titik Target (Misi)
+    // Jika Ghost, buat koordinat acak di sekitar driver. Jika Real, pakai data koordinat asli.
     const targetLat = isGhost ? userCoords.lat + (Math.random() * 0.04 - 0.02) : data.lat;
     const targetLng = isGhost ? userCoords.lng + (Math.random() * 0.04 - 0.02) : data.lng;
     
-    const distance = calculateRealDistance(userCoords.lat, userCoords.lng, targetLat, targetLng);
+    // 3. Ambil Nilai Angka Jarak (Panggil 15B untuk perhitungan harga)
+    const distValue = calculateRealDistanceValue(userCoords.lat, userCoords.lng, targetLat, targetLng);
     
-    // 2. FILTER JARAK (Sesuai pilihan Driver di UI)
-    const filterLimit = parseFloat(document.getElementById('distance-filter').value);
-    if (parseFloat(distance) > filterLimit) return;
+    // 4. Filter Jarak (Hanya munculkan jika masuk dalam radius pilihan driver)
+    const filterElement = document.getElementById('distance-filter');
+    const filterLimit = filterElement ? parseFloat(filterElement.value) : 999;
+    if (distValue > filterLimit) return;
 
-    // 3. LOGIKA HARGA (Rp 2.500 per KM, minimal Rp 12.000)
-    let dynamicPrice = Math.max(12000, distance * 2500);
-    const finalPrice = Math.floor(dynamicPrice / 1000) * 1000;
+    // 5. Logika Harga (Rp 3.000 per KM, Minimal Rp 10.000)
+    // Menggunakan distValue (Angka murni) untuk mencegah Rp NaN
+    const rawPrice = Math.max(10000, distValue * 3000);
+    const finalPrice = Math.floor(rawPrice / 1000) * 1000; // Bulatkan ke ribuan terdekat
     const priceFormatted = finalPrice.toLocaleString('id-ID');
 
+    // 6. Format Tampilan Jarak (Cegah kata "km" dobel)
+    const distanceDisplay = distValue < 1 ? (distValue * 1000).toFixed(0) + " m" : distValue.toFixed(1) + " km";
+
+    // 7. Logika Scam (Hanya untuk Ghost Mission)
+    const isScam = isGhost && Math.random() > 0.8;
+
     const html = `
-        <div class="quest-card" id="${id}">
+        <div class="quest-card ${isScam ? 'red-tier' : 'blue-theme'}" id="${id}" data-type="${isGhost ? 'ghost' : 'real'}">
             <details>
                 <summary onclick="triggerVibration('short')">
                     <div class="q-summary-grid">
                         <div class="q-client-name terminal-font">${data.clientName}</div>
+                        
                         <div class="q-meta-info" style="display:flex; gap:10px; align-items:center;">
-                            <span class="${distance <= 1 ? 'txt-cyan' : ''}" style="font-weight:bold;">${distance} km</span>
-                            <span class="reward q-gold">Rp ${priceFormatted}</span>
+                            <span class="${distValue <= 1 ? 'txt-cyan' : ''}" style="font-weight:bold;">${distanceDisplay}</span>
+                            <span class="reward q-gold" style="white-space:nowrap;">Rp ${priceFormatted}</span>
                             <span class="timer" id="t-${id}">05:00</span>
                         </div>
                     </div>
                 </summary>
                 <div class="q-details">
-                    <p style="font-size:10px; color:#888;">Posisi jemput terdeteksi pada radar.</p>
-                    <div class="action-row">
-                        <button class="btn-apply" style="width:100%" onclick="confirmApply('${id}', 25, ${isGhost})">TERIMA MISI</button>
+                    <div class="fraud-check ${isScam ? 'danger' : 'safe'}">${isScam ? '⚠️ HIGH RISK DETECTED' : '✓ TRUSTED CLIENT'}</div>
+                    <p style="font-size:10px; margin:5px 0; color:#ccc;">Penjemputan terdeteksi di koordinat radar.</p>
+                    
+                    <div class="action-row" style="display:flex; gap:5px; margin-top:10px;">
+                        <button class="btn-nego" style="flex:1;" onclick="confirmNego('${id}', ${finalPrice})">NEGO</button>
+                        <button class="btn-apply" style="flex:2; background:var(--p-cyan);" onclick="confirmApply('${id}', 25, ${isGhost})">TERIMA MISI</button>
                     </div>
                 </div>
             </details>
         </div>`;
     
-    document.querySelector('.section-divider').insertAdjacentHTML('afterend', html);
+    // Render ke layar di bawah divider
+    const divider = document.querySelector('.section-divider');
+    if(divider) divider.insertAdjacentHTML('afterend', html);
+
+    // Jalankan Timer mundur untuk kartu misi ini
     startMissionTimer(300, `t-${id}`, id);
+    
+    // Trigger suara robot melalui fungsi calculateRealDistance (Nomor 15A)
+    calculateRealDistance(userCoords.lat, userCoords.lng, targetLat, targetLng);
 }
+
+
 
 
 
 // === 7. APPLY LOGIC (Briefing & Selection) ===
 function confirmApply(id, cost, isGhost) {
-    if(userData.hp < cost) return showNotification("Energi Kurang!", "error");
-    const client = document.querySelector(`#${id} .q-client-name`).innerText;
+    // 1. Cek Stamina
+    if(userData.hp < cost) {
+        addLog("ENERGI TIDAK CUKUP!", "error");
+        return;
+    }
+
+    const card = document.getElementById(id);
+    const clientName = card.querySelector('.q-client-name').innerText;
+
+    // 2. Buka Modal Briefing (Tampilan Tengah Layar)
     openModal("S-RANK BRIEFING", `
-        <p>Target: <b>${client}</b></p>
-        <p>Biaya: <span style="color:red">-${cost} HP</span></p>
-        <button class="btn-apply" style="width:100%; margin-top:15px;" onclick="executeApply('${id}', ${cost}, ${isGhost})">TERIMA MISI</button>
+        <div class="briefing-container terminal-font" style="font-size:12px; color:#ccc;">
+            <p style="margin-bottom:10px;">> TARGET: <span class="txt-cyan">${clientName}</span></p>
+            <p>> COST: <span style="color:#ff003c;">-${cost} HP</span></p>
+            <p>> STATUS: <span class="glitch-text">SYNCING...</span></p>
+            
+            <div style="margin-top:20px; display:flex; gap:10px;">
+                <button class="btn-cancel" style="flex:1; padding:10px; background:#222; border:1px solid #444; color:#fff;" onclick="closeModal()">BATAL</button>
+                <button class="btn-apply" style="flex:2; padding:10px; background:var(--p-cyan); font-weight:bold;" onclick="executeApply('${id}', ${cost}, ${isGhost})">TERIMA MISI</button>
+            </div>
+        </div>
     `);
 }
 
 function executeApply(id, cost, isGhost) {
-    closeModal(); userData.hp -= cost; updateUI();
-    const btn = document.querySelector(`#${id} .btn-apply`);
-    btn.innerText = "WAITING..."; btn.disabled = true;
+    closeModal();
+    userData.hp -= cost; 
+    updateUI(); 
+
+    const card = document.getElementById(id);
+    const btnA = card.querySelector('.btn-apply');
+    const btnN = card.querySelector('.btn-nego');
+
+    if(btnA) { btnA.innerText = "WAITING..."; btnA.disabled = true; }
+    if(btnN) { btnN.style.display = "none"; } // Sembunyikan Nego saat proses
+
+    addLog(`Menghubungi ${id}... Mohon tunggu.`, "info");
 
     setTimeout(() => {
         if(isGhost && Math.random() < 0.4) { 
-            showNotification("Gagal: Driver lain lebih cepat", "error"); 
-            document.getElementById(id).remove(); 
-        } else { showSuccessPopup(id); }
+            addLog("GAGAL: Driver lain lebih cepat!", "error"); 
+            card.style.opacity = "0.4";
+            setTimeout(() => card.remove(), 1000);
+        } else { 
+            addLog("MISI DITERIMA! Silakan berangkat.", "success");
+            showSuccessPopup(id); 
+        }
     }, 2000);
 }
 
-// === 8. NEGO LOGIC (Interface & Respon) ===
+
+// === 8. NEGO LOGIC (Interface & Response) ===
 function confirmNego(id, oldPrice) {
     openModal("NEGO HARGA", `
-        <input type="number" id="n-val" value="${oldPrice}" style="width:100%; padding:10px; background:#000; color:#fff;">
-        <button class="btn-apply" style="width:100%; margin-top:10px;" onclick="executeNego('${id}')">TAWAR</button>
+        <div class="nego-container terminal-font" style="text-align:center;">
+            <p style="font-size:10px; color:#888; margin-bottom:10px;">MASUKKAN TAWARAN ANDA (Rp)</p>
+            <input type="number" id="n-val" value="${oldPrice}" 
+                   style="width:100%; padding:12px; background:#111; color:var(--p-cyan); border:1px solid var(--p-cyan); font-family:monospace; text-align:center; font-size:18px; margin-bottom:15px;">
+            
+            <div style="display:flex; gap:10px;">
+                <button class="btn-cancel" style="flex:1; padding:10px; background:#222; border:1px solid #444; color:#fff;" onclick="closeModal()">BATAL</button>
+                <button class="btn-apply" style="flex:2; padding:10px; background:gold; color:#000; font-weight:bold;" onclick="executeNego('${id}')">KIRIM TAWARAN</button>
+            </div>
+        </div>
     `);
 }
 
 function executeNego(id) {
     const val = document.getElementById('n-val').value;
-    closeModal(); showNotification("Menunggu Nego...");
+    closeModal();
+    addLog(`Mengirim penawaran Rp ${parseInt(val).toLocaleString('id-ID')}...`, "info");
+
     setTimeout(() => {
+        // Peluang Nego Diterima (50/50)
         if(Math.random() > 0.5) {
-            showNotification("Nego Diterima!");
-            document.querySelector(`#${id} .reward`).innerText = `Rp ${parseInt(val).toLocaleString('id-ID')}`;
-        } else { showNotification("Nego Ditolak", "error"); }
+            addLog("NEGO DITERIMA! Harga telah diperbarui.", "success");
+            const rewardElement = document.querySelector(`#${id} .reward`);
+            if(rewardElement) {
+                rewardElement.innerText = `Rp ${parseInt(val).toLocaleString('id-ID')}`;
+                rewardElement.classList.add('glitch-text'); // Berikan efek kilau saat harga berubah
+                setTimeout(() => rewardElement.classList.remove('glitch-text'), 2000);
+            }
+        } else { 
+            addLog("NEGO DITOLAK: Klien tetap pada harga awal.", "error"); 
+        }
     }, 2000);
 }
+
 
 // === 9. SUCCESS SYSTEM (Auto-Cancel & AFK) ===
 let afkTimer;
@@ -458,14 +615,23 @@ function showSuccessPopup(id) {
 
 function startJourney() { clearTimeout(afkTimer); window.location.href = 'tracking-driver.html'; }
 
-// === 10. MODAL & NOTIFIKASI (UI Engine) ===
-function openModal(t, c) { document.getElementById('modal-title').innerText = t; document.getElementById('modal-body').innerHTML = c; document.getElementById('global-modal').style.display = 'flex'; }
-function closeModal() { document.getElementById('global-modal').style.display = 'none'; }
-function showNotification(m, t='success') {
-    const toast = document.createElement('div'); toast.className = `toast-item ${t==='error'?'error':''}`; toast.innerText = m;
-    document.getElementById('toast-container').appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+// === 10. MODAL & NOTIFIKASI (UI Engine - Optimized) ===
+function openModal(t, c) { 
+    const modal = document.getElementById('global-modal');
+    document.getElementById('modal-title').innerText = t; 
+    document.getElementById('modal-body').innerHTML = c; 
+    modal.classList.add('active'); // Menggunakan class agar rapi di tengah
 }
+
+function closeModal() { 
+    document.getElementById('global-modal').classList.remove('active'); 
+}
+
+function showNotification(m, t='success') {
+    // Fungsi ini tetap sama, atau bisa diarahkan ke addLog agar lebih ringkas
+    addLog(m, t === 'error' ? 'error' : 'success');
+}
+
 
 // === 11. RPG SYSTEM (Level Up & Exp) ===
 function addExp(a) {
@@ -485,30 +651,32 @@ function startMissionTimer(d, dId, cId) {
 }
 function triggerVibration(p) { if(navigator.vibrate) { const v = {short:100, long:[200,100,200], emergency:[500,100,500]}; navigator.vibrate(v[p]); }}
 
-// === 13. LOGGING & BUFFS ===
-function addLog(m, t) {
-    const l = document.getElementById('log-list');
-    if(!l) return;
-    l.insertAdjacentHTML('afterbegin', `<div class="log-item ${t}">[${new Date().toLocaleTimeString()}] ${m}</div>`);
-}
 
-// === 14. INITIALIZER (Haptic & Start) ===
+// === 13. INITIALIZER (Haptic & Start) ===
 window.onload = () => {
     updateUI();
-    document.querySelectorAll('button').forEach(b => b.addEventListener('mousedown', () => triggerVibration('short')));
+    // Tutup log secara otomatis saat awal masuk agar layar lega
+    const logList = document.getElementById('log-list');
+    if(logList) logList.classList.add('minimized'); 
+    
+    document.querySelectorAll('button').forEach(b => {
+        b.addEventListener('click', () => triggerVibration('short'));
+    });
+    
+    // Munculkan misi hantu setiap 25 detik
     setInterval(() => generateGhostOrder(), 25000);
 };
 
 
-// === 15. FUNGSI MATEMATIKA: HAVERSINE FORMULA (Updated with Voice) ===
+
+// === 14. FUNGSI MATEMATIKA: HAVERSINE FORMULA (Engine Jarak & Suara) ===
+
+/**
+ * 14A. Fungsi Teks Jarak
+ * Digunakan untuk tampilan di Kartu Misi (Contoh: "1.2 km" atau "450 m")
+ */
 function calculateRealDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; 
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const dist = R * c;
+    const dist = calculateRealDistanceValue(lat1, lon1, lat2, lon2);
 
     // Trigger Suara Robot jika misi baru terdeteksi (Hanya jika Online)
     if (userData.isOnline) {
@@ -516,11 +684,40 @@ function calculateRealDistance(lat1, lon1, lat2, lon2) {
         playRobotVoice(`Target terdeteksi. Jarak ${speakDist}`);
     }
 
+    // Mengembalikan string untuk UI
     return dist < 1 ? (dist * 1000).toFixed(0) + " m" : dist.toFixed(1) + " km";
 }
 
+/**
+ * 14B. Fungsi Nilai Jarak (MURNI ANGKA)
+ * WAJIB DIGUNAKAN untuk perhitungan harga agar tidak muncul Rp NaN
+ */
+function calculateRealDistanceValue(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Jari-jari bumi dalam KM
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+              
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Mengembalikan angka (Contoh: 1.2543)
+}
 
-// === 16. VOICE ENGINE (Text-to-Speech) ===
+/**
+ * 14C. Modal Event Handler (Safety Exit)
+ * Menutup modal secara otomatis jika area luar kotak di-klik
+ */
+window.addEventListener('click', (event) => {
+    const modal = document.getElementById('global-modal');
+    if (event.target === modal) {
+        closeModal();
+    }
+});
+
+
+
+// === 15. VOICE ENGINE (Text-to-Speech) ===
 function playRobotVoice(text) {
     // Cek apakah browser mendukung bicara
     if ('speechSynthesis' in window) {
@@ -534,7 +731,7 @@ function playRobotVoice(text) {
     }
 }
 
-// === 17. LOG MINIMIZER ENGINE ===
+// === 16. LOG MINIMIZER ENGINE ===
 function toggleLog() {
     const logList = document.getElementById('log-list');
     const chevron = document.getElementById('log-chevron');
@@ -553,7 +750,7 @@ function toggleLog() {
 
 
 
-// === 18. LOG ENGINE (Smart Auto-Cleaner) ===
+// === 17. LOG ENGINE (Smart Auto-Cleaner) ===
 function addLog(msg, type = 'info') {
     const logList = document.getElementById('log-list');
     if (!logList) return;
