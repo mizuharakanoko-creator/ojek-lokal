@@ -202,6 +202,39 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Font khusus untuk kesan terminal driver */
 .terminal-font { font-family: var(--terminal-font); letter-spacing: 1px; }
 
+
+
+/* Styling Rute Pengantaran */
+.route-info {
+    background: #0a0a0a;
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    border-left: 3px solid var(--p-cyan);
+}
+
+.route-step {
+    font-size: 13px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.route-line {
+    width: 2px;
+    height: 15px;
+    background: #222;
+    margin-left: 6px;
+    border-left: 1px dashed #444;
+}
+
+.icon {
+    font-size: 10px;
+    color: var(--p-cyan);
+}
+
+
 </style>
 
 
@@ -446,100 +479,78 @@ function stopGPS() {
 
 
 
-// === 5. ORDER GENERATOR (Data Reputasi Lengkap) ===
+// === 5. ORDER GENERATOR (Update: Rute & Tarif Trip) ===
 function generateGhostOrder() {
     if(!userData.isOnline || !userCoords) return;
 
     const id = "ghost-" + Math.floor(Math.random() * 9999);
     
-    // Koordinat acak radius dekat driver
-    const fakeLat = userCoords.lat + (Math.random() * 0.02 - 0.01);
-    const fakeLng = userCoords.lng + (Math.random() * 0.02 - 0.01);
+    // Daftar Lokasi untuk Rute (Poin 2)
+    const locations = ["Ciporang", "Cipasung", "Ancaran", "Kuningan Kota", "Cirendang", "Kadugede"];
+    const pickup = locations[Math.floor(Math.random() * locations.length)];
+    let dropoff = locations[Math.floor(Math.random() * locations.length)];
+    while(dropoff === pickup) dropoff = locations[Math.floor(Math.random() * locations.length)];
 
-    // Data Reputasi untuk tampilan Mewah (Gambar 2 & 3)
+    // Jarak Pengantaran (Titik Jemput ke Tujuan) - Poin 3
+    const tripDistance = (Math.random() * 8 + 1).toFixed(1);
+
+    // Data Reputasi (Visual Gambar 2 & 3)
     const likes = Math.floor(Math.random() * 150 + 10);
     const dislikes = Math.floor(Math.random() * 5);
     const rate = (100 - (dislikes * 1.5) - (Math.random() * 2)).toFixed(1);
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const year = 2023 + Math.floor(Math.random() * 2);
 
     renderMission({ 
         clientName: ghostNames[Math.floor(Math.random() * ghostNames.length)], 
-        lat: fakeLat,
-        lng: fakeLng,
+        pickupPoint: pickup,
+        dropoffPoint: dropoff,
+        tripDist: parseFloat(tripDistance), // Jarak rute murni
         reputation: likes > 100 ? "TRUSTWORTHY" : "MORTAL",
         likes: likes,
         dislikes: dislikes,
         rank: likes > 100 ? "MORAL" : "NEUTRAL",
-        memberSince: `${months[Math.floor(Math.random()*12)]} ${year}`,
         successRate: rate,
+        memberSince: "Mar 2026",
         type: Math.random() > 0.7 ? "URGENT MISSION" : "REGULAR DELIVERY",
-        noted: likes > 120 ? "Antar paket secepatnya, ada bonus!" : "Hati-hati di jalan."
+        noted: "Antar secepatnya, paket makanan."
     }, id, true);
 }
 
 
-// === 6. MISSION RENDERER (Gabungan GPS & Detail Reputasi) ===
+// === 6. MISSION RENDERER (Vanish & Route Logic) ===
 function renderMission(data, id, isGhost) {
-    if(document.getElementById(id) || !userCoords) return;
+    if(document.getElementById(id)) return;
 
-    const targetLat = isGhost ? userCoords.lat + (Math.random() * 0.04 - 0.02) : data.lat;
-    const targetLng = isGhost ? userCoords.lng + (Math.random() * 0.04 - 0.02) : data.lng;
-    
-    // Gunakan VALUE (angka murni) untuk harga
-    const distValue = calculateRealDistanceValue(userCoords.lat, userCoords.lng, targetLat, targetLng);
-    
-    const filterLimit = parseFloat(document.getElementById('distance-filter')?.value || 999);
-    if (distValue > filterLimit) return;
-
-    const rawPrice = Math.max(10000, distValue * 3000);
-    const finalPrice = Math.floor(rawPrice / 1000) * 1000;
+    const finalPrice = Math.max(10000, Math.floor((data.tripDist * 3000) / 1000) * 1000);
     const priceFormatted = finalPrice.toLocaleString('id-ID');
 
-    // Tampilan teks jarak (km/m)
-    const distanceDisplay = distValue < 1 ? (distValue * 1000).toFixed(0) + " m" : distValue.toFixed(1) + " km";
-    const isScam = isGhost && (data.dislikes > 3 || Math.random() > 0.9);
-
     const html = `
-        <div class="quest-card ${isScam ? 'red-tier' : 'blue-theme'}" id="${id}">
+        <div class="quest-card blue-theme" id="${id}">
             <details>
                 <summary onclick="triggerVibration('short')">
                     <div class="q-summary-grid">
                         <div class="q-client-name terminal-font">${data.clientName}</div>
                         <div class="q-meta-info" style="display:flex; gap:10px; align-items:center;">
-                            <span class="${distValue <= 1 ? 'txt-cyan' : ''}" style="font-weight:bold;">${distanceDisplay}</span>
+                            <span class="txt-cyan">${data.tripDist} km</span>
                             <span class="reward q-gold">Rp ${priceFormatted}</span>
                             <span class="timer" id="t-${id}">05:00</span>
                         </div>
                     </div>
                 </summary>
                 <div class="q-details">
-                    <div class="fraud-check ${isScam ? 'danger' : 'safe'}" style="margin-bottom:10px;">
-                        ${isScam ? '⚠️ HIGH RISK DETECTED' : '✓ TRUSTED CLIENT'}
+                    <div class="route-info" style="background:#0a0a0a; padding:10px; border-left:2px solid #00f3ff; margin-bottom:10px;">
+                        <p style="font-size:11px; margin:0;"><span style="color:#00f3ff">◎</span> <b>${data.pickupPoint}</b> (Jemput)</p>
+                        <div style="height:10px; border-left:1px dashed #333; margin-left:4px;"></div>
+                        <p style="font-size:11px; margin:0;"><span style="color:#ff003c">▼</span> <b>${data.dropoffPoint}</b> (Tujuan)</p>
                     </div>
-
-                    <div class="reputation-box" style="border:1px solid #222; padding:10px; background:#050505; font-size:11px; color:#aaa; margin-bottom:10px;">
-                        <p style="text-transform:uppercase; font-size:10px; margin-bottom:5px;">Reputation: <span style="color:${data.reputation === 'TRUSTWORTHY'?'#00f3ff':'#ff003c'}">${data.reputation}</span></p>
-                        
-                        <div class="stats-grid" style="display:flex; justify-content:space-between; margin:10px 0; border-top:1px solid #111; border-bottom:1px solid #111; padding:5px 0;">
-                            <div style="text-align:center;">LIKE<br><span style="color:#00f3ff; font-weight:bold;">${data.likes}</span></div>
-                            <div style="text-align:center;">DISLIKE<br><span style="color:#ff003c; font-weight:bold;">${data.dislikes}</span></div>
-                            <div style="text-align:center;">RANK<br><span style="color:#ff00ea; font-weight:bold;">${data.rank}</span></div>
+                    <div class="reputation-box">
+                        <div class="stats-grid" style="display:flex; justify-content:space-between; text-align:center;">
+                            <div>LIKE<br><span style="color:#00f3ff">${data.likes}</span></div>
+                            <div>DISLIKE<br><span style="color:#ff003c">${data.dislikes}</span></div>
+                            <div>RATE<br><span>${data.successRate}%</span></div>
                         </div>
-
-                        <p>> Member Since: <span style="color:#fff;">${data.memberSince}</span></p>
-                        <p>> Success Rate: <span style="color:#fff;">${data.successRate}%</span></p>
-                        
-                        <div class="rate-bar-bg" style="width:100%; height:3px; background:#111; margin:5px 0;">
-                            <div class="rate-bar-fill" style="width:${data.successRate}%; height:100%; background:#00f3ff;"></div>
-                        </div>
-
-                        <p style="margin-top:10px;">Type: <span style="color:gold; font-weight:bold;">${data.type}</span></p>
-                        <p style="font-style:italic; color:#888; margin-top:5px;">"${data.noted}"</p>
                     </div>
-
                     <div class="action-row" style="display:flex; gap:5px; margin-top:10px;">
-                        <button class="btn-nego" onclick="confirmNego('${id}', ${finalPrice})">NEGO</button>
+                        <button class="btn-nego" style="flex:1" onclick="confirmNego('${id}', ${finalPrice})">NEGO</button>
                         <button class="btn-apply" style="flex:2; background:#00f3ff; color:#000; font-weight:bold;" onclick="confirmApply('${id}', 25, ${isGhost})">TERIMA MISI</button>
                     </div>
                 </div>
@@ -548,30 +559,33 @@ function renderMission(data, id, isGhost) {
     
     document.querySelector('.section-divider').insertAdjacentHTML('afterend', html);
     startMissionTimer(300, `t-${id}`, id);
-    
-    // Pemicu suara "Misi Baru Terdeteksi"
-    calculateRealDistance(userCoords.lat, userCoords.lng, targetLat, targetLng);
+
+    if (isGhost) {
+        const vanishTime = Math.floor(Math.random() * 20000) + 10000; 
+        setTimeout(() => {
+            const card = document.getElementById(id);
+            if (card && !card.querySelector('.btn-apply').disabled) {
+                addLog(`MISI TERLEWAT: ${data.clientName} diambil driver lain.`, "error");
+                card.remove();
+            }
+        }, vanishTime);
+    }
+    if (userData.isOnline) playRobotVoice(`Misi baru. Rute ${data.pickupPoint} ke ${data.dropoffPoint}.`);
 }
 
-
-// === 7. APPLY LOGIC (Tombol Terima) ===
+// === 7. APPLY LOGIC (HP Deduction & Selection Logic) ===
 function confirmApply(id, cost, isGhost) {
-    if(userData.hp < cost) {
-        addLog("ENERGI TIDAK CUKUP!", "error");
-        return;
-    }
-
+    if(userData.hp < cost) { addLog("ENERGI TIDAK CUKUP!", "error"); return; }
     const card = document.getElementById(id);
-    if(!card) return;
     const clientName = card.querySelector('.q-client-name').innerText;
 
-    openModal("S-RANK BRIEFING", `
-        <div class="terminal-font" style="font-size:12px; color:#ccc;">
+    openModal("KONFIRMASI MISI", `
+        <div class="terminal-font" style="text-align:center; font-size:12px;">
             <p>> TARGET: <span style="color:#00f3ff">${clientName}</span></p>
-            <p>> COST: <span style="color:#ff003c;">-${cost} HP</span></p>
+            <p>> BIAYA: <span style="color:#ff003c;">-${cost} HP</span></p>
             <div style="margin-top:20px; display:flex; gap:10px;">
-                <button class="btn-cancel" style="flex:1; padding:10px; background:#222; border:1px solid #444; color:#fff;" onclick="closeModal()">BATAL</button>
-                <button class="btn-apply" style="flex:2; padding:10px; background:#00f3ff; font-weight:bold; color:#000;" onclick="executeApply('${id}', ${cost}, ${isGhost})">TERIMA MISI</button>
+                <button class="btn-cancel" style="flex:1" onclick="closeModal()">BATAL</button>
+                <button class="btn-apply" style="flex:2; background:#00f3ff; color:#000;" onclick="executeApply('${id}', ${cost}, ${isGhost})">AMBIL</button>
             </div>
         </div>
     `);
@@ -587,33 +601,31 @@ function executeApply(id, cost, isGhost) {
 
     const btnA = card.querySelector('.btn-apply');
     const btnN = card.querySelector('.btn-nego');
-
     if(btnA) { btnA.innerText = "WAITING..."; btnA.disabled = true; }
     if(btnN) { btnN.style.display = "none"; }
 
-    addLog(`Menghubungi server...`, "info");
+    addLog(`Menghubungi client...`, "info");
 
     setTimeout(() => {
         if(isGhost && Math.random() < 0.4) { 
-            addLog("GAGAL: Driver lain lebih cepat!", "error"); 
+            addLog("GAGAL: Client memilih driver lain!", "error"); 
             card.remove(); 
         } else { 
-            addLog("MISI DITERIMA!", "success");
+            addLog("MISI DITERIMA! Silakan berangkat.", "success");
             showSuccessPopup(id); 
+            card.remove(); 
         }
-    }, 2000);
+    }, 2500);
 }
 
-
-// === 8. NEGO LOGIC (Tombol Nego) ===
+// === 8. NEGO LOGIC (Nego Results & Cleanup) ===
 function confirmNego(id, oldPrice) {
     openModal("NEGO HARGA", `
         <div class="terminal-font" style="text-align:center;">
-            <p style="font-size:10px; color:#888;">TAWARAN ANDA (Rp)</p>
-            <input type="number" id="n-val" value="${oldPrice}" style="width:100%; padding:10px; background:#111; color:#00f3ff; border:1px solid #00f3ff; text-align:center; margin:10px 0; font-size:16px;">
+            <input type="number" id="n-val" value="${oldPrice}" style="width:100%; padding:10px; background:#111; color:#00f3ff; border:1px solid #00f3ff; text-align:center; margin:10px 0;">
             <div style="display:flex; gap:10px;">
-                <button class="btn-cancel" style="flex:1; padding:10px; background:#222; border:1px solid #444; color:#fff;" onclick="closeModal()">BATAL</button>
-                <button class="btn-apply" style="flex:2; padding:10px; background:gold; color:#000; font-weight:bold;" onclick="executeNego('${id}')">KIRIM</button>
+                <button class="btn-cancel" style="flex:1" onclick="closeModal()">BATAL</button>
+                <button class="btn-apply" style="flex:2; background:gold; color:#000;" onclick="executeNego('${id}')">KIRIM</button>
             </div>
         </div>
     `);
@@ -621,22 +633,30 @@ function confirmNego(id, oldPrice) {
 
 function executeNego(id) {
     const input = document.getElementById('n-val');
-    if(!input) return;
-    const val = input.value;
+    const val = input ? input.value : 0;
     closeModal();
     
-    addLog(`Menawar Rp ${parseInt(val).toLocaleString('id-ID')}...`, "info");
+    addLog(`Negosiasi harga Rp ${parseInt(val).toLocaleString('id-ID')}...`, "info");
 
     setTimeout(() => {
+        const card = document.getElementById(id);
+        if(!card) return;
+
         if(Math.random() > 0.5) {
-            addLog("NEGO DITERIMA!", "success");
-            const rewardEl = document.querySelector(`#${id} .reward`);
-            if(rewardEl) rewardEl.innerText = `Rp ${parseInt(val).toLocaleString('id-ID')}`;
+            addLog("NEGO DITERIMA! Client setuju.", "success");
+            const rew = card.querySelector('.reward');
+            const btnN = card.querySelector('.btn-nego');
+            if(rew) rew.innerText = `Rp ${parseInt(val).toLocaleString('id-ID')}`;
+            if(btnN) btnN.remove(); // Hapus tombol Nego agar tidak nego berkali-kali
         } else { 
-            addLog("NEGO DITOLAK", "error"); 
+            addLog("NEGO GAGAL: Client membatalkan pesanan.", "error"); 
+            card.remove(); 
         }
-    }, 1500);
+    }, 2000);
 }
+
+
+
 
 
 
