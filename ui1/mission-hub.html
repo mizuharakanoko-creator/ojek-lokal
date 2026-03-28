@@ -365,6 +365,30 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
 <script>
+  
+  // 1. Database Koordinat (Pusat Data Lokasi)
+const KuninganCoords = {
+    "Ciporang": { lat: -6.9750, lng: 108.4950 },
+    "Cipasung": { lat: -6.9950, lng: 108.4750 },
+    "Ancaran": { lat: -6.9650, lng: 108.5100 },
+    "Kuningan Kota": { lat: -6.9750, lng: 108.4850 },
+    "Cirendang": { lat: -6.9550, lng: 108.4800 },
+    "Kadugede": { lat: -7.0080, lng: 108.4620 } 
+};
+
+// 2. Kalkulator Jarak Otomatis (Haversine)
+function getRealKm(p1, p2) {
+    const R = 6371;
+    const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+    const dLon = (p2.lng - p1.lng) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+}
+
+  
+  
+  
 // === 1. KORE & SECURITY ===
 const currentDriverID = localStorage.getItem('current_driver_id');
 if (!currentDriverID) { window.location.href = 'login.html'; }
@@ -499,136 +523,142 @@ function getRealKm(p1, p2) {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
 }
 
-// === 5. ORDER GENERATOR (Update: Logika Jarak & Tarif Real) ===
+// === 5. ORDER GENERATOR (Update: Integrasi Haversine & Voice AI) ===
 function generateGhostOrder() {
+    // 1. Safety Check: Jangan spawn jika sedang offline atau koordinat belum siap
     if(!userData.isOnline || !userCoords) return;
 
     const id = "ghost-" + Math.floor(Math.random() * 9999);
     const locKeys = Object.keys(KuninganCoords);
     
+    // 2. Pilih rute jemput dan tujuan secara acak
     const pickup = locKeys[Math.floor(Math.random() * locKeys.length)];
     let dropoff = locKeys[Math.floor(Math.random() * locKeys.length)];
     while(dropoff === pickup) dropoff = locKeys[Math.floor(Math.random() * locKeys.length)];
 
-    // 1. Kalkulasi Jarak Rute (A ke B) x Faktor 1.5
-    const baseDist = getRealKm(KuninganCoords[pickup], KuninganCoords[dropoff]);
-    const tripDist = parseFloat((baseDist * 1.5).toFixed(1));
+    // 3. Kalkulasi Jarak Murni (Internal) - Menggunakan fungsi 14A
+    const baseDist = getRawKm(
+        KuninganCoords[pickup].lat, KuninganCoords[pickup].lng, 
+        KuninganCoords[dropoff].lat, KuninganCoords[dropoff].lng
+    );
+    
+    // Faktor 1.6x untuk simulasi rute jalan raya Kuningan yang berkelok
+    const tripDist = parseFloat((baseDist * 1.6).toFixed(1));
 
-    // 2. Jarak Driver ke Titik Jemput (Radius Visual)
-    // Simulasi posisi driver di Kuningan Kota jika koordinat real belum aktif
-    const driverLoc = { lat: -6.975, lng: 108.485 }; 
-    const distToUser = getRealKm(driverLoc, KuninganCoords[pickup]).toFixed(1);
+    // 4. Kalkulasi Jarak Driver ke Titik Jemput (Radius)
+    // Menggunakan koordinat driver saat ini (userCoords)
+    const distToUserRaw = getRawKm(userCoords.lat, userCoords.lng, KuninganCoords[pickup].lat, KuninganCoords[pickup].lng);
+    
+    // Memicu Suara Robot & Format Teks UI - Menggunakan fungsi 14B
+    const displayRadius = formatDistanceAndVoice(distToUserRaw);
 
-    // 3. Logika Tarif Sesuai Data Pemesan
-    const diff = 1.0 + (Math.random() * 0.15); // Variasi kesulitan
+    // 5. Logika Tarif (Minimal 12rb/15rb sesuai jarak)
     const roundToThousands = (num) => Math.ceil(num / 1000) * 1000;
+    const isUrgent = Math.random() > 0.7; // 30% peluang misi mendesak
     
-    const isUrgent = Math.random() > 0.7;
     let finalPrice;
-    
     if(isUrgent) {
-        // Tier Express (4000/km) + Bonus 20%
-        finalPrice = Math.max(18000, roundToThousands(((tripDist * 4000) * diff) * 1.2));
+        // Skema Urgent: Harga lebih tinggi + Bonus 20%
+        finalPrice = Math.max(20000, roundToThousands(((tripDist * 4500) * 1.1) * 1.2));
     } else {
-        // Tier Reguler (3000/km)
-        finalPrice = Math.max(12000, roundToThousands((tripDist * 3000) * diff));
+        // Skema Reguler
+        finalPrice = Math.max(12000, roundToThousands(tripDist * 3500));
     }
 
-    const likes = Math.floor(Math.random() * 150 + 10);
-    const dislikes = Math.floor(Math.random() * 5);
+    // 6. Logika Reputasi Klien (Trusted, Neutral, Risky)
+    const likes = Math.floor(Math.random() * 200);
+    const rate = (90 + (Math.random() * 10)).toFixed(1);
+    let repStatus = "NEUTRAL";
+    
+    if(likes > 120 && rate > 97) {
+        repStatus = "TRUSTED";
+    } else if(rate < 93) {
+        repStatus = "RISKY";
+        // Tambahan: Jika Risky, beri peringatan suara tambahan
+        setTimeout(() => playRobotVoice("Peringatan: Klien memiliki rating rendah."), 2500);
+    }
 
+    // 7. Kirim data ke Renderer (Bagian 6)
     renderMission({ 
         clientName: ghostNames[Math.floor(Math.random() * ghostNames.length)], 
         pickupPoint: pickup,
         dropoffPoint: dropoff,
-        tripDist: tripDist,      // Jarak Rute (A-B)
-        radiusDist: distToUser,  // Jarak Driver-A
+        tripDist: tripDist, 
+        radiusDist: displayRadius, // String (m/km) + Voice Trigger
         finalPrice: finalPrice,
-        reputation: likes > 100 ? "TRUSTWORTHY" : "MORTAL",
+        reputation: repStatus,
         likes: likes,
-        dislikes: dislikes,
-        rank: likes > 100 ? "MORAL" : "NEUTRAL",
-        successRate: (100 - (dislikes * 1.5) - (Math.random() * 2)).toFixed(1),
-        memberSince: "Mar 2026",
+        dislikes: Math.floor(Math.random() * 8),
+        successRate: rate,
         type: isUrgent ? "URGENT MISSION" : "REGULAR DELIVERY",
-        noted: isUrgent ? "Butuh cepat, barang medis/makanan." : "Mohon antar sesuai titik jemput."
+        noted: isUrgent ? "URGENT! Paket harus sampai dalam 15 menit." : "Antar sesuai titik, jangan lewat gang sempit."
     }, id, true);
 }
 
 
-// === 6. MISSION RENDERER (Optimasi UI & Tata Letak Jarak) ===
+
+// === 6. MISSION RENDERER (VERSI LENGKAP + RATE BAR) ===
 function renderMission(data, id, isGhost) {
     if(document.getElementById(id)) return;
 
     const priceFormatted = data.finalPrice.toLocaleString('id-ID');
     const isUrgent = data.type === "URGENT MISSION";
     
-    const isHighRisk = parseFloat(data.successRate) < 93;
-    const isTrusted = parseFloat(data.successRate) > 98 && data.likes > 100;
-    
-    const isNight = document.querySelector('.night-buff') || (new Date().getHours() >= 18 || new Date().getHours() < 6);
-    let accentColor = isNight ? "#ff00ea" : "#00f3ff"; 
-    if(isUrgent) accentColor = "#ff003c"; 
+    // Warna Berdasarkan Reputasi
+    const repColors = { "TRUSTED": "#00f3ff", "NEUTRAL": "#fff", "RISKY": "#ff003c" };
+    const accentColor = isUrgent ? "#ff003c" : (repColors[data.reputation] || "#00f3ff");
 
     const html = `
-        <div class="quest-card blue-theme" id="${id}" style="border-left: 3px solid ${accentColor};">
+        <div class="quest-card blue-theme" id="${id}" style="border-left: 3px solid ${accentColor}; margin-bottom: 15px; position: relative;">
             <details open>
                 <summary onclick="triggerVibration('short')">
                     <div class="q-summary-grid">
-                        <div class="q-client-name terminal-font">
+                        <div class="q-client-name terminal-font" style="font-size: 15px;">
                             ${isUrgent ? '<span style="color:#ff003c; animation: blink 0.8s infinite;">[!]</span> ' : ''}${data.clientName} 
                             <div style="font-size:10px; color:${accentColor}; opacity: 0.8; margin-top:2px;">📍 Radius: ${data.radiusDist} km</div>
                         </div>
-                        <div class="q-meta-info" style="display:flex; gap:10px; align-items:center;">
-                            <span class="reward q-gold" style="font-weight:bold; font-size: 16px; ${isUrgent ? 'color:#ff003c;' : ''}">Rp ${priceFormatted}</span>
-                            <span class="timer" id="t-${id}" style="border: 1px solid #ff003c; padding: 2px 6px; color: #ff003c; font-size: 11px;">05:00</span>
+                        <div class="q-meta-info" style="text-align: right;">
+                            <span class="reward q-gold" style="font-size: 18px; font-weight: bold; ${isUrgent ? 'color:#ff003c;' : ''}">Rp ${priceFormatted}</span>
+                            <div id="t-${id}" style="color: #ff003c; font-size: 11px; font-weight: bold;">05:00</div>
                         </div>
                     </div>
                 </summary>
 
-                <div class="q-details" style="padding: 12px 10px;">
+                <div class="q-details" style="padding: 12px 10px; background: rgba(0,0,0,0.2);">
                     
-                    ${isHighRisk ? `<div style="border: 1px solid #ff003c; background: rgba(255,0,60,0.05); color:#ff003c; text-align:center; font-size:10px; padding:5px; margin-bottom:10px; font-weight:bold;">⚠️ HIGH RISK DETECTED</div>` : ''}
-                    ${isTrusted ? `<div style="color:#00f3ff; font-size:11px; margin-bottom:10px;">✓ <b>TRUSTED CLIENT</b> <span style="font-size:9px; color:#666;">(Aman untuk dikerjakan)</span></div>` : ''}
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; background: rgba(255,255,255,0.03); padding: 8px; border: 1px solid #222;">
+                        <div style="width: 10px; height: 10px; border-radius: 50%; background: ${repColors[data.reputation]}; box-shadow: 0 0 10px ${repColors[data.reputation]};"></div>
+                        <div style="font-size: 11px; letter-spacing: 1px; text-transform: uppercase;">CLIENT STATUS: <b style="color:${repColors[data.reputation]}">${data.reputation}</b></div>
+                    </div>
 
                     <div style="background: rgba(255,255,255,0.03); padding: 10px; border: 1px solid #222; margin-bottom: 15px;">
-                        <div style="font-size: 11px; color: gold; margin-bottom: 8px;">ESTIMASI RUTE JALAN: <b>${data.tripDist} km</b></div>
+                        <div style="font-size: 11px; color: gold; margin-bottom: 8px; font-weight: bold;">ESTIMASI RUTE JALAN: ${data.tripDist} km</div>
                         <div class="route-display" style="border-left: 1px dashed #444; margin-left: 8px; padding-left: 18px; position: relative;">
-                            <div style="position: absolute; left: -4px; top: 0; color: ${accentColor}; font-size:12px;">◎</div>
-                            <div style="font-size: 12px; color: #fff; margin-bottom: 8px;"><b>${data.pickupPoint}</b></div>
-                            <div style="position: absolute; left: -4.5px; bottom: 0; color: #ff003c; font-size:12px;">▼</div>
-                            <div style="font-size: 12px; color: #fff;"><b>${data.dropoffPoint}</b></div>
+                            <div style="position: absolute; left: -4px; top: 0; color: ${accentColor}; font-size: 12px;">◎</div>
+                            <div style="font-size: 13px; color: #fff; margin-bottom: 12px;"><b>${data.pickupPoint}</b></div>
+                            <div style="position: absolute; left: -4.5px; bottom: 0; color: #ff003c; font-size: 12px;">▼</div>
+                            <div style="font-size: 13px; color: #fff;"><b>${data.dropoffPoint}</b></div>
                         </div>
                     </div>
 
-                    <div class="reputation-container" style="background: rgba(0,0,0,0.3); padding: 10px; border: 1px solid #222;">
-                        <div style="font-size: 9px; color: #666; text-transform: uppercase; margin-bottom: 8px;">
-                            Reputation: <b style="color:${data.reputation === 'TRUSTWORTHY' ? '#00f3ff' : '#ff003c'}">${data.reputation}</b>
-                        </div>
-                        
-                        <div class="stats-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px;">
-                            <div style="background:#0a0a0a; border:1px solid #1a1a1a; padding:5px; text-align:center;">
-                                <div style="font-size:8px; color:#555;">LIKE</div><div style="color:${accentColor}; font-size:11px;">${data.likes}</div>
-                            </div>
-                            <div style="background:#0a0a0a; border:1px solid #1a1a1a; padding:5px; text-align:center;">
-                                <div style="font-size:8px; color:#555;">DISLIKE</div><div style="color:#ff003c; font-size:11px;">${data.dislikes}</div>
-                            </div>
-                            <div style="background:#0a0a0a; border:1px solid #1a1a1a; padding:5px; text-align:center;">
-                                <div style="font-size:8px; color:#555;">CANCEL</div><div style="color:#666; font-size:11px;">${Math.floor(Math.random()*3)}</div>
-                            </div>
+                    <div class="reputation-container" style="background: #000; padding: 12px; border: 1px solid #1a1a1a;">
+                        <div class="stats-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                            <div style="text-align:center;"><div style="font-size:8px; color:#555;">LIKE</div><div style="color:#00f3ff; font-size:12px; font-weight:bold;">${data.likes}</div></div>
+                            <div style="text-align:center;"><div style="font-size:8px; color:#555;">DISLIKE</div><div style="color:#ff003c; font-size:12px; font-weight:bold;">${data.dislikes}</div></div>
+                            <div style="text-align:center;"><div style="font-size:8px; color:#555;">RATE</div><div style="color:#fff; font-size:12px; font-weight:bold;">${data.successRate}%</div></div>
                         </div>
 
-                        <div style="font-size: 10px; color: #888;">Success Rate: <span style="color:#fff;">${data.successRate}%</span></div>
-                        <div class="rate-bar-bg" style="width:100%; height:3px; background:#111; margin: 8px 0;">
-                            <div class="rate-bar-fill" style="width:${data.successRate}%; height:100%; background:${accentColor}; box-shadow: 0 0 8px ${accentColor};"></div>
+                        <div class="rate-bar-bg" style="width:100%; height:3px; background:#111; margin: 10px 0; position: relative;">
+                            <div class="rate-bar-fill" style="width:${data.successRate}%; height:100%; background:${accentColor}; box-shadow: 0 0 10px ${accentColor}; transition: width 1s ease-in-out;"></div>
                         </div>
 
-                        <div style="font-size: 11px; color: gold; margin-top: 5px; font-weight: bold;">Type: ${data.type}</div>
+                        <div style="font-size: 11px; color: gold; font-weight: bold; border-top: 1px solid #222; padding-top: 8px; margin-top: 10px;">TYPE: ${data.type}</div>
+                        <div style="font-size: 11px; color: #666; font-style: italic; margin-top: 4px;">"${data.noted}"</div>
                     </div>
 
                     <div class="action-row" style="display:flex; gap:10px; margin-top:15px;">
-                        <button class="btn-nego" style="flex:1; background:transparent; border:1px solid #ffae00; color:#ffae00; height: 40px;" onclick="confirmNego('${id}', ${data.finalPrice})">NEGO</button>
-                        <button class="btn-apply" style="flex:2; background:${accentColor}; color:#000; font-weight:bold; height: 40px; border:none; clip-path: polygon(0 0, 100% 0, 93% 100%, 0% 100%);" onclick="confirmApply('${id}', 50, ${isGhost})">
+                        <button class="btn-nego" style="flex:1; background:transparent; border:1px solid #ffae00; color:#ffae00; height: 42px; font-family:'Terminal', monospace; cursor:pointer;" onclick="confirmNego('${id}', ${data.finalPrice})">NEGO</button>
+                        <button class="btn-apply" style="flex:2; background:${accentColor}; color:#000; font-weight:bold; height: 42px; border:none; clip-path: polygon(0 0, 100% 0, 93% 100%, 0% 100%); font-family:'Terminal', monospace; cursor:pointer;" onclick="confirmApply('${id}', 50, ${isGhost})">
                             APPLY (-50 HP)
                         </button>
                     </div>
@@ -638,11 +668,21 @@ function renderMission(data, id, isGhost) {
     
     document.querySelector('.section-divider').insertAdjacentHTML('afterend', html);
     startMissionTimer(300, `t-${id}`, id);
+
+    if(isGhost) {
+        const hijackTime = (Math.random() * 20000) + 10000;
+        setTimeout(() => {
+            const card = document.getElementById(id);
+            if(card && !card.querySelector('.btn-apply').disabled) {
+                addLog(`MISI TERLEWAT: ${data.clientName} diambil driver lain.`, "error");
+                card.remove();
+            }
+        }, hijackTime);
+    }
 }
 
 
-
-// === 7. APPLY LOGIC (Update Notif Stamina Cost) ===
+// === 7. APPLY LOGIC (Update: Konfirmasi Modal & Hijacking) ===
 function confirmApply(id, cost, isGhost) {
     if(userData.hp < cost) { 
         triggerVibration('long');
@@ -651,6 +691,7 @@ function confirmApply(id, cost, isGhost) {
     }
     
     const card = document.getElementById(id);
+    if(!card) return;
     const clientName = card.querySelector('.q-client-name').innerText;
 
     openModal("KONFIRMASI EKSEKUSI", `
@@ -687,6 +728,7 @@ function executeApply(id, cost, isGhost) {
     addLog(`Establishing connection with client node...`, "info");
 
     setTimeout(() => {
+        // Logika Persaingan: 45% kemungkinan order hilang saat di-apply
         if(isGhost && Math.random() < 0.45) { 
             triggerVibration('long');
             addLog(`CONFLICT: Data stream hijacked! Order taken by another driver.`, "error"); 
@@ -698,24 +740,6 @@ function executeApply(id, cost, isGhost) {
         }
     }, 2000);
 }
-
-// === 8. NEGO LOGIC (Style Gambar 5: Terminal Input) ===
-function confirmNego(id, oldPrice) {
-    openModal("NEGOTIATION PROTOCOL", `
-        <div class="terminal-font" style="padding: 10px;">
-            <label style="color: gold; font-size: 10px; display: block; margin-bottom: 10px;">PROPOSE NEW REWARD (IDR):</label>
-            <input type="number" id="n-val" value="${oldPrice}" 
-                style="width:100%; padding:15px; background:#000; color:gold; border:1px solid gold; text-align:center; font-size:24px; font-family: 'Terminal', monospace; outline: none;">
-            <p style="font-size: 10px; color: #555; margin-top: 10px; text-align: center;">Tawaran tinggi meningkatkan risiko penolakan.</p>
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button onclick="closeModal()" style="flex:1; padding:12px; background:#1a1a1a; color:#fff; border:1px solid #333;">CANCEL</button>
-                <button onclick="executeNego('${id}')" style="flex:2; padding:12px; background:gold; color:#000; border:none; font-weight:bold;">SEND PROPOSAL</button>
-            </div>
-        </div>
-    `);
-}
-
-
 
 
 
@@ -750,87 +774,137 @@ function startJourney() {
 function openModal(t, c) { 
     const modal = document.getElementById('global-modal');
     if(!modal) return;
+    
+    // Getar halus saat modal muncul
+    triggerVibration('short');
+    
     document.getElementById('modal-title').innerText = t; 
     document.getElementById('modal-body').innerHTML = c; 
     modal.classList.add('active'); 
+    
+    // Overlay click untuk menutup modal
+    modal.onclick = (e) => { if(e.target === modal) closeModal(); };
 }
 
 function closeModal() { 
-    document.getElementById('global-modal').classList.remove('active'); 
+    const modal = document.getElementById('global-modal');
+    if(modal) modal.classList.remove('active'); 
 }
 
-
-
-// === 11. RPG SYSTEM (Level Up & Exp) ===
-function addExp(a) {
-    userData.exp += a;
-    if(userData.exp >= userData.maxExp) { userData.currentLevel++; userData.exp=0; userData.maxExp+=500; userData.hp=userData.maxHp; alert("LVL UP!"); }
+// === 11. RPG SYSTEM (Level Up & HP Sync) ===
+function addExp(amount) {
+    userData.exp += amount;
+    
+    if(userData.exp >= userData.maxExp) { 
+        userData.currentLevel++; 
+        userData.exp = userData.exp - userData.maxExp; // Sisa exp tidak hilang
+        userData.maxExp += 500; 
+        
+        // Bonus Level Up
+        userData.hp = userData.maxHp; 
+        
+        triggerVibration('emergency');
+        addLog(`CRITICAL UPDATE: Level Up to LVL ${userData.currentLevel}!`, "success");
+        
+        // Efek visual singkat pada Bar EXP jika ada
+        const expBar = document.querySelector('.exp-fill');
+        if(expBar) { expBar.style.width = "100%"; setTimeout(() => updateUI(), 500); }
+    }
     updateUI();
 }
 
-// === 12. UTILITIES (Timer & Vibration) ===
-function startMissionTimer(d, dId, cId) {
-    let t = d;
-    const inv = setInterval(() => {
-        const el = document.getElementById(dId);
-        if(el) el.textContent = `${Math.floor(t/60)}:${(t%60).toString().padStart(2,'0')}`;
-        if(--t < 0) { clearInterval(inv); document.getElementById(cId)?.remove(); }
+// === 12. UTILITIES (Timer & Haptic Feedback) ===
+function startMissionTimer(duration, displayId, cardId) {
+    let timeLeft = duration;
+    const timerElement = document.getElementById(displayId);
+    
+    const missionInterval = setInterval(() => {
+        const el = document.getElementById(displayId);
+        const card = document.getElementById(cardId);
+        
+        // Jika kartu sudah dihapus manual (Apply/Nego gagal), hentikan timer
+        if(!card) { clearInterval(missionInterval); return; }
+
+        if (el) {
+            let minutes = Math.floor(timeLeft / 60);
+            let seconds = timeLeft % 60;
+            el.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Berubah warna jadi merah jika sisa 30 detik
+            if(timeLeft <= 30) el.style.color = "#ff003c";
+        }
+
+        if (--timeLeft < 0) {
+            clearInterval(missionInterval);
+            if(card) {
+                card.style.opacity = "0";
+                card.style.transform = "translateX(50px)";
+                card.style.transition = "0.5s all";
+                setTimeout(() => {
+                    card.remove();
+                    addLog("SIGNAL LOST: Misi kadaluarsa.", "error");
+                }, 500);
+            }
+        }
     }, 1000);
 }
-function triggerVibration(p) { if(navigator.vibrate) { const v = {short:100, long:[200,100,200], emergency:[500,100,500]}; navigator.vibrate(v[p]); }}
+
+function triggerVibration(pattern) { 
+    if(navigator.vibrate) { 
+        const patterns = {
+            short: 80, 
+            long: [200, 100, 200], 
+            emergency: [500, 100, 500, 100, 500] 
+        };
+        navigator.vibrate(patterns[pattern]); 
+    }
+}
 
 
-// === 13. INITIALIZER (Haptic & Start Engine) ===
+// === 13. INITIALIZER (Sistem Sinkronisasi) ===
 window.onload = () => {
+    // 1. Sinkronisasi Awal UI
     updateUI();
     
-    // Tutup log secara otomatis saat awal masuk agar layar lega (Cyber-look)
+    // 2. Setup Tampilan Log (Minimalist Start)
     const logList = document.getElementById('log-list');
     const chevron = document.getElementById('log-chevron');
     if(logList) {
-        logList.classList.add('minimized');
         logList.style.display = "none";
         if(chevron) chevron.innerText = "▲";
     }
     
-    // Global Event Listener untuk Getar Tombol (Menggunakan Delegation agar tombol baru tetap getar)
+    // 3. Global Haptic (Semua Button)
     document.addEventListener('click', (e) => {
-        if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+        const target = e.target.closest('button');
+        if (target) {
             triggerVibration('short');
         }
     });
     
-    // Interval pemunculan misi hantu (Setiap 25 detik)
-    setInterval(() => generateGhostOrder(), 25000);
+    // 4. Mission Spawner (Spawn misi hantu setiap 25 detik)
+    // Pastikan tidak ada lebih dari 4 misi di layar agar tidak lag
+    setInterval(() => {
+        const activeMissions = document.querySelectorAll('.quest-card').length;
+        if(activeMissions < 4) {
+            generateGhostOrder();
+        }
+    }, 25000);
     
-    addLog("SISTEM RADAR AKTIF...", "success");
+    addLog("SISTEM RADAR AKTIF: Menunggu sinyal klien...", "success");
 };
 
-// === 14. FUNGSI MATEMATIKA: HAVERSINE FORMULA (Engine Jarak & Suara) ===
+
+
+// === 14. FUNGSI MATEMATIKA: HAVERSINE ENGINE ===
 
 /**
- * 14A. Fungsi Teks Jarak
- * Digunakan untuk tampilan di Kartu Misi & Memicu Suara Robot
+ * 14A. Haversine Murni (Angka Saja)
+ * Digunakan internal untuk perhitungan tarif agar tidak Error/NaN
  */
-function calculateRealDistance(lat1, lon1, lat2, lon2) {
-    const dist = calculateRealDistanceValue(lat1, lon1, lat2, lon2);
-
-    // Trigger Suara Robot hanya jika Driver sedang Online
-    if (userData.isOnline) {
-        const speakDist = dist < 1 ? (dist * 1000).toFixed(0) + " meter" : dist.toFixed(1) + " kilometer";
-        playRobotVoice(`Misi baru terdeteksi. Jarak ${speakDist}`);
-    }
-
-    // Mengembalikan string untuk tampilan UI (km atau m)
-    return dist < 1 ? (dist * 1000).toFixed(0) + " m" : dist.toFixed(1) + " km";
-}
-
-/**
- * 14B. Fungsi Nilai Jarak (MURNI ANGKA)
- * Digunakan untuk perkalian harga (Mencegah Rp NaN)
- */
-function calculateRealDistanceValue(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Jari-jari bumi (KM)
+function getRawKm(lat1, lon1, lat2, lon2) {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+    const R = 6371; // Jari-jari Bumi (KM)
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     
@@ -842,30 +916,57 @@ function calculateRealDistanceValue(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * 14C. Modal Safety Exit
- * Menutup modal jika driver klik di luar kotak (area overlay)
+ * 14B. Tampilan Jarak & Voice Trigger
+ * Dipanggil hanya saat Misi Baru muncul untuk mencegah spam suara.
  */
-window.addEventListener('click', (event) => {
+function formatDistanceAndVoice(kmValue) {
+    const dist = parseFloat(kmValue);
+    
+    // Voice Trigger: Hanya jika Driver Online & Layar aktif
+    if (userData.isOnline) {
+        const textDist = dist < 1 ? (dist * 1000).toFixed(0) + " meter" : dist.toFixed(1) + " kilometer";
+        playRobotVoice(`Sinyal masuk. Jarak jemput ${textDist}`);
+    }
+
+    // Kembalikan format teks untuk UI
+    return dist < 1 ? (dist * 1000).toFixed(0) + " m" : dist.toFixed(1) + " km";
+}
+
+/**
+ * 14C. Global Modal Security
+ * Menutup modal jika klik di area gelap (overlay)
+ */
+window.onclick = function(event) {
     const modal = document.getElementById('global-modal');
-    if (event.target === modal) {
+    if (event.target == modal) {
         closeModal();
     }
-});
+};
 
-// === 15. VOICE ENGINE (Text-to-Speech) ===
+// === 15. VOICE ENGINE (Cyber-AI TTS) ===
 function playRobotVoice(text) {
+    // Cek dukungan browser & preferensi suara user (opsional)
     if ('speechSynthesis' in window) {
-        // Batalkan suara sebelumnya agar tidak tumpang tindih
+        // Hentikan suara yang sedang berjalan agar tidak tumpang tindih
         window.speechSynthesis.cancel(); 
         
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'id-ID'; 
-        utterance.pitch = 0.7;    // Suara berat khas AI Sci-fi
-        utterance.rate = 1.1;     
+        const msg = new SpeechSynthesisUtterance(text);
         
-        window.speechSynthesis.speak(utterance);
+        // Setting Suara Robot
+        msg.lang = 'id-ID'; 
+        msg.pitch = 0.5;    // Sangat berat (Bass)
+        msg.rate = 1.2;     // Sedikit lebih cepat agar efisien
+        msg.volume = 0.8;   
+
+        // Cari suara pria jika tersedia di sistem
+        const voices = window.speechSynthesis.getVoices();
+        const maleVoice = voices.find(v => v.name.includes('Indonesian') && v.name.includes('Male'));
+        if(maleVoice) msg.voice = maleVoice;
+
+        window.speechSynthesis.speak(msg);
     }
 }
+
 
 // === 16. LOG MINIMIZER ENGINE ===
 function toggleLog() {
