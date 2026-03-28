@@ -575,63 +575,109 @@
         }
     }
 
-    // --- FUNGSI 8: SELECT PRICE ---
+    // --- FUNGSI 8.5 ---
     function selectPrice(element, type) {
         document.querySelectorAll('.price-card').forEach(c => { c.style.borderColor = "#333"; c.style.background = "none"; });
         element.style.borderColor = "#00ffcc"; element.style.background = "rgba(0,255,204,0.1)";
         document.getElementById('final-price').value = element.querySelector('div').innerText.replace(/\D/g, '');
     }
 
+
+
+    // --- FUNGSI 8.5: SELECT PRICE ---
+    // A. Logika Menentukan Tier Ikan berdasarkan Tarif
+function getFishTier(price) {
+    if (price < 15000) return "TERI";
+    if (price < 25000) return "KEMBUNG";
+    if (price < 40000) return "BANDENG";
+    if (price < 60000) return "KAKAP";
+    if (price < 100000) return "TUNA";
+    if (price < 200000) return "HIU";
+    return "PAUS";
+}
+
+// B. Logika Menentukan Label Reputasi
+function getReputationLabel(profile) {
+    if (!profile.misiSelesai || profile.misiSelesai < 5) return "PENGGUNA BARU";
+    
+    // Hitung sederhana: jika dislike lebih dari 10% total feedback
+    const totalFeedback = (profile.like || 0) + (profile.dislike || 0);
+    if (totalFeedback > 0 && (profile.dislike / totalFeedback) > 0.1) return "BERESIKO";
+    if (profile.cancel > 10) return "BERESIKO";
+    
+    if (profile.reputation >= 50) return "TERPERCAYA";
+    return "NETRAL";
+}
+    
+
     // --- FUNGSI 9: SEND MISSION (FIREBASE) ---
     async function sendMission() {
     const pickupCoords = document.getElementById('cust-pickup-coords').value;
-    const price = document.getElementById('final-price').value;
+    const pickupName = document.getElementById('gps-text').innerText; // Ambil nama jalan dari tombol GPS
+    const price = parseInt(document.getElementById('final-price').value);
     const kecName = document.getElementById('dest-kecamatan').value;
     const desaIdx = document.getElementById('dest-city').value;
     const note = document.getElementById('cust-note').value;
     const isUrgent = document.getElementById('is-urgent').checked;
 
-    if (!pickupCoords || !price || price === "0") {
+    if (!pickupCoords || !price || price === 0) {
         return alert("LENGKAPI DATA: Lokasi & Paket Ongkos wajib dipilih!");
     }
 
-    // 1. Ambil referensi desa
+    // 1. Ambil data desa tujuan
     const desaData = dataWilayah[kecName].desa[parseInt(desaIdx)];
     
-    // 2. Buat ID Misi baru di Firebase
+    // 2. Buat ID Misi baru
     const missionRef = db.ref('missions').push();
     const mKey = missionRef.key;
 
+    // 3. Susun data lengkap untuk Driver
     const missionData = {
+        // Identitas & Status
         id: mKey,
         clientId: currentUID,
-        clientName: userProfile.name || "Customer",
-        price: parseInt(price),
-        pickup: pickupCoords,
-        destination: desaData.name,
-        note: note || "Tolong antar tepat waktu.",
-        rank: isUrgent ? "DARURAT" : "BIASA",
+        clientName: userProfile.name || "Anonim",
         status: "searching",
-        timestamp: firebase.database.ServerValue.TIMESTAMP
+        timestamp: firebase.database.ServerValue.TIMESTAMP,
+
+        // Detail Pekerjaan
+        pickupName: pickupName,
+        pickupCoords: pickupCoords,
+        destinationName: desaData.name.toUpperCase(),
+        price: price,
+        note: note || "Tolong antar tepat waktu.",
+
+        // Klasifikasi (Ikan & Rank)
+        rank: isUrgent ? "DARURAT" : "BIASA",
+        clientRankTier: getFishTier(price), // Menggunakan logika ikan
+
+        // Reputasi (Berdasarkan profil user yang sedang login)
+        clientReputationLabel: getReputationLabel(userProfile),
+        
+        // Statistik (Data mentah untuk dihitung Driver)
+        clientStats: {
+            misiSelesai: userProfile.misiSelesai || 0,
+            like: userProfile.like || 0,
+            dislike: userProfile.dislike || 0,
+            cancel: userProfile.cancel || 0,
+            memberSince: userProfile.memberSince || "2026"
+        }
     };
 
-    console.log("Mencoba mengirim misi...");
+    console.log("Mengirim misi dengan Tier: " + missionData.clientRankTier);
 
-    // 3. KIRIM DAN TUNGGU (PENTING!)
+    // 4. Kirim ke Firebase
     missionRef.set(missionData)
         .then(() => {
-            // HANYA pindah halaman JIKA data sudah sukses masuk ke database
-            console.log("Data sukses terkirim!");
             localStorage.setItem('active_mission_id', mKey);
             window.location.replace('waiting-client.html');
         })
         .catch((error) => {
-            console.error("Gagal kirim ke Firebase:", error);
+            console.error("Gagal:", error);
             alert("Koneksi gagal: " + error.message);
         });
-        }
-        
-
+    }
+    
         
 
     function logout() { localStorage.clear(); window.location.href = 'login.html'; }
