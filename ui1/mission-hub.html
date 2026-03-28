@@ -366,7 +366,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 <script>
   
-  // 1. Database Koordinat (Pusat Data Lokasi)
+ // === 0. GLOBAL DATA & STATE ===
+let userCoords = null; // WAJIB ADA: Untuk menampung lokasi GPS Anda
+let userData = { hp: 550, maxHp: 1000, exp: 695, maxExp: 2000, isOnline: false, currentLevel: 12 };
+
 const KuninganCoords = {
     "Ciporang": { lat: -6.9750, lng: 108.4950 },
     "Cipasung": { lat: -6.9950, lng: 108.4750 },
@@ -375,16 +378,6 @@ const KuninganCoords = {
     "Cirendang": { lat: -6.9550, lng: 108.4800 },
     "Kadugede": { lat: -7.0080, lng: 108.4620 } 
 };
-
-// 2. Kalkulator Jarak Otomatis (Haversine)
-function getRealKm(p1, p2) {
-    const R = 6371;
-    const dLat = (p2.lat - p1.lat) * Math.PI / 180;
-    const dLon = (p2.lng - p1.lng) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-}
 
   
   
@@ -421,56 +414,54 @@ let gpsWatcher = null;
 let firstLock = true; // Agar log "Signal Stable" tidak nyepam
 
 function toggleSystem() {
-    userData.isOnline = document.getElementById('online-toggle').checked;
+    const toggle = document.getElementById('online-toggle');
+    userData.isOnline = toggle.checked;
+    
     const statusLabel = document.getElementById('status-label');
     const radar = document.getElementById('radar-anim');
     const gpsStatus = document.getElementById('gps-status');
 
     if (userData.isOnline) {
-        // Efek Awal saat mencari sinyal
-        if(gpsStatus) { 
-            gpsStatus.innerText = "SYNCING..."; 
-            gpsStatus.className = "txt-cyan glitch-text"; 
-        }
         statusLabel.innerText = "CONNECTING...";
         statusLabel.style.color = "gold";
 
+        // Mengambil lokasi real
         gpsWatcher = navigator.geolocation.watchPosition((pos) => {
-            userCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            // PERBAIKAN: Simpan ke variabel global agar bisa dibaca generateGhostOrder
+            userCoords = { 
+                lat: pos.coords.latitude, 
+                lng: pos.coords.longitude 
+            };
             
-            // Logika Visual & Status
             statusLabel.innerText = "ONLINE";
             statusLabel.style.color = "var(--p-cyan)";
             if(radar) radar.classList.add('scanning');
             
-            // Efek GPS Live
             if(gpsStatus) { 
                 gpsStatus.innerText = "GPS: LIVE"; 
-                gpsStatus.classList.add('glitch-text');
-                setTimeout(() => gpsStatus.classList.remove('glitch-text'), 2000);
+                gpsStatus.className = "txt-cyan";
             }
             
-            // Logika Log: Hanya muncul sekali agar tidak memenuhi layar
             if (firstLock) {
-                addLog("SIGNAL ACQUIRED: Koordinat Real Terkunci.", "success");
+                addLog("SIGNAL ACQUIRED: Lokasi driver terkunci.", "success");
+                playRobotVoice("Sistem aktif. Radar mendeteksi area sekitar.");
                 firstLock = false; 
             }
 
-            listenToFirebase(); // Jalankan pengambilan data misi
-
         }, (err) => {
-            addLog("SIGNAL LOST: GPS Terputus!", "error");
+            addLog("GPS ERROR: Izinkan lokasi di browser Anda!", "error");
+            toggle.checked = false;
             stopGPS();
         }, { 
             enableHighAccuracy: true, 
-            maximumAge: 30000, 
-            timeout: 27000 
+            timeout: 10000 
         });
 
     } else {
         stopGPS();
     }
 }
+
 
 // Fungsi pembantu untuk mematikan sistem secara bersih
 function stopGPS() {
@@ -503,25 +494,8 @@ function stopGPS() {
 
 
 
-// === DATA KOORDINAT (Internal untuk Kalkulasi Logis) ===
-const KuninganCoords = {
-    "Ciporang": { lat: -6.975, lng: 108.495 },
-    "Cipasung": { lat: -6.995, lng: 108.475 },
-    "Ancaran": { lat: -6.965, lng: 108.510 },
-    "Kuningan Kota": { lat: -6.975, lng: 108.485 },
-    "Cirendang": { lat: -6.955, lng: 108.480 },
-    "Kadugede": { lat: -7.005, lng: 108.465 }
-};
 
-// Fungsi Helper Hitung Jarak (Haversine)
-function getRealKm(p1, p2) {
-    const R = 6371;
-    const dLat = (p2.lat - p1.lat) * Math.PI / 180;
-    const dLon = (p2.lng - p1.lng) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-}
+
 
 // === 5. ORDER GENERATOR (Update: Integrasi Haversine & Voice AI) ===
 function generateGhostOrder() {
