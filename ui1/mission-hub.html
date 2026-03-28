@@ -516,7 +516,7 @@ function generateGhostOrder() {
 }
 
 
-// === 6. MISSION RENDERER (Vanish & Route Logic) ===
+// === 6. MISSION RENDERER (Versi Elegan + Vanish) ===
 function renderMission(data, id, isGhost) {
     if(document.getElementById(id)) return;
 
@@ -530,27 +530,41 @@ function renderMission(data, id, isGhost) {
                     <div class="q-summary-grid">
                         <div class="q-client-name terminal-font">${data.clientName}</div>
                         <div class="q-meta-info" style="display:flex; gap:10px; align-items:center;">
-                            <span class="txt-cyan">${data.tripDist} km</span>
+                            <span class="txt-cyan" style="font-weight:bold;">${data.tripDist} km</span>
                             <span class="reward q-gold">Rp ${priceFormatted}</span>
                             <span class="timer" id="t-${id}">05:00</span>
                         </div>
                     </div>
                 </summary>
                 <div class="q-details">
-                    <div class="route-info" style="background:#0a0a0a; padding:10px; border-left:2px solid #00f3ff; margin-bottom:10px;">
-                        <p style="font-size:11px; margin:0;"><span style="color:#00f3ff">◎</span> <b>${data.pickupPoint}</b> (Jemput)</p>
-                        <div style="height:10px; border-left:1px dashed #333; margin-left:4px;"></div>
-                        <p style="font-size:11px; margin:0;"><span style="color:#ff003c">▼</span> <b>${data.dropoffPoint}</b> (Tujuan)</p>
+                    <div class="route-info" style="background:#0a0a0a; padding:10px; border-left:2px solid #00f3ff; margin-bottom:12px; border-radius:0 4px 4px 0;">
+                        <p style="font-size:11px; margin:0; color:#fff;"><span style="color:#00f3ff">◎</span> <b>${data.pickupPoint}</b> (Jemput)</p>
+                        <div style="height:10px; border-left:1px dashed #333; margin-left:4px; margin: 2px 0 2px 4px;"></div>
+                        <p style="font-size:11px; margin:0; color:#fff;"><span style="color:#ff003c">▼</span> <b>${data.dropoffPoint}</b> (Tujuan)</p>
                     </div>
-                    <div class="reputation-box">
-                        <div class="stats-grid" style="display:flex; justify-content:space-between; text-align:center;">
-                            <div>LIKE<br><span style="color:#00f3ff">${data.likes}</span></div>
-                            <div>DISLIKE<br><span style="color:#ff003c">${data.dislikes}</span></div>
-                            <div>RATE<br><span>${data.successRate}%</span></div>
+
+                    <div class="reputation-box" style="border:1px solid #222; padding:10px; background:#050505; font-size:11px; color:#aaa; margin-bottom:10px;">
+                        <p style="text-transform:uppercase; font-size:10px; margin-bottom:5px;">Reputation: <span style="color:${data.reputation === 'TRUSTWORTHY'?'#00f3ff':'#ff003c'}">${data.reputation}</span></p>
+                        
+                        <div class="stats-grid" style="display:flex; justify-content:space-between; margin:10px 0; border-top:1px solid #111; border-bottom:1px solid #111; padding:5px 0;">
+                            <div style="text-align:center;">LIKE<br><span style="color:#00f3ff; font-weight:bold;">${data.likes}</span></div>
+                            <div style="text-align:center;">DISLIKE<br><span style="color:#ff003c; font-weight:bold;">${data.dislikes}</span></div>
+                            <div style="text-align:center;">RANK<br><span style="color:#ff00ea; font-weight:bold;">${data.rank}</span></div>
                         </div>
+
+                        <p>> Member Since: <span style="color:#fff;">${data.memberSince}</span></p>
+                        <p>> Success Rate: <span style="color:#fff;">${data.successRate}%</span></p>
+                        
+                        <div class="rate-bar-bg" style="width:100%; height:3px; background:#111; margin:5px 0; border-radius:2px;">
+                            <div class="rate-bar-fill" style="width:${data.successRate}%; height:100%; background:#00f3ff; box-shadow: 0 0 5px #00f3ff;"></div>
+                        </div>
+
+                        <p style="margin-top:10px;">Type: <span style="color:gold; font-weight:bold;">${data.type}</span></p>
+                        <p style="font-style:italic; color:#888; margin-top:5px;">"${data.noted}"</p>
                     </div>
+
                     <div class="action-row" style="display:flex; gap:5px; margin-top:10px;">
-                        <button class="btn-nego" style="flex:1" onclick="confirmNego('${id}', ${finalPrice})">NEGO</button>
+                        <button class="btn-nego" style="flex:1; background:transparent; border:1px solid gold; color:gold;" onclick="confirmNego('${id}', ${finalPrice})">NEGO</button>
                         <button class="btn-apply" style="flex:2; background:#00f3ff; color:#000; font-weight:bold;" onclick="confirmApply('${id}', 25, ${isGhost})">TERIMA MISI</button>
                     </div>
                 </div>
@@ -560,6 +574,7 @@ function renderMission(data, id, isGhost) {
     document.querySelector('.section-divider').insertAdjacentHTML('afterend', html);
     startMissionTimer(300, `t-${id}`, id);
 
+    // --- VANISH LOGIC (MISI DIAMBIL DRIVER LAIN) ---
     if (isGhost) {
         const vanishTime = Math.floor(Math.random() * 20000) + 10000; 
         setTimeout(() => {
@@ -570,10 +585,9 @@ function renderMission(data, id, isGhost) {
             }
         }, vanishTime);
     }
-    if (userData.isOnline) playRobotVoice(`Misi baru. Rute ${data.pickupPoint} ke ${data.dropoffPoint}.`);
 }
 
-// === 7. APPLY LOGIC (HP Deduction & Selection Logic) ===
+// === 7. APPLY LOGIC (HP Deduction & Selection) ===
 function confirmApply(id, cost, isGhost) {
     if(userData.hp < cost) { addLog("ENERGI TIDAK CUKUP!", "error"); return; }
     const card = document.getElementById(id);
@@ -585,7 +599,7 @@ function confirmApply(id, cost, isGhost) {
             <p>> BIAYA: <span style="color:#ff003c;">-${cost} HP</span></p>
             <div style="margin-top:20px; display:flex; gap:10px;">
                 <button class="btn-cancel" style="flex:1" onclick="closeModal()">BATAL</button>
-                <button class="btn-apply" style="flex:2; background:#00f3ff; color:#000;" onclick="executeApply('${id}', ${cost}, ${isGhost})">AMBIL</button>
+                <button class="btn-apply" style="flex:2; background:#00f3ff; color:#000;" onclick="executeApply('${id}', ${cost}, ${isGhost})">AMBIL SEKARANG</button>
             </div>
         </div>
     `);
@@ -601,14 +615,14 @@ function executeApply(id, cost, isGhost) {
 
     const btnA = card.querySelector('.btn-apply');
     const btnN = card.querySelector('.btn-nego');
-    if(btnA) { btnA.innerText = "WAITING..."; btnA.disabled = true; }
+    if(btnA) { btnA.innerText = "WAITING CLIENT..."; btnA.disabled = true; }
     if(btnN) { btnN.style.display = "none"; }
 
     addLog(`Menghubungi client...`, "info");
 
     setTimeout(() => {
         if(isGhost && Math.random() < 0.4) { 
-            addLog("GAGAL: Client memilih driver lain!", "error"); 
+            addLog("GAGAL: Client memilih driver lain yang lebih dekat!", "error"); 
             card.remove(); 
         } else { 
             addLog("MISI DITERIMA! Silakan berangkat.", "success");
@@ -618,14 +632,15 @@ function executeApply(id, cost, isGhost) {
     }, 2500);
 }
 
-// === 8. NEGO LOGIC (Nego Results & Cleanup) ===
+// === 8. NEGO LOGIC (Results & Cleanup) ===
 function confirmNego(id, oldPrice) {
     openModal("NEGO HARGA", `
         <div class="terminal-font" style="text-align:center;">
-            <input type="number" id="n-val" value="${oldPrice}" style="width:100%; padding:10px; background:#111; color:#00f3ff; border:1px solid #00f3ff; text-align:center; margin:10px 0;">
+            <p style="font-size:10px; color:#888; margin-bottom:10px;">AJUKAN TAWARAN BARU (Rp)</p>
+            <input type="number" id="n-val" value="${oldPrice}" style="width:100%; padding:10px; background:#111; color:#00f3ff; border:1px solid #00f3ff; text-align:center; margin-bottom:15px; font-size:16px;">
             <div style="display:flex; gap:10px;">
                 <button class="btn-cancel" style="flex:1" onclick="closeModal()">BATAL</button>
-                <button class="btn-apply" style="flex:2; background:gold; color:#000;" onclick="executeNego('${id}')">KIRIM</button>
+                <button class="btn-apply" style="flex:2; background:gold; color:#000; font-weight:bold;" onclick="executeNego('${id}')">KIRIM TAWARAN</button>
             </div>
         </div>
     `);
@@ -636,7 +651,7 @@ function executeNego(id) {
     const val = input ? input.value : 0;
     closeModal();
     
-    addLog(`Negosiasi harga Rp ${parseInt(val).toLocaleString('id-ID')}...`, "info");
+    addLog(`Mengirim penawaran Rp ${parseInt(val).toLocaleString('id-ID')}...`, "info");
 
     setTimeout(() => {
         const card = document.getElementById(id);
@@ -646,10 +661,13 @@ function executeNego(id) {
             addLog("NEGO DITERIMA! Client setuju.", "success");
             const rew = card.querySelector('.reward');
             const btnN = card.querySelector('.btn-nego');
-            if(rew) rew.innerText = `Rp ${parseInt(val).toLocaleString('id-ID')}`;
-            if(btnN) btnN.remove(); // Hapus tombol Nego agar tidak nego berkali-kali
+            if(rew) { 
+                rew.innerText = `Rp ${parseInt(val).toLocaleString('id-ID')}`;
+                rew.style.textShadow = "0 0 10px gold";
+            }
+            if(btnN) btnN.remove(); 
         } else { 
-            addLog("NEGO GAGAL: Client membatalkan pesanan.", "error"); 
+            addLog("NEGO DITOLAK: Client memilih driver lain dengan harga awal.", "error"); 
             card.remove(); 
         }
     }, 2000);
@@ -867,4 +885,3 @@ function addLog(msg, type = 'info') {
     
 </body>
     </html>
-        
