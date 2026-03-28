@@ -1,4 +1,4 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -366,21 +366,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 <script>
   
- // === 0. GLOBAL DATA & STATE ===
-let userCoords = null; // WAJIB ADA: Untuk menampung lokasi GPS Anda
-let userData = { hp: 550, maxHp: 1000, exp: 695, maxExp: 2000, isOnline: false, currentLevel: 12 };
-
-const KuninganCoords = {
-    "Ciporang": { lat: -6.9750, lng: 108.4950 },
-    "Cipasung": { lat: -6.9950, lng: 108.4750 },
-    "Ancaran": { lat: -6.9650, lng: 108.5100 },
-    "Kuningan Kota": { lat: -6.9750, lng: 108.4850 },
-    "Cirendang": { lat: -6.9550, lng: 108.4800 },
-    "Kadugede": { lat: -7.0080, lng: 108.4620 } 
-};
-
-  
-  
   
 // === 1. KORE & SECURITY ===
 const currentDriverID = localStorage.getItem('current_driver_id');
@@ -414,53 +399,83 @@ let gpsWatcher = null;
 let firstLock = true; // Agar log "Signal Stable" tidak nyepam
 
 function toggleSystem() {
-    const toggle = document.getElementById('online-toggle');
-    userData.isOnline = toggle.checked;
-    
+    userData.isOnline = document.getElementById('online-toggle').checked;
     const statusLabel = document.getElementById('status-label');
     const radar = document.getElementById('radar-anim');
     const gpsStatus = document.getElementById('gps-status');
 
     if (userData.isOnline) {
+        // Efek Awal saat mencari sinyal
+        if(gpsStatus) { 
+            gpsStatus.innerText = "SYNCING..."; 
+            gpsStatus.className = "txt-cyan glitch-text"; 
+        }
         statusLabel.innerText = "CONNECTING...";
         statusLabel.style.color = "gold";
 
-        // Mengambil lokasi real
         gpsWatcher = navigator.geolocation.watchPosition((pos) => {
-            // PERBAIKAN: Simpan ke variabel global agar bisa dibaca generateGhostOrder
-            userCoords = { 
-                lat: pos.coords.latitude, 
-                lng: pos.coords.longitude 
-            };
+            userCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             
+            // Logika Visual & Status
             statusLabel.innerText = "ONLINE";
             statusLabel.style.color = "var(--p-cyan)";
             if(radar) radar.classList.add('scanning');
             
+            // Efek GPS Live
             if(gpsStatus) { 
                 gpsStatus.innerText = "GPS: LIVE"; 
-                gpsStatus.className = "txt-cyan";
+                gpsStatus.classList.add('glitch-text');
+                setTimeout(() => gpsStatus.classList.remove('glitch-text'), 2000);
             }
             
+            // Logika Log: Hanya muncul sekali agar tidak memenuhi layar
             if (firstLock) {
-                addLog("SIGNAL ACQUIRED: Lokasi driver terkunci.", "success");
-                playRobotVoice("Sistem aktif. Radar mendeteksi area sekitar.");
+                addLog("SIGNAL ACQUIRED: Koordinat Real Terkunci.", "success");
                 firstLock = false; 
             }
 
+            listenToFirebase(); // Jalankan pengambilan data misi
+
         }, (err) => {
-            addLog("GPS ERROR: Izinkan lokasi di browser Anda!", "error");
-            toggle.checked = false;
+            addLog("SIGNAL LOST: GPS Terputus!", "error");
             stopGPS();
         }, { 
             enableHighAccuracy: true, 
-            timeout: 10000 
+            maximumAge: 30000, 
+            timeout: 27000 
         });
 
     } else {
         stopGPS();
     }
 }
+
+// Fungsi pembantu untuk mematikan sistem secara bersih
+function stopGPS() {
+    if(gpsWatcher) navigator.geolocation.clearWatch(gpsWatcher);
+    const statusLabel = document.getElementById('status-label');
+    const gpsStatus = document.getElementById('gps-status');
+    const radar = document.getElementById('radar-anim');
+
+    // Reset Semua Status
+    statusLabel.innerText = "OFFLINE";
+    statusLabel.style.color = "#fff";
+    if(radar) radar.classList.remove('scanning');
+    
+    if(gpsStatus) { 
+        gpsStatus.innerText = "GPS: OFFLINE"; 
+        gpsStatus.className = "txt-red"; 
+    }
+    
+    if(db) db.ref('missions').off();
+    
+    // Pastikan Switch & Data Sinkron
+    document.getElementById('online-toggle').checked = false;
+    userData.isOnline = false;
+    firstLock = true; // Reset agar saat online lagi, log muncul kembali
+    addLog("System Offline. GPS Disconnected.", "info");
+}
+
 
 
 // Fungsi pembantu untuk mematikan sistem secara bersih
