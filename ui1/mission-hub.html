@@ -139,6 +139,7 @@ body {
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script>
+    // 1. KONFIGURASI & INITIALISASI
 const firebaseConfig = {
     apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
     authDomain: "ojeklokal-42b84.firebaseapp.com",
@@ -148,25 +149,52 @@ const firebaseConfig = {
 
 if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
 const db = firebase.database();
-let userData = { hp: 550, isOnline: false };
-let userCoords = { lat: -6.95, lng: 108.50 }; // Contoh koordinat awal
+const currentDriverID = localStorage.getItem('current_driver_id') || "320855565"; // Default dari screenshot
 
+let userData = { hp: 550, isOnline: false };
+let userCoords = null;
+let gpsWatcher = null;
+
+// 2. FUNGSI KALKULASI JARAK REAL-TIME
+function getRawKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius bumi dalam km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+}
+
+// 3. SYSTEM CONTROL & GPS
 function toggleSystem() {
     userData.isOnline = document.getElementById('online-toggle').checked;
     if (userData.isOnline) {
-        document.getElementById('status-label').innerText = "SYSTEM ONLINE";
-        document.getElementById('status-label').style.color = "var(--p-cyan)";
+        startGpsTracking();
         listenToFirebase();
         addLog("RADAR AKTIF: Mencari misi...", "success");
     } else {
-        document.getElementById('status-label').innerText = "SYSTEM OFFLINE";
-        document.getElementById('status-label').style.color = "#fff";
+        stopGpsTracking();
         db.ref('missions').off();
         document.getElementById('mission-list-wrapper').innerHTML = "";
-        addLog("SYSTEM SHUTDOWN.", "error");
+        addLog("SYSTEM OFFLINE.", "error");
     }
 }
 
+function startGpsTracking() {
+    if (navigator.geolocation) {
+        gpsWatcher = navigator.geolocation.watchPosition(pos => {
+            userCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            // Refresh list saat posisi berubah untuk update jarak
+            listenToFirebase(); 
+        }, err => console.error(err), { enableHighAccuracy: true });
+    }
+}
+
+function stopGpsTracking() {
+    if (gpsWatcher) navigator.geolocation.clearWatch(gpsWatcher);
+}
+
+// 4. LISTEN & RENDER MISSION (Update Data Statis & Peringkat)
 function listenToFirebase() {
     db.ref('missions').orderByChild('status').equalTo('searching').on('value', snapshot => {
         const wrapper = document.getElementById('mission-list-wrapper');
@@ -175,71 +203,150 @@ function listenToFirebase() {
         if (!data) return;
 
         Object.keys(data).forEach(key => {
-            renderMissionCard(data[key]);
+            const m = data[key];
+            
+            // Hitung Jarak Real-time ke Titik Jemput
+            let distToPickup = "Menghitung...";
+            let rawDist = 0;
+            if (userCoords && m.pickupCoords) {
+                const [mLat, mLng] = m.pickupCoords.split(',').map(Number);
+                rawDist = getRawKm(userCoords.lat, userCoords.lng, mLat, mLng);
+                distToPickup = rawDist.toFixed(1) + " km";
+            }
+
+            // Integrasi Data Baru dari Database
+            const successRate = m.clientStats ? 
+                ((m.clientStats.misiSelesai / (m.clientStats.misiSelesai + m.clientStats.cancel || 1)) * 100).toFixed(1) : "0.0";
+            
+            const isUrgent = m.rank === "DARURAT"; // Sesuai database
+            const reputationLabel = m.clientReputationLabel || "PENGGUNA BARU";
+            const isBeresiko = reputationLabel === "BERESIKO";
+
+            const html = `
+                <div class="quest-card ${isUrgent ? 'urgent' : ''}">
+                    <div style="display:flex; justify-content:space-between;">
+                        <span style="font-size:10px; color:${isUrgent?'#ff00ea':'#888'}">${isUrgent ? '◈ DARURAT' : '◇ NORMAL'}</span>
+                        <span style="font-size:10px; color:#666;">Member Since: ${m.clientStats?.memberSince || '2026'}</span>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                        <div style="font-family:Orbitron; font-size:15px; color:#fff;">${m.clientName}</div>
+                        <div class="reward-tag">Rp ${m.price.toLocaleString('id-ID')}</div>
+                    </div>
+
+                    <div class="reputation-banner ${isBeresiko ? 'banner-risk' : 'banner-trustworthy'}">
+                        ${reputationLabel}
+                    </div>
+
+                    <div class="route-info">
+                        <div class="route-step"><i style="color:cyan">⦿</i> ${m.pickupName || 'Titik Jemput'}</div>
+                        <div class="route-step"><i style="color:red">▼</i> ${m.destinationName || 'Titik Tujuan'}</div>
+                        <div class="route-dist">JARAK KE JEMPUTAN: ${distToPickup}</div>
+                        <div class="route-dist" style="border:none; padding:0; color:#888;">ESTIMASI JALAN: 2.4 km</div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-box"><label>LIKE</label><b style="color:cyan">${m.clientStats?.like || 0}</b></div>
+                        <div class="stat-box"><label>DISLIKE</label><b style="color:red">${m.clientStats?.dislike || 0}</b></div>
+                        <div class="stat-box"><label>CANCEL</label><b>${m.clientStats?.cancel || 0}</b></div>
+                        <div class="stat-box"><label>SELESAI</label><b>${m.clientStats?.misiSelesai || 0}</b></div>
+                    </div>
+                    
+                    <div style="text-align:center; font-size:11px; margin:5px 0; color:magenta;">
+                        PERINGKAT: <b>${m.clientRankTier || 'PAUS'}</b>
+                    </div>
+
+                    <div style="background:#1a1a1a; padding:5px; font-size:11px; color:gray; border-left:2px solid gold; margin:5px 0;">
+                        Note: "${m.note || '-'}"
+                    </div>
+
+                    <div style="display:flex; gap:8px; margin-top:12px;">
+                        <button onclick="confirmMission('${key}', ${rawDist})" class="btn-main btn-accept ${isUrgent ? 'urgent' : ''}" style="flex:2;">DAFTARKAN DIRI</button>
+                        <button onclick="openNego('${key}', ${m.price})" class="btn-main btn-nego" style="flex:1;">NEGO</button>
+                    </div>
+                </div>`;
+            wrapper.innerHTML += html;
         });
     });
 }
 
-function renderMissionCard(m) {
-    const wrapper = document.getElementById('mission-list-wrapper');
+// 5. POPUP DAFTARKAN DIRI (AMBIL DATA DRIVER DARI DB)
+async function confirmMission(mId, rawDist) {
+    const driverSnap = await db.ref('drivers/' + currentDriverID).once('value');
+    const driverData = driverSnap.val() || { name: "Driver", rating: "5.0" };
     
-    // 1. Data Parsing & Defaults
-    const isUrgent = m.rank === "URGENT" || m.price > 30000;
-    const isHighRisk = m.reputation === "BERESIKO" || (m.clientStats?.dislike > 5);
-    const successRate = m.clientStats ? 
-        ((m.clientStats.like / (m.clientStats.like + m.clientStats.dislike + m.clientStats.cancel || 1)) * 100).toFixed(1) : "0.0";
+    const estTime = Math.ceil(rawDist * 3); // Estimasi 3 menit per km
 
-    // 2. Format HTML
-    const html = `
-        <div class="quest-card ${isUrgent ? 'urgent' : ''}">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:10px; color:${isUrgent?'var(--p-pink)':'#888'}">${isUrgent ? '◈ URGENT MISSION' : '◇ NORMAL MISSION'}</span>
-                <span style="font-size:10px; color:#666;">Member Since: ${m.memberSince || 'Oct 2024'}</span>
+    document.getElementById('global-modal').classList.add('active');
+    document.getElementById('modal-body').innerHTML = `
+        <div style="color:#fff; text-align:center;">
+            <h3 style="color:cyan; font-family:Orbitron;">DAFTARKAN DIRI</h3>
+            <p style="font-size:12px;">Kirim profil Anda ke pemesan?</p>
+            <div style="background:#111; padding:10px; text-align:left; font-size:11px; border:1px solid #333;">
+                <div>Driver: ${driverData.name || 'Sovereign Driver'}</div>
+                <div>Jarak: ${rawDist.toFixed(1)} km</div>
+                <div>Estimasi Sampai: ${estTime} Menit</div>
             </div>
-
-            <div style="display:flex; justify-content:space-between; margin-top:5px;">
-                <div style="font-family:Orbitron; font-size:15px; color:#fff;">${m.clientName.toUpperCase()}</div>
-                <div class="reward-tag">Rp ${Number(m.price).toLocaleString('id-ID')}</div>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button onclick="closeModal()" style="flex:1; padding:10px; background:#333; color:#fff; border:none;">BATAL</button>
+                <button onclick="applyToMission('${mId}', ${rawDist}, ${estTime})" style="flex:1; padding:10px; background:cyan; font-weight:bold; border:none;">KIRIM LAMARAN</button>
             </div>
-
-            <div class="reputation-banner ${isHighRisk ? 'banner-risk' : 'banner-trustworthy'}">
-                ${isHighRisk ? '⚠️ HIGH RISK DETECTED' : '✓ TRUSTWORTHY CLIENT'}
-            </div>
-
-            <div class="route-info">
-                <div class="route-step"><i style="color:var(--p-cyan)">⦿</i> ${m.pickupName || 'Titik Jemput'}</div>
-                <div class="route-step"><i style="color:var(--p-red)">▼</i> ${m.destination || 'Titik Tujuan'}</div>
-                <div class="route-dist">ESTIMASI RUTE JALAN: 2.4 km</div>
-            </div>
-
-            <div class="stats-grid">
-                <div class="stat-box"><label>LIKE</label><b style="color:var(--p-cyan)">${m.clientStats?.like || 0}</b></div>
-                <div class="stat-box"><label>DISLIKE</label><b style="color:var(--p-red)">${m.clientStats?.dislike || 0}</b></div>
-                <div class="stat-box"><label>CANCEL</label><b>${m.clientStats?.cancel || 0}</b></div>
-                <div class="stat-box"><label>RANK</label><b style="color:var(--p-pink)">${m.rank || 'BIASA'}</b></div>
-            </div>
-
-            <div style="font-size:10px; display:flex; justify-content:space-between; color:#888;">
-                <span>Success Rate: ${successRate}%</span>
-                <span>Type: ${isUrgent ? 'Urgent' : 'Regular'}</span>
-            </div>
-            <div class="rate-bar-bg"><div class="rate-bar-fill" style="width:${successRate}%"></div></div>
-
-            <div style="display:flex; gap:8px; margin-top:12px;">
-                <button class="btn-main btn-accept ${isUrgent ? 'urgent' : ''}" style="flex:2;">TERIMA MISI (-50 HP)</button>
-                <button class="btn-main btn-nego" style="flex:1;">NEGO</button>
-            </div>
-        </div>
-    `;
-    wrapper.innerHTML += html;
+        </div>`;
 }
 
+// 6. POPUP NEGO TARIF
+function openNego(mId, currentPrice) {
+    document.getElementById('global-modal').classList.add('active');
+    document.getElementById('modal-body').innerHTML = `
+        <div style="color:#fff; text-align:center;">
+            <h3 style="color:gold; font-family:Orbitron;">NEGO TARIF</h3>
+            <p style="font-size:12px;">Harga Saat Ini: Rp ${currentPrice.toLocaleString()}</p>
+            <input type="number" id="nego-val" placeholder="Masukkan Tarif Baru" style="width:100%; padding:10px; background:#000; border:1px solid gold; color:gold; text-align:center;">
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button onclick="closeModal()" style="flex:1; padding:10px; background:#333; color:#fff; border:none;">BATAL</button>
+                <button onclick="submitNego('${mId}')" style="flex:1; padding:10px; background:gold; font-weight:bold; border:none;">KIRIM PENAWARAN</button>
+            </div>
+        </div>`;
+}
+
+// 7. KIRIM BALIK KE PEMESAN (FIREBASE UPDATE)
+async function applyToMission(mId, dist, time) {
+    const driverSnap = await db.ref('drivers/' + currentDriverID).once('value');
+    const d = driverSnap.val();
+
+    db.ref(`missions/${mId}/applicants/${currentDriverID}`).set({
+        driverName: d?.name || "Driver",
+        driverPhoto: d?.photo || "",
+        distance: dist.toFixed(1) + " km",
+        eta: time + " min",
+        status: "pending"
+    }).then(() => {
+        closeModal();
+        addLog("LAMARAN TERKIRIM. Menunggu respon...", "success");
+    });
+}
+
+function submitNego(mId) {
+    const newVal = document.getElementById('nego-val').value;
+    if (!newVal) return alert("Masukkan harga!");
+
+    db.ref(`missions/${mId}/applicants/${currentDriverID}`).update({
+        negoPrice: parseInt(newVal),
+        status: "negotiating"
+    }).then(() => {
+        closeModal();
+        addLog("TAWARAN HARGA TERKIRIM: Rp " + parseInt(newVal).toLocaleString(), "success");
+    });
+}
+
+function closeModal() { document.getElementById('global-modal').classList.remove('active'); }
 function addLog(msg, type) {
     const list = document.getElementById('log-list');
     const time = new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
     const item = `<div class="log-item ${type}">[${time}] ${msg}</div>`;
     list.insertAdjacentHTML('afterbegin', item);
 }
+
 </script>
 </body>
 </html>
