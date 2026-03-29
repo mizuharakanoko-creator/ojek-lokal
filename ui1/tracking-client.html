@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SOVEREIGN - Driver Tracking</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,10 +12,13 @@
         :root { 
             --p-cyan: #00f3ff; 
             --p-pink: #ff00ea; 
-            --p-bg: #050505; 
-            --p-glass: rgba(15, 15, 15, 0.9);
-            --p-border: rgba(255, 255, 255, 0.1);
+            --p-bg: #080808; 
+            --p-glass: rgba(18, 18, 18, 0.95);
+            --p-card: #151515;
+            --p-border: rgba(255, 255, 255, 0.08);
         }
+
+        * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
 
         body { 
             background: var(--p-bg); 
@@ -23,184 +26,192 @@
             font-family: 'Rajdhani', sans-serif; 
             margin: 0; 
             overflow: hidden; 
-            -webkit-tap-highlight-color: transparent;
+            height: 100vh;
         }
 
-        /* MAP AREA */
-        #map { width: 100%; height: 100vh; z-index: 1; background: #000; }
+        #map { width: 100%; height: 100vh; z-index: 1; filter: grayscale(0.5) contrast(1.2); }
 
-        /* HEADER UI */
-        .driver-header {
+        /* HEADER SECTION */
+        .app-header {
             position: absolute; top: 0; left: 0; right: 0; z-index: 2000;
-            padding: 20px 15px;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);
+            padding: 15px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, transparent 100%);
         }
 
-        .card-driver {
+        .driver-card {
             background: var(--p-glass);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(15px);
             border: 1px solid var(--p-border);
-            border-left: 4px solid var(--p-cyan);
-            border-radius: 12px;
+            border-top: 2px solid var(--p-cyan);
+            border-radius: 16px;
             padding: 15px;
             display: flex; align-items: center; gap: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.7);
         }
 
-        .driver-avatar {
-            width: 55px; height: 55px; border-radius: 50%;
-            border: 2px solid var(--p-cyan);
-            background: #111; overflow: hidden;
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+        .avatar-wrapper {
+            position: relative; width: 60px; height: 60px;
         }
-        .driver-avatar img { width: 100%; height: 100%; object-fit: cover; }
-
-        .driver-info { flex: 1; }
-        .driver-info h2 { 
-            font-family: 'Orbitron'; font-size: 14px; margin: 0; 
-            letter-spacing: 1px; color: #fff; text-transform: uppercase;
+        .avatar-img { 
+            width: 100%; height: 100%; border-radius: 50%; 
+            object-fit: cover; border: 2px solid var(--p-cyan);
+            background: #111;
         }
-        .driver-info p { font-size: 11px; margin: 3px 0; color: var(--p-cyan); font-weight: 600; }
-        .status-pill { 
-            display: inline-block; font-size: 9px; padding: 2px 8px; 
-            background: rgba(0, 243, 255, 0.1); border-radius: 10px; color: var(--p-cyan);
+        .online-dot {
+            position: absolute; bottom: 2px; right: 2px;
+            width: 12px; height: 12px; background: #00ff00;
+            border-radius: 50%; border: 2px solid var(--p-bg);
         }
 
-        .price-tag { text-align: right; border-left: 1px solid var(--p-border); padding-left: 15px; }
-        .price-tag span { font-family: 'Orbitron'; color: var(--p-pink); font-size: 14px; display: block; }
-        .price-tag label { font-size: 9px; color: #888; text-transform: uppercase; }
+        .driver-meta { flex: 1; }
+        .driver-meta h2 { font-family: 'Orbitron'; font-size: 14px; margin: 0; letter-spacing: 0.5px; }
+        .driver-meta p { font-size: 11px; margin: 4px 0; color: var(--p-cyan); font-weight: 600; }
+        
+        .fare-info { text-align: right; border-left: 1px solid var(--p-border); padding-left: 15px; }
+        .fare-info label { font-size: 9px; color: #777; text-transform: uppercase; display: block; }
+        .fare-info .amount { font-family: 'Orbitron'; color: var(--p-pink); font-size: 15px; }
 
-        /* NOTIFICATION TOAST */
-        #chat-toast {
-            position: fixed; top: 120px; left: 15px; right: 15px;
+        /* TOAST NOTIF */
+        #toast-box {
+            position: fixed; top: 110px; left: 20px; right: 20px;
             background: var(--p-cyan); color: #000;
-            padding: 12px 18px; border-radius: 10px; font-weight: 700;
+            padding: 12px 20px; border-radius: 12px;
             z-index: 3000; display: flex; align-items: center; gap: 12px;
-            transform: translateY(-250%); transition: 0.6s cubic-bezier(0.23, 1, 0.32, 1);
-            box-shadow: 0 15px 30px rgba(0, 243, 255, 0.4);
+            transform: translateY(-200%); transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 30px rgba(0, 243, 255, 0.3);
         }
-        #chat-toast.show { transform: translateY(0); }
+        #toast-box.active { transform: translateY(0); }
 
-        /* BOTTOM ACTIONS */
-        .bottom-ui {
-            position: absolute; bottom: 30px; left: 15px; right: 15px;
-            z-index: 2000; display: flex; gap: 12px;
+        /* BOTTOM UI - FLOATING ACTION BUTTONS */
+        .action-tray {
+            position: absolute; bottom: 40px; left: 0; right: 0;
+            padding: 0 20px; z-index: 2000;
+            display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px;
         }
-        .btn-main {
-            flex: 1; height: 50px; border: none; border-radius: 10px;
+
+        .btn-fab {
+            height: 54px; border: none; border-radius: 14px;
             font-family: 'Orbitron'; font-size: 11px; font-weight: 700;
             display: flex; align-items: center; justify-content: center; gap: 10px;
-            transition: 0.3s;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.5); transition: 0.2s;
         }
-        .btn-wa { background: #25D366; color: white; box-shadow: 0 5px 15px rgba(37, 211, 102, 0.3); }
+        .btn-fab:active { transform: scale(0.95); }
         .btn-chat { background: var(--p-cyan); color: #000; position: relative; }
-        
-        .badge-count {
-            position: absolute; top: -5px; right: -5px; background: var(--p-pink);
-            color: white; font-size: 10px; padding: 2px 7px; border-radius: 10px;
-            border: 2px solid var(--p-bg); display: none;
+        .btn-wa { background: #25D366; color: white; }
+
+        .notif-bubble {
+            position: absolute; top: -8px; right: -8px;
+            background: var(--p-pink); color: white;
+            font-size: 10px; padding: 4px 8px; border-radius: 20px;
+            border: 3px solid var(--p-bg);
         }
 
-        /* FULL SCREEN CHAT */
-        #chat-window {
-            position: fixed; top: 100%; left: 0; width: 100%; height: 100vh;
-            background: var(--p-bg); z-index: 5000; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        /* FULLSCREEN OVERLAY CHAT */
+        #chat-panel {
+            position: fixed; top: 100%; left: 0; width: 100%; height: 100%;
+            background: var(--p-bg); z-index: 5000; transition: 0.4s ease-out;
             display: flex; flex-direction: column;
         }
-        #chat-window.active { top: 0; }
+        #chat-panel.open { top: 0; }
 
-        .chat-top-bar { 
-            padding: 20px 15px; background: #111; display: flex; 
-            justify-content: space-between; align-items: center; border-bottom: 1px solid #222;
+        .chat-header {
+            padding: 20px; background: #111; border-bottom: 1px solid #222;
+            display: flex; align-items: center; justify-content: space-between;
         }
-        .chat-body { flex: 1; overflow-y: auto; padding: 20px 15px; display: flex; flex-direction: column; gap: 12px; }
+        .chat-header span { font-family: 'Orbitron'; font-size: 13px; color: var(--p-cyan); }
+
+        .chat-content { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
         
-        .chat-footer { padding: 15px; background: #111; padding-bottom: calc(15px + env(safe-area-inset-bottom)); }
-        .chat-input-wrapper { display: flex; gap: 10px; background: #000; padding: 5px; border-radius: 12px; border: 1px solid #333; }
-        .chat-input-wrapper input { 
+        .chat-footer { 
+            padding: 15px; background: #111; 
+            padding-bottom: calc(15px + env(safe-area-inset-bottom));
+        }
+
+        /* BUBBLE STYLE */
+        .msg { max-width: 85%; padding: 12px 16px; border-radius: 18px; font-size: 15px; position: relative; }
+        .msg.me { align-self: flex-end; background: var(--p-cyan); color: #000; border-bottom-right-radius: 4px; }
+        .msg.them { align-self: flex-start; background: #222; color: #fff; border-bottom-left-radius: 4px; }
+        .msg-time { font-size: 9px; opacity: 0.5; margin-top: 5px; display: block; text-align: right; }
+
+        .quick-scroll { display: flex; gap: 10px; padding: 10px 0; overflow-x: auto; scrollbar-width: none; }
+        .chip { 
+            background: #1a1a1a; color: var(--p-cyan); border: 1px solid #333;
+            padding: 8px 16px; border-radius: 25px; font-size: 12px; white-space: nowrap;
+        }
+
+        .input-box {
+            display: flex; gap: 10px; background: #000; padding: 6px; border-radius: 15px; border: 1px solid #333;
+        }
+        .input-box input { 
             flex: 1; background: transparent; border: none; color: white; 
-            padding: 10px 15px; outline: none; font-family: 'Rajdhani'; font-size: 15px;
+            padding: 10px; outline: none; font-family: 'Rajdhani'; font-size: 16px;
         }
-        .btn-send-circle { 
-            width: 45px; height: 45px; background: var(--p-cyan); border: none; 
-            border-radius: 10px; display: flex; align-items: center; justify-content: center;
-        }
-
-        .bubble { max-width: 75%; padding: 12px 16px; border-radius: 15px; font-size: 14px; line-height: 1.5; position: relative; }
-        .bubble.me { align-self: flex-end; background: var(--p-cyan); color: #000; border-bottom-right-radius: 2px; }
-        .bubble.them { align-self: flex-start; background: #222; color: #fff; border-bottom-left-radius: 2px; }
-
-        .quick-replies { display: flex; gap: 8px; padding: 10px 0; overflow-x: auto; scrollbar-width: none; }
-        .quick-replies::-webkit-scrollbar { display: none; }
-        .qr-item { 
-            background: #1a1a1a; border: 1px solid #333; color: var(--p-cyan); 
-            padding: 8px 15px; border-radius: 20px; font-size: 12px; white-space: nowrap;
+        .send-btn { 
+            background: var(--p-cyan); border: none; width: 45px; height: 45px; 
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
         }
 
-        /* MAP MARKER FIX */
-        .no-bg-marker { background: none !important; border: none !important; box-shadow: none !important; }
+        .no-marker { background: none !important; border: none !important; }
     </style>
 </head>
 <body>
 
-    <div id="chat-toast" onclick="toggleChat()">
-        <span style="font-size: 22px;">💬</span>
+    <div id="toast-box" onclick="openChat()">
+        <span style="font-size: 20px;">⚡</span>
         <div style="flex:1">
-            <div style="font-size: 10px; opacity: 0.8; letter-spacing: 1px;">ENCRYPTED MESSAGE</div>
-            <div id="toast-msg" style="font-size: 13px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">Menunggu pesan...</div>
+            <div style="font-size: 10px; font-weight: 800;">DRIV-COMMS INCOMING</div>
+            <div id="toast-text" style="font-size: 14px;">...</div>
         </div>
     </div>
 
-    <div class="driver-header">
-        <div class="card-driver">
-            <div class="driver-avatar">
-                <img id="d-photo" src="https://via.placeholder.com/100/111111/00f3ff?text=D">
+    <div class="app-header">
+        <div class="driver-card">
+            <div class="avatar-wrapper">
+                <img id="d-photo" class="avatar-img" src="https://via.placeholder.com/100/111/00f3ff?text=D">
+                <div class="online-dot"></div>
             </div>
-            <div class="driver-info">
-                <h2 id="d-name">Sovereign Driver</h2>
-                <p id="d-vehicle">Mencari koneksi kendaraan...</p>
-                <div id="status-label" class="status-pill">SINKRONISASI GPS...</div>
+            <div class="driver-meta">
+                <h2 id="d-name">Connecting...</h2>
+                <p id="d-vehicle">Sovereign Protocol Active</p>
+                <div id="d-status" style="font-size: 9px; color: #555;">GPS SIGNAL SCANNING</div>
             </div>
-            <div class="price-tag">
-                <label>Total Fare</label>
-                <span id="m-price">Rp 0</span>
+            <div class="fare-info">
+                <label>Fare Deal</label>
+                <span id="m-price" class="amount">Rp 0</span>
             </div>
         </div>
     </div>
 
     <div id="map"></div>
 
-    <div class="bottom-ui">
-        <button onclick="toggleChat()" class="btn-main btn-chat">
+    <div class="action-tray">
+        <button onclick="openChat()" class="btn-fab btn-chat">
             <span>💬 SYSTEM CHAT</span>
-            <div id="notif-badge" class="badge-count">0</div>
+            <div id="badge" class="notif-bubble" style="display:none">0</div>
         </button>
-        <button id="wa-link" class="btn-main btn-wa">
-            <span>📲 WHATSAPP</span>
+        <button id="wa-link" class="btn-fab btn-wa">
+            <span>WHATSAPP</span>
         </button>
     </div>
 
-    <div id="chat-window">
-        <div class="chat-top-bar">
-            <div>
-                <div style="font-family:Orbitron; font-size:12px; color:var(--p-cyan)">SECURE CHANNEL</div>
-                <div style="font-size:10px; color:#666" id="chat-driver-status">DRIVER ONLINE</div>
-            </div>
-            <button onclick="toggleChat()" style="background:none; border:none; color:white; font-size:32px;">&times;</button>
+    <div id="chat-panel">
+        <div class="chat-header">
+            <span>ENCRYPTED_CHANNEL // SECURE</span>
+            <button onclick="closeChat()" style="background:none; border:none; color:white; font-size:28px;">&times;</button>
         </div>
         
-        <div id="chat-msgs" class="chat-body">
+        <div id="chat-feed" class="chat-content">
             </div>
 
         <div class="chat-footer">
-            <div class="quick-replies">
-                <div class="qr-item" onclick="quickSend('Oke, saya tunggu.')">Oke, saya tunggu</div>
-                <div class="qr-item" onclick="quickSend('Sudah di titik jemput.')">Sudah di titik</div>
-                <div class="qr-item" onclick="quickSend('Sesuai aplikasi ya.')">Sesuai aplikasi</div>
+            <div class="quick-scroll">
+                <div class="chip" onclick="quickSend('Oke pak, ditunggu.')">Oke pak, ditunggu.</div>
+                <div class="chip" onclick="quickSend('Sudah di lokasi jemput.')">Sudah di lokasi jemput.</div>
+                <div class="chip" onclick="quickSend('Sesuai titik ya.')">Sesuai titik ya.</div>
             </div>
-            <div class="chat-input-wrapper">
-                <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off">
-                <button onclick="sendChat()" class="btn-send-circle">
+            <div class="input-box">
+                <input type="text" id="chat-input" placeholder="Transmit message..." autocomplete="off">
+                <button onclick="submitChat()" class="send-btn">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="black"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                 </button>
             </div>
@@ -218,37 +229,24 @@
             databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
             projectId: "ojeklokal-42b84"
         };
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const missionId = localStorage.getItem('active_mission_id');
 
-        // Map Initialization
+        // MAP SETUP
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-6.9585, 108.5096], 15);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        // Custom Markers
-        const dIcon = L.divIcon({ 
-            className: 'no-bg-marker', 
-            html: `<div style="background:var(--p-cyan); width:14px; height:14px; border:2px solid #fff; border-radius:50%; box-shadow:0 0 15px var(--p-cyan);"></div>`,
-            iconSize: [14, 14], iconAnchor: [7, 7]
-        });
+        let driverMarker = L.marker([0,0], { icon: L.divIcon({ className:'no-marker', html:'<div style="background:var(--p-cyan); width:16px; height:16px; border:3px solid #fff; border-radius:50%; box-shadow:0 0 15px var(--p-cyan);"></div>' }) }).addTo(map);
+        let pickupMarker = L.marker([0,0], { icon: L.divIcon({ className:'no-marker', html:'<div style="font-size:30px">📍</div>' }) }).addTo(map);
+        let pathLine = L.polyline([], {color: '#00f3ff', weight: 3, dashArray: '8, 12', opacity: 0.5}).addTo(map);
 
-        const pIcon = L.divIcon({ 
-            className: 'no-bg-marker', 
-            html: `<div style="font-size:30px; filter:drop-shadow(0 0 5px rgba(0,0,0,0.5))">📍</div>`,
-            iconSize: [30, 30], iconAnchor: [15, 30]
-        });
-
-        let driverMarker = L.marker([0,0], { icon: dIcon }).addTo(map);
-        let pickupMarker = L.marker([0,0], { icon: pIcon }).addTo(map);
-        let routeLine = L.polyline([], {color: '#00f3ff', weight: 3, dashArray: '5, 10', opacity: 0.5}).addTo(map);
-
-        let isChatOpen = false;
-        let unreadCount = 0;
-        let toastTimer;
+        let chatVisible = false;
+        let unread = 0;
+        let tExit;
 
         if (missionId) {
-            // Main Mission Data
+            // Listen Mission Data
             db.ref(`missions/${missionId}`).on('value', snap => {
                 const m = snap.val();
                 if (!m) return;
@@ -256,24 +254,23 @@
                 document.getElementById('m-price').innerText = "Rp " + (m.price || 0).toLocaleString('id-ID');
 
                 if (m.pickupCoords) {
-                    const [lat, lng] = m.pickupCoords.split(',').map(Number);
-                    pickupMarker.setLatLng([lat, lng]);
+                    const [pLat, pLng] = m.pickupCoords.split(',').map(Number);
+                    pickupMarker.setLatLng([pLat, pLng]);
 
                     if (m.driverId) {
-                        // Driver Detail Listener
                         db.ref(`drivers/${m.driverId}`).on('value', dSnap => {
                             const d = dSnap.val();
                             if(d) {
                                 document.getElementById('d-name').innerText = d.name || "Driver Found";
-                                document.getElementById('d-vehicle').innerText = `${d.vehicleModel || 'Motor'} • ${d.plateNumber || '...'}`;
-                                document.getElementById('status-label').innerText = "DRIVER MENUJU LOKASI";
+                                document.getElementById('d-vehicle').innerText = `${d.vehicleModel || ''} • ${d.plateNumber || ''}`;
+                                document.getElementById('d-status').innerText = "DRIVER EN ROUTE TO PICKUP";
                                 if(d.photoUrl) document.getElementById('d-photo').src = d.photoUrl;
                                 if(d.phone) document.getElementById('wa-link').onclick = () => window.open(`https://wa.me/${d.phone}`, '_blank');
                                 
                                 if(d.coords) {
                                     const dPos = [d.coords.lat, d.coords.lng];
                                     driverMarker.setLatLng(dPos);
-                                    routeLine.setLatLngs([dPos, [lat, lng]]);
+                                    pathLine.setLatLngs([dPos, [pLat, pLng]]);
                                     map.flyTo(dPos, 16);
                                 }
                             }
@@ -282,80 +279,85 @@
                 }
             });
 
-            // Chat Message Listener
+            // Chat Sync
             db.ref(`missions/${missionId}/chats`).on('child_added', snap => {
-                const chat = snap.val();
-                const container = document.getElementById('chat-msgs');
-                const isMe = chat.sender === 'client';
+                const c = snap.val();
+                appendChat(c.sender, c.msg);
                 
-                container.innerHTML += `<div class="bubble ${isMe ? 'me' : 'them'}">${chat.msg}</div>`;
-                container.scrollTop = container.scrollHeight;
-
-                if (!isMe && !isChatOpen) {
-                    unreadCount++;
+                if (c.sender !== 'client' && !chatVisible) {
+                    unread++;
                     updateBadge();
-                    showToast(chat.msg);
+                    triggerToast(c.msg);
                 }
             });
         }
 
-        function toggleChat() {
-            const win = document.getElementById('chat-window');
-            isChatOpen = !isChatOpen;
-            win.classList.toggle('active');
+        function appendChat(sender, msg) {
+            const feed = document.getElementById('chat-feed');
+            const isMe = sender === 'client';
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             
-            if (isChatOpen) {
-                unreadCount = 0;
-                updateBadge();
-                document.getElementById('chat-toast').classList.remove('show');
-            }
+            const html = `
+                <div class="msg ${isMe ? 'me' : 'them'}">
+                    ${msg}
+                    <span class="msg-time">${time} ${isMe ? '✓' : ''}</span>
+                </div>
+            `;
+            feed.insertAdjacentHTML('beforeend', html);
+            feed.scrollTop = feed.scrollHeight;
+        }
+
+        function triggerToast(text) {
+            const t = document.getElementById('toast-box');
+            document.getElementById('toast-text').innerText = text;
+            t.classList.add('active');
+            clearTimeout(tExit);
+            tExit = setTimeout(() => t.classList.remove('active'), 5000);
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
         }
 
         function updateBadge() {
-            const b = document.getElementById('notif-badge');
-            if (unreadCount > 0) {
-                b.innerText = unreadCount;
+            const b = document.getElementById('badge');
+            if (unread > 0) {
+                b.innerText = unread;
                 b.style.display = 'block';
             } else {
                 b.style.display = 'none';
             }
         }
 
-        function showToast(msg) {
-            const t = document.getElementById('chat-toast');
-            document.getElementById('toast-msg').innerText = msg;
-            t.classList.add('show');
-            clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => t.classList.remove('show'), 5000);
-            
-            // Haptic/Sound placeholder
-            if (window.navigator.vibrate) window.navigator.vibrate(50);
+        function openChat() {
+            chatVisible = true;
+            unread = 0;
+            updateBadge();
+            document.getElementById('chat-panel').classList.add('open');
+            document.getElementById('toast-box').classList.remove('active');
         }
 
-        function sendChat() {
-            const input = document.getElementById('chat-input');
-            const val = input.value.trim();
+        function closeChat() {
+            chatVisible = false;
+            document.getElementById('chat-panel').classList.remove('open');
+        }
+
+        function submitChat() {
+            const el = document.getElementById('chat-input');
+            const val = el.value.trim();
             if (!val) return;
             
             db.ref(`missions/${missionId}/chats`).push({
                 sender: 'client',
                 msg: val,
-                timestamp: Date.now()
+                ts: Date.now()
             });
-            input.value = '';
+            el.value = '';
         }
 
         function quickSend(txt) {
-            db.ref(`missions/${missionId}/chats`).push({
-                sender: 'client',
-                msg: txt,
-                timestamp: Date.now()
-            });
+            db.ref(`missions/${missionId}/chats`).push({ sender: 'client', msg: txt, ts: Date.now() });
         }
 
-        // Handle Enter Key
-        document.getElementById('chat-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendChat();
+        document.getElementById('chat-input').addEventListener('keypress', e => {
+            if (e.key === 'Enter') submitChat();
         });
     </script>
 </body>
