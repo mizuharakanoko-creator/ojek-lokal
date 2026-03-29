@@ -59,7 +59,6 @@
         .btn-wa { background: #25D366; color: white; border-bottom: 3px solid #128C7E; }
         .btn-chat { background: var(--p-cyan); color: #000; border-bottom: 3px solid #00b8c4; }
 
-        /* Balon Notifikasi pada Tombol */
         .chat-badge {
             position: absolute; top: -5px; right: -5px;
             background: var(--p-pink); color: white;
@@ -68,25 +67,25 @@
             animation: bounce 0.5s infinite alternate;
         }
 
-        /* CHAT WINDOW - PERBAIKAN POSISI (top 10vh agar lebih naik) */
+        /* CHAT WINDOW - SEKARANG LEBIH TINGGI (top: 5vh) */
         #chat-window {
-            position: fixed; top: 100%; left: 0; width: 100%; height: 90vh;
+            position: fixed; top: 100%; left: 0; width: 100%; height: 95vh;
             background: var(--p-bg); z-index: 3000; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex; flex-direction: column; border-top: 2px solid var(--p-cyan);
         }
-        #chat-window.active { top: 10vh; }
+        #chat-window.active { top: 5vh; }
         
         .chat-header { padding: 15px; background: #111; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; }
         .chat-msgs { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background-image: radial-gradient(#111 1px, transparent 1px); background-size: 20px 20px; }
         
-        /* Notifikasi Popup Melayang */
+        /* NOTIFIKASI POPUP - DIPERBAIKI (Z-index lebih tinggi dari header) */
         #chat-toast {
-            position: fixed; top: 110px; left: 15px; right: 15px;
-            background: rgba(0, 243, 255, 0.95); color: #000;
-            padding: 10px 15px; border-radius: 8px; font-weight: bold;
-            z-index: 2500; display: flex; align-items: center; gap: 10px;
-            transform: translateY(-200%); transition: 0.5s;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            position: fixed; top: 20px; left: 15px; right: 15px;
+            background: var(--p-cyan); color: #000;
+            padding: 12px 15px; border-radius: 8px; font-weight: bold;
+            z-index: 4000; display: flex; align-items: center; gap: 10px;
+            transform: translateY(-200%); transition: 0.5s ease-in-out;
+            box-shadow: 0 10px 30px rgba(0,243,255,0.4);
             cursor: pointer;
         }
         #chat-toast.show { transform: translateY(0); }
@@ -94,7 +93,7 @@
         .quick-replies { display: flex; gap: 8px; padding: 10px 15px; background: #0a0a0a; overflow-x: auto; white-space: nowrap; border-top: 1px solid #222; }
         .qr-btn { background: #222; color: var(--p-cyan); border: 1px solid #333; padding: 6px 12px; border-radius: 15px; font-size: 11px; font-weight: 600; cursor: pointer; }
 
-        .chat-input-area { padding: 15px; background: #111; display: flex; gap: 10px; padding-bottom: 35px; }
+        .chat-input-area { padding: 15px; background: #111; display: flex; gap: 10px; padding-bottom: env(safe-area-inset-bottom, 35px); }
         .chat-input-area input { flex: 1; background: #000; border: 1px solid #333; color: white; padding: 12px; border-radius: 5px; font-family: 'Rajdhani'; outline: none; }
         .btn-send { background: var(--p-cyan); border: none; padding: 0 15px; border-radius: 5px; font-weight: bold; cursor: pointer; }
 
@@ -102,8 +101,8 @@
         .msg.me { align-self: flex-end; background: var(--p-cyan); color: #000; border-bottom-right-radius: 2px; }
         .msg.them { align-self: flex-start; background: #222; color: #fff; border-bottom-left-radius: 2px; border: 1px solid #333; }
 
-        /* Icon styling to prevent white box */
-        .no-bg-icon { background: none !important; border: none !important; }
+        /* FIX TITIK PUTIH LEAFLET */
+        .leaflet-marker-icon.no-bg { background: none !important; border: none !important; box-shadow: none !important; }
         
         @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-3px); } }
     </style>
@@ -113,7 +112,7 @@
     <div id="chat-toast" onclick="toggleChat()">
         <span style="font-size: 20px;">💬</span>
         <div style="flex:1">
-            <div style="font-size: 10px; opacity: 0.7;">PESAN BARU DARI DRIVER</div>
+            <div style="font-size: 10px; opacity: 0.7; letter-spacing: 1px;">PESAN BARU</div>
             <div id="toast-msg" style="font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">...</div>
         </div>
     </div>
@@ -178,22 +177,22 @@
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-6.9585, 108.5096], 15);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        // Marker Driver
+        // MARKER DRIVER - FIX TITIK PUTIH
         let driverMarker = L.marker([0,0], {
             icon: L.divIcon({
-                className: 'no-bg-icon', 
-                html: "<div style='background:var(--p-cyan); width:12px; height:12px; border:2px solid #fff; border-radius:50%; box-shadow:0 0 10px var(--p-cyan);'></div>",
+                className: 'no-bg', 
+                html: `<div style="background:var(--p-cyan); width:12px; height:12px; border:2px solid #fff; border-radius:50%; box-shadow:0 0 10px var(--p-cyan);"></div>`,
                 iconSize: [12, 12],
                 iconAnchor: [6, 6]
             })
         }).addTo(map);
 
-        // Marker Penjemputan (Titik Putih dihilangkan dengan no-bg-icon)
+        // MARKER PENJEMPUTAN - FIX TITIK PUTIH
         let pickupMarker = L.marker([0,0], {
             icon: L.divIcon({
-                className: 'no-bg-icon', 
-                html: "<div style='font-size:30px; line-height:1;'>📍</div>", 
-                iconSize: [30, 30], 
+                className: 'no-bg',
+                html: `<div style="font-size:30px; line-height:1; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));">📍</div>`,
+                iconSize: [30, 30],
                 iconAnchor: [15, 30]
             })
         }).addTo(map);
@@ -201,7 +200,7 @@
         let routeLine = L.polyline([], {color: '#00f3ff', weight: 2, dashArray: '5, 8', opacity: 0.6}).addTo(map);
 
         let isChatOpen = false;
-        let toastTimeout; // Untuk menghapus timeout lama
+        let toastTimeout;
 
         if (missionId) {
             db.ref(`missions/${missionId}`).on('value', snap => {
@@ -240,20 +239,16 @@
 
         function showChatNotification(msg) {
             document.getElementById('notif-badge').style.display = 'block';
-            
             const toast = document.getElementById('chat-toast');
             document.getElementById('toast-msg').innerText = msg;
+            
             toast.classList.add('show');
-
-            // Hapus timeout sebelumnya jika ada agar tidak bentrok
             clearTimeout(toastTimeout);
-
-            // Sembunyikan otomatis dalam 4 detik
+            
+            // Sembunyikan setelah 4 detik
             toastTimeout = setTimeout(() => { 
                 toast.classList.remove('show'); 
             }, 4000);
-
-            try { new Audio('https://assets.mixkit.co/active_storage/sfx/2357/2357-preview.mp3').play(); } catch(e){}
         }
 
         function toggleChat() {
@@ -264,7 +259,7 @@
             
             if (isChatOpen) {
                 document.getElementById('notif-badge').style.display = 'none';
-                toast.classList.remove('show');
+                toast.classList.remove('show'); // Langsung hilangkan toast jika chat dibuka
                 clearTimeout(toastTimeout);
             }
         }
