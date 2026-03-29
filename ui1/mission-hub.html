@@ -312,33 +312,50 @@ function openNego(mId, currentPrice) {
 
 // 7. KIRIM BALIK KE PEMESAN (FIREBASE UPDATE)
 async function applyToMission(mId, dist, time) {
+    // 1. Ambil data lengkap driver yang sedang login
     const driverSnap = await db.ref('drivers/' + currentDriverID).once('value');
     const d = driverSnap.val();
 
+    // 2. Ambil harga asli misi (sebagai harga awal jika tidak nego)
+    const missionSnap = await db.ref(`missions/${mId}`).once('value');
+    const m = missionSnap.val();
+
+    // 3. Masukkan ke daftar pelamar di dalam misi tersebut
     db.ref(`missions/${mId}/applicants/${currentDriverID}`).set({
-        driverName: d?.name || "Driver",
+        driverId: currentDriverID,
+        driverName: d?.name || "Sovereign Driver",
         driverPhoto: d?.photo || "",
-        distance: dist.toFixed(1) + " km",
+        driverRating: d?.rating || "5.0",
+        // Jarak dari posisi driver ke titik jemput
+        distanceToPickup: dist.toFixed(1) + " km",
         eta: time + " min",
-        status: "pending"
+        // Harga kesepakatan (default pakai harga misi jika tidak nego)
+        dealPrice: m.price,
+        status: "pending", // Menunggu dipilih oleh pemesan
+        timestamp: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
         closeModal();
-        addLog("LAMARAN TERKIRIM. Menunggu respon...", "success");
+        addLog("LAMARAN TERKIRIM. Menunggu pemesan memilih Anda...", "success");
+    }).catch((err) => {
+        addLog("GAGAL MENGIRIM LAMARAN: " + err.message, "error");
     });
 }
 
-function submitNego(mId) {
-    const newVal = document.getElementById('nego-val').value;
-    if (!newVal) return alert("Masukkan harga!");
 
+function submitNego(mId) {
+    const newVal = parseInt(document.getElementById('nego-val').value);
+    if (!newVal || newVal <= 0) return alert("Masukkan harga yang valid!");
+
+    // Update dealPrice di dalam daftar pelamar driver tersebut
     db.ref(`missions/${mId}/applicants/${currentDriverID}`).update({
-        negoPrice: parseInt(newVal),
+        dealPrice: newVal,
         status: "negotiating"
     }).then(() => {
         closeModal();
-        addLog("TAWARAN HARGA TERKIRIM: Rp " + parseInt(newVal).toLocaleString(), "success");
+        addLog("NEGO TERKIRIM: Rp " + newVal.toLocaleString(), "success");
     });
 }
+
 
 function closeModal() { document.getElementById('global-modal').classList.remove('active'); }
 function addLog(msg, type) {
