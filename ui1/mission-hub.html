@@ -324,34 +324,88 @@ function openNego(mId, currentPrice) {
 
 // 7. KIRIM BALIK KE PEMESAN (FIREBASE UPDATE)
 async function applyToMission(mId, dist, time) {
-    // 1. Ambil data lengkap driver yang sedang login
-    const driverSnap = await db.ref('drivers/' + currentDriverID).once('value');
-    const d = driverSnap.val();
+    try {
+        // Ambil data profil driver dari node /drivers/
+        const driverSnap = await db.ref('drivers/' + currentDriverID).once('value');
+        const d = driverSnap.val();
 
-    // 2. Ambil harga asli misi (sebagai harga awal jika tidak nego)
-    const missionSnap = await db.ref(`missions/${mId}`).once('value');
-    const m = missionSnap.val();
+        // Ambil harga dasar misi saat ini
+        const missionSnap = await db.ref(`missions/${mId}`).once('value');
+        const m = missionSnap.val();
 
-    // 3. Masukkan ke daftar pelamar di dalam misi tersebut
-    db.ref(`missions/${mId}/applicants/${currentDriverID}`).set({
-        driverId: currentDriverID,
-        driverName: d?.name || "Sovereign Driver",
-        driverPhoto: d?.photo || "",
-        driverRating: d?.rating || "5.0",
-        // Jarak dari posisi driver ke titik jemput
-        distanceToPickup: dist.toFixed(1) + " km",
-        eta: time + " min",
-        // Harga kesepakatan (default pakai harga misi jika tidak nego)
-        dealPrice: m.price,
-        status: "pending", // Menunggu dipilih oleh pemesan
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-    }).then(() => {
+        if (!m) {
+            addLog("MISI TIDAK DITEMUKAN atau sudah kadaluarsa.", "error");
+            return;
+        }
+
+        // Data yang akan dikirim ke node applicants pemesan
+        const applicationData = {
+            driverId: currentDriverID,
+            driverName: d?.name || "Sovereign Driver",
+            driverPhoto: d?.photo || "",
+            driverRating: d?.rating || "5.0",
+            driverPhone: d?.phone || "628xxx", // Penting untuk WhatsApp Client
+            distanceToPickup: dist.toFixed(1) + " km",
+            eta: time + " min",
+            dealPrice: m.price,
+            status: "pending",
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        };
+
+        // Kirim ke Firebase
+        await db.ref(`missions/${mId}/applicants/${currentDriverID}`).set(applicationData);
+        
         closeModal();
-        addLog("LAMARAN TERKIRIM. Menunggu pemesan memilih Anda...", "success");
-    }).catch((err) => {
-        addLog("GAGAL MENGIRIM LAMARAN: " + err.message, "error");
-    });
+        addLog("LAMARAN TERKIRIM. Menunggu keputusan pemesan...", "success");
+
+        // AKTIFKAN RADAR: Pantau apakah kita dipilih atau ditolak
+        watchMyStatus(mId);
+
+    } catch (err) {
+        console.error(err);
+        addLog("GAGAL MENGIRIM: " + err.message, "error");
+    }
 }
+
+// 2. FUNGSI RADAR: MEMANTAU STATUS TERPILIH
+function watchMyStatus(mId) {
+    const missionRef = db.ref(`missions/${mId}`);
+
+    missionRef.on('value', snapshot => {
+        const mission = snapshot.val();
+
+        // Jika misi dihapus oleh pemesan (Batal)
+        if (!mission) {
+            missionRef.off();
+            addLog("MISI DIBATALKAN oleh pemesan.", "error");
+            return;
+        }
+
+        // KONDISI A: KITA TERPILIH
+        if (mission.status === "on_process" && mission.driverId === currentDriverID) {
+            missionRef.off(); // Matikan listener agar hemat RAM
+            
+            // Simpan ID Misi untuk digunakan di halaman progres
+            localStorage.setItem('active_mission_id', mId);
+            
+            // Efek suara (Opsional)
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+            audio.play().catch(() => {}); 
+
+            alert("UNIT DIKONFIRMASI! Memulai navigasi tempur...");
+            window.location.replace('mission-on-progress.html');
+        } 
+        
+        // KONDISI B: DRIVER LAIN YANG TERPILIH
+        else if (mission.status === "on_process" && mission.driverId !== currentDriverID) {
+            missionRef.off();
+            addLog("MISI DIAMBIL DRIVER LAIN. Mencari target baru...", "error");
+            
+            // Opsional: Hapus data kita dari applicants karena sudah tidak berguna
+            db.ref(`missions/${mId}/applicants/${currentDriverID}`).remove();
+        }
+    });
+    }
 
 
 function submitNego(mId) {
@@ -376,6 +430,42 @@ function addLog(msg, type) {
     const item = `<div class="log-item ${type}">[${time}] ${msg}</div>`;
     list.insertAdjacentHTML('afterbegin', item);
 }
+
+
+
+
+
+
+
+
+    // Fungsi ini memantau apakah Driver ini dipilih untuk suatu misi
+function watchMyStatus(mId) {
+    const myDriverId = currentDriverID; // ID Driver Anda
+
+    db.ref(`missions/${mId}`).on('value', snapshot => {
+        const mission = snapshot.val();
+        
+        if (!mission) return;
+
+        // CEK: Jika status jadi 'on_process' DAN driverId-nya adalah SAYA
+        if (mission.status === "on_process" && mission.driverId === myDriverId) {
+            
+            // Simpan ID misi yang sedang aktif ke local storage agar bisa dibaca di halaman tujuan
+            localStorage.setItem('active_mission_id', mId);
+            
+            // Hentikan listener agar tidak bentrok
+            db.ref(`missions/${mId}`).off();
+
+let audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+audio.play();
+            alert("MISI DITERIMA! Menuju koordinat target...");
+            
+            // Lempar ke halaman progres
+            window.location.replace('mission-on-progress.html');
+        }
+    });
+}
+
 
 </script>
 </body>
