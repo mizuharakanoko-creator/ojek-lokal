@@ -158,3 +158,91 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // 1. INIT FIREBASE
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const missionId = localStorage.getItem('active_mission_id');
+        document.getElementById('mission-id-display').innerText = missionId ? missionId.slice(-6) : "ERROR";
+
+        // 2. INIT MAP
+        const map = L.map('map', { zoomControl: false }).setView([-6.2000, 106.8166], 15);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+        let driverMarker = L.marker([0,0]).addTo(map);
+        let userMarker = L.marker([0,0], {icon: L.divIcon({className: 'user-dot'})}).addTo(map);
+
+        // 3. MONITORING MISSION & DRIVER
+        if (missionId) {
+            db.ref(`missions/${missionId}`).on('value', snap => {
+                const m = snap.val();
+                if (!m) return;
+
+                document.getElementById('m-price').innerText = m.price.toLocaleString();
+                
+                // Ambil Data Driver Terpilih
+                if (m.driverId) {
+                    db.ref(`drivers/${m.driverId}`).once('value', dSnap => {
+                        const d = dSnap.val();
+                        document.getElementById('d-name').innerText = d.name;
+                        document.getElementById('d-photo').src = d.photo || 'https://via.placeholder.com/50';
+                        
+                        // Setup WA Link
+                        document.getElementById('wa-link').onclick = () => {
+                            window.open(`https://wa.me/${d.phone}?text=Halo Pak ${d.name}, saya pemesan misi ${missionId}`, '_blank');
+                        };
+                    });
+
+                    // Update Lokasi Real-time Driver
+                    db.ref(`drivers/${m.driverId}/coords`).on('value', cSnap => {
+                        const coords = cSnap.val();
+                        if (coords) {
+                            const newPos = [coords.lat, coords.lng];
+                            driverMarker.setLatLng(newPos);
+                            map.panTo(newPos);
+                            updateETA(newPos, m.pickupCoords);
+                        }
+                    });
+                }
+            });
+
+            // 4. CHAT SYSTEM
+            db.ref(`missions/${missionId}/chats`).on('child_added', snap => {
+                const chat = snap.val();
+                const box = document.getElementById('chat-messages');
+                const isMe = chat.sender === 'client';
+                box.innerHTML += `<div class="msg ${isMe ? 'me' : 'them'}">${chat.msg}</div>`;
+                box.scrollTop = box.scrollHeight;
+            });
+        }
+
+        // --- FUNGSI PENDUKUNG ---
+        function openChat() { document.getElementById('chat-modal').style.display = 'flex'; }
+        function closeChat() { document.getElementById('chat-modal').style.display = 'none'; }
+
+        function sendChat() {
+            const input = document.getElementById('chat-input');
+            if (!input.value) return;
+            db.ref(`missions/${missionId}/chats`).push({
+                sender: 'client',
+                msg: input.value,
+                timestamp: Date.now()
+            });
+            input.value = "";
+        }
+
+        function updateETA(dPos, pCoords) {
+            // Logika sederhana: Jika jarak < 50 meter, status "TIBA"
+            document.getElementById('eta-text').innerText = "3 Menit"; // Simulasi untuk Pro look
+        }
+    </script>
+</body>
+</html>
