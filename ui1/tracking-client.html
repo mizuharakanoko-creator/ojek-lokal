@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracking Driver - SOVEREIGN</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --p-cyan: #00f3ff;
+            --p-pink: #ff00ea;
+            --p-bg: #050505;
+            --p-glass: rgba(15, 15, 15, 0.9);
+        }
+
+        body {
+            background-color: var(--p-bg);
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+            margin: 0; padding: 0;
+            overflow: hidden; /* Map memenuhi layar */
+        }
+
+        /* --- MAP SECTION --- */
+        #map {
+            width: 100%;
+            height: 100vh;
+            filter: brightness(0.6) contrast(1.2) saturate(0.5) hue-rotate(180deg); /* Dark Mode Map Look */
+        }
+
+        /* --- OVERLAY UI --- */
+        .overlay-ui {
+            position: absolute;
+            z-index: 1000;
+            width: 100%;
+            pointer-events: none; /* Klik tembus ke map kecuali tombol */
+        }
+
+        .top-bar {
+            top: 0;
+            background: linear-gradient(to bottom, black, transparent);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: auto;
+        }
+
+        .status-box {
+            background: var(--p-glass);
+            border-left: 3px solid var(--p-cyan);
+            padding: 10px 15px;
+        }
+
+        .status-box label { font-size: 10px; color: #888; display: block; }
+        .status-box span { font-family: 'Orbitron'; font-size: 14px; color: var(--p-cyan); }
+
+        /* --- DRIVER CARD (Floating) --- */
+        .driver-floating-card {
+            bottom: 100px;
+            left: 20px; right: 20px;
+            background: var(--p-glass);
+            border: 1px solid #333;
+            padding: 15px;
+            border-radius: 10px;
+            pointer-events: auto;
+            position: absolute;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-action {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            font-weight: bold;
+            font-family: 'Rajdhani';
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-wa { background: #25D366; color: white; border-radius: 5px; }
+        .btn-chat { background: var(--p-cyan); color: black; border-radius: 5px; }
+
+        /* --- CHAT MODAL --- */
+        #chat-modal {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 70vh;
+            background: var(--p-bg);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            border-top: 2px solid var(--p-cyan);
+            pointer-events: auto;
+        }
+
+        .chat-header { padding: 15px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; }
+        #chat-messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        
+        .msg { max-width: 80%; padding: 8px 12px; border-radius: 5px; font-size: 14px; }
+        .msg.me { align-self: flex-end; background: var(--p-cyan); color: black; }
+        .msg.them { align-self: flex-start; background: #222; color: white; }
+
+        .chat-input-area { padding: 15px; display: flex; gap: 10px; background: #111; }
+        .chat-input-area input { flex: 1; background: #000; border: 1px solid #333; color: white; padding: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div class="overlay-ui top-bar">
+        <div class="status-box">
+            <label>ESTIMASI TIBA</label>
+            <span id="eta-text">Menghitung...</span>
+        </div>
+        <div class="status-box" style="border-left-color: var(--p-pink); text-align: right;">
+            <label>ID MISI</label>
+            <span id="mission-id-display">####</span>
+        </div>
+    </div>
+
+    <div class="driver-floating-card">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:15px;">
+            <img id="d-photo" src="https://via.placeholder.com/50" style="width:50px; height:50px; border-radius:50%; border:2px solid var(--p-cyan);">
+            <div style="flex:1;">
+                <div id="d-name" style="font-family:Orbitron; font-size:16px;">Sovereign Driver</div>
+                <div id="d-vehicle" style="font-size:12px; color:#888;">NMAX - B 1234 ABC</div>
+            </div>
+            <div style="text-align:right;">
+                <div style="color:var(--p-cyan); font-weight:bold;">Rp <span id="m-price">0</span></div>
+                <div style="font-size:10px; color:#aaa;">Tarif Deal</div>
+            </div>
+        </div>
+        
+        <div style="display:flex; gap:10px;">
+            <button onclick="openChat()" class="btn-action btn-chat">💬 CHAT SYSTEM</button>
+            <button id="wa-link" class="btn-action btn-wa">🟢 WHATSAPP</button>
+        </div>
+    </div>
+
+    <div id="chat-modal">
+        <div class="chat-header">
+            <span style="font-family:Orbitron;">COMMS CHANNEL</span>
+            <button onclick="closeChat()" style="background:none; border:none; color:white; font-size:20px;">×</button>
+        </div>
+        <div id="chat-messages"></div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Ketik pesan manual...">
+            <button onclick="sendChat()" style="background:var(--p-cyan); border:none; padding:10px 20px; font-weight:bold;">KIRIM</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
