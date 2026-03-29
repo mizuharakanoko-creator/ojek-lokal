@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SYSTEM LOGIN | S-CLASS HUB</title>
     
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400&display=swap" rel="stylesheet">
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     
@@ -24,49 +25,84 @@
         }
 
         .login-card {
-            width: 320px; padding: 30px;
+            width: 350px; padding: 40px 30px;
             border: 1px solid var(--p-purple);
-            background: rgba(10, 10, 10, 0.9);
-            box-shadow: 0 0 20px rgba(188, 0, 255, 0.3);
+            background: rgba(5, 5, 5, 0.95);
+            box-shadow: 0 0 25px rgba(188, 0, 255, 0.2);
             text-align: center;
             box-sizing: border-box;
         }
 
+        /* Font: Miring & Ramping (400) */
         .glitch-text {
-            color: var(--p-cyan); font-size: 18px; letter-spacing: 3px;
-            margin-bottom: 30px; text-transform: uppercase;
+            color: var(--p-purple); 
+            font-size: 20px; 
+            letter-spacing: 4px;
+            margin-bottom: 35px; 
+            text-transform: uppercase;
+            font-style: italic;
+            font-weight: 400;
         }
 
         .input-group { margin-bottom: 20px; text-align: left; }
-        label { font-size: 10px; color: #888; display: block; margin-bottom: 5px; text-transform: uppercase; }
+        
+        label { 
+            font-size: 10px; 
+            color: var(--p-cyan); 
+            display: block; 
+            margin-bottom: 8px; 
+            text-transform: uppercase; 
+            font-style: italic;
+            font-weight: 400;
+        }
         
         input, select {
-            width: 100%; padding: 12px; background: #000;
-            border: 1px solid #333; color: #fff; box-sizing: border-box;
-            outline: none; font-family: 'Courier New', monospace; font-size: 14px;
+            width: 100%; padding: 14px; background: #000;
+            border: 1px solid #222; color: #fff; box-sizing: border-box;
+            outline: none; font-family: 'Orbitron', sans-serif; 
+            font-size: 13px; font-style: italic; font-weight: 400;
         }
 
-        input:focus { border-color: var(--p-cyan); }
+        input:focus { border-color: var(--p-cyan); color: #fff; }
 
         .btn-login {
-            width: 100%; padding: 15px;
-            background: var(--p-purple); color: #fff;
-            border: none; font-weight: bold; cursor: pointer;
-            margin-top: 10px; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
+            width: 100%; padding: 18px;
+            background: transparent; 
+            color: var(--p-purple);
+            border: 1px solid var(--p-purple); 
+            font-weight: 400; 
+            font-style: italic;
+            cursor: pointer;
+            margin-top: 15px; 
             text-transform: uppercase;
+            letter-spacing: 3px;
+            font-family: 'Orbitron';
+            transition: 0.3s;
         }
 
-        .btn-login:active { transform: scale(0.95); opacity: 0.8; }
+        .btn-login:hover {
+            background: var(--p-purple);
+            color: #fff;
+            box-shadow: 0 0 15px var(--p-purple);
+        }
 
-        .footer-link { margin-top: 25px; font-size: 10px; color: #555; line-height: 1.5; }
-        .footer-link a { color: var(--p-cyan); text-decoration: none; font-weight: bold; }
+        .footer-link { margin-top: 30px; font-size: 10px; color: #444; font-style: italic; }
+        .footer-link a { color: var(--p-cyan); text-decoration: none; font-weight: 400; }
+
+        /* Notifikasi Status */
+        #status-msg {
+            margin-top: 15px; font-size: 10px; color: #f4ff00; 
+            font-style: italic; display: none; border: 1px dashed #f4ff00; padding: 10px;
+        }
     </style>
 </head>
 <body>
 
 <div class="login-card">
-    <div class="glitch-text">AUTHENTICATION</div>
+    <div class="glitch-text">IDENTITY VERIFY</div>
     
+    <div id="status-msg"></div>
+
     <div class="input-group">
         <label>Access ID (Unique ID)</label>
         <input type="text" id="login-id" placeholder="ID Registrasi Anda...">
@@ -75,21 +111,20 @@
     <div class="input-group">
         <label>Account Type</label>
         <select id="login-type">
-            <option value="customer">PEMESAN (CUSTOMER)</option>
             <option value="driver">DRIVER (S-CLASS)</option>
+            <option value="customer">PEMESAN (CUSTOMER)</option>
         </select>
     </div>
 
-    <button class="btn-login" onclick="processLogin()">Identity Verify</button>
+    <button class="btn-login" onclick="processLogin()">Authorize Access</button>
 
     <div class="footer-link">
-        ACCESS DENIED? <br>
-        <a href="register-client.html">CREATE NEW CITIZEN ID</a>
+        UNREGISTERED CITIZEN? <br>
+        <a href="register-driver.html">APPLY FOR PILOT STATUS</a>
     </div>
 </div>
 
 <script>
-    // DATA KONFIGURASI ASLI ANDA
     const firebaseConfig = {
         apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
         authDomain: "ojeklokal-42b84.firebaseapp.com",
@@ -103,49 +138,68 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    function processLogin() {
-    const id = document.getElementById('login-id').value.trim();
-    const type = document.getElementById('login-type').value;
+    // FITUR OTOMATIS: Cek status pendaftaran saat halaman dimuat
+    window.onload = async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const regId = urlParams.get('reg');
+        const statusBox = document.getElementById('status-msg');
 
-    if(!id) {
-        alert("SISTEM: Harap masukkan ID Akses Anda.");
-        return;
-    }
-
-    // PERBAIKAN DI SINI: Sesuaikan dengan nama folder di Firebase Anda
-    // Customer di folder 'users_customer', Driver di folder 'drivers'
-    const dbPath = (type === 'customer') ? 'users_customer/' : 'drivers/';
-
-    console.log("Mencoba verifikasi ID:", id, "di folder:", dbPath);
-
-    db.ref(dbPath + id).once('value', (snapshot) => {
-        if (snapshot.exists()) {
-            const userData = snapshot.val();
+        if (regId) {
+            document.getElementById('login-id').value = regId;
+            const snap = await db.ref('pending_verifications/' + regId).once('value');
             
-            // Nama field di database driver adalah 'nama' (huruf kecil)
-            // Sedangkan di customer mungkin 'name'. Kita antisipasi keduanya:
-            const displayName = userData.nama || userData.name || "User";
-            
-            alert("ACCESS GRANTED! Welcome, " + displayName);
-
-            if (type === 'customer') {
-                localStorage.setItem('current_customer_id', id);
-                window.location.href = 'order-client.html';
-            } else {
-                // Simpan data driver untuk digunakan di halaman mission-hub
-                localStorage.setItem('current_driver_id', id);
-                localStorage.setItem('driver_name', displayName);
-                window.location.href = 'mission-hub.html';
+            if (snap.exists()) {
+                statusBox.style.display = 'block';
+                statusBox.innerText = "STATUS: PENDING VERIFICATION. ADMIN AKAN MENGHUBUNGI ANDA VIA WHATSAPP.";
             }
-        } else {
-            alert("ACCESS DENIED: ID tidak ditemukan di database " + type.toUpperCase());
         }
-    })
-    .catch((err) => {
-        alert("SYSTEM ERROR: " + err.message);
-    });
-}
+    };
 
+    async function processLogin() {
+        const id = document.getElementById('login-id').value.trim();
+        const type = document.getElementById('login-type').value;
+
+        if(!id) {
+            alert("SYSTEM: ACCESS ID REQUIRED.");
+            return;
+        }
+
+        const dbPath = (type === 'customer') ? 'users_customer/' : 'drivers/';
+
+        try {
+            // 1. Cek di Database Utama
+            const snapshot = await db.ref(dbPath + id).once('value');
+            
+            if (snapshot.exists()) {
+                const userData = snapshot.val();
+                const displayName = userData.nama || userData.name || "User";
+                
+                alert("ACCESS GRANTED: " + displayName.toUpperCase());
+
+                if (type === 'customer') {
+                    localStorage.setItem('current_customer_id', id);
+                    window.location.href = 'order-client.html';
+                } else {
+                    localStorage.setItem('current_driver_id', id);
+                    window.location.href = 'mission-hub.html';
+                }
+            } else {
+                // 2. Jika Driver tidak ketemu, cek apakah masih di antrean Pending
+                if (type === 'driver') {
+                    const pendingSnap = await db.ref('pending_verifications/' + id).once('value');
+                    if (pendingSnap.exists()) {
+                        alert("ACCESS DENIED: AKUN ANDA MASIH DALAM PROSES VERIFIKASI ADMIN.");
+                    } else {
+                        alert("ACCESS DENIED: ID TIDAK TERDAFTAR.");
+                    }
+                } else {
+                    alert("ACCESS DENIED: ID TIDAK TERDAFTAR.");
+                }
+            }
+        } catch (err) {
+            alert("SYSTEM ERROR: " + err.message);
+        }
+    }
 </script>
 
 </body>
