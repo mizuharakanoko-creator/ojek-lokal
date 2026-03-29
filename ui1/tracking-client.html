@@ -68,13 +68,13 @@
             animation: bounce 0.5s infinite alternate;
         }
 
-        /* CHAT WINDOW */
+        /* CHAT WINDOW - PERBAIKAN POSISI (top 10vh agar lebih naik) */
         #chat-window {
-            position: fixed; top: 100%; left: 0; width: 100%; height: 85vh;
+            position: fixed; top: 100%; left: 0; width: 100%; height: 90vh;
             background: var(--p-bg); z-index: 3000; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex; flex-direction: column; border-top: 2px solid var(--p-cyan);
         }
-        #chat-window.active { top: 15vh; }
+        #chat-window.active { top: 10vh; }
         
         .chat-header { padding: 15px; background: #111; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; }
         .chat-msgs { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background-image: radial-gradient(#111 1px, transparent 1px); background-size: 20px 20px; }
@@ -85,8 +85,9 @@
             background: rgba(0, 243, 255, 0.95); color: #000;
             padding: 10px 15px; border-radius: 8px; font-weight: bold;
             z-index: 2500; display: flex; align-items: center; gap: 10px;
-            transform: translateY(-150%); transition: 0.5s;
+            transform: translateY(-200%); transition: 0.5s;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            cursor: pointer;
         }
         #chat-toast.show { transform: translateY(0); }
 
@@ -100,6 +101,9 @@
         .msg { max-width: 80%; padding: 10px 14px; border-radius: 10px; font-size: 14px; line-height: 1.4; }
         .msg.me { align-self: flex-end; background: var(--p-cyan); color: #000; border-bottom-right-radius: 2px; }
         .msg.them { align-self: flex-start; background: #222; color: #fff; border-bottom-left-radius: 2px; border: 1px solid #333; }
+
+        /* Icon styling to prevent white box */
+        .no-bg-icon { background: none !important; border: none !important; }
         
         @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-3px); } }
     </style>
@@ -174,11 +178,30 @@
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-6.9585, 108.5096], 15);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        let driverMarker = L.marker([0,0], {icon: L.divIcon({className: 'd-icon', html: "<div style='background:var(--p-cyan); width:12px; height:12px; border:2px solid #fff; border-radius:50%; box-shadow:0 0 10px var(--p-cyan);'></div>"})}).addTo(map);
-        let pickupMarker = L.marker([0,0], {icon: L.divIcon({html: "📍", iconSize:[30,30], iconAnchor:[15,30]})}).addTo(map);
+        // Marker Driver
+        let driverMarker = L.marker([0,0], {
+            icon: L.divIcon({
+                className: 'no-bg-icon', 
+                html: "<div style='background:var(--p-cyan); width:12px; height:12px; border:2px solid #fff; border-radius:50%; box-shadow:0 0 10px var(--p-cyan);'></div>",
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            })
+        }).addTo(map);
+
+        // Marker Penjemputan (Titik Putih dihilangkan dengan no-bg-icon)
+        let pickupMarker = L.marker([0,0], {
+            icon: L.divIcon({
+                className: 'no-bg-icon', 
+                html: "<div style='font-size:30px; line-height:1;'>📍</div>", 
+                iconSize: [30, 30], 
+                iconAnchor: [15, 30]
+            })
+        }).addTo(map);
+
         let routeLine = L.polyline([], {color: '#00f3ff', weight: 2, dashArray: '5, 8', opacity: 0.6}).addTo(map);
 
         let isChatOpen = false;
+        let toastTimeout; // Untuk menghapus timeout lama
 
         if (missionId) {
             db.ref(`missions/${missionId}`).on('value', snap => {
@@ -201,7 +224,6 @@
                 }
             });
 
-            // LOGIKA NOTIFIKASI CHAT
             db.ref(`missions/${missionId}/chats`).on('child_added', snap => {
                 const chat = snap.val();
                 const box = document.getElementById('chat-msgs');
@@ -210,7 +232,6 @@
                 box.innerHTML += `<div class="msg ${isMe ? 'me' : 'them'}">${chat.msg}</div>`;
                 box.scrollTop = box.scrollHeight;
 
-                // Tampilkan Balon & Toast jika pengirimnya Driver dan chat sedang tertutup
                 if (!isMe && !isChatOpen) {
                     showChatNotification(chat.msg);
                 }
@@ -218,30 +239,33 @@
         }
 
         function showChatNotification(msg) {
-            // Tampilkan badge di tombol
             document.getElementById('notif-badge').style.display = 'block';
             
-            // Tampilkan toast melayang
             const toast = document.getElementById('chat-toast');
             document.getElementById('toast-msg').innerText = msg;
             toast.classList.add('show');
 
-            // Sembunyikan toast otomatis setelah 4 detik
-            setTimeout(() => { toast.classList.remove('show'); }, 4000);
+            // Hapus timeout sebelumnya jika ada agar tidak bentrok
+            clearTimeout(toastTimeout);
 
-            // Bunyi notifikasi sederhana
+            // Sembunyikan otomatis dalam 4 detik
+            toastTimeout = setTimeout(() => { 
+                toast.classList.remove('show'); 
+            }, 4000);
+
             try { new Audio('https://assets.mixkit.co/active_storage/sfx/2357/2357-preview.mp3').play(); } catch(e){}
         }
 
         function toggleChat() {
             const win = document.getElementById('chat-window');
+            const toast = document.getElementById('chat-toast');
             isChatOpen = !isChatOpen;
             win.classList.toggle('active');
             
             if (isChatOpen) {
-                // Sembunyikan notifikasi saat chat dibuka
                 document.getElementById('notif-badge').style.display = 'none';
-                document.getElementById('chat-toast').classList.remove('show');
+                toast.classList.remove('show');
+                clearTimeout(toastTimeout);
             }
         }
 
