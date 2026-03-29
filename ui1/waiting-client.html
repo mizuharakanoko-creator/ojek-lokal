@@ -25,12 +25,30 @@
 
         .edu-card { background: rgba(188, 0, 255, 0.1); border: 1px dashed var(--p-purple); padding: 15px; border-radius: 10px; margin: 25px 0; font-size: 12px; color: #ccc; text-align: left; }
         
-        /* Driver List */
-        .driver-card { background: #151515; border: 1px solid #333; padding: 15px; border-radius: 8px; margin-bottom: 12px; text-align: left; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--p-cyan); }
-        .driver-info h4 { margin: 0; color: var(--p-cyan); font-size: 14px; }
-        .driver-info small { color: #888; display: block; margin-top: 4px; }
+        /* Driver List Styling */
+        .driver-card { 
+            background: #151515; 
+            border: 1px solid #333; 
+            padding: 12px; 
+            border-radius: 8px; 
+            margin-bottom: 12px; 
+            text-align: left; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-left: 4px solid var(--p-cyan); 
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .driver-info h4 { margin: 0; color: var(--p-cyan); font-size: 14px; text-transform: uppercase; }
+        .driver-info small { color: #888; display: block; margin-top: 4px; font-size: 11px; }
         
-        .btn-choose { background: var(--p-cyan); color: black; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        .driver-photo { width: 45px; height: 45px; border-radius: 50%; border: 1px solid var(--p-cyan); object-fit: cover; margin-right: 12px; }
+
+        .btn-choose { background: var(--p-cyan); color: black; border: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; }
+        .btn-choose:active { transform: scale(0.95); }
+        
         .btn-cancel { background: none; border: 1px solid #444; color: #888; width: 100%; padding: 15px; border-radius: 8px; cursor: pointer; margin-top: 30px; font-weight: bold; }
 
         #retry-dialog { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 999; justify-content: center; align-items: center; flex-direction: column; padding: 20px; }
@@ -48,8 +66,12 @@
             Tunggu sebentar, penawaran dari driver terdekat akan muncul di sini secara otomatis.
         </div>
 
-        <div id="driver-list">
-            <p style="color: #444; font-style: italic; font-size: 13px;">Menghubungkan ke satelit...</p>
+        <h3 style="font-family: 'Courier New'; color: var(--p-cyan); font-size: 11px; text-align: center; margin-top: 20px; letter-spacing: 1px;">
+            UNIT TERDETEKSI: <span id="applicant-count">0</span>
+        </h3>
+
+        <div id="applicants-list">
+            <p style="color: #444; font-style: italic; font-size: 13px; margin-top: 20px;">Menghubungkan ke satelit...</p>
         </div>
 
         <button onclick="cancelOrder()" class="btn-cancel">BATALKAN PESANAN</button>
@@ -66,7 +88,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <script>
-        // 1. CONFIG (PASTIKAN SAMA DENGAN HALAMAN ORDER)
+        // 1. FIREBASE INITIALIZATION
         const firebaseConfig = {
             apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
             authDomain: "ojeklokal-42b84.firebaseapp.com",
@@ -81,38 +103,80 @@
         const db = firebase.database();
 
         const missionId = localStorage.getItem('active_mission_id');
-        
         if (!missionId || missionId === "null") { 
             window.location.replace('order-client.html'); 
         }
 
         const mRef = db.ref('missions/' + missionId);
 
-        // 2. MONITORING MISI
+        // 2. MONITORING MISSION STATUS (Jika dipilih/dibatalkan)
         mRef.on('value', (snapshot) => {
             const data = snapshot.val();
-            
-            // Jika admin hapus misi atau dibatalkan
-            if (!data) {
-                console.log("Misi tidak ditemukan di DB.");
-                exitWaiting();
-                return;
-            }
+            if (!data) { exitWaiting(); return; }
 
-            // Jika Driver sudah mengambil misi
+            // Jika misi sudah dalam proses (berhasil memilih driver)
             if (data.status === "on_process") {
                 mRef.off();
-                localStorage.setItem('isSearchingDriver', 'false');
-                alert("Driver ditemukan! Menuju halaman perjalanan...");
+                alert("DRIVER TERKONFIRMASI! Membuka koordinat penjemputan...");
                 window.location.replace('tracking-client.html');
                 return;
             }
-
-            // Update list bidder (driver yang nawar)
-            updateBidderList(data.bidders);
         });
 
-        // 3. TIMER LOGIC
+        // 3. LISTEN FOR APPLICANTS (Sistem Bursa Driver)
+        function listenForApplicants() {
+            db.ref(`missions/${missionId}/applicants`).on('value', (snapshot) => {
+                const listDiv = document.getElementById('applicants-list');
+                const countLabel = document.getElementById('applicant-count');
+                listDiv.innerHTML = "";
+
+                const applicants = snapshot.val();
+                if (!applicants) {
+                    countLabel.innerText = "0";
+                    listDiv.innerHTML = '<p style="color: #444; font-style: italic; margin-top: 20px; font-size: 12px;">Menunggu respon driver...</p>';
+                    return;
+                }
+
+                const keys = Object.keys(applicants);
+                countLabel.innerText = keys.length;
+
+                keys.forEach(id => {
+                    const d = applicants[id];
+                    const card = `
+                        <div class="driver-card">
+                            <div style="display:flex; align-items:center;">
+                                <img src="${d.driverPhoto || 'https://via.placeholder.com/50'}" class="driver-photo">
+                                <div class="driver-info">
+                                    <h4>${d.driverName}</h4>
+                                    <small>⭐ ${d.driverRating || '5.0'} • Posisi: ${d.distanceToPickup || '?'}</small>
+                                    <small style="color:var(--p-orange); font-weight:bold;">Est: ${d.eta || '?'}</small>
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="color:var(--p-cyan); font-weight:bold; font-size:14px; margin-bottom:5px;">Rp ${d.dealPrice.toLocaleString()}</div>
+                                <button onclick="selectDriver('${id}', '${d.driverName}', ${d.dealPrice})" class="btn-choose">PILIH</button>
+                            </div>
+                        </div>
+                    `;
+                    listDiv.insertAdjacentHTML('beforeend', card);
+                });
+            });
+        }
+
+        // 4. SELECT DRIVER LOGIC
+        function selectDriver(dId, dName, finalPrice) {
+            if (confirm(`Pilih ${dName} untuk pesanan ini?`)) {
+                mRef.update({
+                    status: "on_process",
+                    driverId: dId,
+                    driverName: dName,
+                    price: finalPrice, // Mengunci harga deal (jika ada nego)
+                    acceptedTime: firebase.database.ServerValue.TIMESTAMP
+                }).catch(err => alert("Gagal mengunci driver: " + err.message));
+            }
+        }
+
+        // 5. TIMER LOGIC
         let countdown = 90; 
         const timerInterval = setInterval(() => {
             countdown--;
@@ -128,65 +192,22 @@
             }
         }, 1000);
 
-        // 4. DISPLAY DRIVERS
-        function updateBidderList(bidders) {
-            const listDiv = document.getElementById('driver-list');
-            listDiv.innerHTML = "";
-
-            if (!bidders) {
-                listDiv.innerHTML = '<p style="color: #444; font-style: italic; margin-top: 20px;">Menunggu driver merespon...</p>';
-                return;
-            }
-
-            Object.keys(bidders).forEach(id => {
-                const d = bidders[id];
-                const card = document.createElement('div');
-                card.className = "driver-card";
-                card.innerHTML = `
-                    <div class="driver-info">
-                        <h4>${d.name.toUpperCase()}</h4>
-                        <small>⭐ ${d.rating || '5.0'} • ${d.vehicle || 'Motor'}</small>
-                    </div>
-                    <button onclick="chooseDriver('${id}', '${d.name}')" class="btn-choose">PILIH</button>
-                `;
-                listDiv.appendChild(card);
-            });
-        }
-
-        function chooseDriver(dId, dName) {
-            if (confirm(`Pilih ${dName} sebagai sopir Anda?`)) {
-                mRef.update({
-                    status: "on_process",
-                    driverId: dId,
-                    driverName: dName
-                }).catch(err => alert("Gagal memilih: " + err.message));
-            }
-        }
-
-        // 5. CLEANUP
-        
+        // 6. CLEANUP & CANCEL
         function cancelOrder() {
-    if (confirm("Yakin ingin membatalkan pesanan?")) {
-        // Hapus data dari Firebase
-        mRef.remove()
-            .then(() => {
-                console.log("Misi berhasil dihapus dari database.");
-                exitWaiting();
-            })
-            .catch((err) => {
-                console.error("Gagal menghapus:", err);
-                // Tetap keluar jika error (misal data sudah tidak ada)
-                exitWaiting();
-            });
-    }
+            if (confirm("Batalkan pesanan ini?")) {
+                mRef.remove().then(() => exitWaiting());
+            }
         }
-        
 
         function exitWaiting() {
             mRef.off();
+            db.ref(`missions/${missionId}/applicants`).off();
             localStorage.removeItem('active_mission_id');
             window.location.replace('order-client.html');
         }
+
+        // Jalankan pemantau driver saat halaman dimuat
+        listenForApplicants();
 
         // Anti-Back
         window.history.pushState(null, null, window.location.href);
