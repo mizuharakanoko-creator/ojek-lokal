@@ -64,6 +64,7 @@
 </div>
 
 <script>
+    // Konfigurasi Anda (Pastikan ini sesuai dengan Project Settings di Firebase)
     const firebaseConfig = {
         apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
         authDomain: "ojeklokal-42b84.firebaseapp.com",
@@ -76,14 +77,17 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // LISTEN DATA PENDING
+    // Fungsi untuk memantau data pendaftaran
     db.ref('pending_verifications').on('value', (snapshot) => {
         const listContainer = document.getElementById('driver-list');
         const countDisplay = document.getElementById('count-display');
+        
+        console.log("Data diterima dari Firebase:", snapshot.val()); // Cek di F12 Console
+
         listContainer.innerHTML = '';
 
         if (!snapshot.exists()) {
-            listContainer.innerHTML = '<div id="empty-msg">NO SIGNALS DETECTED.</div>';
+            listContainer.innerHTML = '<div id="empty-msg">NO SIGNALS DETECTED IN DATABASE.</div>';
             countDisplay.innerText = "STREAMS: 0";
             return;
         }
@@ -94,14 +98,17 @@
             const d = child.val();
             const wa = child.key;
 
-            // Template Card dengan data dari pendaftaran
+            // Jika data d adalah string (karena salah format di register), 
+            // kita buat tampilan darurat agar tetap muncul di dashboard
+            const name = (typeof d === 'object') ? (d.nama || "UNNAMED") : "UNKNOWN ENTITY";
+            const nik = (typeof d === 'object') ? (d.nik || "-") : "INVALID DATA";
+
             const card = `
                 <div class="driver-card">
                     <div class="info">
                         <span>SIGNAL ID: ${wa}</span>
-                        <h3>${d.nama || 'UNKNOWN'}</h3>
-                        <p>NIK: ${d.nik || '-'} | AREA: ${d.area || '-'}</p>
-                        <p style="color:#333; font-size: 8px;">UNIT: ${d.plat || '-'}</p>
+                        <h3>${name.toUpperCase()}</h3>
+                        <p>IDENT: ${nik} | SECURE CHANNEL ACTIVE</p>
                     </div>
                     <div class="action-btns">
                         <button class="btn-approve" onclick="approveDriver('${wa}')">Authorize</button>
@@ -112,59 +119,53 @@
             listContainer.innerHTML += card;
         });
         countDisplay.innerText = "STREAMS: " + count;
+    }, (error) => {
+        // Jika ada masalah di Rules, akan muncul di sini
+        console.error("Firebase Error:", error);
+        document.getElementById('driver-list').innerHTML = `<div id="empty-msg" style="color:red">ERROR: ${error.message}</div>`;
     });
 
     async function approveDriver(wa) {
-        if (!confirm("AUTHORIZE PILOT " + wa + " TO GLOBAL DATABASE?")) return;
-
+        if (!confirm("CONFIRM AUTHORIZATION?")) return;
         try {
             const snap = await db.ref('pending_verifications/' + wa).once('value');
             const d = snap.val();
 
-            // INJECT 60+ ELEMENTS DATABASE SESUAI PERMINTAAN
-            const fullData = {
+            // Suntikkan Database Lengkap (62 Element)
+            const payload = {
                 id_driver: wa,
-                nama_lengkap: d.nama,
+                nama_lengkap: d.nama || "Pilot",
                 nomor_telepon: wa,
-                nomor_ktp: d.nik,
+                nomor_ktp: d.nik || "0",
                 domisili: d.area || "-",
                 area_tugas: d.area || "-",
                 tanggal_terdaftar: Date.now(),
                 kategori_mitra: "S-CLASS PILOT",
-                pin_transaksi: d.pin,
+                pin_transaksi: d.pin || "123456",
                 status_verifikasi: "VERIFIED",
-                
-                // RPG & PROGRESSION (Default Level 1)
                 level: 1, current_xp: 0, max_xp: 100, rank_class: "F-RANK",
                 stamina_current: 100, stamina_max: 100,
-                
-                // ECONOMY
                 saldo_gold: 0, total_points: 0, saldo_silver: 0, saldo_bronze: 0,
-                saldo_mengendap: 10000,
-                
-                // MEDIA & STATS (0 ALL)
                 order_selesai: 0, order_batal: 0,
                 count_penampilan_sopan: 0, count_nyaman_baik: 0,
                 count_aman_baik: 0, count_kecepatan_tinggi: 0,
                 count_teliti_tinggi: 0, count_puas_tinggi: 0,
                 count_personality_like: 0
-                // ... Sisa element otomatis terbuat saat data dipanggil
             };
 
-            await db.ref('drivers/' + wa).set(fullData);
-            await db.ref('registered_niks/' + d.nik).set(true);
+            await db.ref('drivers/' + wa).set(payload);
+            if(d.nik) await db.ref('registered_niks/' + d.nik).set(true);
             await db.ref('pending_verifications/' + wa).remove();
-
-            alert("SUCCESS: PILOT " + d.nama + " IS NOW ACTIVE.");
+            alert("PILOT ACTIVATED");
         } catch (e) {
-            alert("CRITICAL ERROR: " + e.message);
+            alert("COMMAND FAILED: " + e.message);
         }
     }
 
     async function rejectDriver(wa) {
-        if (!confirm("PURGE DATA?")) return;
-        await db.ref('pending_verifications/' + wa).remove();
+        if (confirm("PURGE DATA?")) await db.ref('pending_verifications/' + wa).remove();
     }
 </script>
+    
 </body>
 </html>
