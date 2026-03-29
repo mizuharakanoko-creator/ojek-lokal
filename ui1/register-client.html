@@ -92,45 +92,49 @@
     const db = firebase.database();
 
     function registerUser() {
-        const name = document.getElementById('reg-name').value;
-        const userId = document.getElementById('reg-id').value;
-        const phone = document.getElementById('reg-phone').value;
+    const name = document.getElementById('reg-name').value;
+    const userId = document.getElementById('reg-id').value;
+    const phone = document.getElementById('reg-phone').value;
 
-        // Validasi Sederhana
-        if(!name || !userId) {
-            alert("SYSTEM: Nama dan ID Wajib Diisi!");
-            return;
-        }
-
-        // Membersihkan ID dari karakter yang dilarang Firebase
-        const cleanID = userId.replace(/[.#$\[\]]/g, "");
-
-        console.log("Mencoba mendaftarkan ID:", cleanID);
-
-        // Simpan Data ke Database
-        db.ref('users_customer/' + cleanID).set({
-            name: name,
-            phone: phone,
-            joinDate: new Date().toLocaleDateString('id-ID', {year: 'numeric', month: 'short'}),
-            totalOrders: 0,
-            cancellations: 0,
-            likes: 0,
-            dislikes: 0,
-            reputation: "MORTAL",
-            status: "Verified",
-            timestamp: Date.now()
-        })
-        .then(() => {
-            alert("REGISTRASI BERHASIL!");
-            localStorage.setItem('current_customer_id', cleanID);
-            // Redirect ke halaman order
-            window.location.href = 'order-client.html';
-        })
-        .catch((error) => {
-            console.error("Firebase Error:", error);
-            alert("SISTEM ERROR: " + error.message);
-        });
+    if(!name || !userId) {
+        alert("SYSTEM: Nama dan ID Wajib Diisi!");
+        return;
     }
+
+    // Membersihkan ID
+    const cleanID = userId.replace(/[.#$\[\]]/g, "").toLowerCase();
+
+    // 1. FORMAT TANGGAL GABUNG (Contoh: "Mar 2026")
+    const now = new Date();
+    const joinDateStr = now.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+
+    // 2. SIMPAN DATA DENGAN FIELD YANG SERAGAM
+    db.ref('users_customer/' + cleanID).set({
+        name: name,
+        phone: phone,
+        joinDate: joinDateStr,       // Format seragam "Mar 2026"
+        memberSince: joinDateStr,    // Cadangan agar sinkron dengan misi
+        totalOrders: 0,              // Gunakan totalOrders secara konsisten
+        misiSelesai: 0,              // Cadangan untuk pembacaan di misi
+        cancel: 0,                   // Persingkat nama field agar hemat database
+        like: 0,
+        dislike: 0,
+        reputation: 0,               // Mulai dari angka 0 (Nanti dikonversi ke label)
+        reputationLabel: "PENGGUNA BARU", // Gantikan "MORTAL" dengan label baru
+        status: "Verified",
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    })
+    .then(() => {
+        alert("REGISTRASI BERHASIL! Selamat datang, Citizen.");
+        localStorage.setItem('current_customer_id', cleanID);
+        window.location.href = 'order-client.html';
+    })
+    .catch((error) => {
+        console.error("Firebase Error:", error);
+        alert("SISTEM ERROR: " + error.message);
+    });
+}
+
 </script>
 
 </body>
