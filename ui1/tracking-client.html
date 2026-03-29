@@ -190,4 +190,235 @@
     <div id="modal-detail" class="modal-overlay" onclick="this.style.display='none'">
         <div class="modal-box" onclick="event.stopPropagation()">
             <img id="m-detail-img" src="" style="width:80px; height:80px; border-radius:50%; border:2px solid var(--p-cyan);">
-            <h3 id="m-detail-name" style="font-family:Orbitron; margin:10px 0 5px;">
+            <h3 id="m-detail-name" style="font-family:Orbitron; margin:10px 0 5px;">-</h3>
+            <p style="color:var(--p-cyan); font-size:14px; margin:0 0 20px;" id="m-detail-plat"></p>
+            
+            <div style="display:flex; justify-content:space-between; text-align:left; border-top:1px solid #333; padding-top:15px; font-size:13px;">
+                <div>
+                    <div style="color:#888;">Exp Tier</div>
+                    <strong style="color:var(--p-cyan);">Vanguard</strong>
+                </div>
+                <div>
+                    <div style="color:#888;">Misi Selesai</div>
+                    <strong id="m-detail-missions">0</strong>
+                </div>
+                <div>
+                    <div style="color:#888;">Rating</div>
+                    <strong>⭐ <span id="m-detail-rating">0.0</span></strong>
+                </div>
+            </div>
+            <button onclick="document.getElementById('modal-detail').style.display='none'" style="margin-top:20px; width:100%; padding:10px; border-radius:8px; background:var(--p-chat-bg); color:var(--p-text); border:1px solid #555;">Tutup</button>
+        </div>
+    </div>
+
+    <div id="modal-rating" class="modal-overlay">
+        <div class="modal-box">
+            <h3 style="font-family:Orbitron; color:var(--p-cyan);">MISI SELESAI</h3>
+            <p style="font-size:14px; color:#aaa;">Berikan rating untuk performa driver ini.</p>
+            <div class="stars" id="star-container" style="margin:20px 0;">
+                <i class="fa-solid fa-star" onclick="setRating(1)"></i>
+                <i class="fa-solid fa-star" onclick="setRating(2)"></i>
+                <i class="fa-solid fa-star" onclick="setRating(3)"></i>
+                <i class="fa-solid fa-star" onclick="setRating(4)"></i>
+                <i class="fa-solid fa-star" onclick="setRating(5)"></i>
+            </div>
+            <button onclick="submitFinish()" style="width:100%; padding:12px; border-radius:8px; background:var(--p-pink); color:white; border:none; font-family:Orbitron; font-weight:bold; cursor:pointer;">KONFIRMASI SELESAI</button>
+            <button onclick="document.getElementById('modal-rating').style.display='none'" style="margin-top:10px; width:100%; background:none; color:#888; border:none; cursor:pointer;">Batal</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const missionId = localStorage.getItem('active_mission_id') || "MISI_DEFAULT";
+        let driverData = null;
+        let selectedRating = 5; // Default bintang 5
+        let pickupCoords = null;
+
+        // --- TEMA GELAP/TERANG ---
+        let isLight = false;
+        const tileDark = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        const tileLight = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+        
+        const map = L.map('map', { zoomControl: false }).setView([-6.9585, 108.5096], 15);
+        let mapLayer = L.tileLayer(tileDark).addTo(map);
+
+        function toggleTheme() {
+            isLight = !isLight;
+            document.documentElement.setAttribute('data-theme', isLight ? 'light' : 'dark');
+            document.getElementById('theme-icon').className = isLight ? "fa-solid fa-sun" : "fa-solid fa-moon";
+            mapLayer.setUrl(isLight ? tileLight : tileDark);
+        }
+
+        // --- INISIALISASI MARKER & GARIS BIRU ---
+        let driverMarker = L.marker([0,0]).addTo(map);
+        let pickupMarker = L.marker([0,0], {icon: L.divIcon({className: '', html: '📍', iconSize: [24, 24]})}).addTo(map);
+        
+        // Garis Biru (Vector Tracker)
+        let routeLine = L.polyline([], {color: '#00f3ff', weight: 4, dashArray: '10, 10', opacity: 0.8}).addTo(map);
+
+        // --- LOAD DATA ---
+        db.ref(`missions/${missionId}`).on('value', snap => {
+            const m = snap.val();
+            if (!m) return;
+
+            if (m.pickupCoords) {
+                const [lat, lng] = m.pickupCoords.split(',').map(Number);
+                pickupCoords = [lat, lng];
+                pickupMarker.setLatLng(pickupCoords);
+            }
+
+            if (m.driverId) {
+                db.ref(`drivers/${m.driverId}`).on('value', dSnap => {
+                    driverData = dSnap.val();
+                    if (driverData) {
+                        // Update UI Header
+                        document.getElementById('d-name').innerText = driverData.name;
+                        document.getElementById('d-vehicle').innerText = driverData.vehicle;
+                        document.getElementById('d-photo').src = driverData.photo || "https://via.placeholder.com/100";
+                        
+                        // Update UI Modal Detail
+                        document.getElementById('m-detail-img').src = driverData.photo;
+                        document.getElementById('m-detail-name').innerText = driverData.name;
+                        document.getElementById('m-detail-plat').innerText = driverData.vehicle;
+                        document.getElementById('m-detail-missions').innerText = driverData.totalMissions || 0;
+                        document.getElementById('m-detail-rating').innerText = driverData.rating || "5.0";
+
+                        // WA
+                        document.getElementById('wa-btn').onclick = () => {
+                            window.open(`https://wa.me/${driverData.phone}?text=Halo Pak, saya dari misi ${missionId}`, '_blank');
+                        };
+
+                        // Update Posisi & Garis
+                        if (driverData.coords && pickupCoords) {
+                            const dPos = [driverData.coords.lat, driverData.coords.lng];
+                            driverMarker.setLatLng(dPos);
+                            
+                            // Gambar Garis Biru
+                            routeLine.setLatLngs([pickupCoords, dPos]);
+                            
+                            // Hitung Jarak Kasar
+                            const dist = map.distance(pickupCoords, dPos);
+                            document.getElementById('distance-text').innerText = dist > 1000 ? (dist/1000).toFixed(1) + ' km' : Math.round(dist) + ' meter';
+                        }
+                    }
+                });
+            }
+        });
+
+        // --- CHAT & NOTIFIKASI ---
+        let initialLoad = true;
+        db.ref(`missions/${missionId}/chats`).on('child_added', snap => {
+            const chat = snap.val();
+            appendChat(chat);
+
+            if (!initialLoad && chat.sender === 'driver') {
+                showNotif(chat.type === 'image' ? "Mengirim gambar" : chat.msg);
+            }
+        });
+        db.ref(`missions/${missionId}/chats`).once('value', () => initialLoad = false);
+
+        function showNotif(text) {
+            const pop = document.getElementById('popup-notif');
+            document.getElementById('notif-text').innerText = "Driver: " + text;
+            pop.style.display = 'flex';
+            
+            // Trigger ulang animasi
+            pop.style.animation = 'none';
+            pop.offsetHeight; 
+            pop.style.animation = 'slideDown 0.4s forwards, fadeOut 0.3s 3.5s forwards';
+        }
+
+        function toggleChat() {
+            document.getElementById('chat-window').classList.toggle('active');
+        }
+
+        function formatTime(ms) {
+            const d = new Date(ms);
+            return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+        }
+
+        function appendChat(chat) {
+            const box = document.getElementById('chat-msgs');
+            const isMe = chat.sender === 'client';
+            let content = chat.type === 'image' ? `<img src="${chat.msg}" onclick="window.open(this.src)">` : chat.msg;
+            
+            box.innerHTML += `
+                <div class="msg ${isMe ? 'me' : 'them'}">
+                    ${content}
+                    <span class="time">${formatTime(chat.timestamp)}</span>
+                </div>`;
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chat-input');
+            if (!input.value.trim()) return;
+            db.ref(`missions/${missionId}/chats`).push({ sender: 'client', msg: input.value, type: 'text', timestamp: Date.now() });
+            input.value = "";
+        }
+
+        // --- UPLOAD GAMBAR (BASE64) ---
+        function uploadImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result;
+                db.ref(`missions/${missionId}/chats`).push({ sender: 'client', msg: base64, type: 'image', timestamp: Date.now() });
+            };
+            reader.readAsDataURL(file); // Konversi gambar ke text base64
+        }
+
+        // --- RATING & SELESAI ---
+        function showRatingModal() {
+            document.getElementById('modal-rating').style.display = 'flex';
+            setRating(5); // Reset ke bintang 5
+        }
+
+        function setRating(val) {
+            selectedRating = val;
+            const stars = document.getElementById('star-container').children;
+            for(let i=0; i<5; i++) {
+                stars[i].className = i < val ? "fa-solid fa-star active" : "fa-solid fa-star";
+            }
+        }
+
+        async function submitFinish() {
+            if(!driverData) return;
+            try {
+                // 1. Update total misi & log rating ke driver
+                const driverRef = db.ref(`drivers/${driverData.id || driverData.phone}`); // Sesuaikan key driver kamu
+                
+                // (Opsi) Simpan riwayat rating
+                db.ref(`drivers/${driverData.id || driverData.phone}/ratings`).push({
+                    score: selectedRating, date: Date.now(), missionId: missionId
+                });
+
+                // 2. Hapus Misi
+                await db.ref(`missions/${missionId}`).remove();
+                localStorage.removeItem('active_mission_id');
+                
+                alert("Misi berhasil diselesaikan! Terima kasih.");
+                window.location.href = 'index.html';
+            } catch (e) {
+                console.error(e);
+                alert("Misi selesai offline/lokal.");
+                window.location.href = 'index.html';
+            }
+        }
+    </script>
+</body>
+</html>
