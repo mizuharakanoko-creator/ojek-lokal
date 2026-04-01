@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | MISSION TERMINAL</title>
+    <link rel="stylesheet" href="master.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* NATIVE APP FEEL */
+        * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { overscroll-behavior-y: contain; background-color: #000; color: #fff; min-height: 100vh; margin: 0; }
+        input { -webkit-user-select: text; user-select: text; }
+
+        /* PERBAIKAN 1: CSS Loading Transition */
+        #page-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 10000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s ease;
+        }
+        .loader-bar {
+            width: 200px; height: 2px; background: rgba(255,255,255,0.1);
+            position: relative; overflow: hidden; margin-top: 20px;
+        }
+        .loader-progress {
+            width: 0%; height: 100%; background: var(--neon-cyan);
+            position: absolute; animation: loadAnim 2s infinite;
+        }
+        @keyframes loadAnim {
+            0% { width: 0%; left: 0; }
+            50% { width: 100%; left: 0; }
+            100% { width: 0%; left: 100%; }
+        }
+
+        /* PERBAIKAN 3: Theme Toggle Animation (Sun to Moon) */
+        .theme-toggle {
+            width: 45px; height: 45px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.05); position: relative;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+        }
+        .icon-svg { transition: opacity 0.3s, transform 0.3s; position: absolute; }
+        /* Logika Sembunyi/Muncul Ikon */
+        [data-theme="dark"] #moonIcon { opacity: 0; transform: scale(0) rotate(-45deg); }
+        [data-theme="light"] #sunIcon { opacity: 0; transform: scale(0) rotate(45deg); }
+
+        /* MODAL (Dari Kode Pertama) */
+        #customModal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); display: none;
+            justify-content: center; align-items: center; z-index: 9999;
+        }
+        .modal-box {
+            width: 80%; padding: 30px; border: 1px solid var(--neon-pink);
+            background: #0a0a0a; text-align: center;
+            animation: scaleIn 0.3s ease-out;
+        }
+        @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* UI Elements */
+        .role-container { display: flex; background: #111; border-radius: 12px; padding: 5px; margin-bottom: 25px; border: 1px solid #222; }
+        .role-btn { flex: 1; padding: 15px; text-align: center; font-size: 11px; font-weight: 800; border-radius: 8px; transition: 0.4s; color: #444; }
+        .role-btn.active[data-role="worker"] { background: var(--neon-cyan); color: #000; box-shadow: 0 0 20px var(--neon-cyan-dim); }
+        .role-btn.active[data-role="client"] { background: var(--neon-pink); color: #000; box-shadow: 0 0 20px var(--neon-pink-dim); }
+    </style>
+</head>
+<body class="notranslate">
+
+<div id="page-loader">
+    <h2 class="text-neon-pink" style="letter-spacing: 5px; font-size: 14px;">SYSTEM INITIALIZING</h2>
+    <div class="loader-bar"><div class="loader-progress"></div></div>
+</div>
+
+<div class="app-container">
+    <div style="display:flex; justify-content: flex-end; padding:20px;">
+        <div class="theme-toggle" onclick="toggleTheme()" id="themeBtn">
+            <svg id="sunIcon" class="icon-svg text-neon-cyan" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg id="moonIcon" class="icon-svg text-neon-pink" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </div>
+    </div>
+
+    <div style="text-align:center; margin-bottom:40px;">
+        <h1 class="text-neon-pink" style="font-size:55px; margin:0; letter-spacing:5px;">PICK ME</h1>
+        <p style="color:var(--neon-cyan); font-size:10px; letter-spacing:3px; font-family:monospace; margin-top:5px;">GUILD LIFE RPG : MISSION TERMINAL</p>
+    </div>
+
+    <div class="card" style="background: rgba(10,10,10,0.8); border: 1px solid rgba(255,255,255,0.05);">
+        <label style="font-size:10px; color:#555; margin-bottom:10px; display:block;">IDENTIFY ACCESS TYPE:</label>
+        <div class="role-container">
+            <div class="role-btn active" data-role="worker" onclick="setRole('worker')">ADVENTURER</div>
+            <div class="role-btn" data-role="client" onclick="setRole('client')">REQUESTER</div>
+        </div>
+
+        <div class="input-group">
+            <label>ACCESS ID</label>
+            <input type="text" id="accessId" class="input-field" placeholder="Enter Terminal ID...">
+        </div>
+
+        <div class="input-group">
+            <label>ACCESS CODE</label>
+            <input type="password" id="accessPass" class="input-field" placeholder="******">
+        </div>
+
+        <div class="input-group" style="border: 1px solid rgba(0,255,255,0.2); padding:12px; border-radius:8px;">
+            <label>HUMAN VERIFICATION: <span id="mathQ" style="color:var(--neon-cyan)"></span></label>
+            <input type="number" id="mathA" class="input-field" placeholder="Result?">
+        </div>
+
+        <button class="btn btn-primary animate-pulse" onclick="handleLogin()" id="btnLogin" style="margin-top:15px;">INITIALIZE ACCESS</button>
+
+        <div style="text-align:center; margin-top:30px; font-size:11px;">
+            <span style="color:#444;">UNREGISTERED CITIZEN?</span><br><br>
+            <a href="javascript:void(0)" onclick="navigateTo('register.html')" style="color:var(--neon-cyan); text-decoration:none; font-weight:bold; border:1px solid; padding:8px 15px; border-radius:5px;">APPLY FOR STATUS</a>
+        </div>
+    </div>
+</div>
+
+<div id="customModal">
+    <div class="modal-box">
+        <h2 id="modalTitle" class="text-neon-pink" style="margin-top:0;">DENIED</h2>
+        <p id="modalMsg" style="font-size:13px; color:#ccc; line-height:1.6;"></p>
+        <button class="btn btn-secondary" onclick="closeModal()">ACKNOWLEDGE</button>
+    </div>
+</div>
+
+<script>
+    // 1. Firebase Config (Dari Kode 1)
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 2. Navigation & Loading Logic
+    function navigateTo(url) {
+        if(navigator.vibrate) navigator.vibrate(50);
+        const loader = document.getElementById('page-loader');
+        loader.style.display = 'flex';
+        setTimeout(() => { loader.style.opacity = '1'; }, 10);
+        setTimeout(() => { window.location.href = url; }, 800);
+    }
+
+    // 3. Theme Toggle (Improved Animation)
+    function toggleTheme() {
+        if(navigator.vibrate) navigator.vibrate(30);
+        const html = document.documentElement;
+        const current = html.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        
+        document.getElementById('themeBtn').style.transform = "rotate(360deg)";
+        setTimeout(() => {
+            html.setAttribute('data-theme', next);
+            document.getElementById('themeBtn').style.transform = "rotate(0deg)";
+        }, 300);
+    }
+
+    // 4. Core Logic
+    let currentRole = 'worker';
+    function setRole(role) {
+        if(navigator.vibrate) navigator.vibrate(20);
+        currentRole = role;
+        document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelector(`.role-btn[data-role="${role}"]`).classList.add('active');
+    }
+
+    let n1, n2;
+    function genCap() {
+        n1 = Math.floor(Math.random()*10); n2 = Math.floor(Math.random()*10);
+        document.getElementById('mathQ').innerText = n1 + " + " + n2;
+    }
+
+    async function handleLogin() {
+        const id = document.getElementById('accessId').value.trim();
+        const pass = document.getElementById('accessPass').value;
+        const ans = document.getElementById('mathA').value;
+        
+        if(!id || !pass) return showMsg("Access ID and Code are required.");
+        if(parseInt(ans) !== (n1+n2)) return showMsg("Human verification failed.");
+
+        const btn = document.getElementById('btnLogin');
+        btn.innerText = "DECRYPTING..."; btn.disabled = true;
+
+        const path = currentRole === 'worker' ? 'drivers/' : 'users_customer/';
+        
+        try {
+            const snap = await db.ref(path + id).once('value');
+            if(snap.exists()){
+                const user = snap.val();
+                if(user.password === pass) {
+                    if(navigator.vibrate) navigator.vibrate([50, 50, 50]);
+                    localStorage.setItem('uid', id);
+                    localStorage.setItem('role', currentRole);
+                    
+                    let target = (currentRole === 'worker' && user.status_verifikasi !== 'VERIFIED') ? 'waiting_room.html' : 'dashboard.html';
+                    navigateTo(target);
+                } else { showMsg("Invalid Access Code."); }
+            } else { showMsg("Identity not found."); }
+        } catch (e) { showMsg("Terminal Error: " + e.message); }
+        
+        btn.innerText = "INITIALIZE ACCESS"; btn.disabled = false;
+        genCap();
+    }
+
+    function showMsg(m) {
+        document.getElementById('modalMsg').innerText = m;
+        document.getElementById('customModal').style.display = 'flex';
+        if(navigator.vibrate) navigator.vibrate(200);
+    }
+
+    function closeModal() { document.getElementById('customModal').style.display = 'none'; }
+
+    window.onload = () => {
+        genCap();
+        // Sembunyikan loader saat halaman selesai dimuat
+        setTimeout(() => {
+            const loader = document.getElementById('page-loader');
+            loader.style.opacity = '0';
+            setTimeout(() => { loader.style.display = 'none'; }, 500);
+        }, 1000);
+    };
+</script>
+
+</body>
+</html>
