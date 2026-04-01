@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | MISSION TERMINAL</title>
+    <link rel="stylesheet" href="master.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* STEALH LAYER: Menghilangkan jejak Browser */
+        * {
+            -webkit-user-select: none; /* Anti salin tempel */
+            -webkit-touch-callout: none; /* Anti menu klik lama */
+            user-select: none;
+            touch-action: pan-y; /* Matikan zoom & pull-to-refresh */
+        }
+
+        input, select {
+            -webkit-user-select: text; /* Izinkan hanya pada input */
+            user-select: text;
+        }
+
+        body {
+            overscroll-behavior-y: none; /* Matikan efek pantul browser */
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* UI Glow & Glassmorphism */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+        }
+
+        /* Custom Modal System */
+        #customModal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-box {
+            width: 85%;
+            max-width: 350px;
+            padding: 25px;
+            border: 2px solid var(--neon-pink);
+            background: #05050a;
+            text-align: center;
+            box-shadow: 0 0 20px var(--neon-pink-dim);
+            animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes modalPop {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* Scanline Effect */
+        .app-container::before {
+            content: " ";
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            z-index: 1000;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div id="customModal">
+        <div class="modal-box">
+            <h3 id="modalTitle" class="text-neon-pink">SYSTEM ALERT</h3>
+            <p id="modalMsg" style="margin: 15px 0; font-size: 13px;"></p>
+            <button class="btn btn-secondary" onclick="closeModal()">ACKNOWLEDGE</button>
+        </div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; padding:15px; position:relative; z-index:1001;">
+        <button onclick="changeLanguage()" class="btn-secondary" style="width:auto; padding:5px 12px; font-size:10px;" id="btnLang">ID/EN</button>
+        <button onclick="toggleTheme()" class="btn-secondary" style="width:auto; padding:5px 12px; font-size:10px;" id="btnTheme">MODE: DARK</button>
+    </div>
+
+    <div style="text-align:center; margin-top:10vh;">
+        <h1 class="text-neon-pink animate-pulse" style="font-size:55px; margin:0; letter-spacing:4px;">PICK ME</h1>
+        <p class="text-neon-cyan" style="font-size:11px; letter-spacing:2px; font-family: 'Courier New';">GUILD LIFE RPG : MISSION TERMINAL</p>
+    </div>
+
+    <div class="card glass-panel" style="margin-top:40px;">
+        <div id="bootSequence" style="font-family:monospace; font-size:9px; color:var(--text-muted); margin-bottom:15px; height:15px; overflow:hidden;"></div>
+
+        <div class="input-group">
+            <label id="lblRole">IDENTITAS AKSES:</label>
+            <select id="userRole" class="input-field" onchange="hapticSoft()">
+                <option value="worker">ADVENTURER (Pekerja / Worker)</option>
+                <option value="client">REQUESTER (Pemberi Misi / Client)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label id="lblID">ACCESS ID</label>
+            <input type="text" id="accessId" class="input-field" placeholder="Ketik ID Terminal...">
+        </div>
+
+        <div class="input-group">
+            <label id="lblPass">ACCESS CODE (PASSWORD)</label>
+            <input type="password" id="accessPass" class="input-field" placeholder="******">
+        </div>
+
+        <div class="input-group" style="border: 1px dashed var(--border-cyan); padding:10px;">
+            <label id="lblCap">VERIFIKASI MANUSIA: <span id="mathQ" class="text-neon-cyan"></span></label>
+            <input type="number" id="mathA" class="input-field" placeholder="?">
+        </div>
+
+        <button class="btn btn-primary" onclick="handleLogin()" id="btnLogin" style="margin-top:10px;">INITIALIZE ACCESS</button>
+        
+        <div style="margin-top:25px; text-align:center; font-size:11px;">
+            <span id="txtNoAcc">BELUM TERDAFTAR?</span> <br>
+            <a href="register.html" class="text-neon-cyan" style="text-decoration:none; font-weight:bold;" id="linkReg">DAFTAR CITIZEN BARU</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. FIREBASE CONFIG (Asli dari Anda)
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 2. NATIVE AUDIO & HAPTIC SYSTEM
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(freq = 440, duration = 0.1) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "square";
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function hapticSoft() { if(navigator.vibrate) navigator.vibrate(20); playBeep(800, 0.05); }
+    function hapticSuccess() { if(navigator.vibrate) navigator.vibrate([30, 50, 30]); playBeep(1200, 0.1); }
+    function hapticError() { if(navigator.vibrate) navigator.vibrate(200); playBeep(200, 0.3); }
+
+    // 3. MULTI-LANGUAGE ENGINE
+    const langData = {
+        id: {
+            role: "IDENTITAS AKSES:", id: "ACCESS ID", pass: "ACCESS CODE (PASSWORD)", 
+            cap: "VERIFIKASI MANUSIA:", login: "INITIALIZE ACCESS", noAcc: "BELUM TERDAFTAR?", 
+            reg: "DAFTAR CITIZEN BARU", wait: "MENGHUBUNGKAN KE SERVER...", errCap: "CAPTCHA SALAH!",
+            errEmpty: "DATA HARUS DIISI!", titleErr: "AKSES DITOLAK"
+        },
+        en: {
+            role: "ACCESS IDENTITY:", id: "ACCESS ID", pass: "ACCESS CODE (PASSWORD)", 
+            cap: "HUMAN VERIFICATION:", login: "INITIALIZE ACCESS", noAcc: "UNREGISTERED?", 
+            reg: "REGISTER NEW CITIZEN", wait: "CONNECTING TO SERVER...", errCap: "WRONG CAPTCHA!",
+            errEmpty: "FIELDS REQUIRED!", titleErr: "ACCESS DENIED"
+        }
+    };
+    let currentLang = 'id';
+
+    function changeLanguage() {
+        hapticSoft();
+        currentLang = currentLang === 'id' ? 'en' : 'id';
+        const d = langData[currentLang];
+        document.getElementById('lblRole').innerText = d.role;
+        document.getElementById('lblID').innerText = d.id;
+        document.getElementById('lblPass').innerText = d.pass;
+        document.getElementById('lblCap').innerHTML = `${d.cap} <span id="mathQ" class="text-neon-cyan">${num1} + ${num2}</span>`;
+        document.getElementById('btnLogin').innerText = d.login;
+        document.getElementById('txtNoAcc').innerText = d.noAcc;
+        document.getElementById('linkReg').innerText = d.reg;
+        document.getElementById('btnLang').innerText = currentLang.toUpperCase();
+    }
+
+    // 4. CUSTOM MODAL & CAPTCHA
+    let num1, num2;
+    function genCaptcha() {
+        num1 = Math.floor(Math.random() * 10);
+        num2 = Math.floor(Math.random() * 10);
+        document.getElementById('mathQ').innerText = `${num1} + ${num2}`;
+    }
+
+    function showAlert(msg, title = "SYSTEM ALERT") {
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalMsg').innerText = msg;
+        document.getElementById('customModal').style.display = 'flex';
+        hapticError();
+    }
+
+    function closeModal() {
+        hapticSoft();
+        document.getElementById('customModal').style.display = 'none';
+    }
+
+    // 5. LOGIN LOGIC
+    async function handleLogin() {
+        const role = document.getElementById('userRole').value;
+        const id = document.getElementById('accessId').value.trim();
+        const pass = document.getElementById('accessPass').value;
+        const ans = document.getElementById('mathA').value;
+        const d = langData[currentLang];
+
+        if(!id || !pass) return showAlert(d.errEmpty);
+        if(parseInt(ans) !== (num1 + num2)) return showAlert(d.errCap);
+
+        hapticSoft();
+        // Simulasi Loading Terminal
+        document.getElementById('btnLogin').innerText = "DECRYPTING...";
+        document.getElementById('btnLogin').disabled = true;
+
+        const dbPath = (role === 'worker') ? 'drivers/' : 'users_customer/';
+
+        try {
+            const snap = await db.ref(dbPath + id).once('value');
+            if (snap.exists()) {
+                const user = snap.val();
+                if(user.password === pass) {
+                    hapticSuccess();
+                    localStorage.setItem('role', role);
+                    localStorage.setItem('uid', id);
+                    
+                    if(role === 'worker') {
+                        window.location.href = (user.status_verifikasi === 'VERIFIED') ? 'mission_hub.html' : 'waiting_room.html';
+                    } else {
+                        window.location.href = 'order_client.html';
+                    }
+                } else {
+                    showAlert("ACCESS CODE INVALID.", d.titleErr);
+                }
+            } else {
+                showAlert("IDENTITY NOT FOUND IN DATABASE.", d.titleErr);
+            }
+        } catch (e) {
+            showAlert("CONNECTION LOST: " + e.message);
+        } finally {
+            document.getElementById('btnLogin').innerText = d.login;
+            document.getElementById('btnLogin').disabled = false;
+            genCaptcha();
+        }
+    }
+
+    // Anti-Back & Boot Sequence
+    window.onload = () => {
+        genCaptcha();
+        const logs = ["INITIALIZING...", "CHECKING ENCRYPTION...", "READY."];
+        let i = 0;
+        const logBox = document.getElementById('bootSequence');
+        const interval = setInterval(() => {
+            logBox.innerHTML += `> ${logs[i]}<br>`;
+            i++;
+            if(i >= logs.length) clearInterval(interval);
+        }, 300);
+
+        // Anti-Refresh Logic
+        window.history.pushState(null, null, window.location.href);
+        window.onpopstate = function() {
+            window.history.go(1);
+            showAlert("LOGOUT REQUIRED TO NAVIGATE BACK.");
+        };
+    };
+
+    function toggleTheme() {
+        hapticSoft();
+        const html = document.documentElement;
+        const isDark = html.getAttribute('data-theme') === 'dark';
+        html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+        document.getElementById('btnTheme').innerText = `MODE: ${isDark ? 'LIGHT' : 'DARK'}`;
+    }
+</script>
+</body>
+</html>
