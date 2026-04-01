@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | LOGIN TERMINAL</title>
+    <link rel="stylesheet" href="master.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="loading-overlay" id="loader">
+        <div class="spinner"></div>
+        <p class="text-neon-cyan" style="margin-top:15px; font-family:monospace;">DECRYPTING ACCESS...</p>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; padding:15px;">
+        <button class="btn-secondary" onclick="toggleLanguage()" id="langBtn" style="width:auto; padding:5px 10px; font-size:10px;">ID/EN</button>
+        <button class="btn-secondary" onclick="toggleTheme()" id="themeBtn" style="width:auto; padding:5px 10px; font-size:10px;">MODE: DARK</button>
+    </div>
+
+    <div style="text-align:center; margin:30px 0;">
+        <h1 class="text-neon-pink" style="font-size:48px; margin:0; letter-spacing:2px;">PICK ME</h1>
+        <p class="text-neon-cyan" style="font-size:10px; font-family:monospace; opacity:0.8;">[ GUILD LIFE RPG: SOVEREIGN MISSION ]</p>
+    </div>
+
+    <div class="card">
+        <p class="text-muted" style="font-size:9px; margin-bottom:15px; font-family:monospace;">>> LOGIN_PROTOCOL_INITIALIZED</p>
+        
+        <div class="input-group">
+            <label id="txtRole">LOGIN SEBAGAI:</label>
+            <select id="userRole" class="input-field">
+                <option value="worker">ADVENTURER (Pekerja / Worker)</option>
+                <option value="client">REQUESTER (Pemberi Misi / Client)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label id="txtID">ACCESS ID (UNIQUE ID)</label>
+            <input type="text" id="accessId" class="input-field" placeholder="ID Terdaftar...">
+        </div>
+
+        <div class="input-group">
+            <label id="txtPass">ACCESS CODE (PASSWORD)</label>
+            <input type="password" id="accessPass" class="input-field" placeholder="******">
+        </div>
+
+        <div class="input-group" style="background:rgba(0,255,255,0.05); padding:10px; border-radius:4px;">
+            <label id="txtCaptcha">VERIFIKASI MANUSIA: <span id="mathQuestion" class="text-neon-cyan"></span></label>
+            <input type="number" id="captchaAnswer" class="input-field" placeholder="Hasil?">
+        </div>
+
+        <button class="btn btn-primary animate-pulse" onclick="processLogin()" id="btnLogin">AUTHORIZE ACCESS</button>
+
+        <div style="margin-top:20px; text-align:center; font-size:11px;">
+            <a href="register.html" class="text-neon-cyan" style="text-decoration:none;" id="lnkReg">DAFTAR CITIZEN BARU</a>
+            <p class="text-muted" style="margin-top:10px; font-style:italic;" id="lnkForgot">LUPA ACCESS CODE?</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Firebase Config (Asli Anda)
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 2. Captcha Logic
+    let num1 = Math.floor(Math.random() * 10);
+    let num2 = Math.floor(Math.random() * 10);
+    document.getElementById('mathQuestion').innerText = `${num1} + ${num2}`;
+
+    // 3. Theme & Lang Logic
+    function toggleTheme() {
+        const html = document.documentElement;
+        const current = html.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', next);
+        document.getElementById('themeBtn').innerText = `MODE: ${next.toUpperCase()}`;
+    }
+
+    let isIndo = true;
+    function toggleLanguage() {
+        isIndo = !isIndo;
+        document.getElementById('txtRole').innerText = isIndo ? "LOGIN SEBAGAI:" : "LOGIN AS:";
+        document.getElementById('txtID').innerText = isIndo ? "ACCESS ID (UNIQUE ID)" : "ACCESS ID (UNIQUE ID)";
+        document.getElementById('txtPass').innerText = isIndo ? "ACCESS CODE (PASSWORD)" : "ACCESS CODE (PASSWORD)";
+        document.getElementById('btnLogin').innerText = isIndo ? "AUTHORIZE ACCESS" : "AUTHORIZE ACCESS";
+        document.getElementById('lnkReg').innerText = isIndo ? "DAFTAR CITIZEN BARU" : "REGISTER NEW CITIZEN";
+    }
+
+    // 4. Main Login Logic
+    async function processLogin() {
+        const role = document.getElementById('userRole').value;
+        const id = document.getElementById('accessId').value.trim();
+        const pass = document.getElementById('accessPass').value;
+        const captcha = document.getElementById('captchaAnswer').value;
+        const loader = document.getElementById('loader');
+
+        // Sanitasi & Validasi Awal
+        if(!id || !pass) return alert("SYSTEM: Masukan ID dan Password.");
+        if(parseInt(captcha) !== (num1 + num2)) return alert("SYSTEM: Captcha Salah.");
+
+        loader.classList.add('active'); // Tampilkan Animasi Loading
+
+        const dbPath = (role === 'worker') ? 'drivers/' : 'users_customer/';
+
+        try {
+            const snap = await db.ref(dbPath + id).once('value');
+            
+            if (snap.exists()) {
+                const user = snap.val();
+                
+                // Cek Password (mengasumsikan kolom di database bernama 'password')
+                if(user.password === pass) {
+                    alert("ACCESS GRANTED: SELAMAT DATANG " + (user.nama || user.name).toUpperCase());
+                    
+                    if(role === 'worker') {
+                        localStorage.setItem('current_driver_id', id);
+                        window.location.href = (user.status_verifikasi === 'VERIFIED') ? 'mission-hub.html' : 'waiting-room.html';
+                    } else {
+                        localStorage.setItem('current_customer_id', id);
+                        window.location.href = 'order-client.html';
+                    }
+                } else {
+                    alert("ACCESS DENIED: PASSWORD SALAH.");
+                    loader.classList.remove('active');
+                }
+            } else {
+                // Cek apakah ada di antrean pending khusus untuk Worker
+                if(role === 'worker') {
+                    const pending = await db.ref('pending_verifications/' + id).once('value');
+                    if(pending.exists()) alert("SISTEM: AKUN MASIH DALAM TAHAP VERIFIKASI ADMIN.");
+                    else alert("SISTEM: ID TIDAK DITEMUKAN.");
+                } else {
+                    alert("SISTEM: ID TIDAK DITEMUKAN.");
+                }
+                loader.classList.remove('active');
+            }
+        } catch (err) {
+            alert("SYSTEM ERROR: " + err.message);
+            loader.classList.remove('active');
+        }
+    }
+</script>
+</body>
+</html>
