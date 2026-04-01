@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>PICK ME | MISSION TERMINAL</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-cyan: #0ff;
+            --neon-cyan-dim: rgba(0, 255, 255, 0.4);
+            --neon-pink: #f0f;
+            --neon-pink-dim: rgba(255, 0, 255, 0.4);
+            --dark-bg: #030303;
+            --panel-bg: rgba(10, 10, 10, 0.75);
+        }
+
+        /* 1. NATIVE APP FEEL & ANTI BROWSER TRACES */
+        * {
+            -webkit-user-select: none; user-select: none;
+            -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+            box-sizing: border-box; outline: none;
+        }
+        
+        /* Menyembunyikan Scrollbar tapi tetap bisa scroll */
+        ::-webkit-scrollbar { display: none; }
+        
+        body {
+            font-family: 'New Citizen Registry', 'Rajdhani', sans-serif;
+            overscroll-behavior-y: none; /* Anti pull-to-refresh CSS */
+            background-color: var(--dark-bg);
+            color: #fff; margin: 0; padding: 0;
+            min-height: 100vh; overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        input { -webkit-user-select: text; user-select: text; font-family: inherit; }
+
+        /* 2. TERMINAL SCANLINE OVERLAY (Estetika Hidup) */
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            z-index: 9998; pointer-events: none; opacity: 0.4;
+        }
+
+        /* 3. LOADING TRANSITION LAYER */
+        #page-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 10000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .loader-bar {
+            width: 220px; height: 3px; background: rgba(255,255,255,0.05);
+            position: relative; overflow: hidden; margin-top: 25px; border-radius: 2px;
+            box-shadow: 0 0 10px var(--neon-cyan-dim);
+        }
+        .loader-progress {
+            width: 0%; height: 100%; background: var(--neon-cyan);
+            position: absolute; animation: loadAnim 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+            box-shadow: 0 0 15px var(--neon-cyan);
+        }
+        @keyframes loadAnim { 0% { width: 0%; left: 0; } 50% { width: 100%; left: 0; } 100% { width: 0%; left: 100%; } }
+
+        /* 4. THEME TOGGLE (Sun to Moon Animation) */
+        .theme-toggle {
+            width: 45px; height: 45px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.03); position: relative;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s;
+            cursor: pointer; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .theme-toggle:active { transform: scale(0.85); }
+        .icon-svg { transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55); position: absolute; }
+        [data-theme="dark"] #moonIcon { opacity: 0; transform: scale(0) rotate(-90deg); }
+        [data-theme="light"] #sunIcon { opacity: 0; transform: scale(0) rotate(90deg); }
+        
+        .text-neon-cyan { color: var(--neon-cyan); text-shadow: 0 0 8px var(--neon-cyan-dim); }
+        .text-neon-pink { color: var(--neon-pink); text-shadow: 0 0 8px var(--neon-pink-dim); }
+
+        /* 5. MAIN CONTAINER & CARD */
+        .app-container { padding: 0 20px 50px 20px; position: relative; z-index: 10; }
+        .card {
+            background: var(--panel-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;
+            padding: 25px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        /* ROLE SELECTOR */
+        .role-container { display: flex; background: rgba(0,0,0,0.6); border-radius: 10px; padding: 6px; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.05); }
+        .role-btn { flex: 1; padding: 14px; text-align: center; font-size: 13px; font-weight: 700; border-radius: 6px; transition: all 0.3s ease; color: #555; cursor: pointer; letter-spacing: 1px; }
+        .role-btn.active[data-role="worker"] { background: var(--neon-cyan); color: #000; box-shadow: 0 0 15px var(--neon-cyan-dim); text-shadow: none; }
+        .role-btn.active[data-role="client"] { background: var(--neon-pink); color: #000; box-shadow: 0 0 15px var(--neon-pink-dim); text-shadow: none; }
+
+        /* INPUT FIELDS (NEON FOCUS) */
+        .input-group { margin-bottom: 18px; text-align: left; }
+        .input-group label { font-size: 11px; color: #888; margin-bottom: 6px; display: block; letter-spacing: 1px; font-weight: 600; }
+        .input-field {
+            width: 100%; padding: 15px; background: rgba(0,0,0,0.4); border: 1px solid #222;
+            color: #fff; border-radius: 8px; font-size: 14px; transition: all 0.3s ease;
+            letter-spacing: 2px;
+        }
+        .input-field:focus {
+            border-color: var(--neon-cyan); background: rgba(0, 255, 255, 0.02);
+            box-shadow: 0 0 12px var(--neon-cyan-dim), inset 0 0 8px var(--neon-cyan-dim);
+        }
+
+        /* BUTTONS */
+        .btn { width: 100%; padding: 16px; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; letter-spacing: 2px; cursor: pointer; transition: all 0.2s active; font-family: inherit; }
+        .btn-primary { background: transparent; color: var(--neon-cyan); border: 1px solid var(--neon-cyan); box-shadow: inset 0 0 10px var(--neon-cyan-dim), 0 0 15px var(--neon-cyan-dim); }
+        .btn-primary:active { transform: scale(0.97); background: var(--neon-cyan); color: #000; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* 6. ENHANCED MODAL (GLASSMORPHISM) */
+        #customModal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+            display: none; justify-content: center; align-items: center; z-index: 9999;
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .modal-box {
+            width: 85%; max-width: 320px; padding: 30px 20px;
+            background: linear-gradient(145deg, rgba(20,20,20,0.95), rgba(5,5,5,0.95));
+            border: 1px solid var(--neon-pink); border-radius: 16px;
+            text-align: center; box-shadow: 0 10px 40px var(--neon-pink-dim);
+            transform: scale(0.8) translateY(20px); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #customModal.show { opacity: 1; }
+        #customModal.show .modal-box { transform: scale(1) translateY(0); }
+        
+        .btn-secondary { background: #111; color: #fff; border: 1px solid #333; margin-top: 20px; }
+        .btn-secondary:active { background: #222; transform: scale(0.95); }
+    </style>
+</head>
+<body class="notranslate">
+
+<div class="scanlines"></div>
+
+<div id="page-loader">
+    <h2 class="text-neon-pink" style="letter-spacing: 6px; font-size: 15px; margin-bottom: 5px;">SYSTEM INITIALIZING</h2>
+    <p style="color:var(--neon-cyan); font-size:10px; letter-spacing:3px; font-family:monospace; margin:0;">ESTABLISHING SECURE LINK...</p>
+    <div class="loader-bar"><div class="loader-progress"></div></div>
+</div>
+
+<div class="app-container">
+    <div style="display:flex; justify-content: flex-end; padding-top:20px;">
+        <div class="theme-toggle" onclick="toggleTheme()" id="themeBtn">
+            <svg id="sunIcon" class="icon-svg text-neon-cyan" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg id="moonIcon" class="icon-svg text-neon-pink" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </div>
+    </div>
+
+    <div style="text-align:center; margin-bottom:35px; margin-top: 10px;">
+        <h1 class="text-neon-pink" style="font-size:55px; margin:0; letter-spacing:6px; font-weight:700;">PICK ME</h1>
+        <p style="color:var(--neon-cyan); font-size:11px; letter-spacing:4px; margin-top:5px; font-weight:600;">GUILD LIFE RPG : TERMINAL</p>
+    </div>
+
+    <div class="card">
+        <label style="font-size:11px; color:#666; margin-bottom:12px; display:block; letter-spacing: 1px;">IDENTIFY ACCESS TYPE:</label>
+        <div class="role-container">
+            <div class="role-btn active" data-role="worker" onclick="setRole('worker')">ADVENTURER</div>
+            <div class="role-btn" data-role="client" onclick="setRole('client')">REQUESTER</div>
+        </div>
+
+        <div class="input-group">
+            <label>ACCESS ID NUMBER</label>
+            <input type="text" id="accessId" class="input-field" placeholder="Enter ID...">
+        </div>
+
+        <div class="input-group">
+            <label>ENCRYPTION KEY</label>
+            <input type="password" id="accessPass" class="input-field" placeholder="••••••">
+        </div>
+
+        <div class="input-group" style="background: rgba(0, 255, 255, 0.03); border: 1px dashed rgba(0,255,255,0.3); padding:15px; border-radius:8px;">
+            <label>BIOMETRIC BYPASS: <span id="mathQ" class="text-neon-cyan" style="font-size:14px; margin-left:5px;"></span></label>
+            <input type="number" id="mathA" class="input-field" placeholder="Result?" style="margin-top:8px;">
+        </div>
+
+        <button class="btn btn-primary" onclick="handleLogin()" id="btnLogin" style="margin-top:10px;">AUTHORIZE ACCESS</button>
+
+        <div style="text-align:center; margin-top:35px; font-size:12px;">
+            <span style="color:#555; letter-spacing: 1px;">UNREGISTERED CITIZEN?</span><br><br>
+            <a href="javascript:void(0)" onclick="navigateTo('register.html')" style="color:var(--neon-cyan); text-decoration:none; font-weight:700; letter-spacing:2px; border-bottom: 1px solid var(--neon-cyan-dim); padding-bottom:3px;">APPLY FOR STATUS</a>
+        </div>
+    </div>
+</div>
+
+<div id="customModal">
+    <div class="modal-box">
+        <h2 id="modalTitle" class="text-neon-pink" style="margin-top:0; font-size: 24px; letter-spacing: 3px;">DENIED</h2>
+        <p id="modalMsg" style="font-size:14px; color:#aaa; line-height:1.6; letter-spacing: 1px;"></p>
+        <button class="btn btn-secondary" onclick="closeModal()">ACKNOWLEDGE</button>
+    </div>
+</div>
+
+<script>
+    // 1. Firebase Config
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 2. AUDIO CONTEXT & HAPTIC FEEDBACK (Dikembalikan & Disempurnakan)
+    let audioCtx;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+    function playBeep(f, d) {
+        if(!audioCtx) return;
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        o.type="sine"; o.frequency.value=f; g.gain.value=0.05; // Volume direndahkan agar elegan
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime+d);
+    }
+    function hapticClick() { 
+        initAudio();
+        if(navigator.vibrate) navigator.vibrate(15); 
+        playBeep(800, 0.05); 
+    }
+    function hapticError() {
+        initAudio();
+        if(navigator.vibrate) navigator.vibrate([30, 50, 30]);
+        playBeep(300, 0.15);
+    }
+
+    // 3. NAVIGATION & LOADING SYSTEM
+    function navigateTo(url) {
+        hapticClick();
+        const loader = document.getElementById('page-loader');
+        loader.style.display = 'flex';
+        // Force reflow agar transisi CSS berjalan
+        void loader.offsetWidth; 
+        loader.style.opacity = '1';
+        setTimeout(() => { window.location.href = url; }, 600);
+    }
+
+    // 4. THEME TOGGLE 
+    function toggleTheme() {
+        hapticClick();
+        const html = document.documentElement;
+        const current = html.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        
+        document.getElementById('themeBtn').style.transform = "rotate(360deg) scale(0.9)";
+        setTimeout(() => {
+            html.setAttribute('data-theme', next);
+            document.getElementById('themeBtn').style.transform = "rotate(0deg) scale(1)";
+        }, 300);
+    }
+
+    // 5. ROLE LOGIC
+    let currentRole = 'worker';
+    function setRole(role) {
+        hapticClick();
+        currentRole = role;
+        document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelector(`.role-btn[data-role="${role}"]`).classList.add('active');
+        
+        // Ganti warna fokus input sesuai role untuk estetika
+        const color = role === 'worker' ? 'var(--neon-cyan)' : 'var(--neon-pink)';
+        document.documentElement.style.setProperty('--neon-cyan', color);
+    }
+
+    // 6. CAPTCHA LOGIC
+    let n1, n2;
+    function genCap() {
+        n1 = Math.floor(Math.random()*10); n2 = Math.floor(Math.random()*10);
+        document.getElementById('mathQ').innerText = n1 + " + " + n2;
+    }
+
+    // 7. ENHANCED MODAL LOGIC
+    function showMsg(m, isError = true) {
+        if(isError) hapticError();
+        document.getElementById('modalMsg').innerText = m;
+        const modal = document.getElementById('customModal');
+        modal.style.display = 'flex';
+        setTimeout(() => { modal.classList.add('show'); }, 10);
+    }
+    function closeModal() { 
+        hapticClick(); 
+        const modal = document.getElementById('customModal');
+        modal.classList.remove('show');
+        setTimeout(() => { modal.style.display = 'none'; }, 300); // Menunggu transisi CSS selesai
+    }
+
+    // 8. LOGIN EXECUTION
+    async function handleLogin() {
+        hapticClick();
+        const id = document.getElementById('accessId').value.trim();
+        const pass = document.getElementById('accessPass').value;
+        const ans = document.getElementById('mathA').value;
+        
+        if(!id || !pass) return showMsg("ACCESS ID AND ENCRYPTION KEY REQUIRED.");
+        if(parseInt(ans) !== (n1+n2)) {
+            genCap(); document.getElementById('mathA').value = "";
+            return showMsg("BIOMETRIC BYPASS FAILED. RECALCULATING...");
+        }
+
+        const btn = document.getElementById('btnLogin');
+        btn.innerHTML = "DECRYPTING<span style='animation: blink 1s infinite;'>...</span>"; 
+        btn.disabled = true;
+
+        const path = currentRole === 'worker' ? 'drivers/' : 'users_customer/';
+        
+        try {
+            const snap = await db.ref(path + id).once('value');
+            if(snap.exists()){
+                const user = snap.val();
+                if(user.password === pass) {
+                    if(navigator.vibrate) navigator.vibrate([50, 50, 100]);
+                    localStorage.setItem('uid', id);
+                    localStorage.setItem('role', currentRole);
+                    
+                    let target = (currentRole === 'worker' && user.status_verifikasi !== 'VERIFIED') ? 'waiting_room.html' : 'dashboard.html';
+                    navigateTo(target);
+                } else { showMsg("INVALID ENCRYPTION KEY."); }
+            } else { showMsg("IDENTITY NOT FOUND IN DATABASE."); }
+        } catch (e) { showMsg("SYSTEM ERROR: " + e.message); }
+        
+        btn.innerText = "AUTHORIZE ACCESS"; btn.disabled = false;
+        genCap();
+    }
+
+    // 9. ONLOAD & ANTI-PULL-TO-REFRESH (Dikembalikan)
+    window.onload = () => {
+        genCap();
+        
+        // Menghilangkan Layar Loading dengan Animasi Halus
+        setTimeout(() => {
+            const loader = document.getElementById('page-loader');
+            loader.style.opacity = '0';
+            setTimeout(() => { loader.style.display = 'none'; }, 500);
+        }, 1200);
+
+        // Mencegah Pull-to-Refresh di Mobile Browser (iOS Safari / Chrome Android)
+        let touchStart;
+        document.addEventListener('touchstart', e => { 
+            touchStart = e.touches[0].pageY; 
+        }, {passive: false});
+        
+        document.addEventListener('touchmove', e => {
+            const touch = e.touches[0].pageY;
+            // Jika berada di paling atas layar dan mencoba menarik ke bawah
+            if (document.documentElement.scrollTop === 0 && touch > touchStart) {
+                e.preventDefault(); 
+            }
+        }, {passive: false});
+
+        // Inisialisasi Audio Context pada interaksi pertama (Aturan Web Modern)
+        document.body.addEventListener('click', initAudio, { once: true });
+        document.body.addEventListener('touchstart', initAudio, { once: true });
+    };
+</script>
+
+</body>
+</html>
