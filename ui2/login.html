@@ -16,6 +16,13 @@
         body { overscroll-behavior-y: contain; background-color: #000; color: #fff; min-height: 100vh; margin: 0; }
         input { -webkit-user-select: text; user-select: text; }
 
+        /* 1. STATUS JARINGAN INDICATOR */
+        .network-status {
+            position: fixed; top: 15px; left: 15px; display: flex; align-items: center; gap: 8px; font-size: 9px; letter-spacing: 1px;
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #555; box-shadow: 0 0 5px #000; }
+        .status-dot.online { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
+
         /* 2. TRANSISI LOADING LAYER */
         #page-loader {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -23,52 +30,36 @@
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             transition: opacity 0.5s ease;
         }
-        .loader-bar {
-            width: 200px; height: 2px; background: rgba(255,255,255,0.1);
-            position: relative; overflow: hidden; margin-top: 20px;
-        }
-        .loader-progress {
-            width: 0%; height: 100%; background: var(--neon-cyan);
-            position: absolute; animation: loadAnim 2s infinite;
-        }
-        @keyframes loadAnim {
-            0% { width: 0%; left: 0; }
-            50% { width: 100%; left: 0; }
-            100% { width: 0%; left: 100%; }
-        }
+        .loader-bar { width: 200px; height: 2px; background: rgba(255,255,255,0.1); position: relative; overflow: hidden; margin-top: 20px; }
+        .loader-progress { width: 0%; height: 100%; background: var(--neon-cyan); position: absolute; animation: loadAnim 2s infinite; }
+        @keyframes loadAnim { 0% { width: 0%; left: 0; } 50% { width: 100%; left: 0; } 100% { width: 0%; left: 100%; } }
 
-        /* 3. ADVANCED THEME TOGGLE (Sun & Moon) */
-        .theme-toggle {
-            width: 45px; height: 45px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            background: rgba(255,255,255,0.05); position: relative;
-            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .icon-svg { transition: opacity 0.3s, transform 0.3s; position: absolute; }
-        [data-theme="dark"] #moonIcon { opacity: 0; transform: scale(0); }
-        [data-theme="light"] #sunIcon { opacity: 0; transform: scale(0); }
+        /* 3. SHOW/HIDE PASSWORD ICON */
+        .pass-wrapper { position: relative; width: 100%; }
+        .toggle-pass { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #444; font-size: 12px; cursor: pointer; z-index: 5; }
 
-        /* MODAL ANIMATION (KODE 1) */
-        #customModal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); display: none;
-            justify-content: center; align-items: center; z-index: 9999;
-        }
-        .modal-box {
-            width: 80%; padding: 30px; border: 1px solid var(--neon-pink);
-            background: #0a0a0a; text-align: center;
-            animation: scaleIn 0.3s ease-out;
-        }
+        /* 4. MODAL & UI ELEMENTS */
+        #customModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 9999; }
+        .modal-box { width: 85%; padding: 30px; border: 1px solid var(--neon-pink); background: #0a0a0a; text-align: center; animation: scaleIn 0.3s ease-out; }
         @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-        /* UI ELEMENTS */
         .role-container { display: flex; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 4px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); }
         .role-btn { flex: 1; padding: 12px; text-align: center; font-size: 11px; font-weight: bold; border-radius: 6px; transition: 0.3s; color: #666; }
         .role-btn.active[data-role="worker"] { background: var(--neon-cyan); color: #000; box-shadow: 0 0 15px var(--neon-cyan-dim); }
         .role-btn.active[data-role="client"] { background: var(--neon-pink); color: #000; box-shadow: 0 0 15px var(--neon-pink-dim); }
+
+        /* 5. REMEMBER ME & FORGOT */
+        .extra-tools { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 10px; color: #555; }
+        .check-container { display: flex; align-items: center; gap: 5px; }
+        .forgot-link { color: var(--neon-cyan); text-decoration: none; cursor: pointer; }
     </style>
 </head>
 <body class="notranslate">
+
+<div class="network-status">
+    <div id="netDot" class="status-dot"></div>
+    <span id="netText">SYSTEM OFFLINE</span>
+</div>
 
 <div id="page-loader">
     <h2 class="text-neon-pink" style="letter-spacing: 5px; font-size: 14px;">SYSTEM PROCESSING</h2>
@@ -96,16 +87,26 @@
         </div>
 
         <div class="input-group">
-            <label>ACCESS ID</label>
-            <input type="text" id="accessId" class="input-field" placeholder="Enter Registered Phone...">
+            <label>ACCESS ID (PHONE)</label>
+            <input type="tel" id="accessId" class="input-field" placeholder="08XXXXXXXXXX" inputmode="numeric">
         </div>
 
         <div class="input-group">
-            <label>ACCESS CODE (PASSWORD)</label>
-            <input type="password" id="accessPass" class="input-field" placeholder="******">
+            <label>ACCESS CODE</label>
+            <div class="pass-wrapper">
+                <input type="password" id="accessPass" class="input-field" placeholder="******">
+                <span class="toggle-pass" onclick="togglePass()">SHOW</span>
+            </div>
         </div>
 
-        <div class="input-group" style="border: 1px solid rgba(0,255,255,0.2); padding:12px; border-radius:8px;">
+        <div class="extra-tools">
+            <div class="check-container">
+                <input type="checkbox" id="rememberMe"> <label for="rememberMe" style="margin:0;">STAY CONNECTED</label>
+            </div>
+            <span class="forgot-link" onclick="forgotAccess()">LOST CODE?</span>
+        </div>
+
+        <div class="input-group" style="border: 1px solid rgba(0,255,255,0.2); padding:12px; border-radius:8px; margin-top:20px;">
             <label>HUMAN VERIFICATION: <span id="mathQ" style="color:var(--neon-cyan)"></span></label>
             <input type="number" id="mathA" class="input-field" placeholder="Result?">
         </div>
@@ -121,14 +122,14 @@
 
 <div id="customModal">
     <div class="modal-box">
-        <h2 id="modalTitle" class="text-neon-pink" style="margin-top:0;">DENIED</h2>
+        <h2 id="modalTitle" class="text-neon-pink" style="margin-top:0;">NOTICE</h2>
         <p id="modalMsg" style="font-size:13px; color:#ccc; line-height:1.6;"></p>
-        <button class="btn btn-secondary" onclick="closeModal()">ACKNOWLEDGE</button>
+        <div id="modalExtra"></div> <button class="btn btn-secondary" onclick="closeModal()">ACKNOWLEDGE</button>
     </div>
 </div>
 
 <script>
-    // 1. Firebase Config (KODE 1)
+    // 1. FIREBASE CONFIG
     const firebaseConfig = {
         apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
         authDomain: "ojeklokal-42b84.firebaseapp.com",
@@ -141,7 +142,46 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // 2. Audio Context (KODE 1)
+    // 2. NETWORK MONITOR
+    function updateNet() {
+        const dot = document.getElementById('netDot');
+        const txt = document.getElementById('netText');
+        if(navigator.onLine) {
+            dot.className = "status-dot online"; txt.innerText = "TERMINAL ONLINE";
+        } else {
+            dot.className = "status-dot"; txt.innerText = "SYSTEM OFFLINE";
+        }
+    }
+    window.addEventListener('online', updateNet);
+    window.addEventListener('offline', updateNet);
+
+    // 3. SHOW/HIDE PASSWORD
+    function togglePass() {
+        const p = document.getElementById('accessPass');
+        const t = document.querySelector('.toggle-pass');
+        if(p.type === 'password') { p.type = 'text'; t.innerText = 'HIDE'; }
+        else { p.type = 'password'; t.innerText = 'SHOW'; }
+    }
+
+    // 4. FORGOT ACCESS LOGIC
+    async function forgotAccess() {
+        hapticClick();
+        const id = document.getElementById('accessId').value.trim();
+        if(!id) return showMsg("Please enter your Phone ID first.");
+        
+        const path = currentRole === 'worker' ? 'drivers/' : 'users_customer/';
+        const snap = await db.ref(path + id).once('value');
+        
+        if(snap.exists()) {
+            const user = snap.val();
+            const ans = prompt(`SECURITY QUESTION: ${user.pertanyaan_lupa_password}\n\nType your answer:`);
+            if(ans && ans.toLowerCase() === user.jawaban_lupa_password.toLowerCase()) {
+                alert(`ACCESS RECOVERED. Your code is: ${user.password}`);
+            } else { alert("ACCESS DENIED: Wrong security answer."); }
+        } else { showMsg("ID not found in database."); }
+    }
+
+    // --- SISANYA ADALAH FUNGSI BAWAAN ANDA YANG SUDAH ADA ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playBeep(f, d) {
         const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
@@ -151,7 +191,6 @@
     }
     function hapticClick() { if(navigator.vibrate) navigator.vibrate(20); playBeep(800, 0.05); }
 
-    // 3. Navigation with Loader (KODE 2)
     function navigateTo(url) {
         hapticClick();
         document.getElementById('page-loader').style.display = 'flex';
@@ -159,7 +198,6 @@
         setTimeout(() => { window.location.href = url; }, 800);
     }
 
-    // 4. Role Selector (KODE 1)
     let currentRole = 'worker';
     function setRole(role) {
         hapticClick();
@@ -168,32 +206,26 @@
         document.querySelector(`.role-btn[data-role="${role}"]`).classList.add('active');
     }
 
-    // 5. Captcha (KODE 1)
     let n1, n2;
     function genCap() {
         n1 = Math.floor(Math.random()*10); n2 = Math.floor(Math.random()*10);
         document.getElementById('mathQ').innerText = n1 + " + " + n2;
     }
 
-    // 6. Advanced Theme Toggle (KODE 2)
     function toggleTheme() {
         hapticClick();
         const html = document.documentElement;
         const current = html.getAttribute('data-theme');
         const next = current === 'dark' ? 'light' : 'dark';
-        
         document.getElementById('themeBtn').style.transform = "rotate(360deg)";
-        setTimeout(() => {
-            html.setAttribute('data-theme', next);
-            document.getElementById('themeBtn').style.transform = "rotate(0deg)";
-        }, 300);
+        setTimeout(() => { html.setAttribute('data-theme', next); document.getElementById('themeBtn').style.transform = "rotate(0deg)"; }, 300);
     }
 
-    // 7. Login Execution (KODE 1)
     async function handleLogin() {
         const id = document.getElementById('accessId').value.trim();
         const pass = document.getElementById('accessPass').value;
         const ans = document.getElementById('mathA').value;
+        const remember = document.getElementById('rememberMe').checked;
         
         if(!id || !pass) return showMsg("Access ID and Code are required.");
         if(parseInt(ans) !== (n1+n2)) return showMsg("Human verification failed.");
@@ -209,10 +241,9 @@
             if(snap.exists()){
                 const user = snap.val();
                 if(user.password === pass) {
-                    if(navigator.vibrate) navigator.vibrate([50, 50, 50]);
+                    if(remember) localStorage.setItem('saved_id', id);
                     localStorage.setItem('uid', id);
                     localStorage.setItem('role', currentRole);
-                    // Gunakan transisi untuk login sukses
                     navigateTo((currentRole === 'worker' && user.status_verifikasi !== 'VERIFIED') ? 'waiting_room.html' : 'dashboard.html');
                 } else { showMsg("Invalid Access Code."); }
             } else { showMsg("Identity not found."); }
@@ -225,26 +256,21 @@
     function showMsg(m) {
         document.getElementById('modalMsg').innerText = m;
         document.getElementById('customModal').style.display = 'flex';
-        if(navigator.vibrate) navigator.vibrate(200);
     }
 
     function closeModal() { hapticClick(); document.getElementById('customModal').style.display = 'none'; }
 
     window.onload = () => {
+        updateNet();
         genCap();
-        // Sembunyikan loader saat awal buka
+        // Cek Remember Me
+        const saved = localStorage.getItem('saved_id');
+        if(saved) document.getElementById('accessId').value = saved;
+
         setTimeout(() => {
             document.getElementById('page-loader').style.opacity = '0';
             setTimeout(() => { document.getElementById('page-loader').style.display = 'none'; }, 500);
         }, 1000);
-
-        // Anti Pull-to-refresh (KODE 1)
-        let touchStart;
-        document.addEventListener('touchstart', e => { touchStart = e.touches[0].pageY; }, {passive: false});
-        document.addEventListener('touchmove', e => {
-            const touch = e.touches[0].pageY;
-            if (document.documentElement.scrollTop === 0 && touch > touchStart) e.preventDefault();
-        }, {passive: false});
     };
 </script>
 </body>
