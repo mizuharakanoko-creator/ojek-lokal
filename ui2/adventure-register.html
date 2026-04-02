@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | ADVENTURER REGISTRATION</title>
+    <link rel="stylesheet" href="master.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        body { overscroll-behavior-y: contain; background-color: #000; color: #fff; min-height: 100vh; margin: 0; padding-bottom: 40px; font-family: var(--font-main); }
+        input, select, textarea { -webkit-user-select: text; user-select: text; outline: none; }
+        
+        #page-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s; }
+        .loader-bar { width: 200px; height: 2px; background: rgba(0,255,255,0.1); position: relative; overflow: hidden; margin-top: 20px; }
+        .loader-progress { width: 0%; height: 100%; background: var(--neon-cyan); position: absolute; animation: loadAnim 2s infinite; }
+        @keyframes loadAnim { 0% { width: 0%; left: 0; } 50% { width: 100%; left: 0; } 100% { width: 0%; left: 100%; } }
+
+        .step-indicator { display: flex; justify-content: space-between; padding: 20px 30px; position: relative; }
+        .step-dot { width: 18px; height: 18px; border-radius: 50%; background: #111; border: 2px solid #333; z-index: 2; transition: 0.4s; font-size: 10px; display:flex; justify-content:center; align-items:center; color: transparent; font-family: var(--font-terminal); }
+        .step-dot.active { border-color: var(--neon-cyan); background: var(--neon-cyan); color: #000; box-shadow: 0 0 15px var(--neon-cyan); }
+        .step-line { position: absolute; top: 28px; left: 40px; right: 40px; height: 2px; background: #222; z-index: 1; }
+        .step-line-fill { height: 100%; background: var(--neon-cyan); width: 0%; transition: 0.5s; }
+
+        .reg-section { display: none; animation: fadeIn 0.4s ease; padding: 0 15px; }
+        .reg-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .avatar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-height: 250px; overflow-y: auto; padding: 10px; background: #050505; border: 1px solid var(--border-color); }
+        .avatar-box { aspect-ratio: 1; border: 1px solid #222; border-radius: 8px; overflow: hidden; position: relative; background: #111; transition: 0.2s; }
+        .avatar-box img { width: 100%; height: 100%; object-fit: cover; opacity: 0.6; }
+        .avatar-box.selected { border-color: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan-dim); }
+        .avatar-box.selected img { opacity: 1; }
+
+        .security-warning { background: rgba(255, 0, 85, 0.1); border: 1px solid var(--neon-pink); padding: 12px; margin-bottom: 15px; border-radius: 4px; }
+        .security-warning h4 { color: var(--neon-pink); margin: 0 0 5px 0; font-size: 11px; letter-spacing: 1px; }
+        .security-warning p { font-size: 10px; margin: 0; line-height: 1.4; color: #ccc; }
+
+        .suggest-box { position: absolute; width: 100%; background: #0a0a0a; border: 1px solid var(--neon-cyan); z-index: 100; max-height: 150px; overflow-y: auto; display: none; margin-top: 2px; }
+        .suggest-item { padding: 12px; border-bottom: 1px solid #111; font-size: 11px; font-family: var(--font-terminal); }
+        .suggest-item:active { background: var(--neon-cyan-dim); }
+
+        #conn-status { position: fixed; top: 15px; left: 20px; z-index: 10001; display: flex; align-items: center; gap: 6px; font-family: var(--font-terminal); font-size: 9px; padding: 4px 8px; border-radius: 4px; background: rgba(0,0,0,0.8); }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .online { color: var(--neon-cyan); } .online .status-dot { background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+        .offline { color: var(--neon-pink); } .offline .status-dot { background: var(--neon-pink); animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        
+        .nik-valid { color: var(--neon-cyan) !important; font-weight: bold; }
+        .btn-authorize { background: var(--neon-cyan) !important; color: #000 !important; font-weight: 900; box-shadow: 0 0 20px var(--neon-cyan-dim); }
+    </style>
+</head>
+<body>
+
+<div id="conn-status" class="online"><div class="status-dot"></div><span id="status-text">GUILD LINK ACTIVE</span></div>
+
+<div id="page-loader">
+    <h2 class="text-neon-cyan" style="letter-spacing: 5px; font-size: 12px;">ENCRYPTING PROTOCOLS</h2>
+    <div class="loader-bar"><div class="loader-progress"></div></div>
+</div>
+
+<div class="app-container">
+    <div style="text-align:center; padding: 30px 0 10px;">
+        <h1 class="text-neon-cyan" style="font-size:26px; margin:0; letter-spacing:4px;">ADVENTURER</h1>
+        <p style="color:var(--neon-pink); font-size:9px; letter-spacing:3px;">IDENTITY SYNCHRONIZATION</p>
+    </div>
+
+    <div class="step-indicator">
+        <div class="step-line"><div class="step-line-fill" id="stepLine"></div></div>
+        <div class="step-dot active">1</div><div class="step-dot">2</div><div class="step-dot">3</div><div class="step-dot">4</div>
+    </div>
+
+    <form id="regForm">
+        <div class="reg-section active" id="step1">
+            <div class="card">
+                <div class="input-group">
+                    <label>GUILD CALLSIGN (UNIQUE USERNAME)</label>
+                    <input type="text" id="regUser" class="input-field" placeholder="Ex: ShadowHunter99" oninput="this.value=this.value.replace(/[^a-zA-Z0-9]/g,'')">
+                </div>
+                <div class="input-group">
+                    <label>FULL LEGAL NAME</label>
+                    <input type="text" id="regName" class="input-field" placeholder="KTP Name" oninput="this.value=this.value.toUpperCase()">
+                </div>
+                <div class="input-group">
+                    <label>NATIONAL ID (NIK)</label>
+                    <input type="number" id="regNik" class="input-field" placeholder="16 Digits" oninput="handleNik(this)">
+                    <div id="nikCounter" class="nik-counter" style="font-size:9px; text-align:right; margin-top:4px; color:#555;">0 / 16 DIGIT</div>
+                </div>
+                <div class="input-group">
+                    <label>COMM-LINK (PHONE)</label>
+                    <div style="position:relative;">
+                        <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--neon-cyan); font-size:14px; font-weight:bold;">+62</span>
+                        <input type="tel" id="regPhone" class="input-field" style="padding-left:45px;" placeholder="812..." oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step2">
+            <div class="card" style="border-color: var(--neon-pink);">
+                <div class="input-group">
+                    <label>WORK VOCATION</label>
+                    <select id="regVocation" class="input-field" style="background:#000; color:var(--neon-cyan); font-weight:bold;">
+                        <option value="">SELECT...</option>
+                        <option value="PART-TIME">PART-TIME (80 STAMINA)</option>
+                        <option value="FULL-TIME">FULL-TIME (120 STAMINA)</option>
+                    </select>
+                </div>
+                <div class="input-group" style="position:relative;">
+                    <label>SMART DOMICILE (AUTO-SEARCH)</label>
+                    <input type="text" id="regDomSearch" class="input-field" placeholder="Type Village/District..." oninput="searchDom(this.value)">
+                    <div id="suggestBox" class="suggest-box"></div>
+                    <input type="hidden" id="finalProv"><input type="hidden" id="finalKec"><input type="hidden" id="finalDesa">
+                </div>
+                <div id="lockedArea" style="font-size:10px; color:#555; font-family:var(--font-terminal); padding:10px; background:#050505; border:1px dashed #222;">
+                    ASSIGNED TO: <span id="areaDisplay" class="text-neon-cyan">NONE</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step3">
+            <div class="card">
+                <label style="font-size:10px; color:var(--neon-cyan); letter-spacing:1px; margin-bottom:10px; display:block;">SELECT VISUAL IDENTITY (30 UNITS)</label>
+                <div class="avatar-grid" id="avatarGrid"></div>
+                <input type="hidden" id="regAvatar" value="1">
+                <div class="input-group" style="margin-top:15px;">
+                    <label>VEHICLE PLATE (OPTIONAL)</label>
+                    <input type="text" id="regVehicle" class="input-field" placeholder="E.g. E 1234 XY" oninput="this.value=this.value.toUpperCase()">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step4">
+            <div class="security-warning">
+                <h4>SECURITY ADVISORY</h4>
+                <p>3 Security questions are MANDATORY. Answers cannot be changed without Guild Admin approval. Use unique private data.</p>
+            </div>
+            <div class="card" style="padding:15px;">
+                <div class="input-group"><label>ENCRYPTION CODE (PASSWORD)</label><input type="password" id="regPass" class="input-field" placeholder="Min 8 Characters"></div>
+                
+                <div class="input-group" style="border-top:1px solid #222; padding-top:10px; margin-top:10px;">
+                    <label>QUESTION #1</label>
+                    <input type="text" id="q1" class="input-field" style="margin-bottom:5px;" placeholder="Ex: Childhood Pet Name?">
+                    <input type="text" id="a1" class="input-field" placeholder="Answer 1">
+                </div>
+                <div class="input-group">
+                    <label>QUESTION #2</label>
+                    <input type="text" id="q2" class="input-field" style="margin-bottom:5px;" placeholder="Ex: First School?">
+                    <input type="text" id="a2" class="input-field" placeholder="Answer 2">
+                </div>
+                <div class="input-group">
+                    <label>QUESTION #3</label>
+                    <input type="text" id="q3" class="input-field" style="margin-bottom:5px;" placeholder="Ex: Favorite Food?">
+                    <input type="text" id="a3" class="input-field" placeholder="Answer 3">
+                </div>
+
+                <div style="display:flex; align-items:flex-start; gap:10px; margin-top:20px;">
+                    <input type="checkbox" id="regAgree" style="width:18px; height:18px; accent-color:var(--neon-cyan);" onclick="handleCheck(event)">
+                    <label style="font-size:10px; color:#888;">I swear by the <a href="javascript:void(0)" onclick="showRules()" style="color:var(--neon-pink);">Guild Code of Conduct</a>.</label>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:10px; padding:0 15px; margin-top:20px;">
+            <button type="button" class="btn btn-secondary" id="btnPrev" style="display:none;" onclick="move(-1)">BACK</button>
+            <button type="button" class="btn btn-primary" id="btnNext" onclick="move(1)">CONTINUE</button>
+        </div>
+    </form>
+</div>
+
+<div id="customModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:20000; display:none; justify-content:center; align-items:center; padding:20px;">
+    <div class="modal-box" style="border:1px solid var(--neon-cyan); background:#050505; padding:25px; width:100%; max-width:320px; text-align:center;">
+        <h3 id="mTitle" class="text-neon-cyan" style="font-size:14px; margin-top:0;">SYSTEM NOTICE</h3>
+        <p id="mBody" style="font-size:12px; color:#ccc; line-height:1.6;"></p>
+        <button class="btn btn-primary" style="background:var(--neon-cyan); color:#000; width:100%; margin-top:10px;" onclick="closeM()">ACKNOWLEDGE</button>
+    </div>
+</div>
+
+<div id="rulesModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:20001; display:none; flex-direction:column; justify-content:center; align-items:center; padding:30px;">
+    <div style="border:1px solid var(--neon-pink); padding:20px; background:#000; max-height:80vh; overflow-y:auto;">
+        <h3 class="text-neon-pink" style="text-align:center;">THE OATH</h3>
+        <p style="font-size:11px; line-height:1.8; color:#eee;">1. One NIK, One Identity.<br>2. Deployment area is permanent.<br>3. Fraudulent activity leads to permanent ban.<br>4. Stamina recovers every 24 hours.</p>
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="btn btn-secondary" style="flex:1;" onclick="closeRules(false)">REJECT</button>
+            <button class="btn btn-primary" style="flex:1; background:var(--neon-pink);" onclick="closeRules(true)">I SWEAR</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = { apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk", authDomain: "ojeklokal-42b84.firebaseapp.com", databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "ojeklokal-42b84", storageBucket: "ojeklokal-42b84.firebasestorage.app", messagingSenderId: "320198748498", appId: "1:320198748498:web:3e6038249edc6af20b328b" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function beep(f, d, count=1) { 
+        for(let i=0; i<count; i++) {
+            setTimeout(() => {
+                const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); 
+                o.type="sine"; o.frequency.value=f; g.gain.value=0.05; o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+d);
+            }, i * 150);
+        }
+    }
+    function vib(err=false) { if(navigator.vibrate) navigator.vibrate(err ? [100, 50, 100] : 20); beep(err ? 300 : 800, 0.05, err ? 2 : 1); }
+
+    const regionData = [
+        {p:"WEST JAVA", k:"KUNINGAN", d:"CILIMUS"}, {p:"WEST JAVA", k:"KUNINGAN", d:"CIGUGUR"},
+        {p:"WEST JAVA", k:"KUNINGAN", d:"JALAKSANA"}, {p:"WEST JAVA", k:"CIREBON", d:"KEDAWUNG"},
+        {p:"WEST JAVA", k:"CIREBON", d:"SUMBER"}, {p:"CENTRAL JAVA", k:"TEGAL", d:"SLAWI"}
+    ];
+
+    window.onload = () => {
+        const grid = document.getElementById('avatarGrid');
+        for(let i=1; i<=30; i++){
+            let box = document.createElement('div'); box.className = `avatar-box ${i===1?'selected':''}`;
+            box.innerHTML = `<img src="https://robohash.org/pet-${i}.png?set=set4" alt="AV">`;
+            box.onclick = () => { vib(); document.querySelectorAll('.avatar-box').forEach(b=>b.classList.remove('selected')); box.classList.add('selected'); document.getElementById('regAvatar').value = i; };
+            grid.appendChild(box);
+        }
+        setTimeout(() => { document.getElementById('page-loader').style.opacity='0'; setTimeout(()=>document.getElementById('page-loader').style.display='none',500); }, 1000);
+    };
+
+    function handleNik(el) {
+        if(el.value.length > 16) el.value = el.value.slice(0, 16);
+        const c = document.getElementById('nikCounter'); c.innerText = `${el.value.length} / 16 DIGIT`;
+        if(el.value.length === 16) { el.classList.add('nik-valid'); c.style.color = 'var(--neon-cyan)'; }
+        else { el.classList.remove('nik-valid'); c.style.color = '#555'; }
+    }
+
+    function searchDom(val) {
+        const box = document.getElementById('suggestBox'); if(val.length < 2) { box.style.display='none'; return; }
+        const match = regionData.filter(r => r.d.includes(val.toUpperCase()) || r.k.includes(val.toUpperCase()));
+        box.innerHTML = '';
+        if(match.length > 0) {
+            box.style.display='block';
+            match.forEach(m => {
+                let div = document.createElement('div'); div.className='suggest-item'; div.innerText = `${m.d}, ${m.k}, ${m.p}`;
+                div.onclick = () => {
+                    document.getElementById('regDomSearch').value = m.d;
+                    document.getElementById('areaDisplay').innerText = `${m.d}, ${m.k}, ${m.p}`;
+                    document.getElementById('finalProv').value = m.p; document.getElementById('finalKec').value = m.k; document.getElementById('finalDesa').value = m.d;
+                    box.style.display='none'; vib();
+                };
+                box.appendChild(div);
+            });
+        } else box.style.display='none';
+    }
+
+    let step = 1;
+    function move(d) {
+        if(d === 1) {
+            if(step===1) { if(!val('regUser') || !val('regName') || val('regNik').length!==16 || !val('regPhone')) return msg("Complete Identity & 16-Digit NIK Required",true); }
+            if(step===2) { if(!val('regVocation') || !val('finalDesa')) return msg("Vocation & Domicile Must Be Set",true); }
+            if(step===4) {
+                if(val('regPass').length < 8) return msg("Password Min 8 Chars",true);
+                if(!val('q1') || !val('a1') || !val('q2') || !val('a2') || !val('q3') || !val('a3')) return msg("All 3 Security Questions Mandatory",true);
+                if(!document.getElementById('regAgree').checked) return msg("You Must Take The Oath",true);
+                return finalize();
+            }
+        }
+        vib(); step += d;
+        document.querySelectorAll('.reg-section').forEach((s,i)=>s.classList.toggle('active',i===step-1));
+        document.querySelectorAll('.step-dot').forEach((s,i)=>s.classList.toggle('active',i<step));
+        document.getElementById('stepLine').style.width = ((step-1)/3*100)+'%';
+        document.getElementById('btnPrev').style.display = step===1?'none':'block';
+        document.getElementById('btnNext').innerText = step===4?'AUTHORIZE':'CONTINUE';
+        document.getElementById('btnNext').classList.toggle('btn-authorize', step===4);
+    }
+
+    function val(id) { return document.getElementById(id).value; }
+    function msg(m,err=false) { if(err) vib(true); document.getElementById('mBody').innerText=m; document.getElementById('customModal').style.display='flex'; }
+    function closeM() { vib(); document.getElementById('customModal').style.display='none'; }
+    function handleCheck(e) { e.preventDefault(); vib(); document.getElementById('rulesModal').style.display='flex'; }
+    function showRules() { vib(); document.getElementById('rulesModal').style.display='flex'; }
+    function closeRules(a) { vib(); document.getElementById('regAgree').checked = a; document.getElementById('rulesModal').style.display='none'; }
+
+    async function finalize() {
+        const btn = document.getElementById('btnNext'); btn.disabled = true; btn.innerText = "ENCRYPTING...";
+        const uid = val('regUser'); const nik = val('regNik'); const phone = "62"+val('regPhone');
+        try {
+            const checkU = await db.ref('users_adventurer').orderByChild('profile/id_adventurer').equalTo(uid).once('value');
+            if(checkU.exists()) throw new Error("Callsign Taken");
+            const checkN = await db.ref('users_adventurer').orderByChild('legal/nik_ktp').equalTo(nik).once('value');
+            if(checkN.exists()) throw new Error("NIK Already Registered");
+            const checkP = await db.ref('users_adventurer').orderByChild('profile/nomor_telepon').equalTo(phone).once('value');
+            if(checkP.exists()) throw new Error("Phone Number Registered");
+
+            const titles = ["Novice", "Pathfinder", "New Blood", "Wanderer"];
+            const isFull = val('regVocation') === "FULL-TIME";
+            const data = {
+                profile: { id_adventurer: uid, nama_lengkap: val('regName'), email: val('regEmail'), nomor_telepon: phone, foto_avatar: val('regAvatar'), domisili: `${val('finalDesa')}, ${val('finalKec')}, ${val('finalProv')}`, julukan: titles[Math.floor(Math.random()*4)], tanggal_terdaftar: new Date().toISOString(), rank_class: "Trainer", current_level: 1, current_exp: 0, max_exp: 100, kategori_pekerja: val('regVocation'), kendaraan: val('regVehicle')||"NONE" },
+                vitality: { stamina_current: isFull?120:80, stamina_max: isFull?120:80, last_stamina_regen: new Date().toISOString(), apply_limit_daily: isFull?10:5, ads_count:0 },
+                wallet: { purple:0, red:0, white:0, green:0 },
+                legal: { nik_ktp: nik, violation: 0 },
+                security: { password: val('regPass'), q1: val('q1'), a1: val('a1'), q2: val('q2'), a2: val('a2'), q3: val('q3'), a3: val('a3') }
+            };
+            await db.ref('users_adventurer/'+uid).set(data);
+            msg("SUCCESS! ACCOUNT AUTHORIZED."); setTimeout(()=>window.location.href='login.html', 2500);
+        } catch(e) { msg(e.message, true); btn.disabled = false; btn.innerText = "AUTHORIZE"; }
+    }
+</script>
+</body>
+</html>
