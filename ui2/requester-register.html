@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | CITIZEN REGISTRATION</title>
+    <link rel="stylesheet" href="master.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* NATIVE APP FEEL & STEALTH */
+        * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { overscroll-behavior-y: contain; background-color: #000; color: #fff; min-height: 100vh; margin: 0; padding-bottom: 40px; }
+        input, select, textarea { -webkit-user-select: text; user-select: text; outline: none; }
+
+        /* STEP PROGRESS BAR */
+        .step-indicator {
+            display: flex; justify-content: space-between; padding: 20px 40px; position: relative;
+        }
+        .step-dot {
+            width: 12px; height: 12px; border-radius: 50%; background: #222;
+            border: 2px solid #444; position: relative; z-index: 2; transition: 0.5s;
+        }
+        .step-dot.active { background: var(--neon-pink); border-color: var(--neon-pink); box-shadow: 0 0 10px var(--neon-pink); }
+        .step-line {
+            position: absolute; top: 25px; left: 45px; right: 45px; height: 2px; background: #222; z-index: 1;
+        }
+        .step-line-fill {
+            position: absolute; top: 0; left: 0; height: 100%; background: var(--neon-pink);
+            width: 0%; transition: 0.5s;
+        }
+
+        /* FORM SECTION CONTROL */
+        .reg-section { display: none; animation: slideIn 0.4s ease-out; }
+        .reg-section.active { display: block; }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* CUSTOM FILE UPLOAD LOOK */
+        .file-upload-box {
+            border: 2px dashed #333; padding: 20px; text-align: center;
+            border-radius: 10px; cursor: pointer; transition: 0.3s;
+        }
+        .file-upload-box:active { border-color: var(--neon-cyan); background: rgba(0,255,255,0.05); }
+
+        /* MULTI-STEP NAVIGATION BUTTONS */
+        .nav-buttons { display: flex; gap: 10px; margin-top: 25px; padding: 0 15px; }
+
+        /* HIDE LOADER BY DEFAULT */
+        #page-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 10000; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; transition: opacity 0.5s;
+        }
+    </style>
+</head>
+<body class="notranslate">
+
+<div id="page-loader">
+    <h2 class="text-neon-pink" style="letter-spacing: 5px; font-size: 14px;">ENCRYPTING DATA</h2>
+    <div class="loader-bar"><div class="loader-progress"></div></div>
+</div>
+
+<div class="app-container">
+    <div style="text-align:center; padding-top:40px;">
+        <h1 class="text-neon-pink" style="font-size:32px; margin:0; letter-spacing:4px;">CITIZENSHIP</h1>
+        <p style="color:var(--neon-cyan); font-size:9px; letter-spacing:2px;">REQUESTER REGISTRATION TERMINAL</p>
+    </div>
+
+    <div class="step-indicator">
+        <div class="step-line"><div class="step-line-fill" id="stepLine"></div></div>
+        <div class="step-dot active"></div>
+        <div class="step-dot"></div>
+        <div class="step-dot"></div>
+    </div>
+
+    <form id="regForm">
+        <div class="reg-section active" id="step1">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 14px; margin-bottom:15px;">SECTION I: BIOMETRIC DATA</h3>
+                <div class="input-group">
+                    <label>FULL NAME (IDENTITIY CARD)</label>
+                    <input type="text" id="regName" class="input-field" placeholder="Enter full name...">
+                </div>
+                <div class="input-group">
+                    <label>PHONE NUMBER (WHATSAPP)</label>
+                    <input type="tel" id="regPhone" class="input-field" placeholder="0812xxxx">
+                </div>
+                <div class="input-group">
+                    <label>DOMICILE (CITY/DISTRICT)</label>
+                    <input type="text" id="regDomisili" class="input-field" placeholder="Example: Kuningan, West Java">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step2">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 14px; margin-bottom:15px;">SECTION II: ENCRYPTION KEYS</h3>
+                <div class="input-group">
+                    <label>ACCESS PASSWORD</label>
+                    <input type="password" id="regPass" class="input-field" placeholder="Min. 6 characters">
+                </div>
+                <div class="input-group">
+                    <label>SECURITY QUESTION</label>
+                    <input type="text" id="regQuest" class="input-field" placeholder="Ex: My first pet's name?">
+                </div>
+                <div class="input-group">
+                    <label>SECURITY ANSWER</label>
+                    <input type="text" id="regAns" class="input-field" placeholder="Answer...">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step3">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 14px; margin-bottom:15px;">SECTION III: FINALIZATION</h3>
+                <p style="font-size: 11px; color: var(--text-muted); margin-bottom:20px;">
+                    By initializing this process, you will be registered as a <b class="text-neon-pink">STRANGER</b> tier citizen. Complete missions to unlock <b class="text-neon-cyan">CITIZEN</b> status.
+                </p>
+                <div class="file-upload-box" onclick="hapticClick()">
+                    <span style="font-size:10px; color:#555;">TAP TO UPLOAD KTP DIGITAL (OPTIONAL)</span>
+                </div>
+                <div style="margin-top:20px; display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" id="regAgree" style="width:20px; height:20px; accent-color:var(--neon-pink);">
+                    <label style="font-size:10px; color:#888;">I ACCEPT THE GUILD SOVEREIGNTY RULES.</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-buttons">
+            <button type="button" class="btn btn-secondary" id="btnPrev" style="display:none;" onclick="moveStep(-1)">PREVIOUS</button>
+            <button type="button" class="btn btn-primary" id="btnNext" onclick="moveStep(1)">CONTINUE</button>
+        </div>
+    </form>
+
+    <div style="text-align:center; margin-top:30px;">
+        <a href="javascript:void(0)" onclick="navigateTo('login.html')" style="color:#444; text-decoration:none; font-size:11px;">ALREADY HAVE AN ID? <span class="text-neon-pink">BACK TO TERMINAL</span></a>
+    </div>
+</div>
+
+<div id="customModal">
+    <div class="modal-box">
+        <h2 id="modalTitle" class="text-neon-pink" style="margin-top:0;">NOTICE</h2>
+        <p id="modalMsg" style="font-size:13px; color:#ccc; line-height:1.6;"></p>
+        <button class="btn btn-secondary" onclick="closeModal()">ACKNOWLEDGE</button>
+    </div>
+</div>
+
+<script>
+    // 1. Firebase (Tetap sinkron dengan ojeklokal-42b84)
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 2. Audio & Haptic
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(f, d) {
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        o.type="sine"; o.frequency.value=f; g.gain.value=0.1;
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime+d);
+    }
+    function hapticClick() { if(navigator.vibrate) navigator.vibrate(20); playBeep(800, 0.05); }
+
+    // 3. Multi-Step Logic
+    let currentStep = 1;
+    const dots = document.querySelectorAll('.step-dot');
+    const sections = document.querySelectorAll('.reg-section');
+
+    function moveStep(dir) {
+        // Validation before moving next
+        if(dir === 1) {
+            if(currentStep === 1 && (!document.getElementById('regName').value || !document.getElementById('regPhone').value)) return showMsg("Complete identity data first!");
+            if(currentStep === 2 && (!document.getElementById('regPass').value || !document.getElementById('regQuest').value)) return showMsg("Encryption keys required!");
+        }
+
+        hapticClick();
+        if(currentStep === 3 && dir === 1) return finalizeRegistration();
+
+        currentStep += dir;
+        updateUI();
+    }
+
+    function updateUI() {
+        sections.forEach((s, i) => s.classList.toggle('active', i === currentStep - 1));
+        dots.forEach((d, i) => d.classList.toggle('active', i < currentStep));
+        
+        document.getElementById('stepLine').style.width = ((currentStep - 1) / 2 * 100) + "%";
+        document.getElementById('btnPrev').style.display = currentStep === 1 ? 'none' : 'block';
+        document.getElementById('btnNext').innerText = currentStep === 3 ? 'FINALIZE' : 'CONTINUE';
+    }
+
+    // 4. Finalize & Firebase Injection
+    async function finalizeRegistration() {
+        if(!document.getElementById('regAgree').checked) return showMsg("You must accept the Sovereignty Rules.");
+
+        const btn = document.getElementById('btnNext');
+        const phone = document.getElementById('regPhone').value.trim();
+        
+        btn.innerText = "UPLOADING..."; btn.disabled = true;
+        hapticClick();
+
+        const requesterData = {
+            id_pemberi: phone,
+            nama_lengkap: document.getElementById('regName').value,
+            nomor_telepon: phone,
+            domisili: document.getElementById('regDomisili').value,
+            status_verifikasi: "Unverified",
+            label_requester: "New User",
+            password: document.getElementById('regPass').value,
+            recovery: {
+                question: document.getElementById('regQuest').value,
+                answer: document.getElementById('regAns').value
+            },
+            tier: "Stranger",
+            wallet: { red: 0, white: 0, green: 0, purple: 0 },
+            stats: {
+                reputation_point: 0,
+                reputation_label: "Neutral",
+                mission_posted: 0,
+                mission_done: 0,
+                mission_canceled: 0,
+                likes: 0,
+                dislikes: 0
+            },
+            activity: {
+                registered_at: new Date().toISOString(),
+                last_online: new Date().toISOString()
+            }
+        };
+
+        try {
+            // Check if ID already exists
+            const check = await db.ref('users_customer/' + phone).once('value');
+            if(check.exists()) {
+                showMsg("Identity (Phone Number) already registered in Terminal.");
+                btn.innerText = "FINALIZE"; btn.disabled = false;
+            } else {
+                await db.ref('users_customer/' + phone).set(requesterData);
+                if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                showMsg("Citizenship Granted! Redirecting to Terminal...", "SUCCESS");
+                setTimeout(() => { navigateTo('login.html'); }, 2000);
+            }
+        } catch (e) {
+            showMsg("Transmission Error: " + e.message);
+            btn.innerText = "FINALIZE"; btn.disabled = false;
+        }
+    }
+
+    // Navigation & Modals
+    function navigateTo(url) {
+        document.getElementById('page-loader').style.display = 'flex';
+        document.getElementById('page-loader').style.opacity = '1';
+        setTimeout(() => { window.location.href = url; }, 800);
+    }
+
+    function showMsg(m, title = "TERMINAL NOTICE") {
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalMsg').innerText = m;
+        document.getElementById('customModal').style.display = 'flex';
+        if(navigator.vibrate) navigator.vibrate(200);
+    }
+
+    function closeModal() { hapticClick(); document.getElementById('customModal').style.display = 'none'; }
+
+    window.onload = () => {
+        setTimeout(() => {
+            document.getElementById('page-loader').style.opacity = '0';
+            setTimeout(() => { document.getElementById('page-loader').style.display = 'none'; }, 500);
+        }, 800);
+    };
+</script>
+</body>
+</html>
