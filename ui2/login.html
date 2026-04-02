@@ -138,8 +138,13 @@
     <div class="modal-box">
         <h2 id="modalTitle" class="text-neon-pink" style="margin-top:0;">NOTICE</h2>
         <p id="modalMsg" style="font-size:13px; color:#ccc; line-height:1.6;"></p>
-        <div id="modalExtra"></div>
-        <button class="btn btn-secondary" onclick="closeModal()">ACKNOWLEDGE</button>
+        
+        <div id="modalExtra" style="margin-bottom: 20px;"></div> 
+        
+        <div style="display:flex; gap:10px; justify-content:center;">
+            <button class="btn btn-secondary" id="modalActionBtn" onclick="closeModal()">ACKNOWLEDGE</button>
+            <button class="btn btn-secondary" id="modalCancelBtn" style="display:none;" onclick="closeModal()">CANCEL</button>
+        </div>
     </div>
 </div>
 
@@ -221,22 +226,55 @@
 
     // 6. FORGOT ACCESS (KODE KEDUA)
     async function forgotAccess() {
-        hapticClick();
-        const id = document.getElementById('accessId').value.trim();
-        if(!id) return showMsg("Please enter your Phone ID first.");
-        
-        const path = currentRole === 'worker' ? 'drivers/' : 'users_customer/';
-        try {
-            const snap = await db.ref(path + id).once('value');
-            if(snap.exists()) {
-                const user = snap.val();
-                const ans = prompt(`SECURITY QUESTION: ${user.pertanyaan_lupa_password}\n\nType your answer:`);
+    hapticClick();
+    const id = document.getElementById('accessId').value.trim();
+    if(!id) return showMsg("Please enter your Phone ID first.");
+    
+    const path = currentRole === 'worker' ? 'drivers/' : 'users_customer/';
+    try {
+        const snap = await db.ref(path + id).once('value');
+        if(snap.exists()) {
+            const user = snap.val();
+            
+            // Konfigurasi Modal untuk Security Question
+            document.getElementById('modalTitle').innerText = "SECURITY CHECK";
+            document.getElementById('modalMsg').innerText = `QUESTION: ${user.pertanyaan_lupa_password}`;
+            
+            // Masukkan input field ke dalam modalExtra
+            const extra = document.getElementById('modalExtra');
+            extra.innerHTML = `<input type="text" id="securityAns" class="input-field" placeholder="Type your answer..." style="text-align:center;">`;
+            
+            // Ubah tombol Acknowledge menjadi tombol Verify
+            const actionBtn = document.getElementById('modalActionBtn');
+            actionBtn.innerText = "VERIFY";
+            actionBtn.onclick = () => {
+                const ans = document.getElementById('securityAns').value;
                 if(ans && ans.toLowerCase() === user.jawaban_lupa_password.toLowerCase()) {
-                    alert(`ACCESS RECOVERED. Your code is: ${user.password}`);
-                } else if(ans) { alert("ACCESS DENIED: Wrong security answer."); }
-            } else { showMsg("ID not found in database."); }
-        } catch(e) { showMsg("Error: " + e.message); }
-    }
+                    extra.innerHTML = ""; // Bersihkan input
+                    showMsg(`ACCESS RECOVERED. Code: ${user.password}`);
+                } else {
+                    alert("ACCESS DENIED: Wrong security answer.");
+                }
+            };
+
+            // Tampilkan tombol Cancel
+            document.getElementById('modalCancelBtn').style.display = 'block';
+            document.getElementById('customModal').style.display = 'flex';
+
+        } else { showMsg("ID not found in database."); }
+    } catch(e) { showMsg("Error: " + e.message); }
+}
+
+// Update fungsi closeModal agar membersihkan state modal
+function closeModal() {
+    hapticClick();
+    document.getElementById('customModal').style.display = 'none';
+    document.getElementById('modalExtra').innerHTML = ""; // Bersihkan sisa input
+    document.getElementById('modalCancelBtn').style.display = 'none';
+    document.getElementById('modalActionBtn').innerText = "ACKNOWLEDGE";
+    document.getElementById('modalActionBtn').onclick = closeModal;
+}
+
 
     // 7. LOGIN EXECUTION (GABUNGAN LOGIKA REMEMBER ME)
     async function handleLogin() {
