@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | ADVENTURER REGISTRATION</title>
+    
+    <link rel="stylesheet" href="master.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* --- NATIVE APP FEEL & CYBERPUNK OVERRIDE --- */
+        * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { overscroll-behavior-y: contain; background-color: var(--bg-main); color: var(--text-main); min-height: 100vh; margin: 0; padding-bottom: 40px; }
+        input, select, textarea { -webkit-user-select: text; user-select: text; outline: none; }
+
+        /* Custom Bottom Sheet (Adopsi dari Requester) */
+        .bottom-sheet {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: 60%;
+            background: var(--bg-card); border-top: 2px solid var(--neon-cyan);
+            z-index: 100000; transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column; padding: 20px; border-radius: 20px 20px 0 0;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+        }
+        .bottom-sheet.active { bottom: 0; }
+        .sheet-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 99999; display: none;
+        }
+        .sheet-list { overflow-y: auto; flex: 1; margin-top: 15px; }
+        .sheet-item { 
+            padding: 18px; border-bottom: 1px solid var(--border-color); 
+            color: var(--text-main); font-family: var(--font-terminal); text-transform: uppercase; font-size: 12px;
+        }
+        .sheet-item:active { background: var(--neon-cyan-dim); }
+
+        /* Step Indicator (Cyan Accents for Adventurer) */
+        .step-indicator { display: flex; justify-content: space-between; padding: 20px 30px; position: relative; margin-bottom: 10px; }
+        .step-dot { 
+            width: 14px; height: 14px; border-radius: 50%; background: #111; border: 2px solid #333; 
+            position: relative; z-index: 2; transition: 0.5s; font-size: 9px; 
+            display:flex; justify-content:center; align-items:center; color:transparent;
+        }
+        .step-dot.active { 
+            background: var(--neon-cyan); border-color: var(--neon-cyan); 
+            box-shadow: 0 0 12px var(--neon-cyan); color:#000; font-weight:bold;
+        }
+        .step-line { position: absolute; top: 26px; left: 40px; right: 40px; height: 2px; background: #222; z-index: 1; }
+        .step-line-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--neon-cyan); width: 0%; transition: 0.5s; }
+
+        /* Avatar Selection Grid */
+        .avatar-container {
+            display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+            padding: 10px; background: #050505; border: 1px solid var(--border-color); border-radius: 4px;
+            max-height: 200px; overflow-y: auto; margin-top: 10px;
+        }
+        .av-box { 
+            aspect-ratio: 1; border: 1px solid #222; border-radius: 4px; 
+            overflow: hidden; background: #111; transition: 0.3s; opacity: 0.4; cursor: pointer;
+        }
+        .av-box.selected { 
+            opacity: 1; border-color: var(--neon-cyan); 
+            box-shadow: inset 0 0 10px var(--neon-cyan-dim); transform: scale(0.95);
+        }
+        .av-box img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* Status & Connection Bar */
+        #conn-status {
+            position: fixed; top: 15px; left: 20px; z-index: 10001;
+            display: flex; align-items: center; gap: 6px; font-family: var(--font-terminal);
+            font-size: 9px; padding: 4px 8px; border-radius: 4px; background: rgba(0,0,0,0.5);
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .online { color: var(--neon-cyan); }
+        .online .status-dot { background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+        .offline { color: var(--neon-pink); }
+        .offline .status-dot { background: var(--neon-pink); animation: pulse 1s infinite; }
+
+        .reg-section { display: none; animation: slideUp 0.4s ease-out; }
+        .reg-section.active { display: block; }
+    </style>
+</head>
+<body class="notranslate">
+
+<div id="conn-status" class="online"><div class="status-dot"></div><span id="status-text">SYSTEM ONLINE</span></div>
+
+<div id="page-loader" class="loading-overlay active">
+    <div class="spinner"></div>
+    <h2 class="text-neon-cyan" style="letter-spacing: 5px; font-size: 11px; margin-top: 15px;">INITIALIZING ADVENTURER PROTOCOL</h2>
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay" onclick="closePicker()"></div>
+<div class="bottom-sheet" id="bottomSheet">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
+        <h3 id="sheetTitle" class="text-neon-cyan" style="font-size:13px; margin:0; letter-spacing:2px;">SELECT DATA</h3>
+        <span onclick="closePicker()" style="color:var(--neon-pink); font-size:11px; font-weight:bold;">[ CLOSE ]</span>
+    </div>
+    <div class="sheet-list" id="sheetList"></div>
+</div>
+
+<div class="app-container">
+    <div style="display:flex; justify-content: flex-end; padding:15px 20px 0 20px;">
+        <div class="theme-toggle" onclick="toggleTheme()" id="themeBtn">
+            <svg id="sunIcon" class="icon-svg text-neon-cyan" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg id="moonIcon" class="icon-svg text-neon-pink" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </div>
+    </div>
+
+    <div style="text-align:center; padding-top:10px;">
+        <h1 class="text-neon-cyan" style="font-size:26px; margin:0; letter-spacing:4px;">ADVENTURER</h1>
+        <p style="color:var(--neon-pink); font-size:9px; letter-spacing:2px;">GUILD IDENTITY SYNCHRONIZATION</p>
+    </div>
+
+    <div class="step-indicator">
+        <div class="step-line"><div class="step-line-fill" id="stepLine"></div></div>
+        <div class="step-dot active">1</div>
+        <div class="step-dot">2</div>
+        <div class="step-dot">3</div>
+        <div class="step-dot">4</div>
+    </div>
+
+    <form id="regForm" autocomplete="off">
+        <div class="reg-section active" id="step1">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 11px; margin-bottom:15px; letter-spacing:1px;">SEC I: IDENTITY BINDING</h3>
+                
+                <div class="input-group">
+                    <label>GUILD CALLSIGN (UNIQUE NICKNAME)</label>
+                    <input type="text" id="regUser" class="input-field" placeholder="Ex: SwiftGhost99" oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '')">
+                </div>
+
+                <div class="input-group">
+                    <label>FULL LEGAL NAME (ID CARD)</label>
+                    <input type="text" id="regName" class="input-field" placeholder="KTP NAME" oninput="this.value = this.value.toUpperCase()">
+                </div>
+
+                <div class="input-group">
+                    <label>NATIONAL ID (NIK KTP)</label>
+                    <input type="number" id="regNik" class="input-field" placeholder="16 DIGIT NUMBER" oninput="handleNikInput(this)">
+                    <div id="nikCounter" style="font-size:9px; text-align:right; margin-top:4px; color:#555; font-family:var(--font-terminal);">0 / 16 DIGITS</div>
+                </div>
+
+                <div class="input-group">
+                    <label>COMM-LINK (PHONE)</label>
+                    <div style="position:relative;">
+                        <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--neon-cyan); font-weight:bold; font-size:14px; font-family:var(--font-terminal);">+62</span>
+                        <input type="tel" id="regPhone" class="input-field" style="padding-left:45px;" placeholder="812..." oninput="handlePhoneInput(this)">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>EMAIL ADDRESS</label>
+                    <input type="email" id="regEmail" class="input-field" placeholder="adventurer@guild.com">
+                </div>
+            </div>
+        </div>
+
+              <div class="reg-section" id="step2">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3 class="text-neon-cyan" style="font-size: 11px; margin:0;">SEC II: MISSION AREA</h3>
+                    <span id="modeLabel" onclick="toggleDomisiliMode()" style="font-size: 10px; color: var(--neon-pink); cursor:pointer;">[ AUTO-TEXT MODE ]</span>
+                </div>
+
+                <div id="dropdownMode">
+                    <div class="input-group">
+                        <label>PROVINCE</label>
+                        <div id="pickerProv" class="input-field" onclick="handleProvClick()" style="cursor:pointer; display:flex; align-items:center;">SELECT PROVINCE...</div>
+                        <input type="hidden" id="regProv">
+                    </div>
+                    <div class="input-group">
+                        <label>DISTRICT (KECAMATAN)</label>
+                        <div id="pickerKec" class="input-field" onclick="handleKecClick()" style="cursor:pointer; opacity:0.5;">SELECT DISTRICT...</div>
+                        <input type="hidden" id="regKec">
+                    </div>
+                    <div class="input-group">
+                        <label>VILLAGE (DESA)</label>
+                        <div id="pickerDesa" class="input-field" onclick="handleDesaClick()" style="cursor:pointer; opacity:0.5;">SELECT VILLAGE...</div>
+                        <input type="hidden" id="regDesa">
+                    </div>
+                </div>
+
+                <div id="textMode" style="display:none;">
+                    <div class="input-group">
+                        <label>SMART LOCATION INPUT</label>
+                        <input type="text" id="regDomText" class="input-field" placeholder="City, Province, or Specific Area...">
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-top:10px;">
+                    <label>DETAILED BASE ADDRESS</label>
+                    <textarea id="regAddress" class="input-field" style="height:80px; resize:none;" placeholder="Street name, house number, landmarks..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step3">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 11px; margin-bottom:15px;">SEC III: GEAR & PERSONA</h3>
+                
+                <label style="font-size:11px; color:var(--text-muted); font-family:var(--font-terminal);">SELECT AVATAR IMAGE</label>
+                <div class="avatar-container" id="avatarGrid">
+                    </div>
+                <input type="hidden" id="regAvatar" value="default.png">
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">
+                    <div class="input-group">
+                        <label>ADVENTURER TYPE</label>
+                        <div id="pickerType" class="input-field" style="cursor:pointer; font-size:12px;" onclick="openPicker('WORKER TYPE', ['FULL TIME', 'PART TIME'], 'regType')">SELECT...</div>
+                        <input type="hidden" id="regType">
+                    </div>
+                    <div class="input-group">
+                        <label>TRANSPORT GEAR</label>
+                        <div id="pickerGear" class="input-field" style="cursor:pointer; font-size:12px;" onclick="openPicker('TRANSPORT GEAR', ['MOTORCYCLE', 'CAR', 'BICYCLE', 'ON FOOT'], 'regGear')">SELECT...</div>
+                        <input type="hidden" id="regGear">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>GUILD SLOGAN</label>
+                    <input type="text" id="regSlogan" class="input-field" placeholder="Ex: No Mission Too Hard">
+                </div>
+                
+                <div class="input-group">
+                    <label>GEAR PLATE NUMBER (OPTIONAL)</label>
+                    <input type="text" id="regPlate" class="input-field" placeholder="Ex: E 1234 ABC" oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step4">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 11px; margin-bottom:15px;">SEC IV: ENCRYPTION PROTOCOL</h3>
+                
+                <div class="input-group">
+                    <label>ACCESS PASSWORD</label>
+                    <input type="password" id="regPass" class="input-field" placeholder="Min. 8 characters" oninput="handlePassInput(this)">
+                    <div style="height:2px; width:100%; background:rgba(255,255,255,0.05); margin-top:5px;">
+                        <div id="strengthFill" style="height:100%; width:0%; transition:0.5s; background:var(--neon-pink);"></div>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>RECOVERY QUESTION</label>
+                    <input type="text" id="regQuest" class="input-field" placeholder="Ex: My first pet's name?">
+                </div>
+                
+                <div class="input-group">
+                    <label>SECRET ANSWER</label>
+                    <input type="text" id="regAns" class="input-field" placeholder="Answer for recovery...">
+                </div>
+
+                <div style="border-top:1px solid var(--border-color); margin-top:20px; padding-top:15px; display:flex; align-items:flex-start; gap:10px;">
+                    <input type="checkbox" id="regAgree" style="width:18px; height:18px; accent-color:var(--neon-cyan); margin-top:2px;" onclick="checkTerms(event)">
+                    <label style="font-size:11px; color:#aaa; line-height:1.4;">
+                        I swear to uphold the <a href="terms.html" style="color:var(--neon-cyan); text-decoration:underline;">Guild Rules</a>. Failure to comply results in Rank Demotion or Blacklist.
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:10px; padding:0 15px; margin-top:20px;">
+            <button type="button" class="btn btn-secondary" id="btnPrev" style="display:none;" onclick="moveStep(-1)">PREVIOUS</button>
+            <button type="button" class="btn btn-primary" id="btnNext" style="background-color:var(--neon-cyan); color:#000;" onclick="moveStep(1)">CONTINUE</button>
+        </div>
+    </form>
+
+    <div style="text-align:center; margin-top:30px;">
+        <a href="javascript:void(0)" onclick="navigateTo('login.html')" style="color:#444; text-decoration:none; font-size:10px; font-weight:bold; letter-spacing:1px;">RETURNING ADVENTURER? <span class="text-neon-cyan">LOG TO TERMINAL</span></a>
+    </div>
+</div>
+
+<div id="customModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:none; justify-content:center; align-items:center; z-index:999999;">
+    <div class="card" style="width:85%; max-width:350px; text-align:center; border-color:var(--neon-pink);">
+        <h2 id="modalTitle" class="text-neon-pink" style="margin-top:0; font-size:18px;">NOTICE</h2>
+        <p id="modalMsg" style="font-size:12px; color:#ccc; margin-bottom:20px;"></p>
+        <button class="btn btn-secondary" style="padding:10px;" onclick="closeModal()">ACKNOWLEDGE</button>
+    </div>
+</div>
+
+
+      <script>
+// --- INITIALIZATION ---
+const firebaseConfig = { /* Master: Gunakan config Firebase Master di sini */ };
+if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+const db = firebase.database();
+
+let currentStep = 1;
+const totalSteps = 4;
+
+// --- DATABASE TABLES MAPPING ---
+// 1. users_adventurer/phone/profile (Tabel Utama)
+// 2. adventurer_vitality/phone (Tabel Vitalitas)
+// 3. adventurer_stats/phone (Tabel Reputasi)
+// 4. users_adventurer/phone/legal (Tabel Dokumen)
+// 5. adventurer_blacklist/phone (Tabel Blokir)
+
+// --- AVATAR SYSTEM ---
+const avatars = [
+    'av1.png', 'av2.png', 'av3.png', 'av4.png', 'av5.png',
+    'av6.png', 'av7.png', 'av8.png', 'av9.png', 'av10.png'
+];
+
+function initAvatars() {
+    const grid = document.getElementById('avatarGrid');
+    avatars.forEach((av, index) => {
+        const box = document.createElement('div');
+        box.className = `av-box ${index === 0 ? 'selected' : ''}`;
+        box.innerHTML = `<img src="assets/avatars/${av}" alt="Avatar">`;
+        box.onclick = () => {
+            document.querySelectorAll('.av-box').forEach(b => b.classList.remove('selected'));
+            box.classList.add('selected');
+            document.getElementById('regAvatar').value = av;
+        };
+        grid.appendChild(box);
+    });
+}
+
+// --- INPUT HANDLERS ---
+function handleNikInput(el) {
+    if (el.value.length > 16) el.value = el.value.slice(0, 16);
+    document.getElementById('nikCounter').innerText = `${el.value.length} / 16 DIGITS`;
+}
+
+function handlePhoneInput(el) {
+    let val = el.value.replace(/\D/g, '');
+    if (val.startsWith('0')) val = val.substring(1);
+    el.value = val;
+}
+
+function handlePassInput(el) {
+    const strength = document.getElementById('strengthFill');
+    let score = 0;
+    if (el.value.length >= 8) score += 40;
+    if (/[A-Z]/.test(el.value)) score += 30;
+    if (/[0-9]/.test(el.value)) score += 30;
+    strength.style.width = score + "%";
+    strength.style.background = score < 100 ? 'var(--neon-pink)' : 'var(--neon-cyan)';
+}
+
+// --- BOTTOM SHEET ENGINE ---
+let activePickerId = '';
+function openPicker(title, items, targetId) {
+    document.getElementById('sheetTitle').innerText = title;
+    const list = document.getElementById('sheetList');
+    list.innerHTML = '';
+    activePickerId = targetId;
+    
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'sheet-item';
+        div.innerText = item;
+        div.onclick = () => {
+            document.getElementById('picker' + targetId.replace('reg', '')).innerText = item;
+            document.getElementById(targetId).value = item;
+            closePicker();
+        };
+        list.appendChild(div);
+    });
+    
+    document.getElementById('sheetOverlay').style.display = 'block';
+    document.getElementById('bottomSheet').classList.add('active');
+}
+
+function closePicker() {
+    document.getElementById('sheetOverlay').style.display = 'none';
+    document.getElementById('bottomSheet').classList.remove('active');
+}
+
+// --- NAVIGATION ENGINE ---
+function moveStep(delta) {
+    if (delta === 1 && !validateStep(currentStep)) return;
+    
+    document.getElementById(`step${currentStep}`).classList.remove('active');
+    currentStep += delta;
+    document.getElementById(`step${currentStep}`).classList.add('active');
+    
+    updateUI();
+}
+
+function updateUI() {
+    const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
+    document.getElementById('stepLine').style.width = progress + "%";
+    
+    const dots = document.querySelectorAll('.step-dot');
+    dots.forEach((dot, i) => {
+        dot.classList.toggle('active', i < currentStep);
+    });
+
+    document.getElementById('btnPrev').style.display = currentStep === 1 ? 'none' : 'block';
+    const nextBtn = document.getElementById('btnNext');
+    if (currentStep === totalSteps) {
+        nextBtn.innerText = "AUTHORIZE PROTOCOL";
+        nextBtn.style.backgroundColor = "var(--neon-pink)";
+        nextBtn.onclick = () => authorizeAdventurer();
+    } else {
+        nextBtn.innerText = "CONTINUE";
+        nextBtn.style.backgroundColor = "var(--neon-cyan)";
+        nextBtn.onclick = () => moveStep(1);
+    }
+}
+
+// --- VALIDATION ENGINE ---
+function validateStep(step) {
+    if (step === 1) {
+        const user = document.getElementById('regUser').value;
+        const nik = document.getElementById('regNik').value;
+        const phone = document.getElementById('regPhone').value;
+        if (user.length < 4) { showModal("INVALID CALLSIGN", "Nickname minimal 4 karakter."); return false; }
+        if (nik.length !== 16) { showModal("IDENTITY ERROR", "NIK harus 16 digit."); return false; }
+        if (phone.length < 10) { showModal("COMM-LINK ERROR", "Nomor telepon tidak valid."); return false; }
+    }
+    // Master: Tambahkan validasi step lain sesuai kebutuhan
+    return true;
+}
+
+// --- THE MASTER STROKE: AUTHORIZE ADVENTURER ---
+async function authorizeAdventurer() {
+    const phone = "62" + document.getElementById('regPhone').value;
+    const agree = document.getElementById('regAgree').checked;
+    
+    if (!agree) { showModal("GUILD RULES", "Anda harus menyetujui aturan Guild."); return; }
+    
+    showPageLoader(true);
+    
+    const timestamp = new Date().toISOString();
+    
+    // Payload Data
+    const adventurerData = {
+        // TABEL 1 & 4 (users_adventurer)
+        profile: {
+            nickname: document.getElementById('regUser').value,
+            full_name: document.getElementById('regName').value,
+            phone: phone,
+            avatar: document.getElementById('regAvatar').value,
+            rank: "Trainer", // Rank Awal
+            level: 1,
+            exp_current: 0,
+            exp_max: 100,
+            vault: { purple: 0, red: 0, white: 0, green: 0 },
+            work_category: document.getElementById('regType').value,
+            mission_area: document.getElementById('regProv').value + ", " + document.getElementById('regKec').value,
+            registered_at: timestamp,
+            verification_status: "Unverified"
+        },
+        legal: {
+            nik: document.getElementById('regNik').value,
+            suspension_count: 0
+        },
+        security: {
+            password: btoa(document.getElementById('regPass').value), // Simple Encryption
+            recovery_q: document.getElementById('regQuest').value,
+            recovery_a: document.getElementById('regAns').value
+        },
+        // TABEL 2 (Vitality)
+        vitality: {
+            stamina_current: document.getElementById('regType').value === "FULL TIME" ? 120 : 80,
+            stamina_max: document.getElementById('regType').value === "FULL TIME" ? 120 : 80,
+            apply_limit_daily: 10,
+            last_stamina_regen: timestamp,
+            ads_watched_today: 0,
+            shield_count: 1 // Bonus 1 Shield saat daftar
+        },
+        // TABEL 3 (Stats)
+        stats: {
+            likes: 0, dislikes: 0,
+            stars: { s1:0, s2:0, s3:0, s4:0, s5:0 },
+            safety_score: 100,
+            communication_score: 100,
+            violation_count: 0, // Kolom pelanggaran
+            missions_taken: 0,
+            missions_success: 0,
+            missions_canceled: 0
+        }
+    };
+
+    try {
+        // Multi-Path Update (Menyebarkan data ke 5 Tabel sekaligus)
+        const updates = {};
+        updates[`users_adventurer/${phone}`] = { profile: adventurerData.profile, legal: adventurerData.legal, security: adventurerData.security };
+        updates[`adventurer_vitality/${phone}`] = adventurerData.vitality;
+        updates[`adventurer_stats/${phone}`] = adventurerData.stats;
+        
+        await db.ref().update(updates);
+        
+        showModal("SUCCESS", "PROTOCOL BINDING COMPLETE. WELCOME TO THE GUILD!", () => {
+            window.location.href = "login.html";
+        });
+    } catch (error) {
+        showModal("DB ERROR", "Gagal menghubungkan ke database: " + error.message);
+    } finally {
+        showPageLoader(false);
+    }
+}
+
+// UI Helpers
+function showModal(title, msg, callback = null) {
+    document.getElementById('modalTitle').innerText = title;
+    document.getElementById('modalMsg').innerText = msg;
+    document.getElementById('customModal').style.display = 'flex';
+    window.modalCallback = callback;
+}
+function closeModal() {
+    document.getElementById('customModal').style.display = 'none';
+    if (window.modalCallback) window.modalCallback();
+}
+function showPageLoader(show) {
+    document.getElementById('page-loader').classList.toggle('active', show);
+}
+
+// Initialize
+window.onload = () => {
+    initAvatars();
+    updateUI();
+    setTimeout(() => showPageLoader(false), 1500);
+};
+</script>
+</body>
+</html>
