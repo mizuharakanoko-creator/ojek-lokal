@@ -403,6 +403,118 @@ function updateUI() {
     }
 }
 
+
+
+          // --- 4. ADVANCED REGION DATA (EXPANDABLE) ---
+// Master bisa menambahkan data ini hingga ribuan baris atau memanggil API eksternal
+const regionData = {
+    "JAWA BARAT": {
+        "KUNINGAN": ["CILIMUS", "CIGUGUR", "KUNINGAN", "KADUGEDE"],
+        "CIREBON": ["KESAMBI", "LEMAHWUNGKUK", "HARJAMUKTI"]
+    },
+    "JAWA TENGAH": {
+        "TEGAL": ["SLAWI", "ADIWERNA"],
+        "BREBES": ["JATIBARANG", "WANASARI"]
+    }
+};
+
+// --- 5. SHIELD & PENALTY SYSTEM LOGIC ---
+// Ini menentukan limit per rank sebelum terjadi penurunan rank (Demotion)
+const rankRules = {
+    "Trainer": { shield: 1, penaltyLimit: 2, nextRank: "F" },
+    "F": { shield: 1, penaltyLimit: 3, nextRank: "E" },
+    "E": { shield: 2, penaltyLimit: 3, nextRank: "D" },
+    "S": { shield: 5, penaltyLimit: 5, nextRank: null }
+};
+
+// --- 6. DOMICILE ENGINE (RE-SYNCHRONIZED) ---
+function handleProvClick() {
+    openPicker('SELECT PROVINCE', Object.keys(regionData), 'regProv');
+}
+
+function handleKecClick() {
+    const prov = document.getElementById('regProv').value;
+    if (!prov) return showModal("ACCESS DENIED", "Sistem membutuhkan data PROVINSI terlebih dahulu.");
+    openPicker('SELECT DISTRICT', Object.keys(regionData[prov]), 'regKec');
+}
+
+function handleDesaClick() {
+    const prov = document.getElementById('regProv').value;
+    const kec = document.getElementById('regKec').value;
+    if (!kec) return showModal("ACCESS DENIED", "Sistem membutuhkan data KECAMATAN terlebih dahulu.");
+    openPicker('SELECT VILLAGE', regionData[prov][kec], 'regDesa');
+}
+
+let isTextMode = false;
+function toggleDomisiliMode() {
+    hapticFeedback('soft');
+    isTextMode = !isTextMode;
+    document.getElementById('dropdownMode').style.display = isTextMode ? 'none' : 'block';
+    document.getElementById('textMode').style.display = isTextMode ? 'block' : 'none';
+    document.getElementById('modeLabel').innerText = isTextMode ? "[ SWITCH TO PICKER ]" : "[ SWITCH TO AUTO-TEXT ]";
+}
+
+// --- 7. HAPTIC & AUDIO ENGINE (CYBERPUNK FEEL) ---
+function hapticFeedback(type) {
+    if (!navigator.vibrate) return;
+    if (type === 'soft') navigator.vibrate(15);
+    if (type === 'error') navigator.vibrate([50, 30, 50]);
+    if (type === 'success') navigator.vibrate([100, 50, 100]);
+}
+
+// --- 8. SECURITY & THEME ---
+function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    const target = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', target);
+    hapticFeedback('soft');
+}
+
+// --- 9. FINAL VALIDATION RE-CHECK ---
+function validateStep(step) {
+    if (step === 1) {
+        const user = document.getElementById('regUser').value;
+        const nik = document.getElementById('regNik').value;
+        const phone = document.getElementById('regPhone').value;
+        if (!user || !nik || !phone) {
+            hapticFeedback('error');
+            showModal("SYSTEM HALT", "Data Identitas tidak boleh ada yang kosong.");
+            return false;
+        }
+    }
+    if (step === 2) {
+        const addr = document.getElementById('regAddress').value;
+        if (addr.length < 10) {
+            showModal("DATA INCOMPLETE", "Alamat Domisili harus detail (Min. 10 Karakter).");
+            return false;
+        }
+    }
+    if (step === 3) {
+        const gear = document.getElementById('regGear').value;
+        const type = document.getElementById('regType').value;
+        if (!gear || !type) {
+            showModal("GEAR ERROR", "Pilih Tipe Petualang dan Kendaraan Anda.");
+            return false;
+        }
+    }
+    hapticFeedback('soft');
+    return true;
+}
+
+// Integrasi Link Terms yang Master tanyakan sebelumnya
+function checkTerms(e) {
+    e.preventDefault();
+    hapticFeedback('soft');
+    // Membuka modal konfirmasi sumpah alih-alih langsung centang
+    showModal("GUILD OATH", "Apakah Anda bersumpah setia pada aturan Guild dan siap menerima konsekuensi pengurangan Shield?", () => {
+        document.getElementById('regAgree').checked = true;
+    });
+}
+
+
+          
+
 // --- VALIDATION ENGINE ---
 function validateStep(step) {
     if (step === 1) {
