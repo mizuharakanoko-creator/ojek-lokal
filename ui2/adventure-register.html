@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | ADVENTURER REGISTRATION</title>
+    <link rel="stylesheet" href="master.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* NATIVE APP FEEL & STEALTH */
+        * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { overscroll-behavior-y: contain; background-color: #000; color: #fff; min-height: 100vh; margin: 0; padding-bottom: 40px; }
+        input, select, textarea { -webkit-user-select: text; user-select: text; outline: none; }
+
+        /* LOADING & THEME */
+        #page-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 10000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s;
+        }
+        .loader-bar { width: 200px; height: 2px; background: rgba(255,255,255,0.1); position: relative; overflow: hidden; margin-top: 20px; }
+        .loader-progress { width: 0%; height: 100%; background: var(--neon-cyan); position: absolute; animation: loadAnim 2s infinite; }
+        @keyframes loadAnim { 0% { width: 0%; left: 0; } 50% { width: 100%; left: 0; } 100% { width: 0%; left: 100%; } }
+
+        .theme-toggle { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.05); position: relative; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;}
+        .icon-svg { transition: opacity 0.3s, transform 0.3s; position: absolute; }
+        [data-theme="dark"] #moonIcon { opacity: 0; transform: scale(0); }
+        [data-theme="light"] #sunIcon { opacity: 0; transform: scale(0); }
+
+        /* CUSTOM PICKER / BOTTOM SHEET */
+        .bottom-sheet {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: 60%;
+            background: var(--bg-card); border-top: 2px solid var(--neon-cyan);
+            z-index: 100000; transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column; padding: 20px; border-radius: 20px 20px 0 0;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+        }
+        .bottom-sheet.active { bottom: 0; }
+        .sheet-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 99999; display: none;
+        }
+        .sheet-list { overflow-y: auto; flex: 1; margin-top: 15px; }
+        .sheet-item { 
+            padding: 18px; border-bottom: 1px solid var(--border-color); 
+            color: var(--text-main); font-family: var(--font-terminal); text-transform: uppercase; font-size: 13px;
+        }
+        .sheet-item:active { background: var(--neon-cyan-dim); }
+
+        /* MODAL ANIMATION */
+        #customModal, #termsModal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95);
+            display: none; justify-content: center; align-items: center; z-index: 99999;
+        }
+        .modal-box { width: 85%; max-width: 400px; padding: 25px; border: 2px solid var(--neon-cyan); border-radius: 0; background: #0a0a0a; text-align: center; animation: scaleIn 0.3s ease-out; box-shadow: 0 0 30px rgba(0,0,0,1), inset 0 0 10px rgba(0, 255, 255, 0.1); }
+        @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* STEP PROGRESS BAR (ADVENTURER CYAN ACCENT) */
+        .step-indicator { display: flex; justify-content: space-between; padding: 20px 30px; position: relative; margin-bottom: 10px; }
+        .step-dot { width: 14px; height: 14px; border-radius: 50%; background: #222; border: 2px solid #444; position: relative; z-index: 2; transition: 0.5s; font-size: 9px; display:flex; justify-content:center; align-items:center; color:transparent;}
+        .step-dot.active { background: var(--neon-cyan); border-color: var(--neon-cyan); box-shadow: 0 0 12px var(--neon-cyan); color:#000; font-weight:bold;}
+        .step-line { position: absolute; top: 26px; left: 40px; right: 40px; height: 2px; background: #222; z-index: 1; }
+        .step-line-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--neon-cyan); width: 0%; transition: 0.5s; }
+
+        /* FORM SECTIONS & INPUTS */
+        .reg-section { display: none; animation: slideIn 0.4s ease-out; }
+        .reg-section.active { display: block; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* INPUT ENHANCEMENTS */
+        .input-wrapper { position: relative; width: 100%; }
+        .input-addon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--neon-cyan); font-family: var(--font-terminal); font-weight: bold; font-size: 14px; }
+        .nik-counter { font-size: 9px; text-align: right; margin-top: 4px; color: var(--text-muted); font-family: var(--font-terminal); }
+        .strength-bar-bg { height: 2px; width: 100%; background: rgba(255,255,255,0.05); margin-top: 5px; }
+        .strength-fill { height: 100%; width: 0%; transition: 0.5s; background: #ff0055; }
+
+        .textarea-field { background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); padding: 12px; border-radius: 4px; font-family: var(--font-main); outline: none; width: 100%; resize: none; height: 80px; }
+        .nav-buttons { display: flex; gap: 10px; margin-top: 20px; padding: 0 15px; }
+        .mode-toggle { display: flex; justify-content:flex-end; font-size: 10px; color: var(--neon-cyan); margin-bottom: 5px; cursor:pointer;}
+        
+        /* ADVENTURER SPECIFIC STYLES */
+        .avatar-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; max-height: 200px; overflow-y: auto; padding: 5px; border: 1px solid var(--border-color); background: var(--bg-input); border-radius: 4px; }
+        .avatar-box { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: var(--font-terminal); background: #111; border: 1px solid #333; cursor: pointer; transition: 0.2s; color: var(--text-muted); }
+        .avatar-box.selected { border-color: var(--neon-cyan); background: var(--neon-cyan-dim); color: var(--neon-cyan); box-shadow: inset 0 0 8px var(--neon-cyan); font-weight: bold; }
+        
+        .warning-glow { border: 1px solid var(--neon-pink) !important; box-shadow: inset 0 0 15px rgba(255,0,255,0.1); }
+        .pulse-text { animation: pulse 1.5s infinite; color: var(--neon-pink); font-size: 10px; font-family: var(--font-terminal); text-align: center; margin-bottom: 10px; display: block; letter-spacing: 1px;}
+
+        /* CONNECTION STATUS INDICATOR */
+        #conn-status { position: fixed; top: 15px; left: 20px; z-index: 10001; display: flex; align-items: center; gap: 6px; font-family: var(--font-terminal); font-size: 9px; letter-spacing: 1px; padding: 4px 8px; border-radius: 4px; background: rgba(0,0,0,0.5); transition: 0.3s; pointer-events: none; }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .online { color: var(--neon-cyan); }
+        .online .status-dot { background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+        .offline { color: var(--neon-pink); }
+        .offline .status-dot { background: var(--neon-pink); box-shadow: 0 0 8px var(--neon-pink); animation: pulse 1s infinite; }
+    </style>
+</head>
+<body class="notranslate">
+
+<div id="conn-status" class="online">
+    <div class="status-dot"></div>
+    <span id="status-text">SYSTEM ONLINE</span>
+</div>
+
+<div id="page-loader">
+    <h2 class="text-neon-cyan" style="letter-spacing: 5px; font-size: 14px;">SYSTEM PROCESSING</h2>
+    <div class="loader-bar"><div class="loader-progress"></div></div>
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay" onclick="closePicker()"></div>
+<div class="bottom-sheet" id="bottomSheet">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
+        <h3 id="sheetTitle" class="text-neon-cyan" style="font-size:14px; margin:0; letter-spacing:2px;">SELECT DATA</h3>
+        <span onclick="closePicker()" style="color:var(--neon-pink); font-size:12px; font-weight:bold;">[ CLOSE ]</span>
+    </div>
+    <div class="sheet-list" id="sheetList"></div>
+</div>
+
+<div class="app-container">
+    <div style="display:flex; justify-content: flex-end; padding:15px 20px 0 20px;">
+        <div class="theme-toggle" onclick="toggleTheme()" id="themeBtn">
+            <svg id="sunIcon" class="icon-svg text-neon-cyan" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg id="moonIcon" class="icon-svg text-neon-pink" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </div>
+    </div>
+    
+    <div style="text-align:center; padding-top:10px;">
+        <h1 class="text-neon-cyan" style="font-size:28px; margin:0; letter-spacing:4px;">ADVENTURER</h1>
+        <p style="color:var(--neon-pink); font-size:9px; letter-spacing:2px;">GUILD MISSION TERMINAL ENTRY</p>
+    </div>
+
+    <div class="step-indicator">
+        <div class="step-line"><div class="step-line-fill" id="stepLine"></div></div>
+        <div class="step-dot active">1</div>
+        <div class="step-dot">2</div>
+        <div class="step-dot">3</div>
+        <div class="step-dot">4</div>
+    </div>
+
+    <form id="regForm">
+        <div class="reg-section active" id="step1">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; margin-bottom:15px;">SEC I: SOUL BINDING</h3>
+                <div class="input-group">
+                    <label>FULL LEGAL NAME</label>
+                    <input type="text" id="regName" class="input-field" placeholder="Match with ID Card" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="input-group">
+                    <label>NATIONAL ID (NIK KTP)</label>
+                    <input type="number" id="regNik" class="input-field" placeholder="16 Digit Number" oninput="handleNikInput(this)">
+                    <div id="nikCounter" class="nik-counter">0 / 16 DIGIT</div>
+                </div>
+                <div class="input-group">
+                    <label>EMAIL ADDRESS</label>
+                    <input type="email" id="regEmail" class="input-field" placeholder="hunter@terminal.com">
+                </div>
+                <div class="input-group">
+                    <label>PRIMARY COMM-LINK</label>
+                    <div class="input-wrapper">
+                        <span class="input-addon">+62</span>
+                        <input type="tel" id="regPhone" class="input-field" style="padding-left:45px;" placeholder="812..." oninput="handlePhoneInput(this)">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step2">
+            <div class="card warning-glow">
+                <span class="pulse-text">WARNING: ASSIGNMENT AREA IS PERMANENT</span>
+                
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-top: 1px solid var(--border-color); padding-top:10px;">
+                    <h3 class="text-neon-cyan" style="font-size: 12px; margin:0;">SEC II: DEPLOYMENT</h3>
+                    <span class="mode-toggle" onclick="toggleDomisiliMode()" id="modeLabel">[ SWITCH AUTO-TEXT ]</span>
+                </div>
+                
+                <div class="input-group">
+                    <label>WORK VOCATION</label>
+                    <div id="pickerVocation" class="input-field" style="cursor:pointer; color:var(--neon-cyan); font-weight:bold;" onclick="openPicker('VOCATION', ['PART-TIME (Freelance)', 'FULL-TIME (Professional)'], 'regVocation')">SELECT VOCATION...</div>
+                    <input type="hidden" id="regVocation">
+                </div>
+
+                <div id="dropdownMode">
+                    <div class="input-group">
+                        <label>PROVINCE</label>
+                        <div id="pickerProv" class="input-field" onclick="handleProvClick()" style="cursor:pointer;">SELECT PROVINCE...</div>
+                        <input type="hidden" id="regProv">
+                    </div>
+                    <div class="input-group">
+                        <label>DISTRICT (KECAMATAN)</label>
+                        <div id="pickerKec" class="input-field" onclick="handleKecClick()" style="cursor:pointer; opacity:0.5;">SELECT DISTRICT...</div>
+                        <input type="hidden" id="regKec">
+                    </div>
+                    <div class="input-group">
+                        <label>VILLAGE (DESA)</label>
+                        <div id="pickerDesa" class="input-field" onclick="handleDesaClick()" style="cursor:pointer; opacity:0.5;">SELECT VILLAGE...</div>
+                        <input type="hidden" id="regDesa">
+                    </div>
+                </div>
+
+                <div id="textMode" style="display:none;">
+                    <div class="input-group">
+                        <label>SMART DOMICILE INPUT</label>
+                        <input type="text" id="regDomText" class="input-field" placeholder="Type District, City, Province...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step3">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; margin-bottom:15px;">SEC III: GEAR & PERSONA</h3>
+                
+                <div class="input-group">
+                    <label>SELECT TERMINAL AVATAR</label>
+                    <div class="avatar-grid" id="avatarGrid">
+                        </div>
+                    <input type="hidden" id="regAvatar" value="AV-01">
+                </div>
+
+                <div class="input-group" style="margin-top:15px;">
+                    <label>VEHICLE REG. NUMBER (OPTIONAL)</label>
+                    <input type="text" id="regVehicle" class="input-field" placeholder="E.g., E 1234 XY" oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step4">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; margin-bottom:15px;">SEC IV: SECURITY OATH</h3>
+                <div class="input-group">
+                    <label>ENCRYPTION CODE (PASSWORD)</label>
+                    <input type="password" id="regPass" class="input-field" placeholder="Min. 8 characters" oninput="handlePassInput(this)">
+                    <div class="strength-bar-bg"><div id="strengthFill" class="strength-fill"></div></div>
+                </div>
+                <div class="input-group">
+                    <label>SECURITY QUESTION</label>
+                    <input type="text" id="regQuest" class="input-field" placeholder="Ex: First weapon name?">
+                </div>
+                <div class="input-group">
+                    <label>SECURITY ANSWER</label>
+                    <input type="text" id="regAns" class="input-field" placeholder="Answer...">
+                </div>
+
+                <div style="border-top:1px solid var(--border-color); margin-top:20px; padding-top:15px; display:flex; align-items:flex-start; gap:10px;">
+                    <input type="checkbox" id="regAgree" style="width:20px; height:20px; accent-color:var(--neon-cyan); margin-top:2px;" onclick="checkTerms(event)">
+                    <label style="font-size:11px; color:#ccc; line-height:1.4;">
+                        I swear to abide by the <a href="#" style="color:var(--neon-pink); text-decoration:underline;">Guild Rules</a> and declare all information provided is legitimate.
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-buttons">
+            <button type="button" class="btn btn-secondary" id="btnPrev" style="display:none;" onclick="moveStep(-1)">PREVIOUS</button>
+            <button type="button" class="btn btn-primary" id="btnNext" style="background-color: var(--neon-cyan); color: #000; box-shadow: 0 0 10px var(--neon-cyan-dim);" onclick="moveStep(1)">CONTINUE</button>
+        </div>
+    </form>
+
+    <div style="text-align:center; margin-top:25px;">
+        <a href="javascript:void(0)" onclick="navigateTo('login.html')" style="color:#555; text-decoration:none; font-size:11px; font-weight:bold;">ALREADY REGISTERED? <span class="text-neon-cyan">ACCESS TERMINAL</span></a>
+    </div>
+</div>
+
+<div id="customModal">
+    <div class="modal-box">
+        <h2 id="modalTitle" class="text-neon-cyan" style="margin-top:0;">NOTICE</h2>
+        <p id="modalMsg" style="font-size:13px; color:#ccc; line-height:1.6;"></p>
+        <button class="btn btn-primary" style="background:var(--neon-cyan); color:#000;" onclick="closeModal('customModal')">ACKNOWLEDGE</button>
+    </div>
+</div>
+
+<div id="termsModal">
+    <div class="modal-box" style="border-color:var(--neon-pink);">
+        <h2 class="text-neon-pink" style="margin-top:0;">THE OATH</h2>
+        <p style="font-size:12px; color:#ccc; line-height:1.5; margin-bottom:20px;">
+            By taking this oath, you accept that your assignment area is locked. Any fraudulent data will result in immediate Guild banishment. Do you swear?
+        </p>
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-secondary" onclick="closeTerms(false)">REJECT</button>
+            <button class="btn btn-primary" style="background:var(--neon-pink);" onclick="closeTerms(true)">I SWEAR</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Core Init
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+  
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(f, d) { const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type="sine"; o.frequency.value=f; g.gain.value=0.1; o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+d); }
+    function hapticClick(type = 'default') { 
+        if(navigator.vibrate) {
+            if(type === 'error') navigator.vibrate([100, 50, 100]);
+            else navigator.vibrate(20);
+        }
+        playBeep(type === 'error' ? 400 : 800, 0.05); 
+    }
+
+    // 2. Anti-Refresh & Loader
+    window.onload = () => {
+        setTimeout(() => { document.getElementById('page-loader').style.opacity = '0'; setTimeout(() => { document.getElementById('page-loader').style.display = 'none'; }, 500); }, 800);
+        let ts; document.addEventListener('touchstart', e => { ts = e.touches[0].pageY; }, {passive: false});
+        document.addEventListener('touchmove', e => { if (document.documentElement.scrollTop === 0 && e.touches[0].pageY > ts) e.preventDefault(); }, {passive: false});
+        generateAvatars();
+    };
+    function navigateTo(url) { hapticClick(); document.getElementById('page-loader').style.display = 'flex'; setTimeout(() => document.getElementById('page-loader').style.opacity = '1', 10); setTimeout(() => window.location.href = url, 800); }
+
+    // 3. Theme
+    function toggleTheme() {
+        hapticClick(); const html = document.documentElement;
+        document.getElementById('themeBtn').style.transform = "rotate(360deg)";
+        setTimeout(() => { html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); document.getElementById('themeBtn').style.transform = "rotate(0deg)"; }, 300);
+    }
+
+    // 4. Custom Picker (Region & Vocation)
+    const regionData = { "WEST JAVA": { "KUNINGAN": ["CILIMUS", "CIGUGUR"], "CIREBON": ["KEDAWUNG"] }, "CENTRAL JAVA": { "TEGAL": ["SLAWI"] } };
+    
+    function openPicker(title, items, targetId) {
+        hapticClick(); document.getElementById('sheetTitle').innerText = title;
+        const list = document.getElementById('sheetList'); list.innerHTML = '';
+        items.forEach(item => {
+            const div = document.createElement('div'); div.className = 'sheet-item'; div.innerText = item;
+            div.onclick = () => selectItem(item, targetId); list.appendChild(div);
+        });
+        document.getElementById('sheetOverlay').style.display = 'block';
+        setTimeout(() => document.getElementById('bottomSheet').classList.add('active'), 10);
+    }
+    function closePicker() { document.getElementById('bottomSheet').classList.remove('active'); setTimeout(() => document.getElementById('sheetOverlay').style.display = 'none', 400); }
+    function selectItem(val, targetId) {
+        hapticClick(); document.getElementById(targetId).value = val;
+        const displayEl = document.getElementById(targetId.replace('reg', 'picker'));
+        displayEl.innerText = val; displayEl.style.color = 'var(--neon-cyan)'; displayEl.style.opacity = '1';
+        if(targetId === 'regProv') { document.getElementById('regKec').value = ''; document.getElementById('pickerKec').innerText = 'SELECT DISTRICT...'; document.getElementById('pickerKec').style.opacity = '1'; document.getElementById('pickerKec').style.color = 'var(--text-main)'; }
+        closePicker();
+    }
+    function handleProvClick() { openPicker('PROVINCE', Object.keys(regionData), 'regProv'); }
+    function handleKecClick() { const p = document.getElementById('regProv').value; if(!p) return showMsg("Select PROVINCE first!", "ERROR"); openPicker('DISTRICT', Object.keys(regionData[p]), 'regKec'); }
+    function handleDesaClick() { const p = document.getElementById('regProv').value; const k = document.getElementById('regKec').value; if(!k) return showMsg("Select DISTRICT first!", "ERROR"); openPicker('VILLAGE', regionData[p][k], 'regDesa'); }
+
+    // 5. Input Validations
+    function handleNikInput(el) { if(el.value.length > 16) el.value = el.value.slice(0, 16); document.getElementById('nikCounter').innerText = `${el.value.length} / 16 DIGIT`; }
+    function handlePhoneInput(el) { el.value = el.value.replace(/[^0-9]/g, ''); if(el.value.startsWith('0')) el.value = el.value.substring(1); }
+    function handlePassInput(el) {
+        const fill = document.getElementById('strengthFill'); const len = el.value.length;
+        if(len === 0) fill.style.width = '0%'; else if(len < 8) { fill.style.width = '30%'; fill.style.background = '#ff0055'; }
+        else if(len < 12) { fill.style.width = '65%'; fill.style.background = '#ffbb33'; } else { fill.style.width = '100%'; fill.style.background = 'var(--neon-cyan)'; }
+    }
+    document.getElementById('regNik').addEventListener('keydown', (e) => { if (e.which === 32) e.preventDefault(); });
+
+    // 6. Avatar Generation
+    function generateAvatars() {
+        const grid = document.getElementById('avatarGrid');
+        for(let i=1; i<=50; i++) {
+            let id = `AV-${i < 10 ? '0'+i : i}`;
+            let box = document.createElement('div');
+            box.className = 'avatar-box' + (i===1 ? ' selected' : '');
+            box.innerText = id;
+            box.onclick = function() {
+                hapticClick();
+                document.querySelectorAll('.avatar-box').forEach(b => b.classList.remove('selected'));
+                this.classList.add('selected');
+                document.getElementById('regAvatar').value = id;
+            };
+            grid.appendChild(box);
+        }
+    }
+
+    // 7. Modals & Steps
+    function showMsg(m, title = "SYSTEM NOTICE") { document.getElementById('modalTitle').innerText = title; document.getElementById('modalMsg').innerText = m; document.getElementById('customModal').style.display = 'flex'; }
+    function closeModal(id) { hapticClick(); document.getElementById(id).style.display = 'none'; }
+    function checkTerms(e) { e.preventDefault(); hapticClick(); document.getElementById('termsModal').style.display = 'flex'; }
+    function closeTerms(agreed) { hapticClick(); if(agreed) document.getElementById('regAgree').checked = true; document.getElementById('termsModal').style.display = 'none'; }
+
+    let isTextMode = false;
+    function toggleDomisiliMode() {
+        hapticClick(); isTextMode = !isTextMode;
+        document.getElementById('dropdownMode').style.display = isTextMode ? 'none' : 'block';
+        document.getElementById('textMode').style.display = isTextMode ? 'block' : 'none';
+        document.getElementById('modeLabel').innerText = isTextMode ? "[ SWITCH DROPDOWN ]" : "[ SWITCH AUTO-TEXT ]";
+    }
+
+    let currentStep = 1; const dots = document.querySelectorAll('.step-dot'); const sections = document.querySelectorAll('.reg-section');
+    function moveStep(dir) {
+        if(dir === 1) {
+            if(currentStep === 1) if(!document.getElementById('regName').value || document.getElementById('regNik').value.length !== 16 || !document.getElementById('regPhone').value) return showMsg("Complete Name, 16-Digit NIK, and Phone are required.");
+            if(currentStep === 2) {
+                if(!document.getElementById('regVocation').value) return showMsg("Select Work Vocation first.");
+                if(!isTextMode && !document.getElementById('regDesa').value) return showMsg("Domicile details are required!");
+                if(isTextMode && !document.getElementById('regDomText').value) return showMsg("Smart Domicile required!");
+            }
+            if(currentStep === 4) {
+                if(document.getElementById('regPass').value.length < 8) return showMsg("Code must be min 8 chars.");
+                if(!document.getElementById('regQuest').value || !document.getElementById('regAns').value) return showMsg("Security Q&A required.");
+                return finalizeRegistration();
+            }
+        }
+        hapticClick(); currentStep += dir;
+        sections.forEach((s, i) => s.classList.toggle('active', i === currentStep - 1));
+        dots.forEach((d, i) => d.classList.toggle('active', i < currentStep));
+        document.getElementById('stepLine').style.width = ((currentStep - 1) / 3 * 100) + "%";
+        document.getElementById('btnPrev').style.display = currentStep === 1 ? 'none' : 'block';
+        document.getElementById('btnNext').innerText = currentStep === 4 ? 'AUTHORIZE' : 'CONTINUE';
+    }
+
+    // 8. Connection & Database Write
+    function updateOnlineStatus() {
+        const s = navigator.onLine; const el = document.getElementById('conn-status'); const txt = document.getElementById('status-text');
+        if(s) { el.className = 'online'; txt.innerText = 'SYSTEM ONLINE'; } 
+        else { el.className = 'offline'; txt.innerText = 'CONNECTION LOST'; hapticClick('error'); showMsg("Signal Lost. Data cannot be saved.", "WARNING"); }
+    }
+    window.addEventListener('online', updateOnlineStatus); window.addEventListener('offline', updateOnlineStatus); updateOnlineStatus();
+
+    // Random Title Generator
+    const titlePool = ["Novice Hunter", "Street Wanderer", "Path Finder", "New Blood", "Quest Seeker", "Silent Helper", "Shadow Guide", "Iron Lung"];
+    function sanitize(str) { return str ? str.toString().replace(/[<>'"]/g, "") : ""; }
+
+    async function finalizeRegistration() {
+        if(!document.getElementById('regAgree').checked) return showMsg("You must swear the Oath.");
+        
+        const btn = document.getElementById('btnNext'); btn.innerText = "ENCRYPTING..."; btn.disabled = true; hapticClick();
+        const phone = "62" + sanitize(document.getElementById('regPhone').value);
+        
+        // Vocation Logic
+        const voc = document.getElementById('regVocation').value;
+        const isFull = voc.includes('FULL-TIME');
+        const stMax = isFull ? 120 : 80;
+        const appLimit = isFull ? 10 : 5;
+        const randomTitle = titlePool[Math.floor(Math.random() * titlePool.length)];
+        const domFinal = isTextMode ? sanitize(document.getElementById('regDomText').value) : `${sanitize(document.getElementById('regDesa').value)}, ${sanitize(document.getElementById('regKec').value)}, ${sanitize(document.getElementById('regProv').value)}`;
+
+        // Match 5 Tables Structure into Nested User Object
+        const adventurerData = {
+            profile: {
+                id_adventurer: phone,
+                nama_lengkap: sanitize(document.getElementById('regName').value),
+                email: sanitize(document.getElementById('regEmail').value),
+                nomor_telepon: phone,
+                foto_avatar: document.getElementById('regAvatar').value,
+                domisili: domFinal,
+                julukan: randomTitle,
+                tanggal_terdaftar: new Date().toISOString(),
+                status_verifikasi: "Unverified",
+                rank_class: "Trainer",
+                current_level: 1,
+                current_exp: 0,
+                max_exp: 100,
+                area_tugas: domFinal,
+                kategori_pekerja: isFull ? "Full-Time" : "Part-Time",
+                kendaraan: sanitize(document.getElementById('regVehicle').value) || "None"
+            },
+            vitality: {
+                stamina_current: stMax,
+                stamina_max: stMax,
+                last_stamina_regen: new Date().toISOString(),
+                apply_limit_daily: appLimit,
+                last_reset_limit: new Date().toISOString(),
+                ads_count: 0
+            },
+            stats: {
+                like: 0, dislike: 0, total_bintang_1: 0, total_bintang_2: 0, total_bintang_3: 0, total_bintang_4: 0, total_bintang_5: 0,
+                poin_keamanan_berkendara_baik: 0, poin_keamanan_berkendara_buruk: 0,
+                poin_kenyamanan_berkendara_baik: 0, poin_kenyamanan_berkendara_buruk: 0,
+                nilai_penampilan_baik: 0, nilai_penampilan_buruk: 0,
+                tingkat_ketelitian_baik: 0, tingkat_ketelitian_buruk: 0,
+                tingkat_kepercayaan_baik: 0, tingkat_kepercayaan_buruk: 0,
+                tingkat_komunikasi_baik: 0, tingkat_komunikasi_buruk: 0,
+                poin_kecepatan_tinggi: 0, poin_kecepatan_rendah: 0,
+                misi_diambil: 0, misi_sukses: 0, misi_batal: 0
+            },
+            legal: {
+                nik_ktp: sanitize(document.getElementById('regNik').value),
+                catatan_pelanggaran: 0
+            },
+            wallet: { purple: 0, red: 0, white: 0, green: 0 },
+            security: {
+                password: sanitize(document.getElementById('regPass').value),
+                pertanyaan_lupa_password: sanitize(document.getElementById('regQuest').value),
+                jawaban_lupa_password: sanitize(document.getElementById('regAns').value)
+            }
+        };
+
+        try {
+            const snapshot = await db.ref('users_adventurer/' + phone).once('value');
+            if(snapshot.exists()) { showMsg("IDENTITY ALREADY REGISTERED!", "DENIED"); btn.innerText = "AUTHORIZE"; btn.disabled = false; return; }
+            
+            await db.ref('users_adventurer/' + phone).set(adventurerData);
+            if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            showMsg(`WELCOME TO THE GUILD!\nAssigned Title: [ ${randomTitle} ]`, "SUCCESS");
+            setTimeout(() => navigateTo('login.html'), 3000);
+        } catch (e) {
+            showMsg("TRANSMISSION ERROR: " + e.message, "SYSTEM FAILURE");
+            btn.innerText = "AUTHORIZE"; btn.disabled = false;
+        }
+    }
+</script>
+</body>
+</html>
