@@ -83,9 +83,32 @@
         
         /* THEME MODAL BUTTON FIX */
         #termsModal .btn-primary { background: var(--neon-cyan) !important; color: #000 !important; font-weight: 900; box-shadow: 0 0 15px var(--neon-cyan-dim); }
+    
+
+        /* CONNECTION STATUS INDICATOR */
+#conn-status {
+    position: fixed; top: 15px; left: 20px; z-index: 10001;
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--font-terminal); font-size: 9px; letter-spacing: 1px;
+    padding: 4px 8px; border-radius: 4px; background: rgba(0,0,0,0.5);
+    transition: 0.3s; pointer-events: none;
+}
+.status-dot { width: 6px; height: 6px; border-radius: 50%; }
+.online { color: var(--neon-cyan); }
+.online .status-dot { background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+.offline { color: var(--neon-pink); }
+.offline .status-dot { background: var(--neon-pink); box-shadow: 0 0 8px var(--neon-pink); animation: pulse 1s infinite; }
+
+    
     </style>
 </head>
 <body class="notranslate">
+
+<div id="conn-status" class="online">
+    <div class="status-dot"></div>
+    <span id="status-text">SYSTEM ONLINE</span>
+</div>
+
 
 <div id="page-loader">
     <h2 class="text-neon-pink" style="letter-spacing: 5px; font-size: 14px;">SYSTEM PROCESSING</h2>
@@ -518,6 +541,46 @@
             btn.innerText = "AUTHORIZE"; btn.disabled = false;
         }
     }
+
+
+    // A. CONNECTION MONITORING
+function updateOnlineStatus() {
+    const status = navigator.onLine;
+    const el = document.getElementById('conn-status');
+    const txt = document.getElementById('status-text');
+    
+    if (status) {
+        el.className = 'online';
+        txt.innerText = 'SYSTEM ONLINE';
+    } else {
+        el.className = 'offline';
+        txt.innerText = 'CONNECTION LOST';
+        hapticClick('error');
+        showMsg("WARNING: Connection lost. Your data might not be saved to the terminal database.", "SIGNAL BREACH");
+    }
+}
+
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus(); // Jalankan saat startup
+
+// B. AUTO-CAPS & SPACE FILTER FOR NIK
+// Mencegah user memasukkan spasi di NIK secara tidak sengaja
+document.getElementById('regNik').addEventListener('keydown', (e) => {
+    if (e.which === 32) e.preventDefault();
+});
+
+// C. SMART TEXTAREA AUTO-RESYNC
+// Memastikan textarea tidak "ketutup" keyboard di beberapa HP
+document.querySelectorAll('textarea').forEach(tx => {
+    tx.addEventListener('focus', () => {
+        setTimeout(() => tx.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+    });
+});
+
+
+
+    
 </script>
 </body>
 </html>
