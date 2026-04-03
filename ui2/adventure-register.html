@@ -186,7 +186,7 @@
                     <label>PRIMARY PHONE (WHATSAPP)</label>
                     <div class="input-wrapper">
                         <span class="input-addon">+62</span>
-                        <input type="tel" id="regPhone" class="input-field" style="padding-left:45px;" placeholder="812..." oninput="handlePhoneInput(this)">
+                        <input type="tel" id="regPhone" class="input-field" style="padding-left:45px;" placeholder="812..." oninput="handlePhoneInput(this)" oninput="if(this.value.length > 13) this.value = this.value.slice(0, 13);">
                     </div>
                 </div>
                 <div class="input-group">
@@ -415,28 +415,70 @@
     }
 
     function selectItem(val, targetId) {
-        hapticClick();
-        document.getElementById(targetId).value = val;
-        const displayId = targetId.replace('reg', 'picker');
-        const displayEl = document.getElementById(displayId);
-        displayEl.innerText = val;
-        displayEl.style.color = 'var(--text-main)';
-        displayEl.style.opacity = '1';
+    hapticClick();
+    document.getElementById(targetId).value = val;
+    const displayId = targetId.replace('reg', 'picker');
+    const displayEl = document.getElementById(displayId);
+    displayEl.innerText = val;
+    displayEl.style.color = 'var(--text-main)';
+    displayEl.style.opacity = '1';
+
+    // 1. Jika ganti Provinsi, reset semua di bawahnya
+    if(targetId === 'regProv') {
+        document.getElementById('regKab').value = '';
+        document.getElementById('pickerKab').innerText = 'SELECT CITY...';
+        document.getElementById('pickerKab').style.opacity = '0.5'; // Tambahkan ini
         
-        if(targetId === 'regKec') {
-            document.getElementById('regDesa').value = '';
-            document.getElementById('pickerDesa').innerText = 'SELECT VILLAGE...';
-            document.getElementById('pickerDesa').style.opacity = '0.5';
-        }
-        closePicker();
+        document.getElementById('regKec').value = '';
+        document.getElementById('pickerKec').innerText = 'SELECT DISTRICT...';
+        document.getElementById('pickerKec').style.opacity = '0.5';
     }
 
-    function handleKecClick() { openPicker('DISTRICT (KEC)', Object.keys(regionData), 'regKec'); }
-    function handleDesaClick() {
-        const kec = document.getElementById('regKec').value;
-        if(!kec) { hapticClick('error'); return showMsg("Please select DISTRICT first!", "ACCESS DENIED"); }
-        openPicker('VILLAGE (DESA)', regionData[kec], 'regDesa');
+    // 2. Jika ganti Kabupaten, reset Kecamatan & Desa
+    if(targetId === 'regKab') {
+        document.getElementById('regKec').value = '';
+        document.getElementById('pickerKec').innerText = 'SELECT DISTRICT...';
+        document.getElementById('pickerKec').style.opacity = '0.5';
+        
+        document.getElementById('regDesa').value = '';
+        document.getElementById('pickerDesa').innerText = 'SELECT VILLAGE...';
+        document.getElementById('pickerDesa').style.opacity = '0.5';
     }
+
+    // 3. Jika ganti Kecamatan, reset Desa saja
+    if(targetId === 'regKec') {
+        document.getElementById('regDesa').value = '';
+        document.getElementById('pickerDesa').innerText = 'SELECT VILLAGE...';
+        document.getElementById('pickerDesa').style.opacity = '0.5';
+    }
+
+    closePicker();
+}
+
+
+    // 1. Handle Kabupaten (Cek Provinsi)
+function handleKabClick() {
+    const prov = document.getElementById('regProv').value;
+    if(!prov) { hapticClick('error'); return showMsg("Please select PROVINCE first!", "ACCESS DENIED"); }
+    
+    const listKabupaten = ['KAB. KUNINGAN', 'KAB. MAJALENGKA', 'KOTA CIREBON', 'KAB. CIREBON'];
+    openPicker('CITY / REGENCY', listKabupaten, 'regKab');
+}
+
+// 2. Handle Kecamatan (Cek Kabupaten)
+function handleKecClick() { 
+    const kab = document.getElementById('regKab').value;
+    if(!kab) { hapticClick('error'); return showMsg("Please select CITY/REGENCY first!", "ACCESS DENIED"); }
+    openPicker('DISTRICT (KEC)', Object.keys(regionData), 'regKec'); 
+}
+
+// 3. Handle Desa (Cek Kecamatan)
+function handleDesaClick() {
+    const kec = document.getElementById('regKec').value;
+    if(!kec) { hapticClick('error'); return showMsg("Please select DISTRICT first!", "ACCESS DENIED"); }
+    openPicker('VILLAGE (DESA)', regionData[kec], 'regDesa');
+}
+
 
     // 5. Input Logic (NIK, Phone, Pass)
     function handleNikInput(el) {
@@ -641,6 +683,17 @@
         };
 
         try {
+
+// 1. Ambil data email dulu
+const email = document.getElementById('regEmail').value;
+
+// 2. Validasi formatnya (Harus di luar TRY atau di paling atas TRY)
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+if(!emailPattern.test(email)) {
+    return showMsg("INVALID EMAIL FORMAT", "TRANSMISSION FAILED");
+}
+
+            
             // Triple Validation: Cek Nickname, NIK, dan Nomor Telepon
             const nickCheck = await db.ref('users_adventurer').orderByChild('nickname').equalTo(nickname).once('value');
             if(nickCheck.exists()) throw new Error("CODENAME SUDAH TERPAKAI!");
