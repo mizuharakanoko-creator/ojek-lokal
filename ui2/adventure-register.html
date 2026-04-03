@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | ADVENTURER REGISTRATION</title>
+    <link rel="stylesheet" href="master.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* NATIVE APP FEEL & STEALTH */
+        * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { overscroll-behavior-y: contain; background-color: #000; color: #fff; min-height: 100vh; margin: 0; padding-bottom: 40px; overflow-x: hidden; }
+        input, select, textarea { -webkit-user-select: text; user-select: text; outline: none; }
+
+        /* LOADING & THEME (SINKRON DARI REQUESTER) */
+        #page-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 10000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s;
+        }
+        .loader-bar { width: 200px; height: 2px; background: rgba(255,255,255,0.1); position: relative; overflow: hidden; margin-top: 20px; }
+        .loader-progress { width: 0%; height: 100%; background: var(--neon-pink); position: absolute; animation: loadAnim 2s infinite; }
+        @keyframes loadAnim { 0% { width: 0%; left: 0; } 50% { width: 100%; left: 0; } 100% { width: 0%; left: 100%; } }
+
+        .theme-toggle { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.05); position: relative; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;}
+        .icon-svg { transition: opacity 0.3s, transform 0.3s; position: absolute; }
+        [data-theme="dark"] #moonIcon { opacity: 0; transform: scale(0); }
+        [data-theme="light"] #sunIcon { opacity: 0; transform: scale(0); }
+
+        /* CUSTOM PICKER / BOTTOM SHEET */
+        .bottom-sheet {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: 60%;
+            background: var(--bg-card); border-top: 2px solid var(--neon-cyan);
+            z-index: 100000; transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column; padding: 20px; border-radius: 20px 20px 0 0;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+        }
+        .bottom-sheet.active { bottom: 0; }
+        .sheet-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 99999; display: none;
+        }
+        .sheet-list { overflow-y: auto; flex: 1; margin-top: 15px; }
+        .sheet-item { 
+            padding: 18px; border-bottom: 1px solid var(--border-color); 
+            color: var(--text-main); font-family: var(--font-terminal); text-transform: uppercase; font-size: 13px;
+        }
+        .sheet-item:active { background: var(--neon-cyan-dim); }
+
+        /* MODAL ANIMATION */
+        #customModal, #termsModal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95);
+            display: none; justify-content: center; align-items: center; z-index: 99999;
+        }
+        .modal-box { width: 85%; max-width: 400px; padding: 25px; border: 2px solid var(--neon-cyan); border-radius: 0; background: #0a0a0a; text-align: center; animation: scaleIn 0.3s ease-out; box-shadow: 0 0 30px rgba(0,0,0,1), inset 0 0 10px rgba(0, 255, 255, 0.1); }
+        @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* STEP PROGRESS BAR (6 STEPS) */
+        .step-indicator { display: flex; justify-content: space-between; padding: 20px 30px; position: relative; margin-bottom: 10px; }
+        .step-dot { width: 14px; height: 14px; border-radius: 50%; background: #222; border: 2px solid #444; position: relative; z-index: 2; transition: 0.5s; font-size: 9px; display:flex; justify-content:center; align-items:center; color:transparent;}
+        .step-dot.active { background: var(--neon-pink); border-color: var(--neon-pink); box-shadow: 0 0 12px var(--neon-pink); color:#fff; }
+        .step-line { position: absolute; top: 26px; left: 40px; right: 40px; height: 2px; background: #222; z-index: 1; }
+        .step-line-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--neon-pink); width: 0%; transition: 0.5s; }
+
+        /* FORM SECTIONS & INPUTS */
+        .reg-section { display: none; animation: slideIn 0.4s ease-out; }
+        .reg-section.active { display: block; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* INPUT ENHANCEMENTS */
+        .input-wrapper { position: relative; width: 100%; }
+        .input-addon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--neon-cyan); font-family: var(--font-terminal); font-weight: bold; font-size: 14px; }
+        .nik-counter { font-size: 9px; text-align: right; margin-top: 4px; color: var(--text-muted); font-family: var(--font-terminal); }
+        .strength-bar-bg { height: 2px; width: 100%; background: rgba(255,255,255,0.05); margin-top: 5px; }
+        .strength-fill { height: 100%; width: 0%; transition: 0.5s; background: #ff0055; }
+
+        .textarea-field { background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); padding: 12px; border-radius: 4px; font-family: var(--font-main); outline: none; width: 100%; resize: none; height: 80px; }
+        .nav-buttons { display: flex; gap: 10px; margin-top: 20px; padding: 0 15px; }
+        .mode-toggle { display: flex; justify-content:flex-end; font-size: 10px; color: var(--neon-cyan); margin-bottom: 5px; cursor:pointer;}
+        
+        #termsModal .btn-primary { background: var(--neon-cyan) !important; color: #000 !important; font-weight: 900; box-shadow: 0 0 15px var(--neon-cyan-dim); }
+
+        /* CONNECTION STATUS INDICATOR */
+        #conn-status {
+            position: fixed; top: 15px; left: 20px; z-index: 10001;
+            display: flex; align-items: center; gap: 6px;
+            font-family: var(--font-terminal); font-size: 9px; letter-spacing: 1px;
+            padding: 4px 8px; border-radius: 4px; background: rgba(0,0,0,0.5);
+            transition: 0.3s; pointer-events: none;
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .online { color: var(--neon-cyan); }
+        .online .status-dot { background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+        .offline { color: var(--neon-pink); }
+        .offline .status-dot { background: var(--neon-pink); box-shadow: 0 0 8px var(--neon-pink); animation: pulse 1s infinite; }
+    </style>
+</head>
+<body class="notranslate">
+
+<div id="conn-status" class="online">
+    <div class="status-dot"></div>
+    <span id="status-text">SYSTEM ONLINE</span>
+</div>
+
+<div id="page-loader">
+    <h2 class="text-neon-pink" style="letter-spacing: 5px; font-size: 14px;">INITIATING GUILD PROTOCOL</h2>
+    <div class="loader-bar"><div class="loader-progress"></div></div>
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay" onclick="closePicker()"></div>
+<div class="bottom-sheet" id="bottomSheet">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
+        <h3 id="sheetTitle" class="text-neon-cyan" style="font-size:14px; margin:0; letter-spacing:2px;">SELECT DATA</h3>
+        <span onclick="closePicker()" style="color:var(--neon-pink); font-size:12px; font-weight:bold; cursor:pointer;">[ CLOSE ]</span>
+    </div>
+    <div class="sheet-list" id="sheetList"></div>
+</div>
+
+<div class="app-container">
+    <div style="display:flex; justify-content: flex-end; padding:15px 20px 0 20px;">
+        <div class="theme-toggle" onclick="toggleTheme()" id="themeBtn">
+            <svg id="sunIcon" class="icon-svg text-neon-cyan" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg id="moonIcon" class="icon-svg text-neon-pink" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </div>
+    </div>
+    
+    <div style="text-align:center; padding-top:10px;">
+        <h1 class="text-neon-pink" style="font-size:28px; margin:0; letter-spacing:4px;">CONTRACT</h1>
+        <p style="color:var(--neon-cyan); font-size:9px; letter-spacing:2px;">ADVENTURER RECRUITMENT TERMINAL</p>
+    </div>
+
+    <div class="step-indicator">
+        <div class="step-line"><div class="step-line-fill" id="stepLine"></div></div>
+        <div class="step-dot active">1</div>
+        <div class="step-dot">2</div>
+        <div class="step-dot">3</div>
+        <div class="step-dot">4</div>
+        <div class="step-dot">5</div>
+        <div class="step-dot">6</div>
+    </div>
+
+    <form id="regForm" autocomplete="off">
+        
+        <div class="reg-section active" id="step1">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; margin-bottom:15px;">SEC I: UNIQUE CODENAME</h3>
+                <p style="font-size:10px; color:var(--text-muted); margin-bottom:15px;">Codename/Nickname ini akan digunakan sebagai identitas LOGIN Anda.</p>
+                <div class="input-group">
+                    <label>UNIQUE NICKNAME</label>
+                    <input type="text" id="regNick" class="input-field" placeholder="Ex: Speedster" oninput="this.value = this.value.replace(/\s+/g, '').toLowerCase()">
+                </div>
+                <div class="input-group">
+                    <label>ENCRYPTION CODE (PASSWORD)</label>
+                    <input type="password" id="regPass" class="input-field" placeholder="Min. 8 characters" oninput="handlePassInput(this)">
+                    <div class="strength-bar-bg"><div id="strengthFill" class="strength-fill"></div></div>
+                </div>
+                <div class="input-group">
+                    <label>CONFIRM ENCRYPTION</label>
+                    <input type="password" id="regPassConf" class="input-field" placeholder="Repeat Password">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step2">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; margin-bottom:15px;">SEC II: CIVILIAN DATA</h3>
+                <div class="input-group">
+                    <label>FULL NAME (SESUAI KTP)</label>
+                    <input type="text" id="regFullName" class="input-field" placeholder="NAMA LENGKAP" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="input-group">
+                    <label>NATIONAL ID (NIK KTP)</label>
+                    <input type="number" id="regNik" class="input-field" placeholder="16 DIGIT NOMOR KTP" oninput="handleNikInput(this)">
+                    <div id="nikCounter" class="nik-counter">0 / 16 DIGIT</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step3">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; margin-bottom:15px;">SEC III: COMMUNICATION</h3>
+                <div class="input-group">
+                    <label>PRIMARY PHONE (WHATSAPP)</label>
+                    <div class="input-wrapper">
+                        <span class="input-addon">+62</span>
+                        <input type="tel" id="regPhone" class="input-field" style="padding-left:45px;" placeholder="812..." oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 13); handlePhoneInput(this);">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>STARTER KIT (KATEGORI)</label>
+                    <div id="pickerCategory" class="input-field" style="cursor:pointer; display:flex; align-items:center;" onclick="openPicker('CATEGORY', ['FULL TIME (ELITE)', 'PART TIME (SCOUT)'], 'regCategory')">SELECT CATEGORY...</div>
+                    <input type="hidden" id="regCategory">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step4">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3 class="text-neon-cyan" style="font-size: 12px; margin:0;">SEC IV: TERRITORY</h3>
+            <span class="mode-toggle" onclick="toggleDomisiliMode()" id="modeLabel">[ SWITCH TO AUTO-TEXT ]</span>
+        </div>
+        
+        <div id="dropdownMode">
+            <div class="input-group">
+                <label>PROVINCE (PROVINSI)</label>
+                <div id="pickerProv" class="input-field" onclick="openPicker('PROVINCE', ['JAWA BARAT', 'JAWA TENGAH', 'JAWA TIMUR', 'DKI JAKARTA', 'BANTEN'], 'regProv')" style="cursor:pointer; opacity:0.5;">SELECT PROVINCE...</div>
+            </div>
+
+            <div class="input-group">
+                <label>CITY / REGENCY (KABUPATEN)</label>
+                <div id="pickerKab" class="input-field" onclick="handleKabClick()" style="cursor:pointer; opacity:0.5;">SELECT CITY...</div>
+            </div>
+
+            <div class="input-group">
+                <label>DISTRICT (KECAMATAN)</label>
+                <div id="pickerKec" class="input-field" onclick="handleKecClick()" style="cursor:pointer; opacity:0.5;">SELECT DISTRICT...</div>
+            </div>
+
+            <div class="input-group">
+                <label>VILLAGE (DESA / KELURAHAN)</label>
+                <div id="pickerDesa" class="input-field" onclick="handleDesaClick()" style="cursor:pointer; opacity:0.5;">SELECT VILLAGE...</div>
+            </div>
+        </div>
+
+        <div id="textMode" style="display:none;">
+            <div class="input-group">
+                <label>SMART DOMICILE INPUT</label>
+                <input type="text" id="regDomText" class="input-field" placeholder="Type Village / District..." oninput="handleSmartSearch(this)">
+                <div id="suggestionBox" class="suggestion-container" style="background: rgba(0,0,0,0.9); border: 1px solid var(--neon-cyan); position: absolute; z-index: 100; width: 100%;"></div>
+            </div>
+        </div>
+
+        <div class="input-group" style="margin-top:15px;">
+            <label>OPERATIONAL AREA (AREA TUGAS)</label>
+            <div id="pickerArea" class="input-field" onclick="openPicker('OPERATIONAL AREA', ['KAB. KUNINGAN', 'KAB. CIREBON', 'KOTA CIREBON', 'KAB. MAJALENGKA', 'KAB. INDRAMAYU'], 'regArea')" style="cursor:pointer;">SELECT AREA...</div>
+            <input type="hidden" id="regArea">
+        </div>
+
+        <div class="input-group" style="margin-top:10px;">
+            <label>PRIMARY ADDRESS / BASE</label>
+            <textarea id="regAddress" class="textarea-field" placeholder="Nama Jalan, Blok, Nomor Rumah..."></textarea>
+        </div>
+
+        <input type="hidden" id="regProv">
+        <input type="hidden" id="regKab">
+        <input type="hidden" id="regKec">
+        <input type="hidden" id="regDesa">
+
+    </div>
+</div>
+
+
+        <div class="reg-section" id="step5">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; margin-bottom:15px;">SEC V: ARSENAL (GEAR)</h3>
+                <div class="input-group">
+                    <label>VEHICLE TYPE</label>
+                    <div id="pickerVehicle" class="input-field" onclick="openPicker('VEHICLE TYPE', ['MOTORCYCLE', 'CAR (4-SEATER)', 'CAR (6-SEATER)', 'NON-VEHICLE'], 'regVehicle')" style="cursor:pointer;">SELECT TYPE...</div>
+                    <input type="hidden" id="regVehicle">
+                </div>
+                <div class="input-group">
+                    <label>LICENSE PLATE (PLAT NOMOR)</label>
+                    <input type="text" id="regPlate" class="input-field" placeholder="E.g. E 1234 YZ" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="input-group">
+                    <label>VEHICLE BRAND & MODEL</label>
+                    <input type="text" id="regBrand" class="input-field" placeholder="E.g. Honda Vario 160">
+                </div>
+                <div class="input-group">
+                    <label>MAX PASSENGERS</label>
+                    <input type="number" id="regMaxPass" class="input-field" placeholder="Kapasitas Penumpang">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step6">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; margin-bottom:15px;">SEC VI: THE VAULT</h3>
+                <p style="font-size:10px; color:var(--text-muted); margin-bottom:15px;">
+                    Buat 3 pertanyaan keamanan pribadi. Ini adalah satu-satunya cara memulihkan akun Anda jika Nickname/Password hilang. Pastikan pertanyaannya spesifik dan hanya Anda yang tahu jawabannya.
+                </p>
+                
+                <div class="input-group">
+                    <input type="text" id="q1" class="input-field" placeholder="Q1 (Ex: Nama Hewan Pertama?)" style="margin-bottom:5px;">
+                    <input type="text" id="a1" class="input-field" placeholder="Answer 1">
+                </div>
+                <div class="input-group">
+                    <input type="text" id="q2" class="input-field" placeholder="Q2" style="margin-bottom:5px;">
+                    <input type="text" id="a2" class="input-field" placeholder="Answer 2">
+                </div>
+                <div class="input-group">
+                    <input type="text" id="q3" class="input-field" placeholder="Q3" style="margin-bottom:5px;">
+                    <input type="text" id="a3" class="input-field" placeholder="Answer 3">
+                </div>
+
+                <div style="border-top:1px solid var(--border-color); margin-top:20px; padding-top:15px; display:flex; align-items:flex-start; gap:10px;">
+                    <input type="checkbox" id="regAgree" style="width:20px; height:20px; accent-color:var(--neon-pink); margin-top:2px;" onclick="checkTerms(event)">
+                    <label style="font-size:11px; color:#ccc; line-height:1.4;">
+                        I swear to follow the <a href="#" style="color:var(--neon-cyan); text-decoration:underline;">Guild Sovereignty Rules</a>. I understand this is a Terminal Mission Service and I am an Independent Adventurer.
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-buttons">
+            <button type="button" class="btn btn-secondary" id="btnPrev" style="display:none;" onclick="moveStep(-1)">PREVIOUS</button>
+            <button type="button" class="btn btn-primary" id="btnNext" onclick="moveStep(1)">CONTINUE</button>
+        </div>
+    </form>
+
+    <div style="text-align:center; margin-top:25px;">
+        <a href="javascript:void(0)" onclick="navigateTo('login.html')" style="color:#555; text-decoration:none; font-size:11px; font-weight:bold;">ALREADY REGISTERED? <span class="text-neon-pink">RETURN TO TERMINAL</span></a>
+    </div>
+</div>
+
+<div id="customModal">
+    <div class="modal-box">
+        <h2 id="modalTitle" class="text-neon-pink" style="margin-top:0;">NOTICE</h2>
+        <p id="modalMsg" style="font-size:13px; color:#ccc; line-height:1.6;"></p>
+        <button class="btn btn-secondary" onclick="closeModal('customModal')">ACKNOWLEDGE</button>
+    </div>
+</div>
+
+<div id="termsModal">
+    <div class="modal-box" style="border-color:var(--neon-cyan);">
+        <h2 class="text-neon-cyan" style="margin-top:0;">GUILD RULES</h2>
+        <div style="font-size:11px; color:#ccc; line-height:1.5; margin-bottom:20px; text-align:left; max-height:200px; overflow-y:auto; padding-right:5px;">
+            <p>1. Anda mendaftar sebagai <b>Independent Adventurer</b>. Tidak ada ikatan pekerjaan, karyawan, atau mitra dengan penyedia Terminal.</p>
+            <p>2. PICK ME bertindak murni sebagai <b>Terminal Misi</b> (Penyedia Papan Informasi).</p>
+            <p>3. Segala bentuk insiden, hukum, atau kecelakaan saat misi adalah risiko pribadi antara Requester dan Adventurer.</p>
+            <p>4. <b>Kebijakan Stone:</b> Pembelian/Top-Up Stone adalah final. Stone tidak dapat ditarik kembali menjadi uang tunai (Fiat).</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-secondary" onclick="closeTerms(false)">REJECT</button>
+            <button class="btn btn-primary" onclick="closeTerms(true)">I SWEAR</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Core Init (Firebase & Audio)
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+  
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(f, d) { const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type="sine"; o.frequency.value=f; g.gain.value=0.1; o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+d); }
+    function hapticClick(type = 'default') { 
+        if(navigator.vibrate) {
+            if(type === 'error') navigator.vibrate([100, 50, 100]);
+            else navigator.vibrate(20);
+        }
+        playBeep(type === 'error' ? 400 : 800, 0.05); 
+    }
+
+    // 2. Anti Pull-to-refresh & Loader
+    window.onload = () => {
+        setTimeout(() => { document.getElementById('page-loader').style.opacity = '0'; setTimeout(() => { document.getElementById('page-loader').style.display = 'none'; }, 500); }, 800);
+        let ts; document.addEventListener('touchstart', e => { ts = e.touches[0].pageY; }, {passive: false});
+        document.addEventListener('touchmove', e => { if (document.documentElement.scrollTop === 0 && e.touches[0].pageY > ts) e.preventDefault(); }, {passive: false});
+    };
+    function navigateTo(url) { hapticClick(); document.getElementById('page-loader').style.display = 'flex'; setTimeout(() => document.getElementById('page-loader').style.opacity = '1', 10); setTimeout(() => window.location.href = url, 800); }
+
+    // 3. Theme Toggle
+    function toggleTheme() {
+        hapticClick(); const html = document.documentElement;
+        document.getElementById('themeBtn').style.transform = "rotate(360deg)";
+        setTimeout(() => { html.setAttribute('data-theme', html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); document.getElementById('themeBtn').style.transform = "rotate(0deg)"; }, 300);
+    }
+
+    // 4. Custom Picker Engine & DATA KUNINGAN LENGKAP
+    // LEVEL 1: PROVINSI KE KOTA
+const cityData = {
+    'JAWA BARAT': ['KAB. KUNINGAN', 'KAB. MAJALENGKA', 'KOTA CIREBON', 'KAB. CIREBON'],
+    'JAWA TENGAH': ['KOTA SEMARANG', 'KAB. BREBES', 'KAB. TEGAL'],
+    'JAWA TIMUR': ['KOTA SURABAYA', 'KOTA MALANG', 'KOTA SURABAYA'],
+    'DKI JAKARTA': ['JAKARTA PUSAT', 'JAKARTA SELATAN'],
+    'BANTEN': ['KOTA TANGERANG', 'KOTA SERANG']
+};
+
+// LEVEL 2: KOTA KE KECAMATAN
+const districtData = {
+    // JAWA BARAT
+    'KAB. KUNINGAN': ['KUNINGAN KOTA', 'CILIMUS', 'CIGUGUR', 'JALAKSANA', 'DARMA'],
+    'KAB. MAJALENGKA': ['MAJALENGKA KOTA', 'JATIWANGI', 'KADIPATEN'],
+    'KOTA CIREBON': ['KESAMBI', 'LEMAHWUNGKUK', 'HARJAMUKTI'],
+    
+    // JAWA TENGAH
+    'KOTA SEMARANG': ['SEMARANG TENGAH', 'PEDURUNGAN'],
+    'KAB. BREBES': ['BREBES KOTA', 'JATIBARANG'],
+    
+    // Tambahkan kota lain di sini jika ingin diperluas...
+};
+
+// LEVEL 3: KECAMATAN KE DESA (regionData Master yang sudah ada)
+const regionData = {
+    // KUNINGAN
+    "KUNINGAN KOTA": ["KUNINGAN", "PURWAWINANGUN", "CIGINTUNG", "CIPORANG", "SUKAMULYA"],
+    "CILIMUS": ["CILIMUS", "BANDORASA KULON", "BANDORASA WETAN", "BOJONG"],
+    "CIGUGUR": ["CIGUGUR", "SUKAMULYA", "CIGADUNG", "CIPARI"],
+    "JALAKSANA": ["JALAKSANA", "BABAKAN", "GANDASOLI", "MANISLOR"],
+    "DARMA": ["DARMA", "CIBEUREUM", "CIPASUNG", "PARUNG"],
+    
+    // MAJALENGKA (Contoh)
+    "MAJALENGKA KOTA": ["MAJALENGKA KULON", "MAJALENGKA WETAN", "CICURUG"],
+    "JATIWANGI": ["JATIWANGI", "SUTAWANGI", "MEKARSARI"],
+    
+    // SEMARANG (Contoh)
+    "SEMARANG TENGAH": ["PENDRIKAN KIDUL", "SEKAYU", "MIROTO"]
+};
+
+
+    const searchData = [
+    { full: "JAWA BARAT, KAB. KUNINGAN, CIGUGUR, CIGUGUR", prov: "JAWA BARAT", kab: "KAB. KUNINGAN", kec: "CIGUGUR", desa: "CIGUGUR" },
+    { full: "JAWA BARAT, KAB. KUNINGAN, CILIMUS, CILIMUS", prov: "JAWA BARAT", kab: "KAB. KUNINGAN", kec: "CILIMUS", desa: "CILIMUS" },
+    { full: "JAWA TIMUR, KOTA SURABAYA, GUBENG, AIRLANGGA", prov: "JAWA TIMUR", kab: "KOTA SURABAYA", kec: "GUBENG", desa: "AIRLANGGA" }
+    // Tambahkan data lainnya di sini...
+];
+
+    
+    
+    function openPicker(title, items, targetId) {
+        hapticClick();
+        document.getElementById('sheetTitle').innerText = title;
+        const list = document.getElementById('sheetList');
+        list.innerHTML = '';
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'sheet-item';
+            div.innerText = item;
+            div.onclick = () => selectItem(item, targetId);
+            list.appendChild(div);
+        });
+        document.getElementById('sheetOverlay').style.display = 'block';
+        setTimeout(() => document.getElementById('bottomSheet').classList.add('active'), 10);
+    }
+
+    function closePicker() {
+        document.getElementById('bottomSheet').classList.remove('active');
+        setTimeout(() => document.getElementById('sheetOverlay').style.display = 'none', 400);
+    }
+
+    function selectItem(val, targetId) {
+    hapticClick();
+    document.getElementById(targetId).value = val;
+    const displayId = targetId.replace('reg', 'picker');
+    const displayEl = document.getElementById(displayId);
+    displayEl.innerText = val;
+    displayEl.style.color = 'var(--text-main)';
+    displayEl.style.opacity = '1';
+
+    // 1. Jika ganti Provinsi, reset SEMUA di bawahnya sampai Desa
+    if(targetId === 'regProv') {
+        // Reset Kota
+        document.getElementById('regKab').value = '';
+        document.getElementById('pickerKab').innerText = 'SELECT CITY...';
+        document.getElementById('pickerKab').style.opacity = '0.5';
+        
+        // Reset Kecamatan
+        document.getElementById('regKec').value = '';
+        document.getElementById('pickerKec').innerText = 'SELECT DISTRICT...';
+        document.getElementById('pickerKec').style.opacity = '0.5';
+
+        // Reset Desa (TAMBAHKAN INI agar tidak tertinggal data lama)
+        document.getElementById('regDesa').value = '';
+        document.getElementById('pickerDesa').innerText = 'SELECT VILLAGE...';
+        document.getElementById('pickerDesa').style.opacity = '0.5';
+    }
+
+    // 2. Jika ganti Kabupaten, reset Kecamatan & Desa
+    if(targetId === 'regKab') {
+        document.getElementById('regKec').value = '';
+        document.getElementById('pickerKec').innerText = 'SELECT DISTRICT...';
+        document.getElementById('pickerKec').style.opacity = '0.5';
+        
+        document.getElementById('regDesa').value = '';
+        document.getElementById('pickerDesa').innerText = 'SELECT VILLAGE...';
+        document.getElementById('pickerDesa').style.opacity = '0.5';
+    }
+
+    // 3. Jika ganti Kecamatan, reset Desa saja
+    if(targetId === 'regKec') {
+        document.getElementById('regDesa').value = '';
+        document.getElementById('pickerDesa').innerText = 'SELECT VILLAGE...';
+        document.getElementById('pickerDesa').style.opacity = '0.5';
+    }
+
+    closePicker();
+}
+
+
+
+    // 1. Handle Kabupaten (Dinamis berdasarkan Provinsi)
+function handleKabClick() {
+    const prov = document.getElementById('regProv').value;
+    if(!prov) { 
+        hapticClick('error'); 
+        return showMsg("Please select PROVINCE first!", "ACCESS DENIED"); 
+    }
+    
+    // Mengambil list dari cityData (Mapping Level 1)
+    const listKabupaten = cityData[prov] || [];
+    openPicker('CITY / REGENCY', listKabupaten, 'regKab');
+}
+
+// 2. Handle Kecamatan (Dinamis berdasarkan Kabupaten)
+function handleKecClick() { 
+    const kab = document.getElementById('regKab').value;
+    if(!kab) { 
+        hapticClick('error'); 
+        return showMsg("Please select CITY/REGENCY first!", "ACCESS DENIED"); 
+    }
+    
+    // Mengambil list dari districtData (Mapping Level 2)
+    const listKecamatan = districtData[kab] || [];
+    openPicker('DISTRICT (KEC)', listKecamatan, 'regKec'); 
+}
+
+// 3. Handle Desa (Dinamis berdasarkan Kecamatan)
+function handleDesaClick() {
+    const kec = document.getElementById('regKec').value;
+    if(!kec) { 
+        hapticClick('error'); 
+        return showMsg("Please select DISTRICT first!", "ACCESS DENIED"); 
+    }
+    
+    // Mengambil list dari regionData (Mapping Level 3)
+    const listDesa = regionData[kec] || [];
+    openPicker('VILLAGE (DESA)', listDesa, 'regDesa');
+}
+
+
+
+    function handleSmartSearch(input) {
+    const val = input.value.toLowerCase();
+    const box = document.getElementById('suggestionBox');
+    box.innerHTML = '';
+    
+    if(val.length < 2) return;
+
+    // Cari di searchData yang sudah Master buat tadi
+    const matches = searchData.filter(item => item.full.toLowerCase().includes(val));
+
+    matches.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'suggestion-item'; // Beri CSS agar keren
+        div.innerText = item.full;
+        
+        div.onclick = function() {
+            // 1. Isi input yang terlihat oleh user
+            input.value = item.full;
+            
+            // 2. ISI SEMUA BRANKAS HIDDEN (Ini yang masuk ke Firebase)
+            document.getElementById('regProv').value = item.prov;
+            document.getElementById('regKab').value = item.kab;
+            document.getElementById('regKec').value = item.kec;
+            document.getElementById('regDesa').value = item.desa;
+            
+            box.innerHTML = ''; // Tutup kotak saran
+            hapticClick('success');
+            showMsg("LOCATION DETECTED", "SUCCESS");
+        };
+        box.appendChild(div);
+    });
+}
+
+
+
+
+    // 5. Input Logic (NIK, Phone, Pass)
+    function handleNikInput(el) {
+        if(el.value.length > 16) el.value = el.value.slice(0, 16);
+        const count = el.value.length;
+        const countEl = document.getElementById('nikCounter');
+        countEl.innerText = `${count} / 16 DIGIT`;
+        countEl.style.color = count === 16 ? 'var(--neon-cyan)' : 'var(--text-muted)';
+    }
+
+    document.getElementById('regNik').addEventListener('keydown', (e) => { if (e.which === 32) e.preventDefault(); });
+
+    function handlePhoneInput(el) {
+        el.value = el.value.replace(/[^0-9]/g, '');
+        if(el.value.startsWith('0')) el.value = el.value.substring(1);
+    }
+
+    function handlePassInput(el) {
+        const fill = document.getElementById('strengthFill');
+        const len = el.value.length;
+        if(len === 0) fill.style.width = '0%';
+        else if(len < 8) { fill.style.width = '30%'; fill.style.background = '#ff0055'; }
+        else if(len < 12) { fill.style.width = '65%'; fill.style.background = '#ffbb33'; }
+        else { fill.style.width = '100%'; fill.style.background = 'var(--neon-cyan)'; }
+    }
+
+    // 6. Modals & Domicile Toggle
+    function showMsg(m, title = "SYSTEM NOTICE") { document.getElementById('modalTitle').innerText = title; document.getElementById('modalMsg').innerText = m; document.getElementById('customModal').style.display = 'flex'; }
+    function closeModal(id) { hapticClick(); document.getElementById(id).style.display = 'none'; }
+    
+    function checkTerms(e) { e.preventDefault(); hapticClick(); document.getElementById('termsModal').style.display = 'flex'; }
+    function closeTerms(agreed) { hapticClick(); if(agreed) document.getElementById('regAgree').checked = true; document.getElementById('termsModal').style.display = 'none'; }
+
+    let isTextMode = false;
+    function toggleDomisiliMode() {
+        hapticClick(); isTextMode = !isTextMode;
+        document.getElementById('dropdownMode').style.display = isTextMode ? 'none' : 'block';
+        document.getElementById('textMode').style.display = isTextMode ? 'block' : 'none';
+        document.getElementById('modeLabel').innerText = isTextMode ? "[ SWITCH TO DROPDOWN ]" : "[ SWITCH TO AUTO-TEXT ]";
+    }
+
+    // 7. Multi-step & Validation (6 STEPS)
+    function sanitize(str) { return str ? str.toString().replace(/[<>'"]/g, "") : ""; }
+    
+    let currentStep = 1; const dots = document.querySelectorAll('.step-dot'); const sections = document.querySelectorAll('.reg-section');
+    function moveStep(dir) {
+        if(dir === 1) {
+            if(currentStep === 1) {
+                const nick = document.getElementById('regNick').value;
+                const pass = document.getElementById('regPass').value;
+                const conf = document.getElementById('regPassConf').value;
+                if(nick.length < 4) return showMsg("Nickname minimal 4 karakter!");
+                if(pass.length < 8) return showMsg("Password minimal 8 karakter!");
+                if(pass !== conf) return showMsg("Konfirmasi Password tidak cocok!");
+            }
+            if(currentStep === 2) {
+                if(!document.getElementById('regFullName').value || document.getElementById('regNik').value.length !== 16) return showMsg("Nama Lengkap dan 16-Digit NIK wajib diisi!");
+            }
+            if(currentStep === 3) {
+                if(!document.getElementById('regPhone').value || !document.getElementById('regCategory').value) return showMsg("Nomor WA dan Kategori Starter Kit wajib diisi!");
+            }
+            if(currentStep === 4) {
+                if(!isTextMode && (!document.getElementById('regDesa').value || !document.getElementById('regAddress').value)) return showMsg("Pilih Kecamatan/Desa dan Alamat Detail!");
+                if(isTextMode && (!document.getElementById('regDomText').value || !document.getElementById('regAddress').value)) return showMsg("Isi Smart Domicile dan Alamat Detail!");
+                if(!document.getElementById('regArea').value) return showMsg("Tentukan AREA TUGAS Anda!");
+            }
+            if(currentStep === 5) {
+                if(!document.getElementById('regVehicle').value || !document.getElementById('regPlate').value) return showMsg("Tipe Kendaraan dan Plat Nomor wajib diisi!");
+            }
+            if(currentStep === 6) {
+                if(!document.getElementById('q1').value || !document.getElementById('a1').value || !document.getElementById('q2').value || !document.getElementById('a2').value || !document.getElementById('q3').value || !document.getElementById('a3').value) {
+                    return showMsg("Ke-3 Pertanyaan Keamanan beserta Jawabannya wajib dibuat!");
+                }
+                return finalizeRegistration();
+            }
+        }
+        hapticClick(); currentStep += dir;
+        updateStepUI();
+    }
+
+    function updateStepUI() {
+        sections.forEach((s, i) => s.classList.toggle('active', i === currentStep - 1));
+        dots.forEach((d, i) => d.classList.toggle('active', i < currentStep));
+        // 6 steps mean 5 intervals. So (currentStep - 1) / 5 * 100
+        document.getElementById('stepLine').style.width = ((currentStep - 1) / 5 * 100) + "%";
+        document.getElementById('btnPrev').style.display = currentStep === 1 ? 'none' : 'block';
+        document.getElementById('btnNext').innerText = currentStep === 6 ? 'AUTHORIZE' : 'CONTINUE';
+    }
+
+    // 8. Final Output & Database Triple Check
+    async function finalizeRegistration() {
+    if(!document.getElementById('regAgree').checked) return showMsg("You must swear to the Guild Sovereignty Rules.");
+    
+    const btn = document.getElementById('btnNext');
+    if(btn.disabled) return; // Mencegah spam klik saat proses
+    
+    btn.innerText = "ENCRYPTING..."; btn.disabled = true; hapticClick();
+
+    // 1. Ambil Data Dasar
+    const nickname = sanitize(document.getElementById('regNick').value);
+    const phone = "62" + sanitize(document.getElementById('regPhone').value);
+    const nik = sanitize(document.getElementById('regNik').value);
+    const address = sanitize(document.getElementById('regAddress').value);
+
+    // 2. Logika Area Tugas & Email (Mencegah Stuck)
+    const areaTugasFinal = document.getElementById('regArea').value || "NOT_SET";
+    
+    // Cek apakah input email ada di HTML, jika tidak ada beri nilai default
+    const emailEl = document.getElementById('regEmail');
+    const email = emailEl ? sanitize(emailEl.value) : (nickname + "@pickme.com");
+
+    const adventurerData = {
+        nickname: nickname,
+        email: email, // Menambahkan kembali field email yang sempat hilang
+        password: sanitize(document.getElementById('regPass').value),
+        nama_lengkap: sanitize(document.getElementById('regFullName').value),
+        nik_ktp: nik,
+        nomor_telepon: phone,
+        starter_kit: document.getElementById('regCategory').value,
+        
+        domisili_lengkap: {
+            negara: "INDONESIA",
+            provinsi: document.getElementById('regProv').value || "JAWA BARAT",
+            kabupaten: document.getElementById('regKab').value || "NOT_SET",
+            kecamatan: document.getElementById('regKec').value || "NOT_SET", 
+            desa: document.getElementById('regDesa').value || "NOT_SET",    
+            alamat_utama: address,
+            area_tugas: areaTugasFinal 
+        },
+
+        avatar_url: "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+        security_stats: { perlindungan: 3, pelanggaran: 0 },
+        vitality: { 
+            stamina_current: 100, 
+            stamina_max: 100, 
+            last_stamina_regen: new Date().toISOString(), 
+            apply_limit_daily: 10, 
+            last_reset_limit: new Date().toISOString(), 
+            ads_watched_today: 0 
+        },
+        stats: { 
+            rating: { like: 0, dislike: 0, star_1: 0, star_2: 0, star_3: 0, star_4: 0, star_5: 0 }, 
+            behavior_points: { keamanan_baik: 0, keamanan_buruk: 0, kenyamanan_baik: 0, kenyamanan_buruk: 0, penampilan_baik: 0, penampilan_buruk: 0, ketelitian_baik: 0, ketelitian_buruk: 0, kepercayaan_baik: 0, kepercayaan_buruk: 0, komunikasi_baik: 0, komunikasi_buruk: 0, tepat_waktu: 0, terlambat: 0, pembatalan_sepihak: 0, misi_darurat_selesai: 0, total_jarak_tempuh: 0 }, 
+            work_history: { misi_diambil: 0, misi_sukses: 0, misi_batal: 0 } 
+        },
+        blacklist_requester: { placeholder: "init" },
+        arsenal: { 
+            jenis: document.getElementById('regVehicle').value, 
+            plat: sanitize(document.getElementById('regPlate').value), 
+            merk: sanitize(document.getElementById('regBrand').value), 
+            kapasitas: sanitize(document.getElementById('regMaxPass').value) || "1" 
+        },
+        vault: { 
+            q1: sanitize(document.getElementById('q1').value), a1: sanitize(document.getElementById('a1').value), 
+            q2: sanitize(document.getElementById('q2').value), a2: sanitize(document.getElementById('a2').value), 
+            q3: sanitize(document.getElementById('q3').value), a3: sanitize(document.getElementById('a3').value) 
+        },
+        status_verifikasi: "Unverified",
+        rank: "TRAINER",
+        julukan: "NEWBIE AGENT",
+        level: 1,
+        exp: 0,
+        max_exp: 1000,
+        wallet: { green: 0, white: 0, red: 0, purple: 0 },
+        registered_at: (new Date().getMonth() + 1).toString().padStart(2, '0') + "-" + new Date().getFullYear(),
+        metadata: { 
+            device_info: navigator.userAgent, 
+            contract_version: "1.0.0-gold-sovereign", 
+            digital_oath_agreed: true, 
+            contract_signed_at: new Date().toLocaleString('id-ID') 
+        }
+    };
+
+    try {
+        showMsg("SYNCHRONIZING WITH TERMINAL...", "WAITING");
+        
+        // --- TRIPLE VALIDATION (DITAMBAHKAN KEMBALI) ---
+        
+        // 1. Cek Nickname Duplikat
+        const nickCheck = await db.ref('users_adventurer').orderByChild('nickname').equalTo(nickname).once('value');
+        if(nickCheck.exists()) throw new Error("CODENAME SUDAH TERPAKAI!");
+
+        // 2. Cek Nomor Telepon Duplikat (Sangat Penting!)
+        const phoneCheck = await db.ref('users_adventurer').orderByChild('nomor_telepon').equalTo(phone).once('value');
+        if(phoneCheck.exists()) throw new Error("NOMOR TELEPON SUDAH TERDAFTAR!");
+
+        // 3. Cek NIK Duplikat
+        const nikCheck = await db.ref('users_adventurer').orderByChild('nik_ktp').equalTo(nik).once('value');
+        if(nikCheck.exists()) throw new Error("NIK KTP SUDAH TERDAFTAR!");
+
+        // Eksekusi Simpan ke Database
+        await db.ref('users_adventurer/' + nickname).set(adventurerData);
+        
+        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        showMsg("KONTRAK DITERIMA! SILAKAN LOGIN.", "SUCCESS");
+        setTimeout(() => { navigateTo('login.html'); }, 2500);
+
+    } catch (e) {
+        hapticClick('error');
+        showMsg(e.message, "TRANSMISSION FAILED");
+        btn.innerText = "AUTHORIZE"; btn.disabled = false;
+    }
+}
+
+
+    // A. CONNECTION MONITORING
+    function updateOnlineStatus() {
+        const status = navigator.onLine;
+        const el = document.getElementById('conn-status');
+        const txt = document.getElementById('status-text');
+        
+        if (status) {
+            el.className = 'online';
+            txt.innerText = 'SYSTEM ONLINE';
+        } else {
+            el.className = 'offline';
+            txt.innerText = 'CONNECTION LOST';
+            hapticClick('error');
+            showMsg("WARNING: Connection lost. Your data might not be saved to the terminal database.", "SIGNAL BREACH");
+        }
+    }
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus();
+
+    // B. SMART TEXTAREA AUTO-RESYNC
+    document.querySelectorAll('textarea').forEach(tx => {
+        tx.addEventListener('focus', () => {
+            setTimeout(() => tx.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+        });
+    });
+</script>
+</body>
+</html>
