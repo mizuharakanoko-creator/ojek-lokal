@@ -231,12 +231,20 @@
                     </div>
                 </div>
 
-                <div id="textMode" style="display:none;">
-                    <div class="input-group">
-                        <label>SMART DOMICILE INPUT</label>
-                        <input type="text" id="regDomText" class="input-field" placeholder="Type Village / District...">
-                    </div>
-                </div>
+<div id="textMode" style="display:none;">
+    <div class="input-group">
+        <label>SMART DOMICILE INPUT</label>
+        <input type="text" id="regDomText" class="input-field" placeholder="Type Village / District..." oninput="handleSmartSearch(this)">
+        
+        <div id="suggestionBox" class="suggestion-container"></div>
+    </div>
+
+    <input type="hidden" id="regProv">
+    <input type="hidden" id="regKab">
+    <input type="hidden" id="regKec">
+    <input type="hidden" id="regDesa">
+</div>
+
 
 <div class="input-group">
     <label>OPERATIONAL AREA (AREA TUGAS)</label>
@@ -419,6 +427,15 @@ const regionData = {
     "SEMARANG TENGAH": ["PENDRIKAN KIDUL", "SEKAYU", "MIROTO"]
 };
 
+
+    const searchData = [
+    { full: "JAWA BARAT, KAB. KUNINGAN, CIGUGUR, CIGUGUR", prov: "JAWA BARAT", kab: "KAB. KUNINGAN", kec: "CIGUGUR", desa: "CIGUGUR" },
+    { full: "JAWA BARAT, KAB. KUNINGAN, CILIMUS, CILIMUS", prov: "JAWA BARAT", kab: "KAB. KUNINGAN", kec: "CILIMUS", desa: "CILIMUS" },
+    { full: "JAWA TIMUR, KOTA SURABAYA, GUBENG, AIRLANGGA", prov: "JAWA TIMUR", kab: "KOTA SURABAYA", kec: "GUBENG", desa: "AIRLANGGA" }
+    // Tambahkan data lainnya di sini...
+];
+
+    
     
     function openPicker(title, items, targetId) {
         hapticClick();
@@ -529,6 +546,42 @@ function handleDesaClick() {
     const listDesa = regionData[kec] || [];
     openPicker('VILLAGE (DESA)', listDesa, 'regDesa');
 }
+
+
+
+    function handleSmartSearch(input) {
+    const val = input.value.toLowerCase();
+    const box = document.getElementById('suggestionBox');
+    box.innerHTML = '';
+    
+    if(val.length < 2) return;
+
+    // Cari di searchData yang sudah Master buat tadi
+    const matches = searchData.filter(item => item.full.toLowerCase().includes(val));
+
+    matches.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'suggestion-item'; // Beri CSS agar keren
+        div.innerText = item.full;
+        
+        div.onclick = function() {
+            // 1. Isi input yang terlihat oleh user
+            input.value = item.full;
+            
+            // 2. ISI SEMUA BRANKAS HIDDEN (Ini yang masuk ke Firebase)
+            document.getElementById('regProv').value = item.prov;
+            document.getElementById('regKab').value = item.kab;
+            document.getElementById('regKec').value = item.kec;
+            document.getElementById('regDesa').value = item.desa;
+            
+            box.innerHTML = ''; // Tutup kotak saran
+            hapticClick('success');
+            showMsg("LOCATION DETECTED", "SUCCESS");
+        };
+        box.appendChild(div);
+    });
+}
+
 
 
 
@@ -643,13 +696,22 @@ function handleDesaClick() {
             starter_kit: document.getElementById('regCategory').value,
             
             domisili_lengkap: {
-        negara: "INDONESIA",
-        provinsi: document.getElementById('regProv').value || "JAWA BARAT",
-        kabupaten: document.getElementById('regKab').value || "NOT_SET",
-        wilayah: domisiliFinal, // Desa, Kecamatan
-        alamat_utama: sanitize(document.getElementById('regAddress').value),
-        area_tugas: document.getElementById('regArea').value || "NOT_SET" // Area operasi pilihan
-    },
+    negara: "INDONESIA",
+    // Mengambil dari brankas hidden yang diisi otomatis oleh Smart Search
+    provinsi: document.getElementById('regProv').value || "JAWA BARAT",
+    kabupaten: document.getElementById('regKab').value || "NOT_SET",
+    
+    // PERUBAHAN DISINI: Kita pecah wilayah menjadi dua kolom spesifik
+    kecamatan: document.getElementById('regKec').value || "NOT_SET", 
+    desa: document.getElementById('regDesa').value || "NOT_SET",    
+    
+    // Alamat jalan/blok tetap seperti biasa
+    alamat_utama: sanitize(document.getElementById('regAddress').value),
+    
+    // Area tugas tetap mengambil dari areaTugasFinal (hasil filter dropdown/auto)
+    area_tugas: areaTugasFinal 
+},
+
 
 
 
