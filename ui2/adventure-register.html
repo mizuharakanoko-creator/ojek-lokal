@@ -379,20 +379,46 @@
     }
 
     // 4. Custom Picker Engine & DATA KUNINGAN LENGKAP
-    const regionData = {
-        "KUNINGAN KOTA": ["KUNINGAN", "PURWAWINANGUN", "CIGINTUNG", "CIPORANG", "SUKAMULYA", "KADUGEDE", "ANCARAN", "KASTURI", "CIBINUANG"],
-        "CILIMUS": ["CILIMUS", "BANDORASA KULON", "BANDORASA WETAN", "BOJONG", "CARACAS", "KARYAMUKTI", "LINGGAJATI", "SAMPORA"],
-        "CIGUGUR": ["CIGUGUR", "SUKAMULYA", "CIGADUNG", "CIPARI", "PUNCAK", "BABAKANMULYA", "CIWIRU", "GUNUNGKELING"],
-        "JALAKSANA": ["JALAKSANA", "BABAKAN", "GANDASOLI", "MANISLOR", "MANISKIDUL", "SINDANGSARI", "SADAMANTRA", "PEUSING"],
-        "CIAWIGEBANG": ["CIAWIGEBANG", "CIPICUNG", "KADURAMA", "KAPANDAYAN", "PAMIRINGAN", "SIDARAJA", "SUKADANA", "KERTAWANGUN"],
-        "LURAGUNG": ["LURAGUNG", "CIGEDANG", "DUKUHPUNTANG", "SINDANGSARI", "CIBEUREUM", "CIWARU", "LURAGUNG LANDEUH", "LURAGUNG TONGO"],
-        "KADUGEDE": ["KADUGEDE", "CIPAKU", "BABAKAN", "SINDANGJAWA", "CIHERANG", "NANGGELA", "BAYUNING"],
-        "DARMA": ["DARMA", "CIBEUREUM", "CIPASUNG", "PARUNG", "SAGERAHI", "TUGUMULYA", "PANINGGARAN"],
-        "MALEBER": ["MALEBER", "CIPICUNG", "GALAHERANG", "KUTAMANDALA", "KARANGTENGAH", "MEKARSARI"],
-        "SINDANGAGUNG": ["SINDANGAGUNG", "BABAKANREUMA", "BALONTONG", "KERTAYASA", "TARAJU", "TIRTAWANGUNAN"],
-        "GARAWANGI": ["GARAWANGI", "LENGKONG", "SUKAIMUT", "TAMBAKMEKAR", "PURWASARI", "MANCAGAR"],
-        "KRAMATMULYA": ["KRAMATMULYA", "CILOWA", "KALAPAGUNUNG", "CIBENTANG", "PAJAMBON", "GANDASOLI"]
-    };
+    // LEVEL 1: PROVINSI KE KOTA
+const cityData = {
+    'JAWA BARAT': ['KAB. KUNINGAN', 'KAB. MAJALENGKA', 'KOTA CIREBON', 'KAB. CIREBON'],
+    'JAWA TENGAH': ['KOTA SEMARANG', 'KAB. BREBES', 'KAB. TEGAL'],
+    'JAWA TIMUR': ['KOTA SURABAYA', 'KOTA MALANG', 'KOTA SURABAYA'],
+    'DKI JAKARTA': ['JAKARTA PUSAT', 'JAKARTA SELATAN'],
+    'BANTEN': ['KOTA TANGERANG', 'KOTA SERANG']
+};
+
+// LEVEL 2: KOTA KE KECAMATAN
+const districtData = {
+    // JAWA BARAT
+    'KAB. KUNINGAN': ['KUNINGAN KOTA', 'CILIMUS', 'CIGUGUR', 'JALAKSANA', 'DARMA'],
+    'KAB. MAJALENGKA': ['MAJALENGKA KOTA', 'JATIWANGI', 'KADIPATEN'],
+    'KOTA CIREBON': ['KESAMBI', 'LEMAHWUNGKUK', 'HARJAMUKTI'],
+    
+    // JAWA TENGAH
+    'KOTA SEMARANG': ['SEMARANG TENGAH', 'PEDURUNGAN'],
+    'KAB. BREBES': ['BREBES KOTA', 'JATIBARANG'],
+    
+    // Tambahkan kota lain di sini jika ingin diperluas...
+};
+
+// LEVEL 3: KECAMATAN KE DESA (regionData Master yang sudah ada)
+const regionData = {
+    // KUNINGAN
+    "KUNINGAN KOTA": ["KUNINGAN", "PURWAWINANGUN", "CIGINTUNG", "CIPORANG", "SUKAMULYA"],
+    "CILIMUS": ["CILIMUS", "BANDORASA KULON", "BANDORASA WETAN", "BOJONG"],
+    "CIGUGUR": ["CIGUGUR", "SUKAMULYA", "CIGADUNG", "CIPARI"],
+    "JALAKSANA": ["JALAKSANA", "BABAKAN", "GANDASOLI", "MANISLOR"],
+    "DARMA": ["DARMA", "CIBEUREUM", "CIPASUNG", "PARUNG"],
+    
+    // MAJALENGKA (Contoh)
+    "MAJALENGKA KOTA": ["MAJALENGKA KULON", "MAJALENGKA WETAN", "CICURUG"],
+    "JATIWANGI": ["JATIWANGI", "SUTAWANGI", "MEKARSARI"],
+    
+    // SEMARANG (Contoh)
+    "SEMARANG TENGAH": ["PENDRIKAN KIDUL", "SEKAYU", "MIROTO"]
+};
+
     
     function openPicker(title, items, targetId) {
         hapticClick();
@@ -424,15 +450,22 @@
     displayEl.style.color = 'var(--text-main)';
     displayEl.style.opacity = '1';
 
-    // 1. Jika ganti Provinsi, reset semua di bawahnya
+    // 1. Jika ganti Provinsi, reset SEMUA di bawahnya sampai Desa
     if(targetId === 'regProv') {
+        // Reset Kota
         document.getElementById('regKab').value = '';
         document.getElementById('pickerKab').innerText = 'SELECT CITY...';
-        document.getElementById('pickerKab').style.opacity = '0.5'; // Tambahkan ini
+        document.getElementById('pickerKab').style.opacity = '0.5';
         
+        // Reset Kecamatan
         document.getElementById('regKec').value = '';
         document.getElementById('pickerKec').innerText = 'SELECT DISTRICT...';
         document.getElementById('pickerKec').style.opacity = '0.5';
+
+        // Reset Desa (TAMBAHKAN INI agar tidak tertinggal data lama)
+        document.getElementById('regDesa').value = '';
+        document.getElementById('pickerDesa').innerText = 'SELECT VILLAGE...';
+        document.getElementById('pickerDesa').style.opacity = '0.5';
     }
 
     // 2. Jika ganti Kabupaten, reset Kecamatan & Desa
@@ -457,28 +490,46 @@
 }
 
 
-    // 1. Handle Kabupaten (Cek Provinsi)
+
+    // 1. Handle Kabupaten (Dinamis berdasarkan Provinsi)
 function handleKabClick() {
     const prov = document.getElementById('regProv').value;
-    if(!prov) { hapticClick('error'); return showMsg("Please select PROVINCE first!", "ACCESS DENIED"); }
+    if(!prov) { 
+        hapticClick('error'); 
+        return showMsg("Please select PROVINCE first!", "ACCESS DENIED"); 
+    }
     
-    const listKabupaten = ['KAB. KUNINGAN', 'KAB. MAJALENGKA', 'KOTA CIREBON', 'KAB. CIREBON'];
+    // Mengambil list dari cityData (Mapping Level 1)
+    const listKabupaten = cityData[prov] || [];
     openPicker('CITY / REGENCY', listKabupaten, 'regKab');
 }
 
-// 2. Handle Kecamatan (Cek Kabupaten)
+// 2. Handle Kecamatan (Dinamis berdasarkan Kabupaten)
 function handleKecClick() { 
     const kab = document.getElementById('regKab').value;
-    if(!kab) { hapticClick('error'); return showMsg("Please select CITY/REGENCY first!", "ACCESS DENIED"); }
-    openPicker('DISTRICT (KEC)', Object.keys(regionData), 'regKec'); 
+    if(!kab) { 
+        hapticClick('error'); 
+        return showMsg("Please select CITY/REGENCY first!", "ACCESS DENIED"); 
+    }
+    
+    // Mengambil list dari districtData (Mapping Level 2)
+    const listKecamatan = districtData[kab] || [];
+    openPicker('DISTRICT (KEC)', listKecamatan, 'regKec'); 
 }
 
-// 3. Handle Desa (Cek Kecamatan)
+// 3. Handle Desa (Dinamis berdasarkan Kecamatan)
 function handleDesaClick() {
     const kec = document.getElementById('regKec').value;
-    if(!kec) { hapticClick('error'); return showMsg("Please select DISTRICT first!", "ACCESS DENIED"); }
-    openPicker('VILLAGE (DESA)', regionData[kec], 'regDesa');
+    if(!kec) { 
+        hapticClick('error'); 
+        return showMsg("Please select DISTRICT first!", "ACCESS DENIED"); 
+    }
+    
+    // Mengambil list dari regionData (Mapping Level 3)
+    const listDesa = regionData[kec] || [];
+    openPicker('VILLAGE (DESA)', listDesa, 'regDesa');
 }
+
 
 
     // 5. Input Logic (NIK, Phone, Pass)
