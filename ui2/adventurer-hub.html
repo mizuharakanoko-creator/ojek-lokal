@@ -353,57 +353,42 @@
 
         function startListeningMissions() {
     const board = document.getElementById('mission-board');
-    board.innerHTML = `<p style="text-align:center; color:var(--neon-cyan);">SCANNING REGIONAL MISSIONS...</p>`;
+    board.innerHTML = `<p style="text-align:center; color:var(--neon-cyan);">SCANNING RADAR...</p>`;
 
-    // Gunakan path regional sesuai gambar 1001200460.jpg
-    const regionalPath = 'database_regional/sv_kuningan_pusat/missions';
+    // GUNAKAN PATH LAMA (Board Central) atau PATH REGIONAL (Pusat)
+    // Pastikan misi Anda di Firebase ada di path ini!
+    const path = 'database_regional/sv_kuningan_pusat/missions';
     
-    // Pastikan status "SEARCHING" sesuai dengan string di database (Gambar 5)
-    missionListener = db.ref(regionalPath).orderByChild('rpgSystem/status').equalTo('SEARCHING');
-    
-    missionListener.on('value', snapshot => {
+    // Jangan gunakan .equalTo() dulu untuk tes apakah data muncul
+    db.ref(path).on('value', snapshot => {
         board.innerHTML = ""; 
-        let count = 0;
-
         if (!snapshot.exists()) {
-            board.innerHTML = `<div style="text-align:center; margin-top:50px; color:#444;">TIDAK ADA MISI AKTIF DI WILAYAH INI</div>`;
+            board.innerHTML = `<div style="text-align:center; margin-top:50px; color:#444;">TIDAK ADA DATA DI PATH INI</div>`;
             return;
         }
 
         snapshot.forEach(child => {
             const m = child.val();
             const mId = child.key;
-            count++;
-            
-            // Render kartu misi
-            board.innerHTML += `
-                <div class="quest-card">
-                    <div style="display:flex; justify-content:space-between; align-items:start;">
-                        <div>
-                            <h3 style="margin:0; color:var(--neon-cyan); font-family:'Orbitron'; font-size:14px;">
-                                ${m.category ? m.category.toUpperCase() : 'QUEST'}
-                            </h3>
-                            <p style="font-size:10px; color:#555; margin-top:5px;">ID: ${mId}</p>
+
+            // Hanya tampilkan jika statusnya benar-benar SEARCHING (Filter manual di JS)
+            if (m.rpgSystem && m.rpgSystem.status === "SEARCHING") {
+                board.innerHTML += `
+                    <div class="quest-card ${m.isUrgent ? 'urgent' : ''}">
+                        <div style="display:flex; justify-content:space-between;">
+                            <h3 style="margin:0; color:var(--neon-cyan); font-family:'Orbitron';">QUEST: ${m.category.toUpperCase()}</h3>
+                            ${m.isUrgent ? '<span class="urgent-badge" style="background:red; font-size:10px; padding:2px 5px;">DARURAT</span>' : ''}
                         </div>
-                        <div style="text-align:right;">
-                            <div style="color:var(--neon-gold); font-weight:bold; font-size:16px;">
-                                Rp ${(m.bounty || 0).toLocaleString()}
-                            </div>
-                            <div style="font-size:9px; color:${m.isUrgent ? 'var(--neon-pink)' : '#666'}; font-weight:bold;">
-                                ${m.isUrgent ? '!! DARURAT !!' : 'REGULER'}
-                            </div>
+                        <div style="margin-top:10px; color:var(--neon-gold); font-size:18px; font-weight:bold;">
+                            Rp ${(m.bounty || 0).toLocaleString()}
                         </div>
-                    </div>
-                    
-                    <div style="margin-top:15px; display:flex; gap:10px;">
-                        <button class="btn btn-primary" 
-                            style="flex:1; background:var(--neon-cyan); color:#000; border:none; padding:10px; font-family:'Orbitron'; font-size:10px; font-weight:bold; cursor:pointer;" 
+                        <div style="font-size:11px; color:#666; margin-bottom:10px;">ID: ${mId}</div>
+                        <button class="btn btn-apply" style="width:100%; background:var(--neon-cyan); border:none; padding:12px; font-weight:bold;" 
                             onclick="applyForMission('${mId}', 50)">
-                            DAFTARKAN DIRI (-50 HP)
+                            DAFTARKAN DIRI
                         </button>
-                    </div>
-                </div>
-            `;
+                    </div>`;
+            }
         });
     });
 }
