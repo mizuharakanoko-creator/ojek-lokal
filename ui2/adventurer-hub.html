@@ -80,7 +80,6 @@
         }
         .quest-card.urgent { border-left-color: var(--neon-red); background: linear-gradient(135deg, rgba(255,0,0,0.05), var(--glass)); }
         
-        /* Premium Data Styling */
         .client-rep { font-size: 10px; padding: 4px; text-align: center; border-radius: 2px; margin: 8px 0; font-weight: bold; letter-spacing: 1px; }
         .rep-trust { border: 1px solid var(--neon-cyan); color: var(--neon-cyan); background: rgba(0, 243, 255, 0.05); }
         .rep-risk { border: 1px solid var(--neon-red); color: var(--neon-red); background: rgba(255, 0, 60, 0.1); }
@@ -94,19 +93,16 @@
         .stat-item label { display: block; font-size: 9px; color: #666; }
         .stat-item b { font-size: 12px; }
 
-        /* Buttons */
         .btn-row { display: flex; gap: 10px; }
         .btn { flex: 1; padding: 12px; font-family: 'Rajdhani'; font-weight: bold; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; transition: 0.2s; }
         .btn-apply { background: var(--neon-cyan); color: #000; }
         .btn-nego { background: transparent; border: 1px solid var(--neon-gold); color: var(--neon-gold); }
         .btn-apply:active { transform: scale(0.95); }
 
-        /* --- TOAST NOTIFICATION --- */
         #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
         .toast { background: rgba(0,0,0,0.9); border: 1px solid var(--neon-cyan); color: #fff; padding: 12px 20px; border-radius: 4px; font-family: 'Orbitron'; font-size: 12px; box-shadow: 0 0 15px rgba(0,243,255,0.2); animation: dropIn 0.3s forwards; }
         .toast.error { border-color: var(--neon-red); box-shadow: 0 0 15px rgba(255,0,60,0.2); color: var(--neon-red); }
 
-        /* --- MODAL NEGO --- */
         .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .modal-box { background: var(--glass); border: 1px solid var(--neon-gold); padding: 25px; width: 85%; border-radius: 8px; box-shadow: 0 0 30px rgba(255,204,0,0.1); }
         .modal-input { width: 100%; background: #000; border: 1px solid #333; color: var(--neon-gold); padding: 15px; margin: 15px 0; font-size: 20px; font-weight: bold; text-align: center; border-radius: 4px; outline: none; font-family: 'Orbitron'; }
@@ -146,7 +142,7 @@
     </div>
 
     <div class="log-box" id="system-logs">
-        <div class="log-cyan">[SYS] SYSTEM INITIALIZED. READY.</div>
+        <div class="log-cyan">[SYS] NEURAL INTERFACE ONLINE.</div>
     </div>
 
     <div class="system-switch">
@@ -182,6 +178,7 @@
     </div>
 
     <script>
+        // --- CONFIG & GLOBALS ---
         const firebaseConfig = {
             apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
             authDomain: "ojeklokal-42b84.firebaseapp.com",
@@ -195,12 +192,22 @@
         let myData = null;
         let isRadarOnline = false;
         let selectedMissionId = null;
+        let currentServer = null;
 
-        // Sound FX
         const sfxOnline = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
         const sfxOffline = new Audio('https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3');
         const sfxApply = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
 
+        // --- UTILITY: HAVERSINE FORMULA ---
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        }
+
+        // --- INITIALIZATION ---
         async function initHub() {
             db.ref(`users_adventurer/${myNick}`).on('value', snap => {
                 myData = snap.val();
@@ -209,18 +216,17 @@
         }
 
         function updateUserUI() {
-            const cur = myData.vitality.stamina_current || 0; 
-            const max = myData.vitality.stamina_max || 1000;
+            const cur = myData.vitality?.stamina_current || 0; 
+            const max = myData.vitality?.stamina_max || 1000;
             document.getElementById('stamina-bar').style.width = (cur/max*100) + "%";
             document.getElementById('stamina-val').innerText = `${cur} / ${max}`;
             document.getElementById('ui-rank').innerText = myData.rank || "UNRANKED";
             
-            const limit = myData.vitality.apply_limit_daily || 10;
+            const limit = myData.vitality?.apply_limit_daily || 10;
             const done = myData.stats?.total_missions_today || 0;
             document.getElementById('ui-limit').innerText = `${done} / ${limit}`;
         }
 
-        // --- CUSTOM TOAST & LOGS ---
         function showToast(msg, type = "success") {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -237,6 +243,7 @@
             box.innerHTML = `<div class="${type}">[${time}] ${msg}</div>` + box.innerHTML;
         }
 
+        // --- RADAR LOGIC ---
         function toggleRadar() {
             isRadarOnline = !isRadarOnline;
             const btn = document.getElementById('radar-btn');
@@ -247,124 +254,173 @@
                 txt.innerText = "RADAR ACTIVE";
                 txt.style.color = "var(--neon-cyan)";
                 sfxOnline.play();
-                addLog("SCANNING REGIONAL DATA...", "log-gold");
                 startListeningMissions();
             } else {
                 btn.classList.remove('active');
                 txt.innerText = "RADAR OFFLINE";
                 txt.style.color = "#555";
                 sfxOffline.play();
-                addLog("RADAR DISCONNECTED.", "log-red");
                 db.ref('board_central/active_quests').off();
                 document.getElementById('mission-board').innerHTML = `<div style="text-align: center; color: #333; margin-top: 50px;"><p style="font-family:'Orbitron';">RADAR STANDBY</p></div>`;
+                addLog("RADAR DISCONNECTED.", "log-red");
             }
         }
 
-        function startListeningMissions() {
+        async function startListeningMissions() {
             const board = document.getElementById('mission-board');
-            board.innerHTML = `<div style="text-align:center; color:var(--neon-cyan); margin-top:30px; font-family:'Orbitron';">SYNCING DATA...</div>`;
+            addLog("SYNCING GPS & SATELLITE...", "log-gold");
 
-            // MENGGUNAKAN IDE AWAL (Board Central) yang support Data Lengkap
-            db.ref('board_central/active_quests').on('value', snapshot => {
-                board.innerHTML = ""; 
-                const quests = snapshot.val();
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const uLat = pos.coords.latitude;
+                const uLon = pos.coords.longitude;
+                addLog("SCANNING LOCAL SECTORS...", "log-cyan");
 
-                if (!quests) {
-                    board.innerHTML = `<div style="text-align:center; margin-top:50px; color:#444;">TIDAK ADA KONTRAK AKTIF</div>`;
-                    return;
-                }
+                db.ref('board_central/active_quests').on('value', async (snapshot) => {
+                    board.innerHTML = "";
+                    const quests = snapshot.val();
+                    if (!quests) {
+                        board.innerHTML = `<div style="text-align:center; margin-top:50px; color:#444;">PAPAN PUSAT KOSONG</div>`;
+                        return;
+                    }
 
-                Object.keys(quests).forEach(mId => {
-                    const m = quests[mId];
-                    if (m.status === "SEARCHING" || (m.rpgSystem && m.rpgSystem.status === "SEARCHING")) {
+                    for (const mId in quests) {
+                        const brief = quests[mId];
+                        const srv = brief.server; //
+
+                        // Double-Read: Fetch detail dari regional
+                        const regSnap = await db.ref(`database_regional/${srv}/missions/${mId}`).get();
                         
-                        // Sistem Anti-Fraud & Reputasi
-                        let repClass = "rep-trust"; let repText = "CLIENT TERVERIFIKASI";
-                        if(m.client_stats?.cancel > 10) { repClass = "rep-risk"; repText = "⚠️ BERESIKO (SERING BATAL)"; }
-                        
-                        board.innerHTML += `
-                            <div class="quest-card ${m.is_urgent ? 'urgent' : ''}">
-                                <div style="display:flex; justify-content:space-between; font-family:'Orbitron';">
-                                    <span style="color:var(--neon-cyan);">${m.category || 'QUEST'} CONTRACT</span>
-                                    <span style="font-size:10px; color:#666;">#${mId.substring(0,8)}</span>
-                                </div>
-                                
-                                <div style="font-size:22px; color:var(--neon-gold); font-weight:bold; margin:5px 0;">
-                                    Rp ${(m.price || m.bounty || 0).toLocaleString()}
-                                </div>
+                        if (regSnap.exists()) {
+                            const full = regSnap.val();
+                            const status = full.rpgSystem?.status || full.status;
 
-                                <div class="client-rep ${repClass}">${repText}</div>
+                            if (status === "SEARCHING") {
+                                const mLat = full.route?.lat; 
+                                const mLon = full.route?.lng;
+                                let distance = null;
 
-                                <div class="route-box">
-                                    <div class="point"><div class="point-icon" style="background:var(--neon-cyan)"></div> <b>JEMPUT:</b> ${m.pickup_area || m.route?.pickup || 'Lokasi Dirahasiakan'}</div>
-                                    <div class="point"><div class="point-icon" style="background:var(--neon-red)"></div> <b>TUJUAN:</b> ${m.dest_area || m.route?.destination || 'Sesuai Arahan'}</div>
-                                </div>
-
-                                <div class="stats-grid">
-                                    <div class="stat-item"><label>LIKE</label><b style="color:var(--neon-cyan)">${m.client_stats?.like || 0}</b></div>
-                                    <div class="stat-item"><label>DISLIKE</label><b style="color:var(--neon-red)">${m.client_stats?.dislike || 0}</b></div>
-                                    <div class="stat-item"><label>CANCEL</label><b style="color:#888">${m.client_stats?.cancel || 0}</b></div>
-                                    <div class="stat-item"><label>FINISH</label><b style="color:var(--neon-gold)">${m.client_stats?.total_finish || 0}</b></div>
-                                </div>
-
-                                <div class="btn-row">
-                                    <button class="btn btn-nego" onclick="openNego('${mId}', ${m.price || m.bounty || 0})">NEGO</button>
-                                    <button class="btn btn-apply" onclick="applyForMission('${mId}', 50)">TERIMA MISI</button>
-                                </div>
-                            </div>
-                        `;
+                                if (mLat && mLon) {
+                                    distance = calculateDistance(uLat, uLon, mLat, mLon);
+                                    if (distance <= 3) renderQuestCard(mId, brief, full, srv, distance);
+                                } else {
+                                    renderQuestCard(mId, brief, full, srv, null); // Tanpa filter jika koordinat null
+                                }
+                            }
+                        }
                     }
                 });
+            }, (err) => {
+                showToast("GPS ERROR: AKTIFKAN LOKASI!", "error");
+                toggleRadar();
             });
         }
 
-        async function applyForMission(mId, cost) {
-            if (!myData) return showToast("Gagal memuat profil!", "error");
+        function renderQuestCard(id, brief, full, srv, dist) {
+            const board = document.getElementById('mission-board');
+            const harga = brief.price || full.bounty || 0;
+            const isUrgent = brief.is_urgent || full.isUrgent || false;
             
-            const curStamina = myData.vitality.stamina_current || 0;
-            if (curStamina < cost) return showToast("CRITICAL: STAMINA TIDAK CUKUP!", "error");
+            let repClass = "rep-trust"; let repText = "CLIENT TERVERIFIKASI";
+            if(full.client_stats?.cancel > 5) { repClass = "rep-risk"; repText = "⚠️ LOW RELIABILITY"; }
 
-            sfxApply.play();
-            addLog(`Mendaftarkan diri ke Misi #${mId.substring(0,5)}...`, "log-cyan");
-            
+            const distLabel = dist !== null ? `📍 ${dist.toFixed(2)} KM` : `📍 JARAK ???`;
+
+            board.innerHTML += `
+                <div class="quest-card ${isUrgent ? 'urgent' : ''}">
+                    <div style="display:flex; justify-content:space-between; font-family:'Orbitron'; align-items:center;">
+                        <span style="color:var(--neon-cyan);">${(full.category || 'QUEST').toUpperCase()}</span>
+                        <span style="color:var(--neon-gold); font-size:10px;">${distLabel}</span>
+                    </div>
+                    
+                    <div style="font-size:24px; color:var(--neon-gold); font-weight:bold; margin:8px 0;">
+                        Rp ${harga.toLocaleString()}
+                    </div>
+
+                    <div class="client-rep ${repClass}">${repText}</div>
+
+                    <div class="route-box">
+                        <div class="point"><div class="point-icon" style="background:var(--neon-cyan)"></div> <b>START:</b> ${full.route?.pickup || 'Sesuai GPS'}</div>
+                        <div class="point"><div class="point-icon" style="background:var(--neon-red)"></div> <b>DEST:</b> ${full.route?.destination || 'Sesuai Arahan'}</div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-item"><label>LIKE</label><b>${full.client_stats?.like || 0}</b></div>
+                        <div class="stat-item"><label>FAIL</label><b>${full.client_stats?.cancel || 0}</b></div>
+                        <div class="stat-item"><label>LVL</label><b>${full.client_stats?.level || 1}</b></div>
+                        <div class="stat-item"><label>DONE</label><b>${full.client_stats?.total_finish || 0}</b></div>
+                    </div>
+
+                    <div class="btn-row">
+                        <button class="btn btn-nego" onclick="openNego('${id}', ${harga}, '${srv}')">NEGO</button>
+                        <button class="btn btn-apply" onclick="processHandshake('${id}', '${srv}', 50)">AMBIL MISI</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- HANDSHAKE SYSTEM ---
+        async function processHandshake(mId, srv, cost) {
+            if (!myData) return showToast("PROFILE ERROR", "error");
+            if ((myData.vitality?.stamina_current || 0) < cost) return showToast("STAMINA RENDAH!", "error");
+
+            addLog(`ATTEMPTING HANDSHAKE: #${mId.substring(0,5)}...`, "log-gold");
+            const regRef = db.ref(`database_regional/${srv}/missions/${mId}`);
+
             try {
-                await db.ref(`board_central/active_quests/${mId}/applicants/${myNick}`).set({
-                    nickname: myNick,
-                    rank: myData.rank,
-                    timestamp: Date.now()
+                const result = await regRef.transaction(current => {
+                    if (current && (current.rpgSystem?.status === "SEARCHING" || current.status === "SEARCHING")) {
+                        if (!current.rpgSystem) current.rpgSystem = {};
+                        current.rpgSystem.status = "TAKEN";
+                        current.rpgSystem.adventurer = myNick;
+                        return current;
+                    }
+                    return; // Abort
                 });
-                showToast("TRANSMISI SUKSES! Menunggu Konfirmasi.");
-                addLog("Pendaftaran terkirim. Standby.", "log-gold");
+
+                if (result.committed) {
+                    sfxApply.play();
+                    // Hapus dari pusat
+                    await db.ref(`board_central/active_quests/${mId}`).remove();
+                    
+                    // Potong stamina
+                    await db.ref(`users_adventurer/${myNick}/vitality/stamina_current`).set(myData.vitality.stamina_current - cost);
+                    
+                    showToast("CONTRACT SECURED!");
+                    localStorage.setItem('active_mission_id', mId);
+                    localStorage.setItem('active_server', srv);
+                    setTimeout(() => location.href = 'adventurer-mission-on-progress.html', 1200);
+                } else {
+                    showToast("MISI SUDAH DIAMBIL ORANG LAIN", "error");
+                }
             } catch (e) {
-                showToast("ERROR: " + e.message, "error");
+                addLog("CRITICAL ERROR: " + e.message, "log-red");
             }
         }
 
-        // --- SISTEM NEGO PREMIUM ---
-        function openNego(mId, price) {
+        // --- NEGO SYSTEM ---
+        function openNego(mId, price, srv) {
             selectedMissionId = mId;
+            currentServer = srv;
             document.getElementById('nego-current-price').innerText = `Rp ${price.toLocaleString()}`;
             document.getElementById('nego-input').value = price;
             document.getElementById('negoModal').style.display = 'flex';
         }
 
-        function closeNego() {
-            document.getElementById('negoModal').style.display = 'none';
-        }
+        function closeNego() { document.getElementById('negoModal').style.display = 'none'; }
 
         function submitNego() {
-            const negoPrice = document.getElementById('nego-input').value;
-            if(!negoPrice || negoPrice <= 0) return showToast("Masukkan harga valid!", "error");
+            const val = parseInt(document.getElementById('nego-input').value);
+            if(!val || val <= 0) return;
 
-            db.ref(`board_central/active_quests/${selectedMissionId}/nego_requests/${myNick}`).set({
-                offered_price: parseInt(negoPrice),
+            db.ref(`database_regional/${currentServer}/missions/${selectedMissionId}/nego_requests/${myNick}`).set({
+                offered_price: val,
                 status: 'PENDING',
                 timestamp: Date.now()
             }).then(() => {
-                showToast("HARGA NEGO DIAJUKAN!");
-                addLog(`Nego Rp ${negoPrice} diajukan untuk #${selectedMissionId.substring(0,5)}`, "log-cyan");
+                showToast("SINYAL NEGO TERKIRIM");
+                addLog(`NEGO DIKIRIM KE SERVER ${currentServer.toUpperCase()}`, "log-cyan");
                 closeNego();
-            }).catch(e => showToast("Gagal: " + e.message, "error"));
+            });
         }
     </script>
 </body>
