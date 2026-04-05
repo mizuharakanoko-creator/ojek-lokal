@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>SOVEREIGN | ADMIN PANEL</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; padding: 20px; }
+        .card { background: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; max-width: 400px; margin: auto; }
+        input, select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: white; }
+        button { background: #00f3ff; color: black; font-weight: bold; cursor: pointer; border: none; }
+        button:hover { background: #00c8d1; }
+        .status-tag { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .verified { background: #00ff88; color: black; }
+        .unverified { background: #ff4444; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>Admin Verifikasi</h2>
+        <p style="font-size: 12px; color: #888;">Input Nickname Adventurer untuk mengubah status.</p>
+        
+        <input type="text" id="target-nick" placeholder="Contoh: nezza">
+        <button onclick="checkUser()">Cek Status</button>
+
+        <div id="user-info" style="display:none; margin-top: 20px; border-top: 1px solid #333; pt-10px;">
+            <p>User: <span id="display-nick"></span></p>
+            <p>Status Saat Ini: <span id="current-status" class="status-tag"></span></p>
+            
+            <label>Ubah Ke:</label>
+            <select id="new-status">
+                <option value="verified">Verified</option>
+                <option value="Unverified">Unverified</option>
+            </select>
+            <button onclick="updateStatus()" style="background: #ffcc00;">Update Status</button>
+        </div>
+    </div>
+
+    <script>
+        // Gunakan Konfigurasi Firebase Anda yang Sama
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        function checkUser() {
+            const nick = document.getElementById('target-nick').value.toLowerCase();
+            if(!nick) return alert("Masukkan Nickname!");
+
+            db.ref(`users_adventurer/${nick}`).once('value', snap => {
+                const data = snap.val();
+                if(data) {
+                    document.getElementById('user-info').style.display = 'block';
+                    document.getElementById('display-nick').innerText = data.nickname;
+                    const status = data.stats.status_verifikasi;
+                    const statusEl = document.getElementById('current-status');
+                    statusEl.innerText = status;
+                    statusEl.className = 'status-tag ' + status.toLowerCase();
+                } else {
+                    alert("Adventurer tidak ditemukan!");
+                }
+            });
+        }
+
+        async function updateStatus() {
+            const nick = document.getElementById('target-nick').value.toLowerCase();
+            const statusBaru = document.getElementById('new-status').value;
+
+            try {
+                // Update ke path stats/status_verifikasi sesuai database Anda
+                await db.ref(`users_adventurer/${nick}/stats/status_verifikasi`).set(statusBaru);
+                alert("Status Berhasil Diperbarui!");
+                checkUser(); // Refresh tampilan
+            } catch (e) {
+                alert("Gagal: " + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
