@@ -245,57 +245,109 @@
             }
         }
 
-        async function startListeningMissions() {
+                async function startListeningMissions() {
             const board = document.getElementById('mission-board');
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const uLat = pos.coords.latitude; const uLon = pos.coords.longitude;
-                db.ref('board_central/active_quests').on('value', async (snapshot) => {
-                    board.innerHTML = "";
-                    const quests = snapshot.val();
-                    if (!quests) return;
+            addLog("SYNCING GPS & SATELLITE...", "log-gold");
 
-                    for (const mId in quests) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const uLat = pos.coords.latitude;
+                const uLon = pos.coords.longitude;
+                addLog("SCANNING LOCAL SECTORS...", "log-cyan");
+
+                // Dengarkan perubahan di Board Central
+                db.ref('board_central/active_quests').on('value', async (snapshot) => {
+                    const quests = snapshot.val();
+                    
+                    // 1. Bersihkan board hanya jika ada data baru
+                    board.innerHTML = "";
+
+                    if (!quests) {
+                        board.innerHTML = `<div style="text-align:center; margin-top:50px; color:#444;">PAPAN PUSAT KOSONG</div>`;
+                        return;
+                    }
+
+                    // 2. Gunakan Array of Promises agar loading lebih cepat & stabil
+                    const questKeys = Object.keys(quests);
+                    
+                    for (const mId of questKeys) {
                         const brief = quests[mId];
                         const srv = brief.server;
-                        const regSnap = await db.ref(`database_regional/${srv}/missions/${mId}`).get();
-                        
-                        if (regSnap.exists()) {
-                            const full = regSnap.val();
-                            const status = (full.rpgSystem?.status || full.status || "").toUpperCase();
 
-                            if (status === "SEARCHING") {
-                                const distance = calculateDistance(uLat, uLon, full.route?.lat, full.route?.lng);
-                                if (distance <= 3) renderQuestCard(mId, brief, full, srv, distance);
+                        if (!srv) continue; // Skip jika tidak ada info server
+
+                        // Ambil detail dari Regional
+                        try {
+                            const regSnap = await db.ref(`database_regional/${srv}/missions/${mId}`).get();
+                            if (regSnap.exists()) {
+                                const full = regSnap.val();
+                                const status = (full.rpgSystem?.status || full.status || "").toUpperCase();
+
+                                // Filter status: Hanya tampilkan yang SEARCHING
+                                if (status === "SEARCHING" || status === "OPEN") {
+                                    let distance = null;
+                                    
+                                    // Hitung jarak jika koordinat ada
+                                    if (full.route?.lat && full.route?.lng) {
+                                        distance = calculateDistance(uLat, uLon, full.route.lat, full.route.lng);
+                                    }
+
+                                    // Filter Jarak (Contoh: 5 KM) atau tampilkan semua jika distance null
+                                    if (distance === null || distance <= 5) {
+                                        renderQuestCard(mId, brief, full, srv, distance);
+                                    }
+                                }
                             }
+                        } catch (err) {
+                            console.error("Error fetching regional data:", err);
                         }
                     }
+
+                    // Jika setelah loop board tetap kosong
+                    if (board.innerHTML === "") {
+                        board.innerHTML = `<div style="text-align:center; margin-top:50px; color:#444;">TIDAK ADA MISI TERDEKAT</div>`;
+                    }
                 });
-            });
+            }, (err) => {
+                showToast("GPS ERROR: AKTIFKAN LOKASI!", "error");
+                addLog("GPS SATELLITE OFFLINE.", "log-red");
+                toggleRadar();
+            }, { enableHighAccuracy: true });
         }
 
         function renderQuestCard(id, brief, full, srv, dist) {
             const board = document.getElementById('mission-board');
             const harga = brief.price || full.bounty || 0;
-            const distLabel = dist !== null ? `📍 ${dist.toFixed(2)} KM` : `📍 JARAK ???`;
+            const distLabel = dist !== null ? `📍 ${dist.toFixed(2)} KM` : `📍 JARAK JAUH`;
+            const isUrgent = full.isUrgent || brief.is_urgent;
 
-            board.innerHTML += `
-                <div class="quest-card ${full.isUrgent ? 'urgent' : ''}">
-                    <div style="display:flex; justify-content:space-between; font-family:'Orbitron';">
+            // Template Card
+            const card = `
+                <div class="quest-card ${isUrgent ? 'urgent' : ''}" id="card-${id}">
+                    <div style="display:flex; justify-content:space-between; font-family:'Orbitron'; align-items:center;">
                         <span style="color:var(--neon-cyan);">${(full.category || 'QUEST').toUpperCase()}</span>
                         <span style="color:var(--neon-gold); font-size:10px;">${distLabel}</span>
                     </div>
-                    <div style="font-size:24px; color:var(--neon-gold); font-weight:bold; margin:8px 0;">Rp ${harga.toLocaleString()}</div>
-                    <div class="route-box">
-                        <div class="point"><b>START:</b> ${full.route?.pickup || 'Sesuai GPS'}</div>
-                        <div class="point"><b>DEST:</b> ${full.route?.destination || 'Sesuai Arahan'}</div>
+                    
+                    <div style="font-size:24px; color:var(--neon-gold); font-weight:bold; margin:8px 0;">
+                        Rp ${harga.toLocaleString()}
                     </div>
+
+                    <div class="route-box">
+                        <div class="point"><div class="point-icon" style="background:var(--neon-cyan)"></div> <b>START:</b> ${full.route?.pickup || 'Sesuai GPS'}</div>
+                        <div class="point"><div class="point-icon" style="background:var(--neon-red)"></div> <b>DEST:</b> ${full.route?.destination || 'Sesuai Arahan'}</div>
+                    </div>
+
                     <div class="btn-row">
                         <button class="btn btn-nego" onclick="openNego('${id}', ${harga}, '${srv}')">NEGO</button>
                         <button class="btn btn-apply" onclick="applyForMission('${id}', '${srv}', ${harga}, 50)">AMBIL MISI</button>
                     </div>
                 </div>
             `;
+            board.innerHTML += card;
         }
+
+
+        
 
         // --- REVISI: APPLY & LISTENER ---
         async function applyForMission(mId, srv, price, cost) {
