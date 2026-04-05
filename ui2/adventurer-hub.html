@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ADVENTURER HUB | SOVEREIGN SYSTEM</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --p-cyan: #00f3ff; --p-pink: #ff00ea; --p-red: #ff003c;
+            --p-gold: #ffcc00; --p-bg: #050505; --p-card: #0c0c0c;
+            --terminal-font: 'Courier New', monospace;
+        }
+
+        body { background: var(--p-bg); color: white; font-family: 'Rajdhani', sans-serif; margin: 0; overflow-x: hidden; }
+
+        /* --- HEADER & STAMINA --- */
+        .main-header { background: #000; padding: 12px; border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 100; }
+        .res-bar { width: 100%; height: 8px; background: #111; border-radius: 4px; border: 1px solid #222; overflow: hidden; margin-top: 5px; }
+        .hp-fill { height: 100%; background: linear-gradient(90deg, var(--p-cyan), #0088ff); box-shadow: 0 0 10px var(--p-cyan); transition: 0.5s; }
+
+        /* --- MISSION CARD (ANTI-FRAUD STYLE) --- */
+        .quest-card { 
+            background: var(--p-card); border: 1px solid #222; margin: 15px; padding: 15px; 
+            border-left: 4px solid var(--p-cyan); position: relative; animation: slideIn 0.3s ease-out;
+        }
+        .quest-card.urgent { border-left-color: var(--p-red); background: linear-gradient(135deg, #150505 0%, #0c0c0c 100%); }
+        
+        .urgent-badge { background: var(--p-red); color: white; padding: 2px 8px; font-size: 10px; font-weight: bold; border-radius: 2px; animation: blink 1s infinite; }
+
+        /* Label Reputasi Pemesan */
+        .client-status { font-size: 11px; font-weight: bold; padding: 4px; text-align: center; margin: 10px 0; border-radius: 2px; letter-spacing: 1px; }
+        .status-trust { border: 1px solid var(--p-cyan); color: var(--p-cyan); background: rgba(0, 243, 255, 0.05); }
+        .status-risk { border: 1px solid var(--p-red); color: var(--p-red); background: rgba(255, 0, 60, 0.1); }
+        .status-new { border: 1px solid var(--p-gold); color: var(--p-gold); }
+
+        /* Info Rute */
+        .route-box { background: #000; border: 1px solid #1a1a1a; padding: 10px; margin: 10px 0; font-size: 13px; }
+        .point { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .point-icon { width: 8px; height: 8px; border-radius: 50%; }
+
+        /* Stats Grid (Anti-Penipuan) */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; }
+        .stat-item { background: #111; padding: 5px; text-align: center; border: 1px solid #222; }
+        .stat-item label { display: block; font-size: 9px; color: #666; }
+        .stat-item b { font-size: 12px; }
+
+        /* --- SYSTEM LOG --- */
+        .log-box { margin: 15px; background: #000; border: 1px solid #222; height: 80px; overflow-y: auto; padding: 8px; font-family: var(--terminal-font); font-size: 10px; }
+        .log-cyan { color: var(--p-cyan); }
+        .log-red { color: var(--p-red); }
+
+        /* --- BUTTONS --- */
+        .btn-row { display: flex; gap: 8px; margin-top: 15px; }
+        .btn { border: none; padding: 12px; font-family: 'Rajdhani'; font-weight: bold; cursor: pointer; transition: 0.2s; flex: 1; }
+        .btn-apply { background: var(--p-cyan); color: #000; }
+        .btn-nego { background: transparent; border: 1px solid var(--p-gold); color: var(--p-gold); }
+
+        /* --- ERROR WRAPPER --- */
+        #error-msg { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--p-red); color: white; padding: 10px 20px; border-radius: 5px; display: none; z-index: 1000; box-shadow: 0 0 20px rgba(255,0,0,0.5); font-weight: bold; }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Loading Animation */
+        .loader { width: 20px; height: 20px; border: 2px solid #333; border-top-color: var(--p-cyan); border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body onload="initHub()">
+
+    <div id="error-msg">SYSTEM ERROR: PERMISSION DENIED</div>
+
+    <header class="main-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-family: 'Orbitron'; color: var(--p-cyan); font-size: 14px;">SOVEREIGN MISSION</div>
+            <div style="text-align: right;">
+                <div style="font-size: 10px; color: var(--p-gold);">RANK: <span id="dr-rank">SILVER SHARK</span></div>
+                <input type="checkbox" id="system-toggle" onchange="toggleSystem()">
+            </div>
+        </div>
+        <div style="margin-top: 10px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px;">
+                <span>STAMINA (HP)</span>
+                <span id="hp-val">850/1000</span>
+            </div>
+            <div class="res-bar"><div id="hp-fill" class="hp-fill" style="width: 85%;"></div></div>
+        </div>
+    </header>
+
+    <div class="log-box" id="system-logs">
+        <div class="log-cyan">[00:00] INITIALIZING SYSTEM... READY.</div>
+    </div>
+
+    <div id="mission-container">
+        <div style="text-align: center; margin-top: 50px; color: #444;">
+            <div class="loader"></div><br>SCANNING REGIONAL RADAR...
+        </div>
+    </div>
+
+    <div id="negoModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:200; align-items:center; justify-content:center; padding:20px;">
+        <div style="background:var(--p-card); border:1px solid var(--p-gold); padding:20px; width:100%; max-width:320px; border-radius:8px;">
+            <h3 style="color:var(--p-gold); font-family:'Orbitron'; margin-top:0;">NEGO TARIF</h3>
+            <p style="font-size:12px; color:#888;">Masukkan tawaran harga baru Anda:</p>
+            <input type="number" id="nego-input" style="width:100%; background:#000; border:1px solid #333; color:var(--p-gold); padding:12px; margin:10px 0; font-size:18px; font-weight:bold;">
+            <div class="btn-row">
+                <button class="btn btn-nego" onclick="closeModal()">BATAL</button>
+                <button class="btn btn-apply" style="background:var(--p-gold);" onclick="submitNego()">KIRIM NEGO</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let currentDriverID = localStorage.getItem('current_driver_id') || "DRV-999";
+        let isOnline = false;
+        let myLocation = null;
+        let selectedQuestId = null;
+
+        // Audio Effects
+        const sndApply = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+
+        function initHub() {
+            // Anti-Back Page Logic
+            history.pushState(null, null, location.href);
+            window.onpopstate = () => history.go(1);
+
+            // Cek Stamina & Rank
+            loadDriverProfile();
+        }
+
+        function loadDriverProfile() {
+            db.ref(`drivers/${currentDriverID}`).on('value', snap => {
+                const data = snap.val();
+                if (data) {
+                    document.getElementById('hp-val').innerText = `${data.stamina || 0}/1000`;
+                    document.getElementById('hp-fill').style.width = (data.stamina / 10) + '%';
+                    document.getElementById('dr-rank').innerText = data.rank || "D-CLASS";
+                }
+            });
+        }
+
+        function toggleSystem() {
+            isOnline = document.getElementById('system-toggle').checked;
+            if (isOnline) {
+                addLog("RADAR AKTIF. Mencari misi di wilayah Kuningan...", "log-cyan");
+                startGps();
+                listenMissions();
+            } else {
+                addLog("SYSTEM OFFLINE. GPS Dimatikan.", "log-red");
+                stopGps();
+                document.getElementById('mission-container').innerHTML = `<div style="text-align:center; margin-top:50px; color:#444;">SYSTEM OFFLINE</div>`;
+            }
+        }
+
+        function listenMissions() {
+            // Sharding: Mengambil data dari board_central (Quest Aktif)
+            db.ref('board_central/active_quests').on('value', snap => {
+                const container = document.getElementById('mission-container');
+                container.innerHTML = "";
+                const quests = snap.val();
+
+                if (!quests) {
+                    container.innerHTML = `<div style="text-align:center; padding:40px; color:#444;">TIDAK ADA MISI TERSEDIA</div>`;
+                    return;
+                }
+
+                Object.keys(quests).forEach(id => {
+                    const q = quests[id];
+                    renderQuestCard(id, q);
+                });
+            });
+        }
+
+        function renderQuestCard(id, q) {
+            const container = document.getElementById('mission-container');
+            
+            // Logika Anti-Fraud: Tentukan label reputasi
+            let repClass = "status-new";
+            let repLabel = q.client_rep || "STRANGER / PENGGUNA BARU";
+            if (q.client_stats?.total_finish > 20) { repClass = "status-trust"; repLabel = "ADVENTURER TERPERCAYA"; }
+            if (q.client_stats?.cancel_rate > 30) { repClass = "status-risk"; repLabel = "⚠️ BERESIKO TINGGI (SERING BATAL)"; }
+
+            const card = `
+                <div class="quest-card ${q.is_urgent ? 'urgent' : ''}">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:10px; color:#666;">QUEST ID: ${id.substring(0,8)}</span>
+                        ${q.is_urgent ? '<span class="urgent-badge">DARURAT</span>' : ''}
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; margin-top:8px;">
+                        <div style="font-family:Orbitron; font-size:16px;">${q.client_name} <span style="font-size:10px; color:#555;">since ${q.member_since || '2026'}</span></div>
+                        <div style="color:var(--p-gold); font-family:Orbitron;">Rp ${q.price.toLocaleString()}</div>
+                    </div>
+
+                    <div class="client-status ${repClass}">${repLabel}</div>
+
+                    <div class="route-box">
+                        <div class="point"><div class="point-icon" style="background:var(--p-cyan)"></div> <b>JEMPUT:</b> ${q.pickup_area}</div>
+                        <div class="point"><div class="point-icon" style="background:var(--p-red)"></div> <b>TUJUAN:</b> ${q.dest_area}</div>
+                        <div style="margin-top:8px; display:flex; justify-content:space-between; font-size:11px; color:var(--p-gold);">
+                            <span>EST. JALAN: ${q.est_km || '0'} KM</span>
+                            <span>KE JEMPUTAN: ${calculateDistance(q.lat, q.lng)} KM</span>
+                        </div>
+                    </div>
+
+                    <div style="background:#111; padding:8px; font-size:11px; border-left:2px solid var(--p-gold); margin-bottom:10px;">
+                        <i style="color:#666;">Note:</i> "${q.note || 'Tidak ada catatan tambahan.'}"
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-item"><label>LIKE</label><b style="color:var(--p-cyan)">${q.client_stats?.like || 0}</b></div>
+                        <div class="stat-item"><label>DISLIKE</label><b style="color:var(--p-red)">${q.client_stats?.dislike || 0}</b></div>
+                        <div class="stat-item"><label>CANCEL</label><b>${q.client_stats?.cancel || 0}</b></div>
+                        <div class="stat-item"><label>FINISH</label><b>${q.client_stats?.total_finish || 0}</b></div>
+                    </div>
+
+                    <div style="text-align:center; margin-top:10px; font-size:11px; color:var(--p-pink);">
+                        RANK PEMESAN: <b>${q.client_rank || 'PLANKTON'}</b>
+                    </div>
+
+                    <div class="btn-row">
+                        <button class="btn btn-apply" onclick="applyMission('${id}')">DAFTARKAN DIRI</button>
+                        <button class="btn btn-nego" onclick="openNego('${id}', ${q.price})">NEGO</button>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += card;
+        }
+
+        // --- CORE LOGIC FUNCTIONS ---
+
+        function applyMission(id) {
+            const stamina = parseInt(document.getElementById('hp-val').innerText);
+            if (stamina < 50) {
+                showError("STAMINA TIDAK CUKUP! Istirahat dulu.");
+                return;
+            }
+
+            sndApply.play();
+            addLog(`Mengirim profil ke ${id.substring(0,5)}...`, "log-cyan");
+            
+            // Daftarkan diri ke node 'applicants' di misi terkait
+            db.ref(`board_central/active_quests/${id}/applicants/${currentDriverID}`).set({
+                name: "Adventurer X", // Ambil dari profil asli nanti
+                rank: "GOLD SHARK",
+                lat: myLocation?.lat || 0,
+                lng: myLocation?.lng || 0,
+                timestamp: Date.now()
+            }).then(() => {
+                alert("Lamaran terkirim! Menunggu persetujuan pemesan.");
+            });
+        }
+
+        function openNego(id, price) {
+            selectedQuestId = id;
+            document.getElementById('nego-input').value = price;
+            document.getElementById('negoModal').style.display = 'flex';
+        }
+
+        function submitNego() {
+            const price = document.getElementById('nego-input').value;
+            db.ref(`board_central/active_quests/${selectedQuestId}/applicants/${currentDriverID}`).update({
+                bid_price: parseInt(price),
+                is_nego: true
+            });
+            closeModal();
+            addLog("Tawaran nego harga dikirim.", "log-cyan");
+        }
+
+        function closeModal() {
+            document.getElementById('negoModal').style.display = 'none';
+        }
+
+        function addLog(msg, colorClass) {
+            const logBox = document.getElementById('system-logs');
+            const time = new Date().toLocaleTimeString();
+            logBox.innerHTML = `<div class="${colorClass}">[${time}] ${msg}</div>` + logBox.innerHTML;
+        }
+
+        function showError(text) {
+            const err = document.getElementById('error-msg');
+            err.innerText = text;
+            err.style.display = 'block';
+            setTimeout(() => { err.style.display = 'none'; }, 3000);
+        }
+
+        function calculateDistance(lat, lng) {
+            if (!myLocation) return "?";
+            // Rumus Haversine Sederhana
+            return "1.5"; // Dummy data untuk contoh
+        }
+
+        function startGps() {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(pos => {
+                    myLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                });
+            }
+        }
+        function stopGps() { /* Logic to stop GPS */ }
+    </script>
+</body>
+</html>
