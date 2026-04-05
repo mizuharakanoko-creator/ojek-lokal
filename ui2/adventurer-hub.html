@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SOVEREIGN | ADVENTURER HUB</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;700&display=swap');
+
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-pink: #ff00ea;
+            --neon-gold: #ffcc00;
+            --bg-ultra: #020205;
+            --glass: rgba(255, 255, 255, 0.03);
+        }
+
+        /* --- GLOBAL RESET & HIDE BROWSER UI --- */
+        * { 
+            box-sizing: border-box; 
+            -webkit-user-select: none; user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            background: var(--bg-ultra);
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            overflow: hidden; /* Anti-scroll browser standar */
+        }
+
+        /* --- ANIMATED STATUS BAR (STAMINA) --- */
+        .top-nav {
+            padding: 20px;
+            background: linear-gradient(to bottom, #000, transparent);
+            position: relative;
+            z-index: 100;
+        }
+
+        .stamina-container {
+            width: 100%;
+            height: 30px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #222;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px #000;
+        }
+
+        .stamina-fill {
+            height: 100%;
+            width: 0%; /* Dynamic */
+            background: linear-gradient(90deg, #ff0055, var(--neon-cyan));
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        /* Efek Aliran Energi di Stamina Bar */
+        .stamina-fill::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            animation: flow 2s infinite;
+        }
+
+        @keyframes flow {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(100%); }
+        }
+
+        .stamina-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            top: 50%;
+            transform: translateY(-50%);
+            font-family: 'Orbitron';
+            font-size: 10px;
+            text-shadow: 0 0 5px #000;
+            z-index: 2;
+        }
+
+        /* --- TOGGLE ONLINE/OFFLINE SYSTEM --- */
+        .system-switch {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .radar-toggle {
+            width: 80%;
+            padding: 15px;
+            border-radius: 50px;
+            border: 2px solid #333;
+            background: #0a0a0a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: 0.5s;
+            position: relative;
+        }
+
+        .radar-toggle.active {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 20px var(--neon-cyan-dim);
+        }
+
+        .status-label {
+            font-family: 'Orbitron';
+            font-size: 12px;
+            margin-left: 20px;
+            letter-spacing: 2px;
+        }
+
+        .toggle-knob {
+            width: 30px;
+            height: 30px;
+            background: #222;
+            border-radius: 50%;
+            transition: 0.5s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .active .toggle-knob {
+            background: var(--neon-cyan);
+            transform: translateX(-5px);
+            box-shadow: 0 0 15px var(--neon-cyan);
+        }
+
+        /* Animasi Ping Radar saat Online */
+        .radar-ping {
+            position: absolute;
+            width: 100%; height: 100%;
+            border-radius: 50px;
+            border: 2px solid var(--neon-cyan);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .active .radar-ping {
+            animation: ping 1.5s infinite;
+        }
+
+        @keyframes ping {
+            0% { transform: scale(1); opacity: 0.5; }
+            100% { transform: scale(1.1, 1.3); opacity: 0; }
+        }
+
+        /* --- RANK & PROFILE CARD --- */
+        .rank-badge {
+            background: linear-gradient(45deg, #111, #222);
+            padding: 10px 20px;
+            border-left: 4px solid var(--neon-gold);
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .rank-title {
+            font-family: 'Orbitron';
+            font-size: 14px;
+            color: var(--neon-gold);
+        }
+
+        /* --- MISSION LIST CONTAINER --- */
+        #mission-board {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            padding-bottom: 100px;
+            mask-image: linear-gradient(to bottom, transparent, black 5%, black 90%, transparent);
+        }
+
+        .quest-card {
+            background: var(--glass);
+            border: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            position: relative;
+            animation: slideIn 0.4s ease-out forwards;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- BOTTOM DOCK --- */
+        .bottom-dock {
+            position: fixed;
+            bottom: 0; width: 100%;
+            height: 70px;
+            background: rgba(0,0,0,0.9);
+            border-top: 1px solid #222;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .dock-item {
+            text-align: center;
+            color: #444;
+            font-size: 10px;
+            font-family: 'Orbitron';
+        }
+
+        .dock-item.active { color: var(--neon-cyan); text-shadow: 0 0 10px var(--neon-cyan); }
+    </style>
+</head>
+<body class="notranslate" onload="initHub()">
+
+    <div class="top-nav">
+        <div style="display:flex; justify-content: space-between; margin-bottom: 5px;">
+            <span style="font-size: 10px; color: #888; letter-spacing: 1px;">VITALITY / STAMINA</span>
+            <span id="stamina-val" style="font-size: 10px; color: var(--neon-cyan);">0 / 1000</span>
+        </div>
+        <div class="stamina-container">
+            <div id="stamina-bar" class="stamina-fill"></div>
+            <div class="stamina-text">NEURAL LINK STABILITY</div>
+        </div>
+
+        <div class="rank-badge">
+            <div>
+                <div style="font-size: 9px; color: #666;">CURRENT RANK</div>
+                <div id="ui-rank" class="rank-title">LOADING...</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 9px; color: #666;">DAILY LIMIT</div>
+                <div id="ui-limit" style="font-family: 'Orbitron'; font-size: 12px;">0/0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="system-switch">
+        <div id="radar-btn" class="radar-toggle" onclick="toggleRadar()">
+            <div class="radar-ping"></div>
+            <span id="radar-text" class="status-label">OFFLINE</span>
+            <div class="toggle-knob">
+                <div id="knob-light" style="width: 4px; height: 4px; border-radius: 50%; background: #000;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mission-board">
+        <div style="text-align: center; color: #333; margin-top: 50px;">
+            <p>RADAR TIDAK AKTIF</p>
+            <p style="font-size: 10px;">AKTIFKAN SISTEM UNTUK MENCARI MISI</p>
+        </div>
+    </div>
+
+    <div class="bottom-dock">
+        <div class="dock-item active">TERMINAL</div>
+        <div class="dock-item" onclick="location.href='inventory.html'">VAULT</div>
+        <div class="dock-item" onclick="location.href='profile.html'">PROFILE</div>
+    </div>
+
+    <script>
+        // --- FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Ambil Nickname dari Login
+        const myNick = localStorage.getItem('user_nickname');
+        let myData = null;
+        let isRadarOnline = false;
+
+        // Audio Effects
+        const sfxOnline = new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3');
+        const sfxOffline = new Audio('https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3');
+
+        async function initHub() {
+            if(!myNick) return window.location.href = 'login.html';
+            
+            // 1. Sync User Data (Stamina, Rank, Limit)
+            db.ref(`users_adventurer/${myNick}`).on('value', snap => {
+                myData = snap.val();
+                updateUserUI();
+            });
+
+            // Anti-Refresh Logic
+            window.onbeforeunload = function() {
+                if(isRadarOnline) return "Misi aktif akan terputus. Tetap keluar?";
+            };
+        }
+
+        function updateUserUI() {
+            // Stamina Bar Animation
+            const perc = (myData.vitality.current / myData.vitality.max) * 100;
+            document.getElementById('stamina-bar').style.width = perc + "%";
+            document.getElementById('stamina-val').innerText = `${myData.vitality.current} / ${myData.vitality.max}`;
+            
+            // Rank Display
+            document.getElementById('ui-rank').innerText = myData.rank;
+            
+            // Limit Logic berdasarkan Rank
+            let maxLimit = 5; // Default TRAINER
+            if(myData.rank === 'BRONZE') maxLimit = 10;
+            if(myData.rank === 'SILVER') maxLimit = 15;
+            if(myData.rank === 'GOLD') maxLimit = 25;
+            if(myData.rank === 'S') maxLimit = 99;
+
+            document.getElementById('ui-limit').innerText = `${myData.stats.total_missions_today || 0} / ${maxLimit}`;
+        }
+
+        function toggleRadar() {
+            haptic(50);
+            isRadarOnline = !isRadarOnline;
+            const btn = document.getElementById('radar-btn');
+            const txt = document.getElementById('radar-text');
+
+            if(isRadarOnline) {
+                btn.classList.add('active');
+                txt.innerText = "RADAR ACTIVE";
+                txt.style.color = "var(--neon-cyan)";
+                sfxOnline.play();
+                startListeningMissions();
+            } else {
+                btn.classList.remove('active');
+                txt.innerText = "OFFLINE";
+                txt.style.color = "#fff";
+                sfxOffline.play();
+                stopListeningMissions();
+            }
+        }
+
+        function haptic(ms) { if(navigator.vibrate) navigator.vibrate(ms); }
+
+                // --- LOGIKA PENCARIAN MISI (RADAR) ---
+        let missionListener = null;
+
+        function startListeningMissions() {
+            const board = document.getElementById('mission-board');
+            board.innerHTML = `<div style="text-align:center; padding:20px;">
+                <div class="loader-progress" style="width:100%; position:relative; margin-bottom:10px;"></div>
+                <p style="font-size:11px; color:var(--neon-cyan); letter-spacing:2px;">SCANNING NEURAL NETWORK...</p>
+            </div>`;
+
+            // Mencari misi yang statusnya masih 'OPEN'
+            missionListener = db.ref('missions').orderByChild('status').equalTo('OPEN');
+            
+            missionListener.on('value', snapshot => {
+                board.innerHTML = ""; // Bersihkan board
+                let count = 0;
+
+                snapshot.forEach(child => {
+                    const m = child.val();
+                    const mId = child.key;
+                    count++;
+                    
+                    // Render kartu misi dengan animasi
+                    board.innerHTML += `
+                        <div class="quest-card">
+                            <div style="display:flex; justify-content:space-between; align-items:start;">
+                                <div>
+                                    <h3 style="margin:0; color:var(--neon-cyan); font-family: 'Orbitron'; font-size:14px;">${m.task_name}</h3>
+                                    <p style="font-size:11px; color:#aaa; margin:5px 0;">Client: ${m.client_name} [${m.client_rep} Rep]</p>
+                                </div>
+                                <div style="text-align:right;">
+                                    <div style="color:var(--neon-gold); font-weight:bold;">Rp ${m.price.toLocaleString()}</div>
+                                    <div style="font-size:9px; color:#555;">CASH ONLY</div>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top:15px; display:flex; gap:10px;">
+                                <button class="btn btn-primary" style="padding:10px; font-size:10px;" 
+                                    onclick="applyForMission('${mId}', ${m.stamina_cost})">
+                                    DAFTARKAN DIRI (-${m.stamina_cost} HP)
+                                </button>
+                                <button class="btn btn-secondary" style="padding:10px; font-size:10px; flex:0.4;" 
+                                    onclick="openNego('${mId}', ${m.price})">
+                                    NEGO
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                if (count === 0) {
+                    board.innerHTML = `<div style="text-align:center; margin-top:50px; color:#444;">TIDAK ADA MISI TERSEDIA SAAT INI</div>`;
+                }
+            });
+        }
+
+        function stopListeningMissions() {
+            if (missionListener) missionListener.off();
+            document.getElementById('mission-board').innerHTML = `
+                <div style="text-align: center; color: #333; margin-top: 50px;">
+                    <p>RADAR TIDAK AKTIF</p>
+                    <p style="font-size: 10px;">AKTIFKAN SISTEM UNTUK MENCARI MISI</p>
+                </div>`;
+        }
+
+        // --- LOGIKA VALIDASI & EKSEKUSI ---
+        async function applyForMission(mId, cost) {
+            haptic(100);
+            
+            // 1. Cek Stamina dari Database (Bukan sekedar UI)
+            if (myData.vitality.current < cost) {
+                showMsg("CRITICAL: STAMINA TIDAK CUKUP! <br>Silahkan istirahat atau gunakan item pemulih.");
+                return;
+            }
+
+            // 2. Cek Limit Rank
+            let maxLimit = (myData.rank === 'TRAINER') ? 5 : (myData.rank === 'BRONZE') ? 10 : 20;
+            if ((myData.stats.total_missions_today || 0) >= maxLimit) {
+                showMsg(`RANK LIMIT REACHED! <br>Rank ${myData.rank} maksimal ${maxLimit} misi/hari.`);
+                return;
+            }
+
+            // 3. Proses Pendaftaran (Kirim Sinyal ke Client)
+            const applyData = {
+                adventurer_nick: myNick,
+                adventurer_rank: myData.rank,
+                timestamp: Date.now(),
+                status: 'WAITING_CONFIRMATION'
+            };
+
+            try {
+                await db.ref(`missions/${mId}/candidates/${myNick}`).set(applyData);
+                showMsg("PERMINTAAN TERKIRIM! <br>Menunggu konfirmasi dari Requester...");
+                
+                // Monitor jika diterima
+                db.ref(`missions/${mId}/selected_adventurer`).on('value', s => {
+                    if (s.val() === myNick) {
+                        alert("MISI DITERIMA! Membuka Terminal Navigasi...");
+                        localStorage.setItem('active_mission_id', mId);
+                        window.location.href = 'adventurer-mission-on-progress.html';
+                    }
+                });
+            } catch (e) {
+                showMsg("SISTEM ERROR: " + e.message);
+            }
+        }
+
+        // --- SISTEM NEGO TERHUBUNG ---
+        function openNego(mId, currentPrice) {
+            haptic(20);
+            const negoPrice = prompt("Masukkan Tawaran Harga Anda (Tanpa Titik):", currentPrice);
+            if (negoPrice && !isNaN(negoPrice)) {
+                db.ref(`missions/${mId}/nego_requests/${myNick}`).set({
+                    offered_price: parseInt(negoPrice),
+                    adventurer_nick: myNick,
+                    status: 'PENDING'
+                }).then(() => {
+                    showMsg("HARGA NEGO TERKIRIM! <br>Client akan melihat tawaran Anda.");
+                });
+            }
+        }
+
+     </script>
+</body>
+</html>
