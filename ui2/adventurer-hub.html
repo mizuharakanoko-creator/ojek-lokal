@@ -349,57 +349,56 @@
         let missionListener = null;
 
         function startListeningMissions() {
-            const board = document.getElementById('mission-board');
-            board.innerHTML = `<div style="text-align:center; padding:20px;">
-                <div class="loader-progress" style="width:100%; position:relative; margin-bottom:10px;"></div>
-                <p style="font-size:11px; color:var(--neon-cyan); letter-spacing:2px;">SCANNING NEURAL NETWORK...</p>
-            </div>`;
+    const board = document.getElementById('mission-board');
+    board.innerHTML = `<p style="text-align:center; color:var(--neon-cyan);">SCANNING REGIONAL MISSIONS...</p>`;
 
-            // Mencari misi yang statusnya masih 'OPEN'
-            missionListener = db.ref('missions').orderByChild('status').equalTo('OPEN');
+    // SESUAIKAN PATH INI dengan gambar database Anda
+    // Anda bisa membuat variabel untuk memilih regional (pusat/utara)
+    const regionalPath = 'database_regional/sv_kuningan_pusat/missions';
+    
+    missionListener = db.ref(regionalPath).orderByChild('rpgSystem/status').equalTo('SEARCHING');
+    
+    missionListener.on('value', snapshot => {
+        board.innerHTML = ""; 
+        let count = 0;
+
+        snapshot.forEach(child => {
+            const m = child.val();
+            const mId = child.key;
+            count++;
             
-            missionListener.on('value', snapshot => {
-                board.innerHTML = ""; // Bersihkan board
-                let count = 0;
-
-                snapshot.forEach(child => {
-                    const m = child.val();
-                    const mId = child.key;
-                    count++;
-                    
-                    // Render kartu misi dengan animasi
-                    board.innerHTML += `
-                        <div class="quest-card">
-                            <div style="display:flex; justify-content:space-between; align-items:start;">
-                                <div>
-                                    <h3 style="margin:0; color:var(--neon-cyan); font-family: 'Orbitron'; font-size:14px;">${m.task_name}</h3>
-                                    <p style="font-size:11px; color:#aaa; margin:5px 0;">Client: ${m.client_name} [${m.client_rep} Rep]</p>
-                                </div>
-                                <div style="text-align:right;">
-                                    <div style="color:var(--neon-gold); font-weight:bold;">Rp ${m.price.toLocaleString()}</div>
-                                    <div style="font-size:9px; color:#555;">CASH ONLY</div>
-                                </div>
-                            </div>
-                            
-                            <div style="margin-top:15px; display:flex; gap:10px;">
-                                <button class="btn btn-primary" style="padding:10px; font-size:10px;" 
-                                    onclick="applyForMission('${mId}', ${m.stamina_cost})">
-                                    DAFTARKAN DIRI (-${m.stamina_cost} HP)
-                                </button>
-                                <button class="btn btn-secondary" style="padding:10px; font-size:10px; flex:0.4;" 
-                                    onclick="openNego('${mId}', ${m.price})">
-                                    NEGO
-                                </button>
+            // Mengambil data sesuai struktur gambar 5 (bounty, category, id)
+            board.innerHTML += `
+                <div class="quest-card">
+                    <div style="display:flex; justify-content:space-between;">
+                        <div>
+                            <h3 style="margin:0; color:var(--neon-cyan); font-family:'Orbitron';">QUEST: ${m.category.toUpperCase()}</h3>
+                            <p style="font-size:10px; color:#555;">ID: ${mId}</p>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="color:var(--neon-gold); font-weight:bold;">Rp ${m.bounty.toLocaleString()}</div>
+                            <div style="font-size:9px; color:${m.isUrgent ? 'var(--neon-pink)' : '#555'}">
+                                ${m.isUrgent ? '!! URGENT !!' : 'NORMAL'}
                             </div>
                         </div>
-                    `;
-                });
+                    </div>
+                    
+                    <div style="margin-top:15px; display:flex; gap:10px;">
+                        <button class="btn btn-primary" style="padding:10px; font-size:10px;" 
+                            onclick="applyForMission('${mId}', 50)">
+                            DAFTARKAN DIRI
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
 
-                if (count === 0) {
-                    board.innerHTML = `<div style="text-align:center; margin-top:50px; color:#444;">TIDAK ADA MISI TERSEDIA SAAT INI</div>`;
-                }
-            });
+        if (count === 0) {
+            board.innerHTML = `<div style="text-align:center; margin-top:50px; color:#444;">TIDAK ADA MISI DI WILAYAH INI</div>`;
         }
+    });
+}
+
 
         function stopListeningMissions() {
             if (missionListener) missionListener.off();
