@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MISSION ACCEPTED | SOVEREIGN</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Orbitron:wght@800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --neon-cyan: #00f3ff; --neon-pink: #ff00ea; --bg-black: #020205;
+            --font-mono: 'Courier New', monospace;
+        }
+
+        body { 
+            background: var(--bg-black); color: white; font-family: 'Rajdhani', sans-serif; 
+            margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+        }
+
+        /* --- ANIMASI BACKGROUND SCAN --- */
+        .scanline {
+            width: 100%; height: 2px; background: rgba(0, 243, 255, 0.3);
+            position: absolute; top: 0; animation: scan 3s linear infinite; z-index: 1;
+        }
+        @keyframes scan { from { top: 0; } to { top: 100%; } }
+
+        /* --- CONTENT WRAPPER --- */
+        .mission-overlay {
+            flex: 1; z-index: 2; padding: 25px; display: flex; flex-direction: column;
+            background: radial-gradient(circle at center, rgba(0,243,255,0.05) 0%, transparent 70%);
+        }
+
+        .header-title {
+            font-family: 'Orbitron'; font-size: 28px; text-align: center;
+            color: var(--neon-cyan); text-shadow: 0 0 15px var(--neon-cyan);
+            margin-top: 40px; letter-spacing: 4px; animation: glitch 0.5s infinite;
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); color: var(--neon-pink); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+
+        .client-box {
+            background: rgba(10, 10, 20, 0.8); border: 1px solid var(--neon-cyan);
+            padding: 20px; margin-top: 30px; position: relative;
+        }
+        .client-box::after {
+            content: "ID TERVERIFIKASI"; position: absolute; top: -10px; right: 10px;
+            background: var(--neon-cyan); color: #000; font-size: 9px; padding: 2px 6px; font-weight: bold;
+        }
+
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px dashed #222; padding-bottom: 5px; }
+        .label { font-size: 11px; color: #666; text-transform: uppercase; }
+        .value { font-family: var(--font-mono); font-weight: bold; color: var(--neon-cyan); }
+
+        .terminal-text {
+            font-family: var(--font-mono); font-size: 10px; color: #444;
+            margin-top: 20px; flex: 1; overflow: hidden;
+        }
+
+        /* --- ACTION BUTTONS --- */
+        .footer-actions { padding: 20px; z-index: 2; }
+        .btn-start {
+            width: 100%; padding: 20px; background: var(--neon-cyan); color: #000;
+            border: none; font-family: 'Orbitron'; font-weight: bold; font-size: 16px;
+            cursor: pointer; box-shadow: 0 0 20px var(--neon-cyan); clip-path: polygon(5% 0, 100% 0, 95% 100%, 0 100%);
+        }
+        .btn-start:active { transform: scale(0.98); filter: brightness(1.2); }
+
+        /* --- ERROR WRAPPER --- */
+        #error-ui { display: none; background: #500; color: #fff; padding: 10px; text-align: center; font-size: 12px; }
+    </style>
+</head>
+<body onload="initSelectedPage()">
+
+    <div class="scanline"></div>
+    <div id="error-ui">KONEKSI TERPUTUS: MENCOBA RE-LINK...</div>
+
+    <div class="mission-overlay">
+        <div class="header-title">CHOSEN</div>
+        
+        <div style="text-align: center; color: #888; font-size: 12px; margin-top: 10px;">
+            PEMESAN TELAH MENGKONFIRMASI UNIT ANDA
+        </div>
+
+        <div class="client-box">
+            <div class="data-row">
+                <span class="label">Client Name</span>
+                <span class="value" id="ui-client-name">---</span>
+            </div>
+            <div class="data-row">
+                <span class="label">Bounty Reward</span>
+                <span class="value" id="ui-price" style="color: var(--neon-pink);">Rp 0</span>
+            </div>
+            <div class="data-row">
+                <span class="label">Pickup Point</span>
+                <span class="value" id="ui-pickup">---</span>
+            </div>
+            <div class="data-row">
+                <span class="label">Destination</span>
+                <span class="value" id="ui-dest">---</span>
+            </div>
+        </div>
+
+        <div class="terminal-text" id="log-stream">
+            > Establishing neural link...<br>
+            > Synchronizing GPS coordinates...<br>
+            > Client data decrypted.<br>
+            > Status: Awaiting deployment.<br>
+        </div>
+    </div>
+
+    <div class="footer-actions">
+        <button class="btn-start" onclick="launchMission()">Luncurkan Misi (OTW)</button>
+        <div style="text-align: center; margin-top: 15px; font-size: 10px; color: #444; font-family: var(--font-mono);">
+            WARNING: MEMBATALKAN MISI SETELAH KONFIRMASI AKAN MENGURANGI REPUTASI BESAR.
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Ambil data dari Hub sebelumnya
+        const questId = localStorage.getItem('active_mission_id');
+        const node = localStorage.getItem('active_server_node') || 'sv_kuningan_pusat'; // Fallback
+        const driverId = localStorage.getItem('current_driver_id') || 'DRV-999';
+
+        const sndAlert = new Audio('https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3');
+
+        function initSelectedPage() {
+            if (!questId) {
+                alert("Misi tidak ditemukan!");
+                window.location.replace('adventurer-hub.html');
+                return;
+            }
+
+            sndAlert.play();
+            loadMissionData();
+            
+            // Anti-Back
+            history.pushState(null, null, location.href);
+            window.onpopstate = () => history.go(1);
+        }
+
+        function loadMissionData() {
+            // Kita dengarkan di regional untuk detail lengkap
+            db.ref(`database_regional/${node}/missions/${questId}`).once('value', snap => {
+                const data = snap.val();
+                if (!data) return;
+
+                document.getElementById('ui-client-name').innerText = data.client_name;
+                document.getElementById('ui-price').innerText = `Rp ${data.price.toLocaleString()}`;
+                document.getElementById('ui-pickup').innerText = data.pickup_area;
+                document.getElementById('ui-dest').innerText = data.dest_area;
+                
+                addLog(`Target locked: ${data.client_name}`);
+                addLog(`Route optimized for ${node}.`);
+            });
+        }
+
+        function launchMission() {
+            // 1. Update Status di Regional
+            const updates = {};
+            updates[`database_regional/${node}/missions/${questId}/status`] = "ON_THE_WAY";
+            updates[`database_regional/${node}/tracking/${questId}/status`] = "MOVING_TO_PICKUP";
+            
+            // 2. Hapus dari Board Central agar tidak dilihat driver lain lagi
+            updates[`board_central/active_quests/${questId}`] = null;
+
+            db.ref().update(updates).then(() => {
+                addLog("Mission launched! Redirecting to Navigation...");
+                setTimeout(() => {
+                    window.location.replace('mission-on-progress.html');
+                }, 1000);
+            }).catch(err => {
+                document.getElementById('error-ui').style.display = 'block';
+                console.error(err);
+            });
+        }
+
+        function addLog(txt) {
+            const log = document.getElementById('log-stream');
+            log.innerHTML += `> ${txt}<br>`;
+        }
+    </script>
+</body>
+</html>
