@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TRACKING MISSION | GUILD LIFE</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-cyan: #00ffff; --neon-pink: #ff00ff; --bg-dark: #05050a;
+            --glass: rgba(10, 10, 20, 0.85); --font-mono: 'Courier New', monospace;
+        }
+
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: var(--bg-dark); color: #fff; overflow: hidden; }
+
+        /* MAP STYLING */
+        #map { height: 100vh; width: 100%; z-index: 1; filter: brightness(0.7) contrast(1.2) hue-rotate(180deg) invert(100%); }
+
+        /* UI OVERLAYS */
+        .overlay { position: absolute; z-index: 10; width: 100%; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+
+        /* TOP INFO: ADVENTURER MINI CARD */
+        .top-info { top: 15px; padding: 0 15px; }
+        .adv-card { background: var(--glass); border: 1px solid var(--neon-cyan); border-radius: 12px; padding: 12px; backdrop-filter: blur(10px); display: flex; align-items: center; gap: 12px; transition: 0.3s; }
+        .adv-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid var(--neon-cyan); object-fit: cover; }
+        .eta-box { margin-left: auto; text-align: right; font-family: var(--font-mono); }
+
+        /* BOTTOM CONTROLS */
+        .bottom-ui { bottom: 0; padding: 15px; background: linear-gradient(transparent, var(--bg-dark)); }
+        .control-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+        /* CHAT SYSTEM */
+        .chat-drawer { position: fixed; bottom: -70%; left: 0; width: 100%; height: 70%; background: var(--bg-dark); z-index: 100; border-top: 2px solid var(--neon-cyan); transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); padding: 15px; display: flex; flex-direction: column; }
+        .chat-open { bottom: 0; }
+        .chat-messages { flex: 1; overflow-y: auto; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px; }
+        .msg { padding: 8px 12px; border-radius: 8px; max-width: 80%; font-size: 13px; line-height: 1.4; }
+        .msg.client { align-self: flex-end; background: var(--neon-cyan); color: #000; }
+        .msg.adv { align-self: flex-start; background: #222; border: 1px solid #444; }
+
+        /* QUICK CHAT BUTTONS */
+        .quick-chat { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; }
+        .q-btn { background: #1a1a2e; border: 1px solid var(--neon-cyan); color: var(--neon-cyan); padding: 5px 12px; border-radius: 15px; white-space: nowrap; font-size: 11px; }
+
+        /* ACTION BUTTONS */
+        .btn { padding: 12px; border: none; border-radius: 6px; font-weight: bold; font-family: var(--font-mono); cursor: pointer; text-transform: uppercase; }
+        .btn-cancel { background: #331111; color: #ff4444; border: 1px solid #ff4444; }
+        .btn-finish { background: var(--neon-cyan); color: #000; box-shadow: 0 0 15px var(--neon-cyan); }
+
+        /* ERROR & LOADING */
+        #error-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #770000; padding: 20px; border: 2px solid red; z-index: 999; display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div class="overlay top-info">
+        <div class="adv-card interactive" onclick="toggleAdvProfile()">
+            <img id="adv-pfp" src="https://via.placeholder.com/50" class="adv-img">
+            <div>
+                <div id="adv-name" style="font-weight: bold; font-size: 14px;">MENUNGGU...</div>
+                <div id="adv-rank" style="font-size: 10px; color: var(--neon-cyan);">RANK: -</div>
+            </div>
+            <div class="eta-box">
+                <div id="eta-time" style="color: var(--neon-cyan); font-size: 16px;">-- Menit</div>
+                <div id="eta-dist" style="font-size: 10px; opacity: 0.7;">-- KM</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="chatDrawer" class="chat-drawer">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-family: var(--font-mono); color: var(--neon-cyan);">COMMS LINK</span>
+            <button class="q-btn" onclick="toggleChat()">TUTUP</button>
+        </div>
+        
+        <div class="quick-chat">
+            <button class="q-btn" onclick="sendQuickMsg('Sudah sesuai titik ya?')">Sesuai Titik?</button>
+            <button class="q-btn" onclick="sendQuickMsg('Ditunggu di depan gerbang')">Depan Gerbang</button>
+            <button class="q-btn" onclick="sendQuickMsg('Bawa kembalian?')">Kembalian?</button>
+        </div>
+
+        <div class="chat-messages" id="chatLogs"></div>
+
+        <div style="display: flex; gap: 8px;" class="interactive">
+            <button class="q-btn" onclick="triggerImgUpload()">📷</button>
+            <input type="text" id="chatInput" placeholder="Ketik pesan..." style="flex: 1; background: #111; border: 1px solid #333; color: white; padding: 10px; border-radius: 4px;">
+            <button class="btn btn-finish" style="padding: 5px 15px;" onclick="sendManualMsg()">KIRIM</button>
+        </div>
+    </div>
+
+    <div class="overlay bottom-ui">
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <button class="btn interactive" style="flex:1; background: #25d366; color:#fff;" onclick="socialLink('WA')">WHATSAPP</button>
+            <button class="btn interactive" style="flex:1; background: #1a1a2e; color:var(--neon-cyan);" onclick="toggleChat()">BUKA CHAT</button>
+        </div>
+        <div class="control-group">
+            <button class="btn btn-cancel interactive" onclick="confirmAction('CANCEL')">BATAL</button>
+            <button class="btn btn-finish interactive" onclick="confirmAction('FINISH')">SELESAI</button>
+        </div>
+    </div>
+
+    <audio id="snd-msg" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
+    <audio id="snd-alert" src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3"></audio>
+
+    <script>
+        // INIT DATA FROM LOCALSTORAGE
+        const questId = localStorage.getItem('active_quest_id');
+        const node = localStorage.getItem('active_server_node');
+        let map, driverMarker, clientMarker;
+        let isChatOpen = false;
+
+        // FIREBASE SETUP (Using your existing config)
+        const db = firebase.database();
+
+        function initApp() {
+            // Anti-Back Logic
+            history.pushState(null, null, location.href);
+            window.onpopstate = () => history.go(1);
+
+            // Auto-Finish on Close Logic
+            window.addEventListener('beforeunload', () => {
+                // Notifikasi ke driver lewat DB sebelum window mati
+                db.ref(`database_regional/${node}/tracking/${questId}/client_status`).set('OFFLINE');
+            });
+
+            initMap();
+            listenToTracking();
+            listenToChats();
+        }
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([-6.97, 108.48], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+            // Icon Custom (Cyberpunk Style)
+            const driverIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: "<div style='background: #ff00ff; width:15px; height:15px; border-radius:50%; box-shadow: 0 0 10px #ff00ff;'></div>",
+                iconSize: [15, 15]
+            });
+
+            driverMarker = L.marker([0,0], {icon: driverIcon}).addTo(map);
+        }
+
+        function listenToTracking() {
+            const trackRef = db.ref(`database_regional/${node}/tracking/${questId}`);
+            trackRef.on('value', (snap) => {
+                const data = snap.val();
+                if(!data) return;
+
+                // Update Marker Position
+                const pos = [data.lat, data.lng];
+                driverMarker.setLatLng(pos);
+                map.panTo(pos);
+
+                // Update ETA & Distance (Simulasi)
+                document.getElementById('eta-time').innerText = data.eta || "5 Min";
+                document.getElementById('eta-dist').innerText = data.distance || "1.2 KM";
+                
+                // Update Info Singkat Adventurer
+                document.getElementById('adv-name').innerText = data.adv_name || "ADVENTURER";
+                document.getElementById('adv-rank').innerText = "RANK: " + (data.adv_rank || "D");
+            });
+        }
+
+        function listenToChats() {
+            const chatRef = db.ref(`database_regional/${node}/chats/${questId}`).limitToLast(20);
+            chatRef.on('child_added', (snap) => {
+                const msg = snap.val();
+                displayMessage(msg);
+                if(msg.sender === 'adv') document.getElementById('snd-msg').play();
+            });
+        }
+
+        function displayMessage(msg) {
+            const container = document.getElementById('chatLogs');
+            const div = document.createElement('div');
+            div.className = `msg ${msg.sender === 'client' ? 'client' : 'adv'}`;
+            div.innerText = msg.text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function toggleChat() {
+            isChatOpen = !isChatOpen;
+            document.getElementById('chatDrawer').classList.toggle('chat-open', isChatOpen);
+        }
+
+        function sendManualMsg() {
+            const input = document.getElementById('chatInput');
+            if(!input.value) return;
+            sendMsg(input.value);
+            input.value = "";
+        }
+
+        function sendMsg(text) {
+            db.ref(`database_regional/${node}/chats/${questId}`).push({
+                sender: 'client',
+                text: text,
+                timestamp: Date.now()
+            });
+        }
+
+        function confirmAction(type) {
+            document.getElementById('snd-alert').play();
+            if(type === 'CANCEL') {
+                if(confirm("Batalkan Misi? Reputasi Anda akan dikurangi.")) {
+                    db.ref(`database_regional/${node}/missions/${questId}`).update({ status: 'CANCELLED_BY_CLIENT' });
+                    window.location.replace('dashboard.html');
+                }
+            } else {
+                // Tampilkan Modal Rating/Ulasan (Bisa dibuat halaman terpisah atau overlay)
+                const rating = prompt("Misi Selesai! Beri Rating (1-5):", "5");
+                db.ref(`database_regional/${node}/missions/${questId}`).update({ status: 'COMPLETED', rating: rating });
+                alert("Quest Clear! Reward telah dikirim ke Adventurer.");
+                window.location.replace('dashboard.html');
+            }
+        }
+
+        function socialLink(platform) {
+            // Logika P2P: Ambil nomor dari database adventurer
+            alert("Membuka " + platform + " Adventurer...");
+            // window.open('https://wa.me/....');
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>
