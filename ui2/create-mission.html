@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TERMINAL MISI | PICK ME</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* --- CORE SYSTEM & THEME --- */
+        :root {
+            --p-cyan: #00fff2; --p-purple: #bc00ff; --p-gold: #ffcc00; --p-red: #ff0055;
+            --bg-dark: #050505; --bg-card: #0a0a0a;
+        }
+        * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+        body { overscroll-behavior-y: contain; background-color: var(--bg-dark); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; padding-top: 40px; }
+        input, textarea, select { -webkit-user-select: text; user-select: text; }
+
+        /* --- NETWORK STATUS --- */
+        .network-status { position: fixed; top: 10px; left: 10px; display: flex; align-items: center; gap: 8px; font-size: 9px; letter-spacing: 1px; z-index: 1001; }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #555; box-shadow: 0 0 5px #000; }
+        .status-dot.online { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
+
+        /* --- UI COMPONENTS --- */
+        .order-container { width: 100%; max-width: 400px; margin: auto; border: 1px solid #222; padding: 20px; background: var(--bg-card); box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+        
+        .user-ribbon { background: rgba(0, 255, 242, 0.05); border: 1px solid var(--p-cyan); padding: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.3s; }
+        .user-ribbon:active { background: rgba(0, 255, 242, 0.2); }
+        #display-name { font-weight: bold; color: var(--p-cyan); font-size: 14px; text-transform: uppercase; }
+        #display-status { font-size: 10px; color: var(--p-gold); letter-spacing: 1px; }
+
+        .terminal-header h2 { margin: 0 0 15px 0; font-size: 14px; color: var(--p-purple); border-bottom: 1px dashed #333; padding-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; }
+
+        /* --- CATEGORY SELECTOR --- */
+        .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .cat-btn { padding: 12px; background: #111; border: 1px solid #333; color: #888; text-align: center; font-size: 10px; font-weight: bold; text-transform: uppercase; cursor: pointer; transition: 0.3s; display: flex; flex-direction: column; gap: 5px; }
+        .cat-btn.active { border-color: var(--p-cyan); color: var(--p-cyan); background: rgba(0, 255, 242, 0.1); box-shadow: 0 0 10px rgba(0,255,242,0.2); }
+        .cat-btn.locked { opacity: 0.5; cursor: not-allowed; border-color: #f00 !important; }
+        
+        .cat-umum { grid-template-columns: 1fr 1fr 1fr 1fr; margin-top: 5px; border-top: 1px solid #222; padding-top: 15px; }
+        .cat-umum .cat-btn { font-size: 8px; padding: 8px 5px; }
+
+        /* --- FORMS --- */
+        .form-group { margin-bottom: 15px; position: relative; }
+        label { display: block; font-size: 10px; color: #888; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+        input, textarea, select { width: 100%; padding: 12px; background: #000; border: 1px solid #333; color: #fff; box-sizing: border-box; outline: none; transition: 0.3s; }
+        input:focus, textarea:focus, select:focus { border-color: var(--p-purple); }
+        input:disabled, select:disabled { opacity: 0.5; background: #111; border-color: #222; }
+
+        /* --- URGENT TOGGLE --- */
+        .cyber-checkbox-wrapper { display: flex; align-items: center; gap: 12px; background: rgba(255, 0, 85, 0.05); padding: 15px; border: 1px solid #333; margin-bottom: 20px; cursor: pointer; transition: 0.3s; }
+        .cyber-checkbox-wrapper input[type="checkbox"] { appearance: none; width: 20px; height: 20px; border: 2px solid var(--p-red); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .cyber-checkbox-wrapper input[type="checkbox"]:checked { background: var(--p-red); box-shadow: 0 0 10px var(--p-red); }
+        .cyber-checkbox-wrapper input[type="checkbox"]:checked::after { content: "✔"; color: #fff; font-size: 14px; }
+        .cyber-label { font-size: 11px; letter-spacing: 1px; color: #888; text-transform: uppercase; }
+        .cyber-checkbox-wrapper input[type="checkbox"]:checked + .cyber-label { color: var(--p-red); text-shadow: 0 0 5px var(--p-red); }
+
+        /* --- GPS BUTTON --- */
+        .gps-btn-large { width: 100%; padding: 15px; background: #000; border: 1px solid var(--p-cyan); color: var(--p-cyan); font-size: 11px; letter-spacing: 2px; cursor: pointer; transition: all 0.3s ease; text-transform: uppercase; }
+        .gps-btn-large.scanning { background: rgba(0, 255, 242, 0.1); border-color: #fff; animation: blink 0.8s infinite; }
+        .gps-btn-large.location-locked { background: var(--p-cyan); color: #000; font-weight: bold; }
+        @keyframes blink { 50% { opacity: 0.5; box-shadow: 0 0 15px var(--p-cyan); } }
+
+        /* --- PRICE SECTION --- */
+        #price-section { display: none; opacity: 0; transform: translateY(10px); transition: 0.5s; margin-top: 20px; }
+        .price-section-show { display: block !important; opacity: 1 !important; transform: translateY(0) !important; }
+        .price-card { border: 1px solid #333; padding: 10px; text-align: center; cursor: pointer; background: #000; transition: 0.3s; border-radius: 4px; }
+        .price-card.selected { border-color: var(--p-purple); background: rgba(188, 0, 255, 0.1); }
+
+        /* --- ACTION BUTTON --- */
+        .btn-send { width: 100%; padding: 15px; background: var(--p-purple); color: #fff; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; margin-top: 10px; transition: 0.3s; }
+        .btn-send:active { transform: scale(0.98); background: #fff; color: #000; }
+
+        /* --- MODALS --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(5px); }
+        .modal-box { width: 85%; padding: 25px; border: 1px solid var(--p-cyan); background: #050505; text-align: center; box-shadow: 0 0 30px rgba(0,255,242,0.2); }
+        .btn-modal { padding: 12px; margin: 5px; background: #111; border: 1px solid var(--p-cyan); color: var(--p-cyan); cursor: pointer; width: 100%; text-transform: uppercase; font-size: 10px; font-weight: bold; }
+        .btn-modal.primary { background: var(--p-cyan); color: #000; }
+    </style>
+</head>
+<body>
+
+<div class="network-status">
+    <div id="netDot" class="status-dot"></div>
+    <span id="netText">MENGHUBUNGKAN...</span>
+</div>
+
+<div id="gateModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="color:var(--p-cyan); margin-top:0;">SELAMAT DATANG</h3>
+        <p style="font-size:11px; color:#888;">Silakan identifikasi diri Anda untuk masuk ke Terminal Misi.</p>
+        <button class="btn-modal" onclick="setMode('stranger')">LANJUT SEBAGAI STRANGER</button>
+        <button class="btn-modal primary" onclick="window.location.href='login.html'">LOGIN (CITIZEN / ADVENTURE)</button>
+        <button class="btn-modal" style="border-color:#555; color:#aaa;" onclick="window.location.href='register.html'">DAFTAR AKUN BARU</button>
+    </div>
+</div>
+
+<div id="infoModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 id="infoTitle" style="color:var(--p-red); margin-top:0;">INFO</h3>
+        <p id="infoMsg" style="font-size:11px; color:#ccc; line-height:1.5;"></p>
+        <button class="btn-modal primary" onclick="document.getElementById('infoModal').style.display='none'">MENGERTI</button>
+    </div>
+</div>
+
+<div id="profileModal" class="modal-overlay">
+    <div class="modal-box" style="text-align: left;">
+        <h3 style="color:var(--p-cyan); margin-top:0; border-bottom:1px solid #333; padding-bottom:10px;">DATA PROFIL</h3>
+        <div id="profileContent" style="font-size:11px; color:#aaa; line-height:1.8;">
+            </div>
+        <button class="btn-modal" style="margin-top:15px;" onclick="document.getElementById('profileModal').style.display='none'">TUTUP</button>
+    </div>
+</div>
+
+
+<div class="order-container">
+    <div class="user-ribbon" onclick="showProfile()">
+        <div>
+            <span id="display-name">MEMUAT...</span>
+            <span id="display-status">STATUS: ---</span>
+        </div>
+        <span style="font-size:10px; color:#555;">[KLIK DETAIL]</span>
+    </div>
+
+    <div class="terminal-header"><h2>1. PILIH JENIS MISI</h2></div>
+    <div class="cat-grid">
+        <div class="cat-btn active" data-cat="motor" onclick="selectCategory('motor')">🏍️ PENGAWALAN<br>(MOTOR-RIDE)</div>
+        <div class="cat-btn" data-cat="car" onclick="selectCategory('car')">🚗 PENGAWALAN<br>(CAR-RIDE)</div>
+        <div class="cat-btn" data-cat="send" onclick="selectCategory('send')">📦 EKSPEDISI<br>(PICK & DROP)</div>
+        <div class="cat-btn" data-cat="buy" onclick="selectCategory('buy')">🛒 TITIP BELI<br>(MAKAN/BELANJA)</div>
+    </div>
+    
+    <div class="cat-grid cat-umum">
+        <div class="cat-btn" data-cat="antree" onclick="selectCategory('antree')">JASA ANTREE</div>
+        <div class="cat-btn" data-cat="buruh" onclick="selectCategory('buruh')">BURUH KASAR</div>
+        <div class="cat-btn" data-cat="ahli" onclick="selectCategory('ahli')">JASA AHLI</div>
+        <div class="cat-btn" data-cat="sewa" onclick="selectCategory('sewa')">JASA SEWA</div>
+    </div>
+
+    <div class="cyber-checkbox-wrapper" onclick="document.getElementById('is-urgent').click()">
+        <input type="checkbox" id="is-urgent" onclick="event.stopPropagation()">
+        <span class="cyber-label">TANDAI SEBAGAI MISI DARURAT</span>
+    </div>
+
+    <div class="terminal-header" style="margin-top:25px;"><h2>2. KOORDINAT OPERASI</h2></div>
+
+    <div class="form-group">
+        <label id="lbl-pickup">Titik Jemput / Lokasi Anda</label>
+        <button type="button" id="btn-location" onclick="requestLocation()" class="gps-btn-large">
+            <span>📍 KLIK: IZINKAN AKSES LOKASI</span>
+        </button>
+        <input type="hidden" id="pickup-coords">
+    </div>
+
+    <div class="form-group" style="z-index: 1000;">
+        <label id="lbl-drop">Tujuan Operasi (Ketik Manual)</label>
+        <input type="text" id="destSearch" placeholder="KETIK NAMA DESA / JALAN..." autocomplete="off">
+        <div id="searchSuggestions" style="display: none; position: absolute; width: 100%; background: #111; border: 1px solid var(--p-cyan); max-height: 150px; overflow-y: auto; z-index: 9999;"></div>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+        <div class="form-group" style="flex:1;">
+            <label>Kecamatan</label>
+            <select id="dest-kec" onchange="loadCities(this.value)"></select>
+        </div>
+        <div class="form-group" style="flex:1;">
+            <label>Desa</label>
+            <select id="dest-desa" onchange="calculateRoute()"></select>
+        </div>
+    </div>
+
+    <div id="price-section">
+        <label>3. PILIH PENDANAAN MISI</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+            <div class="price-card" onclick="selectPrice(this, 'hemat')">
+                <span style="font-size: 8px; color: var(--p-cyan);">HEMAT</span>
+                <div id="price-hemat" style="font-weight: bold; color: #fff; font-size: 14px;">0</div>
+            </div>
+            <div class="price-card selected" style="border-color:var(--p-purple);" onclick="selectPrice(this, 'reguler')">
+                <span style="font-size: 8px; color: var(--p-purple);">STANDAR</span>
+                <div id="price-reguler" style="font-weight: bold; color: #fff; font-size: 14px;">0</div>
+            </div>
+            <div class="price-card" onclick="selectPrice(this, 'express')">
+                <span style="font-size: 8px; color: var(--p-gold);">KILAT</span>
+                <div id="price-express" style="font-weight: bold; color: #fff; font-size: 14px;">0</div>
+            </div>
+        </div>
+        <input type="hidden" id="final-price" value="0">
+    </div>
+
+    <div class="form-group" style="margin-top:20px;">
+        <label>CATATAN UNTUK ADVENTURE</label>
+        <textarea id="mission-note" rows="2" placeholder="Detail patokan rumah, warna baju, atau detail pesanan..."></textarea>
+    </div>
+
+    <button class="btn-send" onclick="executeDoubleWrite()">PUBLIKASIKAN MISI</button>
+</div>
+
+<script>
+    // --- 1. SETUP & MOCK DATA ---
+    const db = firebase.database(); 
+    let currentUser = null;
+    let isStranger = false;
+    let selectedCategory = 'motor';
+    let currentKm = 0;
+
+    // Mock Data Wilayah (Hanya Kuningan untuk test)
+    const dataWilayah = {
+        "kuningan": { 
+            server: "kng1", // ID Sharding Database
+            desa: [{name: "Purwawinangun", lat: -6.975, lng: 108.483}, {name: "Cijoho", lat: -6.965, lng: 108.485}] 
+        },
+        "cigugur": { 
+            server: "kng1", 
+            desa: [{name: "Cigugur", lat: -6.968, lng: 108.463}, {name: "Cisantana", lat: -6.958, lng: 108.455}] 
+        },
+        "cilimus": { 
+            server: "kng2", 
+            desa: [{name: "Cilimus", lat: -6.883, lng: 108.483}, {name: "Linggarjati", lat: -6.875, lng: 108.465}] 
+        }
+    };
+
+    // --- 2. INIT & GATEKEEPER ---
+    window.onload = () => {
+        monitorNetwork();
+        const savedId = localStorage.getItem('uid');
+        const role = localStorage.getItem('role');
+
+        if(savedId && role === 'client') {
+            // Load DB User (Simulasi)
+            currentUser = { 
+                id: savedId, name: "CITIZEN X", status: "TERPERCAYA", joinDate: "Feb 2026",
+                totalOrders: 42, cancel: 2, like: 40, dislike: 0 
+            };
+            updateUIProfile();
+            initDropdowns();
+        } else {
+            document.getElementById('gateModal').style.display = 'flex';
+        }
+    };
+
+    function setMode(mode) {
+        if(mode === 'stranger') {
+            isStranger = true;
+            currentUser = { id: "STRANGER-" + Math.floor(Math.random()*1000), name: "ANONIM", status: "STRANGER", totalOrders: 0, cancel: 0 };
+            document.getElementById('gateModal').style.display = 'none';
+            updateUIProfile();
+            initDropdowns();
+            lockCategories();
+        }
+    }
+
+    function updateUIProfile() {
+        document.getElementById('display-name').innerText = currentUser.name;
+        document.getElementById('display-status').innerText = "STATUS: " + currentUser.status;
+    }
+
+    function showProfile() {
+        const c = document.getElementById('profileContent');
+        c.innerHTML = `
+            <b>ID:</b> ${currentUser.id}<br>
+            <b>Tipe:</b> ${currentUser.status}<br>
+            <b>Bergabung:</b> ${currentUser.joinDate || 'Hari ini'}<br>
+            <b>Misi Selesai:</b> ${currentUser.totalOrders}<br>
+            <b>Pembatalan (Cancel):</b> <span style="color:var(--p-red)">${currentUser.cancel}</span><br>
+            <b>Reputasi Baik:</b> ${currentUser.like || 0} Likes
+        `;
+        document.getElementById('profileModal').style.display = 'flex';
+    }
+
+    // --- 3. CATEGORY & UI LOGIC ---
+    function lockCategories() {
+        document.querySelectorAll('.cat-btn').forEach(btn => {
+            if(btn.dataset.cat !== 'motor') btn.classList.add('locked');
+        });
+    }
+
+    function selectCategory(cat) {
+        if(isStranger && cat !== 'motor') {
+            showModal("AKSES DITOLAK", "Status STRANGER hanya bisa membuat misi Motor-Ride. Silakan Login untuk akses penuh.");
+            return;
+        }
+        selectedCategory = cat;
+        document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`[data-cat="${cat}"]`).classList.add('active');
+
+        // Dinamis Label
+        const lPick = document.getElementById('lbl-pickup');
+        const lDrop = document.getElementById('lbl-drop');
+        if(cat === 'send') { lPick.innerText = "Titik Ambil Paket"; lDrop.innerText = "Titik Antar Paket"; }
+        else if(cat === 'buy') { lPick.innerText = "Lokasi Toko / Warung"; lDrop.innerText = "Titik Antar Pesanan"; }
+        else { lPick.innerText = "Titik Jemput Anda"; lDrop.innerText = "Tujuan Operasi"; }
+    }
+
+    // --- 4. LOCATION (EDUCATIONAL) ---
+    function requestLocation() {
+        const btn = document.getElementById('btn-location');
+        btn.classList.add('scanning');
+        btn.innerHTML = "MEMBACA SATELIT...";
+
+        if(navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    document.getElementById('pickup-coords').value = `${pos.coords.latitude},${pos.coords.longitude}`;
+                    btn.classList.remove('scanning'); btn.classList.add('location-locked');
+                    btn.innerHTML = "📍 LOKASI TERKUNCI";
+                },
+                (err) => {
+                    btn.classList.remove('scanning');
+                    btn.innerHTML = "📍 ULANGI AKSES LOKASI";
+                    showModal("KONEKSI GPS GAGAL", "Aplikasi butuh lokasi agar Adventure tahu harus menjemput kemana. Tolong pastikan GPS HP menyala dan browser diizinkan mengakses lokasi.");
+                }, 
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+    }
+
+    // --- 5. DROPDOWN & AUTOCOMPLETE ---
+    function initDropdowns() {
+        const kec = document.getElementById('dest-kec');
+        kec.innerHTML = '<option value="">- PILIH KECAMATAN -</option>';
+        for(let k in dataWilayah) { kec.innerHTML += `<option value="${k}">${k.toUpperCase()}</option>`; }
+    }
+
+    function loadCities(kec) {
+        const desa = document.getElementById('dest-desa');
+        desa.innerHTML = '<option value="">- PILIH DESA -</option>';
+        if(dataWilayah[kec]) {
+            dataWilayah[kec].desa.forEach((d, i) => {
+                desa.innerHTML += `<option value="${i}">${d.name.toUpperCase()}</option>`;
+            });
+        }
+        document.getElementById('destSearch').disabled = false; // unlock search
+    }
+
+    // Autocomplete Logic
+    const searchInp = document.getElementById('destSearch');
+    const suggBox = document.getElementById('searchSuggestions');
+    searchInp.addEventListener('input', function() {
+        const val = this.value.toLowerCase();
+        suggBox.innerHTML = '';
+        if(val.length < 2) { suggBox.style.display = 'none'; return; }
+
+        let matches = 0;
+        for(let k in dataWilayah) {
+            dataWilayah[k].desa.forEach((d, i) => {
+                if(d.name.toLowerCase().includes(val) && matches < 5) {
+                    const div = document.createElement('div');
+                    div.style = "padding:10px; border-bottom:1px solid #333; cursor:pointer;";
+                    div.innerHTML = `<span style="color:var(--p-cyan)">${d.name.toUpperCase()}</span> <small>(${k})</small>`;
+                    div.onclick = () => {
+                        searchInp.value = d.name.toUpperCase();
+                        searchInp.disabled = true; // LOCK INPUT
+                        document.getElementById('dest-kec').value = k;
+                        loadCities(k);
+                        setTimeout(() => { 
+                            document.getElementById('dest-desa').value = i; 
+                            document.getElementById('dest-desa').disabled = true; // LOCK DROPDOWN
+                            calculateRoute(); 
+                        }, 100);
+                        suggBox.style.display = 'none';
+                    };
+                    suggBox.appendChild(div);
+                    matches++;
+                }
+            });
+        }
+        suggBox.style.display = matches > 0 ? 'block' : 'none';
+    });
+
+    // --- 6. CALCULATIONS (PRICE, EXP, STAMINA) ---
+    function calculateRoute() {
+        // Simulasi Jarak (Anggap saja 5 KM untuk tes)
+        currentKm = 5.2; 
+        
+        const basePrice = Math.max(10000, currentKm * 2000);
+        document.getElementById('price-hemat').innerText = Math.ceil((basePrice*0.8)/1000)*1000;
+        document.getElementById('price-reguler').innerText = Math.ceil(basePrice/1000)*1000;
+        document.getElementById('price-express').innerText = Math.ceil((basePrice*1.5)/1000)*1000;
+        
+        // Auto select reguler
+        document.getElementById('final-price').value = Math.ceil(basePrice/1000)*1000;
+        
+        document.getElementById('price-section').classList.add('price-section-show');
+    }
+
+    function selectPrice(el, type) {
+        document.querySelectorAll('.price-card').forEach(c => { c.classList.remove('selected'); c.style.borderColor = "#333"; });
+        el.classList.add('selected'); el.style.borderColor = "var(--p-purple)";
+        document.getElementById('final-price').value = el.querySelector('div').innerText;
+    }
+
+    function getFishTier(price) {
+        if (price < 15000) return "TERI"; // Modifikasi kecil biar lucu
+        if (price < 30000) return "LELE";
+        if (price < 60000) return "KAKAP";
+        return "HIU";
+    }
+
+    // --- 7. SHARDING & DOUBLE WRITE LOGIC ---
+    function executeDoubleWrite() {
+        const pick = document.getElementById('pickup-coords').value;
+        const kec = document.getElementById('dest-kec').value;
+        const desaIdx = document.getElementById('dest-desa').value;
+        const price = parseInt(document.getElementById('final-price').value);
+
+        if(!pick) return showModal("ERROR", "Titik Jemput/Lokasi belum ditentukan!");
+        if(!kec || desaIdx === "") return showModal("ERROR", "Tujuan belum lengkap!");
+
+        // Kalkulasi Game System
+        const sysStamina = Math.ceil(currentKm * 2);
+        const sysExp = Math.ceil(price / 1000);
+        const sysGreenStone = Math.ceil(price * 0.05);
+
+        // Identifikasi Server Wilayah (Sharding Logic)
+        const targetServer = dataWilayah[kec].server; // Output: "kng1" atau "kng2"
+        const missionId = "M-" + Date.now();
+
+        // 1. DATA LENGKAP (Regional Database)
+        const fullData = {
+            id: missionId,
+            kategori: selectedCategory,
+            urgent: document.getElementById('is-urgent').checked,
+            requester: currentUser,
+            koordinatJemput: pick,
+            tujuanKec: kec,
+            tujuanDesa: dataWilayah[kec].desa[desaIdx].name,
+            jarakKm: currentKm,
+            tarif: price,
+            catatan: document.getElementById('mission-note').value,
+            // Game Stats
+            tier: getFishTier(price),
+            reqStamina: sysStamina,
+            rewardExp: sysExp,
+            rewardGstone: sysGreenStone,
+            status: "OPEN",
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        };
+
+        // 2. DATA RINGKAS (Central RTDB Broadcast)
+        const briefData = {
+            id: missionId,
+            server: targetServer, // Driver butuh ini untuk tahu harus ambil data kemana
+            judul: `${selectedCategory.toUpperCase()} - ${dataWilayah[kec].desa[desaIdx].name}`,
+            tarif: price,
+            tier: getFishTier(price)
+        };
+
+        console.log(`[SHARDING ROUTER] Mengirim misi ke Server: ${targetServer}`);
+
+        // DOUBLE WRITE SIMULATION
+        // Asumsi struktur root: /regional_db/kng1/missions/  DAN /central_board/
+        
+        const pathRegional = `regional_db/${targetServer}/missions/${missionId}`;
+        const pathCentral = `central_board/active_missions/${missionId}`;
+
+        const updates = {};
+        updates[pathRegional] = fullData;
+        updates[pathCentral] = briefData;
+
+        db.ref().update(updates).then(() => {
+            // Simpan ID agar halaman waiting bisa tracking
+            localStorage.setItem('active_mission_id', missionId);
+            localStorage.setItem('active_server', targetServer);
+            
+            // Visual Effect
+            document.body.style.opacity = 0;
+            setTimeout(() => { window.location.href = 'waiting-client.html'; }, 500);
+        }).catch(err => {
+            showModal("TRANSMISI GAGAL", err.message);
+        });
+    }
+
+    // --- UTILS ---
+    function showModal(title, msg) {
+        document.getElementById('infoTitle').innerText = title;
+        document.getElementById('infoMsg').innerText = msg;
+        document.getElementById('infoModal').style.display = 'flex';
+    }
+    
+    function monitorNetwork() {
+        const dot = document.getElementById('netDot'); const txt = document.getElementById('netText');
+        const update = () => {
+            if(navigator.onLine) { dot.className = "status-dot online"; txt.innerText = "JARINGAN STABIL"; }
+            else { dot.className = "status-dot"; txt.innerText = "KONEKSI TERPUTUS"; }
+        };
+        window.addEventListener('online', update); window.addEventListener('offline', update); update();
+    }
+</script>
+</body>
+</html>
