@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TERMINAL MISI | GUILD LIFE RPG</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* =========================================
+           MASTER CSS - GUILD LIFE RPG (CYBERPUNK)
+           (Sesuai dengan CSS yang Anda berikan)
+           ========================================= */
+        :root {
+          --bg-main: #05050a; --bg-card: #0a0a14; --bg-input: #12121e;
+          --text-main: #e0e0e0; --text-muted: #8888a0;
+          --neon-pink: #ff00ff; --neon-pink-dim: rgba(255, 0, 255, 0.2);
+          --neon-cyan: #00ffff; --neon-cyan-dim: rgba(0, 255, 255, 0.2);
+          --border-color: #2a0a3a; --border-cyan: #005555;
+          --font-terminal: 'Courier New', Courier, monospace;
+          --font-main: 'Segoe UI', Roboto, Helvetica, sans-serif;
+        }
+
+        [data-theme="light"] {
+          --bg-main: #f8f9fc; --bg-card: #ffffff; --bg-input: #ffffff;
+          --text-main: #12121e; --text-muted: #4b5563;
+          --neon-pink: #d900d9; --neon-pink-dim: rgba(217, 0, 217, 0.15);
+          --neon-cyan: #008080; --neon-cyan-dim: rgba(0, 128, 128, 0.15);
+          --border-color: #e2e8f0; --border-cyan: #99cccc;
+        }
+
+        [data-theme="light"] .input-field { border: 1.5px solid #cbd5e1; box-shadow: none; }
+        [data-theme="light"] .card { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        [data-theme="light"] .loading-overlay { background-color: rgba(248, 249, 252, 0.95); }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background-color: var(--bg-main); color: var(--text-main); font-family: var(--font-main); font-size: 14px; line-height: 1.5; transition: 0.3s ease; }
+        
+        .app-container { width: 100%; max-width: 480px; min-height: 100vh; margin: 0 auto; background-color: var(--bg-main); position: relative; overflow-x: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.5); padding-bottom: 30px; }
+        
+        h1, h2, h3 { font-family: var(--font-terminal); text-transform: uppercase; letter-spacing: 1px; }
+        .text-neon-pink { color: var(--neon-pink); text-shadow: 0 0 5px var(--neon-pink-dim); }
+        .text-neon-cyan { color: var(--neon-cyan); text-shadow: 0 0 5px var(--neon-cyan-dim); }
+
+        .card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin: 15px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); position: relative; animation: slideUp 0.4s ease-out; }
+        .card::before, .card::after { content: ''; position: absolute; width: 10px; height: 10px; border: 2px solid var(--neon-pink); border-radius: 2px; }
+        .card::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+        .card::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+        .input-group { margin-bottom: 15px; display: flex; flex-direction: column; }
+        .input-group label { font-size: 10px; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; font-family: var(--font-terminal); }
+        .input-field { background-color: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); padding: 12px; border-radius: 4px; font-family: var(--font-main); outline: none; transition: 0.3s; width: 100%; }
+        .input-field:focus { border-color: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan-dim); }
+        .input-field:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 4px; font-family: var(--font-terminal); font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer; transition: 0.2s; }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background-color: var(--neon-pink); color: #fff; box-shadow: 0 0 10px var(--neon-pink-dim); }
+        .btn-secondary { background-color: transparent; color: var(--neon-cyan); border: 1px solid var(--neon-cyan); }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(5, 5, 10, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; visibility: hidden; opacity: 0; transition: 0.3s; }
+        .loading-overlay.active { visibility: visible; opacity: 1; }
+        .spinner { width: 50px; height: 50px; border: 3px solid var(--bg-input); border-top: 3px solid var(--neon-cyan); border-radius: 50%; animation: spin 1s linear infinite; box-shadow: 0 0 15px var(--neon-cyan-dim); }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* =========================================
+           TAMBAHAN CSS KHUSUS KOMPONEN TERMINAL
+           ========================================= */
+        
+        /* Network Status */
+        .network-status { position: absolute; top: 10px; right: 15px; display: flex; align-items: center; gap: 6px; font-size: 9px; font-family: var(--font-terminal); z-index: 100; }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: red; box-shadow: 0 0 5px red; }
+        .status-dot.online { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
+
+        /* Profil Ribbon */
+        .user-ribbon { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border-cyan); background: var(--neon-cyan-dim); cursor: pointer; border-radius: 4px; margin-bottom: 15px; }
+        .user-ribbon:active { opacity: 0.8; }
+
+        /* Category Grid */
+        .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .cat-grid.sub { grid-template-columns: 1fr 1fr 1fr 1fr; border-top: 1px dashed var(--border-color); padding-top: 15px; }
+        .cat-box { border: 1px solid var(--border-color); background: var(--bg-input); padding: 12px 5px; text-align: center; border-radius: 4px; cursor: pointer; transition: 0.3s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .cat-box span { font-size: 10px; font-weight: bold; font-family: var(--font-terminal); }
+        .cat-box.active { border-color: var(--neon-cyan); background: var(--neon-cyan-dim); box-shadow: 0 0 10px var(--neon-cyan-dim); }
+        .cat-box.locked { opacity: 0.4; border-color: red !important; cursor: not-allowed; }
+        .cat-grid.sub .cat-box span { font-size: 8px; }
+
+        /* Urgent Toggle */
+        .urgent-box { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #ff0055; background: rgba(255,0,85,0.1); border-radius: 4px; cursor: pointer; margin-bottom: 20px; }
+        .urgent-box input[type="checkbox"] { appearance: none; width: 18px; height: 18px; border: 2px solid #ff0055; border-radius: 2px; outline: none; }
+        .urgent-box input[type="checkbox"]:checked { background: #ff0055; box-shadow: 0 0 8px #ff0055; }
+        .urgent-box span { font-size: 11px; color: #ff0055; font-family: var(--font-terminal); font-weight: bold; text-shadow: 0 0 5px rgba(255,0,85,0.5); }
+
+        /* GPS Button */
+        .btn-gps { background: var(--bg-input); border: 1px dashed var(--neon-cyan); color: var(--neon-cyan); padding: 15px; text-align: center; font-family: var(--font-terminal); font-size: 12px; cursor: pointer; border-radius: 4px; transition: 0.3s; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .btn-gps.scanning { background: var(--neon-cyan-dim); animation: pulse 1s infinite; }
+        .btn-gps.locked { background: var(--neon-cyan); color: #000; border-style: solid; font-weight: bold; }
+
+        /* Autocomplete Suggestions */
+        .suggestions-box { position: absolute; top: 60px; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--neon-cyan); z-index: 1000; display: none; border-radius: 4px; box-shadow: 0 5px 15px rgba(0,0,0,0.8); }
+        .suggestion-item { padding: 12px; border-bottom: 1px solid var(--border-color); cursor: pointer; font-family: var(--font-main); font-size: 12px; display: flex; flex-direction: column; }
+        .suggestion-item:active { background: var(--neon-cyan-dim); }
+
+        /* Price Cards */
+        #price-section { display: none; opacity: 0; transform: translateY(10px); transition: 0.5s; margin-top: 20px; }
+        .price-section-show { display: block !important; opacity: 1 !important; transform: translateY(0) !important; }
+        .price-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .price-card { border: 1px solid var(--border-color); background: var(--bg-input); padding: 15px 5px; text-align: center; border-radius: 4px; cursor: pointer; transition: 0.3s; }
+        .price-card.selected { border-color: var(--neon-pink); background: var(--neon-pink-dim); box-shadow: 0 0 10px var(--neon-pink-dim); }
+
+        /* Modals (Gatekeeper, Info, Profile) */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 5000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(4px); padding: 20px; }
+        .modal-content { background: var(--bg-card); border: 1px solid var(--neon-cyan); border-radius: 8px; padding: 20px; width: 100%; max-width: 400px; box-shadow: 0 0 20px rgba(0,255,255,0.2); }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <div class="network-status">
+        <div id="netDot" class="status-dot"></div>
+        <span id="netText">CONNECTING...</span>
+    </div>
+
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div style="margin-top:20px; font-family:var(--font-terminal); color:var(--neon-cyan);" class="animate-pulse">SINKRONISASI SERVER...</div>
+    </div>
+
+    <div id="gateModal" class="modal-overlay">
+        <div class="modal-content" style="text-align: center;">
+            <h2 class="text-neon-cyan" style="margin-bottom: 10px;">AKSES TERMINAL</h2>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">Identifikasi diperlukan sebelum membuat misi.</p>
+            
+            <button class="btn btn-secondary" style="margin-bottom: 10px; border-color: var(--text-muted); color: var(--text-main);" onclick="initSession('stranger')">LANJUT SEBAGAI STRANGER</button>
+            <button class="btn btn-primary" style="margin-bottom: 10px;" onclick="window.location.href='login.html'">LOGIN (CITIZEN / ADVENTURE)</button>
+            <button class="btn btn-secondary" onclick="window.location.href='register.html'">DAFTAR AKUN BARU</button>
+        </div>
+    </div>
+
+    <div id="infoModal" class="modal-overlay">
+        <div class="modal-content" style="text-align: center;">
+            <h2 id="infoTitle" class="text-neon-pink" style="margin-bottom: 10px;">INFO</h2>
+            <p id="infoMsg" style="font-size: 12px; color: var(--text-main); margin-bottom: 20px; line-height: 1.6;"></p>
+            <button class="btn btn-secondary" onclick="closeModal('infoModal')">MENGERTI</button>
+        </div>
+    </div>
+
+    <div id="profileModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 class="text-neon-cyan" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">DATA ENTITAS</h2>
+            <div id="profileContent" style="font-size: 12px; color: var(--text-muted); line-height: 2;">
+                </div>
+            <button class="btn btn-secondary" style="margin-top: 20px;" onclick="closeModal('profileModal')">TUTUP PANEL</button>
+        </div>
+    </div>
+
+    <div style="padding-top: 40px;"> <div class="card">
+            <div class="user-ribbon" onclick="openProfile()">
+                <div>
+                    <div id="ui-username" class="text-neon-cyan" style="font-family: var(--font-terminal); font-weight: bold; font-size: 16px;">LOADER_ERR</div>
+                    <div id="ui-userstatus" style="font-size: 10px; color: var(--text-muted);">STATUS: ---</div>
+                </div>
+                <div style="font-size: 10px; color: var(--neon-cyan); border: 1px solid var(--neon-cyan); padding: 3px 8px; border-radius: 10px;">DETAIL</div>
+            </div>
+
+            <h3 class="text-neon-pink" style="font-size: 12px; margin-bottom: 10px;">[1] KATEGORI MISI</h3>
+            
+            <div class="cat-grid">
+                <div class="cat-box active" data-cat="motor" onclick="selectCategory('motor')">
+                    <span style="font-size:16px;">🏍️</span><span>PENGAWALAN<br>(MOTOR-RIDE)</span>
+                </div>
+                <div class="cat-box" data-cat="car" onclick="selectCategory('car')">
+                    <span style="font-size:16px;">🚗</span><span>PENGAWALAN<br>(CAR-RIDE)</span>
+                </div>
+                <div class="cat-box" data-cat="ekspedisi" onclick="selectCategory('ekspedisi')">
+                    <span style="font-size:16px;">📦</span><span>EKSPEDISI<br>(PICK & DROP)</span>
+                </div>
+                <div class="cat-box" data-cat="belanja" onclick="selectCategory('belanja')">
+                    <span style="font-size:16px;">🛒</span><span>TITIP BELI<br>(BELANJA/MAKAN)</span>
+                </div>
+            </div>
+
+            <div class="cat-grid sub">
+                <div class="cat-box" data-cat="antree" onclick="selectCategory('antree')"><span>JASA<br>ANTREE</span></div>
+                <div class="cat-box" data-cat="buruh" onclick="selectCategory('buruh')"><span>BURUH<br>KASAR</span></div>
+                <div class="cat-box" data-cat="ahli" onclick="selectCategory('ahli')"><span>JASA<br>AHLI</span></div>
+                <div class="cat-box" data-cat="sewa" onclick="selectCategory('sewa')"><span>JASA<br>SEWA</span></div>
+            </div>
+
+            <div class="urgent-box" onclick="document.getElementById('isUrgent').click()">
+                <input type="checkbox" id="isUrgent" onclick="event.stopPropagation()">
+                <span>TANDAI SEBAGAI MISI DARURAT (URGENT)</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="text-neon-pink" style="font-size: 12px; margin-bottom: 15px;">[2] KOORDINAT OPERASI</h3>
+
+            <div class="input-group">
+                <label id="lbl-pickup">TITIK JEMPUT (LOKASI ANDA)</label>
+                <div id="btn-gps" class="btn-gps" onclick="requestGPS()">
+                    <span style="font-size: 18px;">📍</span>
+                    <span id="txt-gps">KLIK UNTUK IZINKAN LOKASI</span>
+                </div>
+                <input type="hidden" id="pickup-coords">
+            </div>
+
+            <div class="input-group" style="position: relative;">
+                <label id="lbl-drop">TITIK TUJUAN (KETIK DESA / JALAN)</label>
+                <input type="text" id="dest-search" class="input-field" placeholder="Ketik nama desa..." autocomplete="off">
+                <div id="suggestions" class="suggestions-box"></div>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <div class="input-group" style="flex: 1;">
+                    <label>KECAMATAN</label>
+                    <select id="dest-kecamatan" class="input-field" onchange="loadDesaDropdown(this.value)">
+                        <option value="">- PILIH -</option>
+                    </select>
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label>DESA</label>
+                    <select id="dest-desa" class="input-field" onchange="triggerPriceCalculation()">
+                        <option value="">- PILIH -</option>
+                    </select>
+                </div>
+            </div>
+
+            <button id="btn-unlock" class="btn btn-secondary" style="display: none; padding: 8px; font-size: 10px; margin-bottom: 15px;" onclick="unlockDestination()">🔄 UBAH TUJUAN</button>
+
+            <div id="price-section">
+                <h3 class="text-neon-cyan" style="font-size: 12px; margin-bottom: 10px; border-top: 1px dashed var(--border-color); padding-top: 15px;">[3] OPSI PENDANAAN (BOUNTY)</h3>
+                <div class="price-grid">
+                    <div class="price-card" onclick="selectPriceTier(this, 'hemat')">
+                        <div style="font-size: 10px; color: var(--text-muted); font-family: var(--font-terminal);">HEMAT</div>
+                        <div id="lbl-hemat" style="font-size: 14px; font-weight: bold; color: var(--text-main); margin-top: 5px;">0</div>
+                    </div>
+                    <div class="price-card selected" style="border-color: var(--neon-cyan);" onclick="selectPriceTier(this, 'reguler')">
+                        <div style="font-size: 10px; color: var(--neon-cyan); font-family: var(--font-terminal);">STANDAR</div>
+                        <div id="lbl-reguler" style="font-size: 14px; font-weight: bold; color: var(--text-main); margin-top: 5px;">0</div>
+                    </div>
+                    <div class="price-card" onclick="selectPriceTier(this, 'kilat')">
+                        <div style="font-size: 10px; color: var(--neon-pink); font-family: var(--font-terminal);">KILAT</div>
+                        <div id="lbl-kilat" style="font-size: 14px; font-weight: bold; color: var(--text-main); margin-top: 5px;">0</div>
+                    </div>
+                </div>
+                <input type="hidden" id="final-price" value="0">
+            </div>
+
+            <div class="input-group" style="margin-top: 20px;">
+                <label>CATATAN (OPSIONAL)</label>
+                <textarea id="mission-note" class="input-field" rows="3" placeholder="Detail patokan rumah, warna baju, atau rincian barang belanjaan..."></textarea>
+            </div>
+
+            <button class="btn btn-primary" style="margin-top: 10px;" onclick="executeDoubleWrite()">PUBLIKASIKAN MISI</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* =====================================================================
+       1. KONFIGURASI FIREBASE & INISIALISASI
+       ===================================================================== */
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
+    };
+
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.database();
+
+    /* =====================================================================
+       2. MOCK DATA WILAYAH (Fallback jika wilayah.js tidak ada)
+       (Struktur ini mendukung sistem Sharding berdasarkan region/server)
+       ===================================================================== */
+    const mockWilayah = {
+        "kuningan": { 
+            server_id: "sv_kuningan_pusat",
+            desa: [
+                {name: "Purwawinangun", lat: -6.9752, lng: 108.4831}, 
+                {name: "Cijoho", lat: -6.9651, lng: 108.4852},
+                {name: "Awirarangan", lat: -6.9801, lng: 108.4901}
+            ] 
+        },
+        "cigugur": { 
+            server_id: "sv_kuningan_barat",
+            desa: [
+                {name: "Cigugur", lat: -6.9680, lng: 108.4631}, 
+                {name: "Cisantana", lat: -6.9580, lng: 108.4551}
+            ] 
+        },
+        "cilimus": { 
+            server_id: "sv_kuningan_utara",
+            desa: [
+                {name: "Cilimus", lat: -6.8831, lng: 108.4832}, 
+                {name: "Linggarjati", lat: -6.8751, lng: 108.4651}
+            ] 
+        }
+    };
+    
+    // Gunakan data eksternal jika ada, jika tidak gunakan mock di atas.
+    const dbWilayah = typeof dataWilayah !== 'undefined' ? dataWilayah : mockWilayah;
+
+    /* =====================================================================
+       3. GLOBAL VARIABLES & STATE MANAGEMENT
+       ===================================================================== */
+    let SESSION = {
+        id: null, name: "ANONIM", role: "stranger", status: "STRANGER",
+        joinDate: "N/A", totalOrders: 0, cancel: 0, like: 0, dislike: 0
+    };
+    
+    let activeCategory = 'motor';
+    let calculatedKm = 0;
+
+    /* =====================================================================
+       4. INITIALIZATION & GATEKEEPER
+       ===================================================================== */
+    window.onload = () => {
+        setupNetworkMonitor();
+        populateKecamatan();
+        
+        // Cek LocalStorage untuk Sesi
+        const savedId = localStorage.getItem('user_id');
+        const savedRole = localStorage.getItem('user_role'); // 'client' atau 'adventure'
+
+        if (savedId && savedRole === 'client') {
+            // Simulasi ambil data dari DB (Karena ini frontend test)
+            initSession('logged_in', savedId);
+        } else {
+            // Tampilkan Gatekeeper jika belum login
+            document.getElementById('gateModal').style.display = 'flex';
+        }
+    };
+
+    function initSession(type, uid = null) {
+        if (type === 'stranger') {
+            SESSION.id = "STR-" + Math.floor(Math.random() * 99999);
+            SESSION.role = "stranger";
+            document.getElementById('gateModal').style.display = 'none';
+            enforceStrangerRules();
+        } else if (type === 'logged_in') {
+            // Simulasi Load Data User dari Database
+            SESSION.id = uid;
+            SESSION.name = "CITIZEN X";
+            SESSION.role = "client";
+            SESSION.status = "TERPERCAYA";
+            SESSION.joinDate = "Maret 2026";
+            SESSION.totalOrders = 42;
+            SESSION.cancel = 1;
+            SESSION.like = 38;
+            document.getElementById('gateModal').style.display = 'none';
+        }
+        updateProfileUI();
+    }
+
+    function updateProfileUI() {
+        document.getElementById('ui-username').innerText = SESSION.name;
+        document.getElementById('ui-userstatus').innerText = "STATUS: " + SESSION.status;
+    }
+
+    function enforceStrangerRules() {
+        // Stranger hanya boleh Motor-Ride
+        document.querySelectorAll('.cat-box').forEach(box => {
+            if (box.dataset.cat !== 'motor') box.classList.add('locked');
+        });
+    }
+
+    /* =====================================================================
+       5. LOGIKA KATEGORI UI
+       ===================================================================== */
+    function selectCategory(cat) {
+        if (SESSION.role === 'stranger' && cat !== 'motor') {
+            showInfo("AKSES DIBATASI", "Entitas 'Stranger' hanya memiliki izin untuk misi Motor-Ride. Silakan Login / Register untuk mengakses kelas misi lainnya.");
+            return;
+        }
+
+        activeCategory = cat;
+        document.querySelectorAll('.cat-box').forEach(b => b.classList.remove('active'));
+        document.querySelector(`[data-cat="${cat}"]`).classList.add('active');
+
+        // Mengubah Label berdasarkan Kategori (Dinamis UX)
+        const lblPick = document.getElementById('lbl-pickup');
+        const lblDrop = document.getElementById('lbl-drop');
+
+        switch(cat) {
+            case 'ekspedisi':
+                lblPick.innerText = "TITIK AMBIL PAKET (PICK)"; lblDrop.innerText = "TITIK ANTAR PAKET (DROP)"; break;
+            case 'belanja':
+                lblPick.innerText = "LOKASI TOKO / WARUNG"; lblDrop.innerText = "TITIK ANTAR PESANAN"; break;
+            case 'antree':
+            case 'buruh':
+            case 'ahli':
+            case 'sewa':
+                lblPick.innerText = "LOKASI PELAKSANAAN TUGAS"; lblDrop.innerText = "AREA TARGET (JIKA ADA)"; break;
+            default:
+                lblPick.innerText = "TITIK JEMPUT (LOKASI ANDA)"; lblDrop.innerText = "TITIK TUJUAN OPERASI"; break;
+        }
+    }
+
+    /* =====================================================================
+       6. LOGIKA GPS & PERMISSION HANDLING
+       ===================================================================== */
+    function requestGPS() {
+        const btn = document.getElementById('btn-gps');
+        const txt = document.getElementById('txt-gps');
+        
+        btn.classList.add('scanning');
+        txt.innerText = "MEMINDAI SATELIT...";
+
+        if (!navigator.geolocation) {
+            btn.classList.remove('scanning');
+            showInfo("PERANGKAT TIDAK MENDUKUNG", "Perangkat Anda tidak mendukung fitur GPS. Silakan tulis alamat manual di kolom catatan.");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                document.getElementById('pickup-coords').value = `${lat},${lng}`;
+                
+                btn.classList.remove('scanning');
+                btn.classList.add('locked');
+                txt.innerText = "KOORDINAT TERKUNCI";
+                triggerPriceCalculation(); // Update harga jika tujuan sudah diisi
+            },
+            (err) => {
+                btn.classList.remove('scanning');
+                txt.innerText = "KLIK UNTUK IZINKAN LOKASI";
+                
+                // Custom Edukasi Error (Bukan Alert Default)
+                let errMsg = "Terjadi kesalahan saat memindai lokasi.";
+                if (err.code === 1) errMsg = "Akses lokasi ditolak oleh browser/HP. Kami butuh lokasi agar Adventure tahu di mana harus menjemput Anda. Silakan cek pengaturan izin browser Anda.";
+                if (err.code === 2) errMsg = "Sinyal GPS tidak ditemukan. Coba keluar ruangan sebentar.";
+                if (err.code === 3) errMsg = "Waktu pemindaian habis (Timeout). Koneksi mungkin tidak stabil.";
+                
+                showInfo("KONEKSI GPS GAGAL", errMsg);
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }
+
+    /* =====================================================================
+       7. LOGIKA PENCARIAN & DROPDOWN TUJUAN
+       ===================================================================== */
+    const inpSearch = document.getElementById('dest-search');
+    const boxSugg = document.getElementById('suggestions');
+    const selKec = document.getElementById('dest-kecamatan');
+    const selDesa = document.getElementById('dest-desa');
+
+    function populateKecamatan() {
+        selKec.innerHTML = '<option value="">- PILIH KECAMATAN -</option>';
+        for (let kec in dbWilayah) {
+            selKec.innerHTML += `<option value="${kec}">${kec.toUpperCase()}</option>`;
+        }
+    }
+
+    function loadDesaDropdown(kecamatanId) {
+        selDesa.innerHTML = '<option value="">- PILIH DESA -</option>';
+        if (dbWilayah[kecamatanId]) {
+            dbWilayah[kecamatanId].desa.forEach((desa, index) => {
+                selDesa.innerHTML += `<option value="${index}">${desa.name.toUpperCase()}</option>`;
+            });
+        }
+        triggerPriceCalculation();
+    }
+
+    // Autocomplete Logic
+    inpSearch.addEventListener('input', function() {
+        const keyword = this.value.toLowerCase();
+        boxSugg.innerHTML = '';
+        if (keyword.length < 2) { boxSugg.style.display = 'none'; return; }
+
+        let matchCount = 0;
+        for (let kec in dbWilayah) {
+            dbWilayah[kec].desa.forEach((desa, index) => {
+                if (desa.name.toLowerCase().includes(keyword) && matchCount < 6) {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.innerHTML = `<b class="text-neon-cyan">${desa.name.toUpperCase()}</b><span style="font-size:10px; color:var(--text-muted)">Kec. ${kec.toUpperCase()}</span>`;
+                    
+                    div.onclick = () => {
+                        // Kunci Inputan
+                        inpSearch.value = desa.name.toUpperCase();
+                        inpSearch.disabled = true;
+                        selKec.value = kec;
+                        selKec.disabled = true;
+                        loadDesaDropdown(kec);
+                        
+                        setTimeout(() => {
+                            selDesa.value = index;
+                            selDesa.disabled = true;
+                            boxSugg.style.display = 'none';
+                            document.getElementById('btn-unlock').style.display = 'block';
+                            triggerPriceCalculation();
+                        }, 100);
+                    };
+                    boxSugg.appendChild(div);
+                    matchCount++;
+                }
+            });
+        }
+        boxSugg.style.display = matchCount > 0 ? 'block' : 'none';
+    });
+
+    // Menutup suggestion box jika klik di luar
+    document.addEventListener('click', (e) => {
+        if (e.target !== inpSearch && e.target !== boxSugg) {
+            boxSugg.style.display = 'none';
+        }
+    });
+
+    function unlockDestination() {
+        inpSearch.disabled = false;
+        selKec.disabled = false;
+        selDesa.disabled = false;
+        inpSearch.value = '';
+        selKec.value = '';
+        selDesa.innerHTML = '<option value="">- PILIH DESA -</option>';
+        document.getElementById('btn-unlock').style.display = 'none';
+        document.getElementById('price-section').classList.remove('price-section-show');
+    }
+
+    /* =====================================================================
+       8. LOGIKA KALKULASI RPG (HARGA, EXP, STAMINA, IKAN)
+       ===================================================================== */
+    // Haversine Formula (Simulasi perhitungan jarak lurus GPS ke desa tujuan)
+    function calcDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Radius bumi KM
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    function triggerPriceCalculation() {
+        const pick = document.getElementById('pickup-coords').value;
+        const kec = selKec.value;
+        const desaIdx = selDesa.value;
+
+        // Validasi: Harga hanya muncul jika GPS & Tujuan sudah diisi
+        if (!pick || kec === "" || desaIdx === "") return;
+
+        // Ambil Data Kordinat Tujuan
+        const targetDesa = dbWilayah[kec].desa[desaIdx];
+        const [pLat, pLng] = pick.split(',').map(Number);
+
+        // Kalkulasi Jarak (+ Pengali rute jalanan berkelok)
+        const straightDistance = calcDistance(pLat, pLng, targetDesa.lat, targetDesa.lng);
+        calculatedKm = (straightDistance * 1.4).toFixed(1); // Kali 1.4 untuk toleransi belokan jalan
+
+        // Minimal jarak 2KM untuk perhitungan awal
+        const routeKm = Math.max(2, calculatedKm);
+
+        // Rumus Tarif Dasar (Bisa disesuaikan dengan ekonomi in-game Anda)
+        const baseTarif = routeKm * 2500; 
+
+        // Tiga Tier Harga (Pembulatan ke Ribuan teratas)
+        const formatRp = (num) => "Rp " + num.toLocaleString('id-ID');
+        const hHemat = Math.ceil((baseTarif * 0.8) / 1000) * 1000;
+        const hReguler = Math.ceil(baseTarif / 1000) * 1000;
+        const hKilat = Math.ceil((baseTarif * 1.5) / 1000) * 1000;
+
+        // Update UI
+        document.getElementById('lbl-hemat').innerText = formatRp(Math.max(8000, hHemat));
+        document.getElementById('lbl-reguler').innerText = formatRp(Math.max(10000, hReguler));
+        document.getElementById('lbl-kilat').innerText = formatRp(Math.max(15000, hKilat));
+
+        // Default Select Reguler
+        document.getElementById('final-price').value = Math.max(10000, hReguler);
+        
+        // Tampilkan Box Harga
+        document.getElementById('price-section').classList.add('price-section-show');
+    }
+
+    function selectPriceTier(element, type) {
+        document.querySelectorAll('.price-card').forEach(c => {
+            c.classList.remove('selected');
+            c.style.borderColor = "var(--border-color)";
+        });
+        element.classList.add('selected');
+        element.style.borderColor = "var(--neon-cyan)";
+        
+        // Ekstrak angka dari text (misal: "Rp 15.000" -> 15000)
+        const priceText = element.querySelector('div:nth-child(2)').innerText;
+        document.getElementById('final-price').value = priceText.replace(/\D/g, '');
+    }
+
+    // Evaluasi Peringkat Misi (Ikan System)
+    function evaluateFishTier(priceNum) {
+        if (priceNum <= 12000) return "TERI";
+        if (priceNum <= 25000) return "LELE";
+        if (priceNum <= 50000) return "KAKAP";
+        if (priceNum <= 100000) return "HIU";
+        if (priceNum <= 250000) return "PAUS";
+        return "MEGALODON";
+    }
+
+    // Evaluasi Label Reputasi User
+    function evaluateReputation() {
+        if (SESSION.role === 'stranger') return "STRANGER";
+        if (SESSION.totalOrders < 5) return "PENGGUNA BARU";
+        if (SESSION.cancel > 10) return "BERESIKO";
+        return SESSION.status; // Terpercaya dll
+    }
+
+    /* =====================================================================
+       9. SHARDING DATABASE & DOUBLE-WRITE (SUBMIT MISI)
+       ===================================================================== */
+    function executeDoubleWrite() {
+        const pick = document.getElementById('pickup-coords').value;
+        const kec = selKec.value;
+        const desaIdx = selDesa.value;
+        const price = parseInt(document.getElementById('final-price').value);
+        const isUrgent = document.getElementById('isUrgent').checked;
+        const note = document.getElementById('mission-note').value;
+
+        // Validasi Akhir
+        if (!pick) { showInfo("GAGAL", "Titik Jemput belum ditentukan. Klik tombol GPS!"); return; }
+        if (!kec || desaIdx === "") { showInfo("GAGAL", "Tujuan belum ditentukan secara spesifik."); return; }
+        if (price <= 0) { showInfo("GAGAL", "Terjadi kesalahan perhitungan tarif."); return; }
+
+        // Tampilkan Loading
+        document.getElementById('loadingOverlay').classList.add('active');
+
+        // Target Wilayah & Server Sharding
+        const targetDesa = dbWilayah[kec].desa[desaIdx].name;
+        const serverRouter = dbWilayah[kec].server_id; // Hasil: sv_kuningan_pusat dll.
+        const missionId = "QUEST-" + Date.now() + "-" + Math.floor(Math.random()*1000);
+
+        // Logika Game RPG
+        const finalStamina = Math.max(1, Math.ceil(calculatedKm * 1.5));
+        const finalExp = Math.ceil(price / 1000);
+        const finalGreenStone = Math.ceil(price * 0.05); // 5% dari tarif jadi batu hijau
+        const finalTier = evaluateFishTier(price);
+
+        // DATA 1: Regional Database (Data utuh, bobot berat)
+        const fullMissionData = {
+            id: missionId,
+            category: activeCategory,
+            isUrgent: isUrgent,
+            status: "SEARCHING",
+            timestamp: firebase.database.ServerValue.TIMESTAMP,
+            
+            client: {
+                id: SESSION.id,
+                name: SESSION.name,
+                label: evaluateReputation(),
+                stats: { total: SESSION.totalOrders, cancel: SESSION.cancel, likes: SESSION.like }
+            },
+            
+            route: {
+                pickupCoords: pick,
+                destKecamatan: kec,
+                destDesa: targetDesa,
+                estimatedKm: calculatedKm
+            },
+            
+            bounty: {
+                price: price,
+                note: note || "Tidak ada catatan khusus."
+            },
+
+            rpgSystem: {
+                tier: finalTier,
+                reqStamina: finalStamina,
+                rewardExp: finalExp,
+                rewardGreenStone: finalGreenStone
+            }
+        };
+
+        // DATA 2: Central Board Broadcast (Data ringkas, bobot sangat ringan untuk list driver)
+        const briefMissionData = {
+            id: missionId,
+            server: serverRouter, // Driver akan tahu harus ke node mana untuk detail
+            title: `[${activeCategory.toUpperCase()}] Ke ${targetDesa.toUpperCase()}`,
+            price: price,
+            tier: finalTier,
+            urgent: isUrgent,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        };
+
+        // EKSEKUSI DOUBLE WRITE (ATOMIC UPDATE)
+        const updates = {};
+        updates[`database_regional/${serverRouter}/missions/${missionId}`] = fullMissionData;
+        updates[`board_central/active_quests/${missionId}`] = briefMissionData;
+
+        db.ref().update(updates)
+            .then(() => {
+                // Simpan State ke LocalStorage agar halaman tunggu bisa tracking
+                localStorage.setItem('active_quest_id', missionId);
+                localStorage.setItem('active_server_node', serverRouter);
+
+                // Redirect
+                setTimeout(() => {
+                    window.location.replace('waiting-client.html');
+                }, 1500); // Jeda visual agar player baca animasi loading
+            })
+            .catch((error) => {
+                document.getElementById('loadingOverlay').classList.remove('active');
+                showInfo("TRANSMISI GAGAL", "Gagal menulis ke server. Kode Error: " + error.message);
+            });
+    }
+
+    /* =====================================================================
+       10. UTILITY FUNCTIONS (Modals & Monitors)
+       ===================================================================== */
+    function showInfo(title, msg) {
+        document.getElementById('infoTitle').innerText = title;
+        document.getElementById('infoMsg').innerText = msg;
+        document.getElementById('infoModal').style.display = 'flex';
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    function openProfile() {
+        const c = document.getElementById('profileContent');
+        c.innerHTML = `
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; margin-bottom:5px;"><span>ID ENTITAS:</span> <span class="text-neon-cyan">${SESSION.id}</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; margin-bottom:5px;"><span>PERINGKAT:</span> <span class="text-neon-cyan">${evaluateReputation()}</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; margin-bottom:5px;"><span>BERGABUNG:</span> <span class="text-neon-cyan">${SESSION.joinDate}</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; margin-bottom:5px;"><span>MISI SELESAI:</span> <span class="text-neon-cyan">${SESSION.totalOrders}</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; margin-bottom:5px;"><span>PELANGGARAN (CANCEL):</span> <span style="color:var(--neon-pink)">${SESSION.cancel}</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; margin-bottom:5px;"><span>REPUTASI (LIKES):</span> <span class="text-neon-cyan">${SESSION.like}</span></div>
+        `;
+        document.getElementById('profileModal').style.display = 'flex';
+    }
+
+    function setupNetworkMonitor() {
+        const dot = document.getElementById('netDot');
+        const txt = document.getElementById('netText');
+        const updateNet = () => {
+            if(navigator.onLine) {
+                dot.className = "status-dot online";
+                txt.innerText = "SERVER TERHUBUNG";
+            } else {
+                dot.className = "status-dot";
+                txt.innerText = "KONEKSI TERPUTUS";
+            }
+        };
+        window.addEventListener('online', updateNet);
+        window.addEventListener('offline', updateNet);
+        updateNet();
+    }
+</script>
+
+</body>
+</html>
