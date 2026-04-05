@@ -305,9 +305,12 @@
 
         function updateUserUI() {
             // Stamina Bar Animation
-            const perc = (myData.vitality.current / myData.vitality.max) * 100;
-            document.getElementById('stamina-bar').style.width = perc + "%";
-            document.getElementById('stamina-val').innerText = `${myData.vitality.current} / ${myData.vitality.max}`;
+            const current = myData.vitality.stamina_current; 
+    const max = myData.vitality.stamina_max;
+    
+    const perc = (current / max) * 100;
+    document.getElementById('stamina-bar').style.width = perc + "%";
+    document.getElementById('stamina-val').innerText = `${current} / ${max}`;
             
             // Rank Display
             document.getElementById('ui-rank').innerText = myData.rank;
@@ -411,45 +414,43 @@
 
         // --- LOGIKA VALIDASI & EKSEKUSI ---
         async function applyForMission(mId, cost) {
-            haptic(100);
-            
-            // 1. Cek Stamina dari Database (Bukan sekedar UI)
-            if (myData.vitality.current < cost) {
-                showMsg("CRITICAL: STAMINA TIDAK CUKUP! <br>Silahkan istirahat atau gunakan item pemulih.");
-                return;
-            }
+    haptic(100);
+    
+    // 1. Ambil data stamina & limit langsung dari variabel yang benar
+    const curStamina = myData.vitality.stamina_current; // Sesuai database (Gambar 1001200461.jpg)
+    const dailyLimit = myData.vitality.apply_limit_daily || 10;
+    const doneToday = myData.stats?.total_missions_today || 0;
 
-            // 2. Cek Limit Rank
-            let maxLimit = (myData.rank === 'TRAINER') ? 5 : (myData.rank === 'BRONZE') ? 10 : 20;
-            if ((myData.stats.total_missions_today || 0) >= maxLimit) {
-                showMsg(`RANK LIMIT REACHED! <br>Rank ${myData.rank} maksimal ${maxLimit} misi/hari.`);
-                return;
-            }
+    // 2. Validasi Singkat
+    if (curStamina < cost) return showMsg("CRITICAL: STAMINA TIDAK CUKUP!");
+    if (doneToday >= dailyLimit) return showMsg(`RANK LIMIT: Maks ${dailyLimit} misi/hari.`);
 
-            // 3. Proses Pendaftaran (Kirim Sinyal ke Client)
-            const applyData = {
-                adventurer_nick: myNick,
-                adventurer_rank: myData.rank,
-                timestamp: Date.now(),
-                status: 'WAITING_CONFIRMATION'
-            };
+    // 3. Jalur Database Regional (Pusat)
+    const missionPath = `database_regional/sv_kuningan_pusat/missions/${mId}`;
 
-            try {
-                await db.ref(`missions/${mId}/candidates/${myNick}`).set(applyData);
-                showMsg("PERMINTAAN TERKIRIM! <br>Menunggu konfirmasi dari Requester...");
-                
-                // Monitor jika diterima
-                db.ref(`missions/${mId}/selected_adventurer`).on('value', s => {
-                    if (s.val() === myNick) {
-                        alert("MISI DITERIMA! Membuka Terminal Navigasi...");
-                        localStorage.setItem('active_mission_id', mId);
-                        window.location.href = 'adventurer-mission-on-progress.html';
-                    }
-                });
-            } catch (e) {
-                showMsg("SISTEM ERROR: " + e.message);
+    try {
+        // Kirim data kandidat
+        await db.ref(`${missionPath}/candidates/${myNick}`).set({
+            adventurer_nick: myNick,
+            adventurer_rank: myData.rank,
+            timestamp: Date.now()
+        });
+
+        showMsg("SINYAL TERKIRIM! Menunggu respon Client...");
+        
+        // Monitor status penerimaan (Gunakan .once agar tidak menumpuk listener)
+        db.ref(`${missionPath}/selected_adventurer`).on('value', s => {
+            if (s.val() === myNick) {
+                alert("MISI DITERIMA!");
+                localStorage.setItem('active_mission_id', mId);
+                window.location.href = 'adventurer-mission-on-progress.html';
             }
-        }
+        });
+    } catch (e) {
+        showMsg("TRANSMISI GAGAL: " + e.message);
+    }
+}
+
 
         // --- SISTEM NEGO TERHUBUNG ---
         function openNego(mId, currentPrice) {
