@@ -360,42 +360,80 @@
 
         // --- HANDSHAKE SYSTEM ---
         async function processHandshake(mId, srv, cost) {
-            if (!myData) return showToast("PROFILE ERROR", "error");
-            if ((myData.vitality?.stamina_current || 0) < cost) return showToast("STAMINA RENDAH!", "error");
+    if (!myData) return showToast("PROFILE ERROR: Data tidak ditemukan", "error");
+    
+    // 1. Cek Stamina di sisi Client dulu
+    const currentStamina = myData.vitality?.stamina_current || 0;
+    if (currentStamina < cost) {
+        return showToast("CRITICAL: STAMINA TIDAK CUKUP!", "error");
+    }
 
-            addLog(`ATTEMPTING HANDSHAKE: #${mId.substring(0,5)}...`, "log-gold");
-            const regRef = db.ref(`database_regional/${srv}/missions/${mId}`);
+    addLog(`STARTING HANDSHAKE... ID: ${mId.substring(0,5)}`, "log-gold");
+    
+    // Pastikan path ke regional benar
+    const regRef = db.ref(`database_regional/${srv}/missions/${mId}`);
 
-            try {
-                const result = await regRef.transaction(current => {
-                    if (current && (current.rpgSystem?.status === "SEARCHING" || current.status === "SEARCHING")) {
-                        if (!current.rpgSystem) current.rpgSystem = {};
-                        current.rpgSystem.status = "TAKEN";
-                        current.rpgSystem.adventurer = myNick;
-                        return current;
-                    }
-                    return; // Abort
-                });
+    try {
+        const result = await regRef.transaction((currentData) => {
+            // JIKA DATA BELUM LOAD (Firebase Transaction butuh 1-2x run sampai data muncul)
+            if (currentData === null) return currentData; 
 
-                if (result.committed) {
-                    sfxApply.play();
-                    // Hapus dari pusat
-                    await db.ref(`board_central/active_quests/${mId}`).remove();
-                    
-                    // Potong stamina
-                    await db.ref(`users_adventurer/${myNick}/vitality/stamina_current`).set(myData.vitality.stamina_current - cost);
-                    
-                    showToast("CONTRACT SECURED!");
-                    localStorage.setItem('active_mission_id', mId);
-                    localStorage.setItem('active_server', srv);
-                    setTimeout(() => location.href = 'adventurer-mission-on-progress.html', 1200);
-                } else {
-                    showToast("MISI SUDAH DIAMBIL ORANG LAIN", "error");
-                }
-            } catch (e) {
-                addLog("CRITICAL ERROR: " + e.message, "log-red");
+            // Ambil status (cek di berbagai kemungkinan letak field)
+            const statusSekarang = (currentData.rpgSystem?.status || currentData.status || "").toUpperCase();
+
+            // LOGIKA: Hanya boleh diambil jika statusnya SEARCHING atau OPEN
+            if (statusSekarang === "SEARCHING" || statusSekarang === "OPEN") {
+                
+                // Pastikan folder rpgSystem ada
+                if (!currentData.rpgSystem) currentData.rpgSystem = {};
+                
+                // Update status ke TAKEN
+                currentData.rpgSystem.status = "TAKEN";
+                currentData.rpgSystem.takenBy = myNick;
+                currentData.rpgSystem.takenAt = Date.now();
+                
+                // Jika status ada di root (luar), update juga biar sinkron
+                if (currentData.status) currentData.status = "TAKEN";
+
+                return currentData;
+            } else {
+                // Jika sudah TAKEN atau status lain, batalkan transaksi
+                return; 
             }
+        });
+
+        if (result.committed) {
+            sfxApply.play();
+            addLog("HANDSHAKE VERIFIED! CLEANING BOARD...", "log-cyan");
+
+            // 2. Hapus dari Board Central agar driver lain tidak melihat
+            await db.ref(`board_central/active_quests/${mId}`).remove();
+            
+            // 3. Potong Stamina
+            const newStamina = currentStamina - cost;
+            await db.ref(`users_adventurer/${myNick}/vitality/stamina_current`).set(newStamina);
+            
+            showToast("CONTRACT SECURED!");
+            
+            // Simpan data misi aktif untuk halaman berikutnya
+            localStorage.setItem('active_mission_id', mId);
+            localStorage.setItem('active_server', srv);
+            
+            setTimeout(() => { 
+                window.location.href = 'adventurer-mission-on-progress.html'; 
+            }, 1000);
+
+        } else {
+            // Jika transaksi gagal (result.committed = false)
+            showToast("MISI SUDAH DIAMBIL ORANG LAIN!", "error");
+            addLog("HANDSHAKE REJECTED: Mission already taken.", "log-red");
         }
+    } catch (e) {
+        console.error(e);
+        addLog("SYSTEM ERROR: " + e.message, "log-red");
+    }
+}
+
 
         // --- NEGO SYSTEM ---
         function openNego(mId, price, srv) {
