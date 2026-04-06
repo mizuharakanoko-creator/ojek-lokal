@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | Buat Misi Baru</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/geofire-common@6.0.0/dist/index.min.js"></script>
+
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        body { background: #020617; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .glass-input { background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(234, 179, 8, 0.2); border-radius: 1.2rem; p-4; }
+        .gold-glow { box-shadow: 0 0 15px rgba(234, 179, 8, 0.2); }
+        
+        /* Custom Toggle */
+        .tier-btn.active { background: #ca8a04; color: black; border-color: #fde047; }
+    </style>
+</head>
+<body class="p-6 pb-20">
+
+    <div class="flex items-center space-x-4 mb-8 pt-4">
+        <button onclick="history.back()" class="text-slate-500 text-xl"><i class="fas fa-arrow-left"></i></button>
+        <h1 class="text-xl font-black italic uppercase tracking-tighter">Pasang <span class="text-yellow-500">Gulungan Misi</span></h1>
+    </div>
+
+    <form id="quest-form" class="space-y-6">
+        <div class="space-y-2">
+            <label class="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Deskripsi Singkat (Publik)</label>
+            <input type="text" id="brief_description" class="glass-input w-full bg-slate-900 px-4 py-4 text-sm focus:outline-none focus:border-yellow-500" placeholder="Contoh: Ambil paket di Lobi Menara Kuningan" required>
+        </div>
+
+        <div class="space-y-2">
+            <label class="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Instruksi Rahasia (Briefing)</label>
+            <textarea id="reward" class="glass-input w-full bg-slate-900 px-4 py-4 text-sm h-24 focus:outline-none" placeholder="Tulis instruksi detail, nomor telepon, atau pesan rahasia di sini..." required></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-2">
+                <label class="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Imbalan (Rp)</label>
+                <input type="number" id="initial_price" class="glass-input w-full bg-slate-900 px-4 py-4 text-sm font-bold text-yellow-500" placeholder="15000" required>
+            </div>
+            <div class="space-y-2">
+                <label class="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Kategori</label>
+                <select id="category" class="glass-input w-full bg-slate-900 px-4 py-4 text-sm appearance-none">
+                    <option value="Delivery">Delivery</option>
+                    <option value="Personal Asst">Personal Asst</option>
+                    <option value="Shopping">Shopping</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="space-y-3">
+            <label class="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-2">Tingkat Kesulitan (Impact on EXP)</label>
+            <div class="flex space-x-2">
+                <button type="button" onclick="setTier('Normal', 50)" class="tier-btn active flex-1 py-3 border border-slate-700 rounded-xl text-[10px] font-bold uppercase transition-all">Normal</button>
+                <button type="button" onclick="setTier('Hard', 150)" class="tier-btn flex-1 py-3 border border-slate-700 rounded-xl text-[10px] font-bold uppercase transition-all">Hard</button>
+                <button type="button" onclick="setTier('Elite', 300)" class="tier-btn flex-1 py-3 border border-slate-700 rounded-xl text-[10px] font-bold uppercase transition-all">Elite</button>
+            </div>
+        </div>
+
+        <div id="location-status" class="text-[9px] text-center text-emerald-500 font-bold uppercase animate-pulse hidden">
+            <i class="fas fa-map-marker-alt mr-1"></i> Lokasi GPS Terkunci
+        </div>
+
+        <button type="submit" class="w-full py-5 bg-yellow-500 text-black font-black rounded-2xl shadow-[0_10px_30px_rgba(234,179,8,0.3)] uppercase tracking-widest active:scale-95 transition-all">
+            Sebarkan ke Papan Misi
+        </button>
+    </form>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = { /* CONFIG */ };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const firestore = getFirestore(app);
+        const rtdb = getDatabase(app);
+
+        let selectedTier = "Normal";
+        let expReward = 50;
+        let userCoords = null;
+
+        // Get Location ASAP
+        navigator.geolocation.getCurrentPosition(pos => {
+            userCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            document.getElementById('location-status').classList.remove('hidden');
+        });
+
+        window.setTier = (name, exp) => {
+            selectedTier = name;
+            expReward = exp;
+            document.querySelectorAll('.tier-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        };
+
+        document.getElementById('quest-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const user = auth.currentUser;
+            if(!user || !userCoords) return alert("Tunggu GPS mengunci lokasi!");
+
+            const qId = "QST-" + Date.now();
+            const brief = document.getElementById('brief_description').value;
+            const detail = document.getElementById('reward').value;
+            const price = parseInt(document.getElementById('initial_price').value);
+            const cat = document.getElementById('category').value;
+
+            // Generate Geohash for 3km Radius Search
+            const hash = geofire.geohashForLocation([userCoords.lat, userCoords.lng]);
+
+            try {
+                // 1. Simpan Detail Lengkap di Firestore (Heavy Data)
+                await setDoc(doc(firestore, "quest_board_detail", qId), {
+                    requester_id: user.uid,
+                    brief_description: brief,
+                    reward: detail, // Instruksi Rahasia
+                    initial_price: price,
+                    difficulty_tier: selectedTier,
+                    exp: expReward,
+                    kategori_misi: cat,
+                    lat_start: userCoords.lat,
+                    long_start: userCoords.lng,
+                    status: "Searching",
+                    created_at: serverTimestamp()
+                });
+
+                // 2. Simpan Ringkasan di RTDB (Fast Access for Radar)
+                await set(ref(rtdb, `Active_Short_Quests/${qId}`), {
+                    brief_description: brief,
+                    initial_price: price,
+                    geohash: hash,
+                    lat: userCoords.lat,
+                    lng: userCoords.lng,
+                    status: "Available",
+                    mission_step: 1, // 1: Mencari Ksatria
+                    assigned_adventurer_id: null
+                });
+
+                window.location.href = `requester-selection.html?id=${qId}`;
+            } catch (err) { alert(err.message); }
+        };
+    </script>
+</body>
+</html>
