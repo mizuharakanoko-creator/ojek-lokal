@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="google" content="notranslate">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    
+    <title>PICK ME | Menunggu Restu Guild</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        /* THE IRON WALL */
+        * { -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; outline: none; }
+        body { background: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
+
+        .gold-glow { text-shadow: 0 0 15px rgba(234, 179, 8, 0.6); color: #fde047; }
+        
+        /* ANIMASI ROTASI SEGEL GUILD */
+        .guild-seal {
+            width: 150px; height: 150px;
+            border: 2px dashed #ca8a04;
+            border-radius: 50%;
+            display: flex; items-center; justify-center;
+            animation: rotateSeal 10s linear infinite;
+        }
+        @keyframes rotateSeal { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .inner-seal {
+            width: 120px; height: 120px;
+            background: radial-gradient(circle, #ca8a04 0%, transparent 70%);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 0.7; transform: scale(1.1); } }
+
+        /* DATA CARD */
+        .data-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(234, 179, 8, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        #watermark { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.02; font-size: 10px; z-index: 9998; display: flex; flex-wrap: wrap; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center p-6 text-center">
+
+    <div id="watermark"></div>
+
+    <div class="fixed inset-0 -z-10 opacity-20">
+        <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-yellow-600 rounded-full blur-[120px]"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-900 rounded-full blur-[120px]"></div>
+    </div>
+
+    <div class="relative mb-10 flex items-center justify-center">
+        <div class="guild-seal"></div>
+        <div class="absolute inner-seal flex items-center justify-center">
+            <i class="fas fa-shield-alt text-4xl text-black"></i>
+        </div>
+    </div>
+
+    <div class="space-y-2 mb-8">
+        <h1 class="text-2xl font-black italic gold-glow uppercase tracking-widest">Menunggu Restu</h1>
+        <p class="text-slate-400 text-sm px-6">Dokumen identitas dan kontrak ksatria Anda sedang ditinjau oleh <span class="text-yellow-500 font-bold">Tetua Guild Kuningan</span>.</p>
+    </div>
+
+    <div class="data-card w-full max-w-sm rounded-3xl p-6 text-left space-y-4 mb-8">
+        <div class="flex items-center justify-between border-b border-slate-700 pb-2">
+            <span class="text-[10px] uppercase text-slate-500 font-bold">Informasi Pendaftaran</span>
+            <span class="text-[10px] bg-yellow-600/20 text-yellow-500 px-2 py-0.5 rounded-full">Pending</span>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <p class="text-[9px] text-slate-500 uppercase">Nickname</p>
+                <p id="view-nickname" class="text-sm font-bold text-slate-200">Loading...</p>
+            </div>
+            <div>
+                <p class="text-[9px] text-slate-500 uppercase">Area Tugas</p>
+                <p id="view-area" class="text-sm font-bold text-slate-200 uppercase">Loading...</p>
+            </div>
+            <div>
+                <p class="text-[9px] text-slate-500 uppercase">Kendaraan</p>
+                <p id="view-vehicle" class="text-sm font-bold text-slate-200 uppercase">Loading...</p>
+            </div>
+            <div>
+                <p class="text-[9px] text-slate-500 uppercase">NIK KTP</p>
+                <p id="view-nik" class="text-sm font-bold text-slate-200 italic">******</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="animate-bounce mb-8">
+        <p class="text-[10px] text-yellow-500/50 italic">"Ksatria yang hebat tahu kapan harus bersabar..."</p>
+    </div>
+
+    <button onclick="handleLogout()" class="text-xs text-slate-500 hover:text-red-500 transition-colors">
+        <i class="fas fa-sign-out-alt mr-1"></i> Batalkan & Keluar
+    </button>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = { /* PASTE CONFIG ANDA */ };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // IRON WALL SECURITY
+        document.addEventListener('contextmenu', e => e.preventDefault());
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                listenToVerificationStatus(user.uid);
+            } else {
+                window.location.href = "login.html";
+            }
+        });
+
+        function listenToVerificationStatus(uid) {
+            // LISTENING REAL-TIME KE IDENTITY_ADVENTURER
+            const unsub = onSnapshot(doc(db, "identity_adventurer", uid), (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    
+                    // Update UI dengan data user
+                    document.getElementById('view-nickname').innerText = data.nickname;
+                    document.getElementById('view-area').innerText = data.area_tugas;
+                    document.getElementById('view-vehicle').innerText = data.specialization;
+                    document.getElementById('view-nik').innerText = data.nik_ktp.substring(0, 4) + "********";
+
+                    // LOGIKA REDIRECT JIKA SUDAH DIVERIFIKASI
+                    if (data.status_terverifikasi === true) {
+                        playAudio('success');
+                        
+                        // Animasi Transisi Sukses
+                        document.body.innerHTML = `
+                            <div class="flex flex-col items-center justify-center h-full space-y-4 animate-pulse">
+                                <i class="fas fa-check-circle text-8xl text-yellow-500"></i>
+                                <h1 class="text-3xl font-black italic gold-glow">RESTU DIBERIKAN!</h1>
+                                <p class="text-slate-400">Membuka Gerbang Board...</p>
+                            </div>
+                        `;
+
+                        setTimeout(() => {
+                            window.location.href = "board.html";
+                        }, 2000);
+                    }
+                }
+            }, (error) => {
+                console.error("Kesalahan koneksi guild: ", error);
+            });
+        }
+
+        window.handleLogout = async () => {
+            if(confirm("Apakah Anda ingin membatalkan pendaftaran dan keluar?")) {
+                await signOut(auth);
+                window.location.href = "login.html";
+            }
+        };
+
+        function playAudio(type) {
+            const audio = new Audio(`assets/sounds/${type}.mp3`);
+            audio.play().catch(()=>{});
+        }
+
+        // WATERMARK
+        const wm = document.getElementById('watermark');
+        for(let i=0; i<80; i++) wm.innerHTML += `<span>PICK-ME-WAITING &nbsp;</span>`;
+    </script>
+</body>
+</html>
