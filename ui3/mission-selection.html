@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="google" content="notranslate">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <title>PICK ME | Seleksi Ksatria</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        /* THE IRON WALL */
+        * { -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; outline: none; }
+        body { background: #020617; color: #f8fafc; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
+
+        .glass { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(15px); border: 1px solid rgba(234, 179, 8, 0.2); }
+        .gold-text { background: linear-gradient(to right, #fde047, #ca8a04); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; }
+        
+        /* ANIMASI WAITING (Searching Pulse) */
+        .search-ring {
+            position: absolute; width: 200px; height: 200px;
+            border: 2px solid #ca8a04; border-radius: 50%;
+            animation: pulseRing 2s infinite;
+        }
+        @keyframes pulseRing { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+        /* SUCCESS STATE ANIMATION */
+        .success-bg { background: radial-gradient(circle, #ca8a04 0%, #020617 100%); transition: all 1s; }
+        
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        #watermark { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.02; font-size: 10px; z-index: 9998; display: flex; flex-wrap: wrap; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center p-6 text-center">
+
+    <div id="watermark"></div>
+
+    <div id="state-waiting" class="flex flex-col items-center space-y-6 fade-in">
+        <div class="relative flex items-center justify-center w-40 h-40">
+            <div class="search-ring" style="animation-delay: 0s"></div>
+            <div class="search-ring" style="animation-delay: 0.5s"></div>
+            <div class="search-ring" style="animation-delay: 1s"></div>
+            <div class="z-10 w-24 h-24 bg-slate-900 rounded-full border-2 border-yellow-500 flex items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.4)]">
+                <i class="fas fa-handshake text-3xl text-yellow-500 animate-bounce"></i>
+            </div>
+        </div>
+
+        <div class="space-y-2">
+            <h1 class="text-xl font-black italic gold-text uppercase">Menunggu Keputusan</h1>
+            <p class="text-xs text-slate-400 px-10">Permohonan Anda telah dikirim ke Requester. Tetap di sini, pemilihan biasanya berlangsung cepat.</p>
+        </div>
+
+        <div class="glass w-full max-w-xs rounded-2xl p-4 mt-6 text-left">
+            <p class="text-[9px] uppercase text-slate-500 font-bold mb-2">Misi yang didaftar</p>
+            <h3 id="quest-title" class="font-bold text-sm text-slate-200">...</h3>
+            <div class="flex justify-between items-center mt-3">
+                <span id="quest-price" class="text-xs font-black text-yellow-500">Rp 0</span>
+                <span class="text-[9px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">ID: <span id="quest-id-view">...</span></span>
+            </div>
+        </div>
+
+        <button onclick="cancelApply()" class="text-xs text-slate-500 mt-8 border-b border-slate-700 pb-1">Batalkan Pendaftaran</button>
+    </div>
+
+    <div id="state-selected" class="hidden flex flex-col items-center space-y-6 fade-in">
+        <div class="w-32 h-32 bg-yellow-500 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(234,179,8,0.6)]">
+            <i class="fas fa-check text-5xl text-black animate-bounce"></i>
+        </div>
+        
+        <div class="space-y-2">
+            <h1 class="text-3xl font-black italic gold-text">ANDA TERPILIH!</h1>
+            <p class="text-sm text-slate-300">Requester telah memberikan kepercayaan kepada Anda.</p>
+        </div>
+
+        <div class="w-full max-w-xs space-y-4 pt-4">
+            <div class="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl text-left">
+                <p class="text-[10px] font-bold text-emerald-500 uppercase mb-1">Pesan Requester:</p>
+                <p class="text-xs italic text-slate-200">"Tolong kerjakan dengan cepat dan hati-hati ya, Ksatria!"</p>
+            </div>
+            
+            <button onclick="goToBriefing()" class="w-full py-4 bg-yellow-500 text-black font-black rounded-2xl shadow-xl uppercase tracking-widest active:scale-95 transition-all">
+                Terima Briefing & Mulai
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getDatabase, ref, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = { /* PASTE CONFIG ANDA */ };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const rtdb = getDatabase(app);
+
+        // Ambil Quest ID dari URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const questId = urlParams.get('id');
+        let myUid = null;
+
+        document.getElementById('quest-id-view').innerText = questId.substring(0, 8);
+
+        // IRON WALL SECURITY
+        document.addEventListener('contextmenu', e => e.preventDefault());
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                myUid = user.uid;
+                startSelectionListener();
+            } else {
+                window.location.href = "login.html";
+            }
+        });
+
+        // 1. LISTEN PERUBAHAN STATUS PEMILIHAN
+        function startSelectionListener() {
+            const questRef = ref(rtdb, `Active_Short_Quests/${questId}`);
+            
+            onValue(questRef, (snapshot) => {
+                const data = snapshot.val();
+                if (!data) {
+                    alert("Misi ini sudah tidak tersedia atau dibatalkan.");
+                    window.location.href = "board.html";
+                    return;
+                }
+
+                // Update UI Info Singkat
+                document.getElementById('quest-title').innerText = data.brief_description;
+                document.getElementById('quest-price').innerText = `Rp ${data.initial_price.toLocaleString()}`;
+
+                // CEK APAKAH SAYA YANG DIPILIH
+                if (data.assigned_adventurer_id === myUid) {
+                    showSelectedState();
+                }
+                
+                // CEK APAKAH SUDAH DIAMBIL ORANG LAIN
+                if (data.assigned_adventurer_id && data.assigned_adventurer_id !== myUid) {
+                    playAudio('error');
+                    alert("Maaf, Requester telah memilih Adventurer lain untuk misi ini.");
+                    window.location.href = "board.html";
+                }
+            });
+        }
+
+        function showSelectedState() {
+            playAudio('success'); // Suara trompet kemenangan
+            if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            
+            document.getElementById('state-waiting').classList.add('hidden');
+            document.getElementById('state-selected').classList.remove('hidden');
+            document.body.classList.add('success-bg');
+        }
+
+        window.goToBriefing = () => {
+            playAudio('click');
+            // Terdirect ke halaman Selected (Briefing)
+            window.location.href = `mission-briefing.html?id=${questId}`;
+        };
+
+        window.cancelApply = async () => {
+            if (confirm("Batalkan pendaftaran misi ini?")) {
+                // Hapus diri dari list negosiasi di RTDB (Logika 0-modal)
+                const negoRef = ref(rtdb, `Active_Short_Quests/${questId}/negotiation_list/${myUid}`);
+                await remove(negoRef);
+                window.location.href = "board.html";
+            }
+        };
+
+        function playAudio(type) {
+            const audio = new Audio(`assets/sounds/${type}.mp3`);
+            audio.play().catch(()=>{});
+        }
+
+        // WATERMARK
+        const wm = document.getElementById('watermark');
+        for(let i=0; i<80; i++) wm.innerHTML += `<span>PICK-ME-SELECTION &nbsp;</span>`;
+    </script>
+</body>
+</html>
