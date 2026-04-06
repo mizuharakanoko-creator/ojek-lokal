@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | Transaksi Sukses</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background: #020617; color: white; font-family: 'Inter', sans-serif; overflow: hidden; }
+        .success-glow { box-shadow: 0 0 50px rgba(16, 185, 129, 0.2); }
+        .coin-anim { animation: bounce 2s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center h-screen p-8 text-center">
+
+    <div class="success-glow w-24 h-24 bg-emerald-500 rounded-full flex items-center justify-center mb-8">
+        <i class="fas fa-check text-4xl text-white"></i>
+    </div>
+
+    <h1 class="text-3xl font-black uppercase italic tracking-tighter mb-2">Kontrak <span class="text-emerald-500">Selesai</span></h1>
+    <p class="text-xs text-slate-500 uppercase tracking-widest mb-12">Reward telah dikirim ke Wallet Ksatria</p>
+
+    <div class="w-full bg-slate-900/50 border border-slate-800 rounded-3xl p-6 mb-12">
+        <div class="flex justify-between items-center mb-4">
+            <span class="text-[10px] text-slate-500 font-bold uppercase">Biaya Misi</span>
+            <span id="final-price" class="font-black text-white">Rp 0</span>
+        </div>
+        <div class="flex justify-between items-center">
+            <span class="text-[10px] text-slate-500 font-bold uppercase">Metode Pembayaran</span>
+            <span class="text-[10px] font-black text-emerald-400 uppercase">Green Stone Wallet</span>
+        </div>
+    </div>
+
+    <button onclick="exit()" class="w-full py-4 bg-white text-black font-black rounded-2xl uppercase tracking-widest text-sm active:scale-95 transition-all">
+        Kembali ke Dashboard
+    </button>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = { /* CONFIG */ };
+        const app = initializeApp(firebaseConfig);
+        const firestore = getFirestore(app);
+        const auth = getAuth(app);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const questId = urlParams.get('id');
+
+        async function finalizeTransaction() {
+            const user = auth.currentUser;
+            if(!user) return;
+
+            // 1. Ambil data harga misi
+            const qSnap = await getDoc(doc(firestore, "quest_board_detail", questId));
+            if(qSnap.exists()) {
+                const price = qSnap.data().initial_price;
+                document.getElementById('final-price').innerText = `Rp ${price.toLocaleString()}`;
+
+                // 2. Potong Saldo Requester (Firestore)
+                // (Catatan: Idealnya ini dilakukan di awal saat buat misi/holding, 
+                // tapi untuk demo ini kita potong di akhir)
+                await updateDoc(doc(firestore, "wallet", user.uid), {
+                    green_stone: increment(-price)
+                });
+            }
+        }
+
+        window.exit = () => {
+            window.location.href = "requester-dashboard.html";
+        };
+
+        auth.onAuthStateChanged(u => { if(u) finalizeTransaction(); });
+    </script>
+</body>
+</html>
