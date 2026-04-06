@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="google" content="notranslate">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    
+    <title>PICK ME | Guild Life Login</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        /* THE IRON WALL: PROTEKSI UI */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            outline: none;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            color: #f8fafc;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+        }
+
+        /* RPG GOLDEN GLOW THEME */
+        .guild-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(234, 179, 8, 0.3);
+            box-shadow: 0 0 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(234, 179, 8, 0.05);
+        }
+
+        .gold-text {
+            background: linear-gradient(to right, #fde047, #ca8a04);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+        }
+
+        /* ANIMASI TRANSISI */
+        .fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* SKELETON SHIMMER */
+        .shimmer {
+            background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite linear;
+        }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+        /* INVISIBLE WATERMARK */
+        #watermark {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            opacity: 0.03;
+            font-size: 10px;
+            z-index: 9999;
+            display: flex; flex-wrap: wrap;
+        }
+
+        /* CUSTOM ALERT BOX (RPG STYLE) */
+        #custom-alert {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 10000;
+            width: 85%; max-width: 400px;
+            background: #1e293b;
+            border: 2px solid #ca8a04;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        /* FORM INPUT STYLING */
+        input {
+            background: rgba(15, 23, 42, 0.8) !important;
+            border: 1px solid #334155 !important;
+            color: white !important;
+            transition: all 0.3s;
+        }
+        input:focus { border-color: #ca8a04 !important; box-shadow: 0 0 10px rgba(234, 179, 8, 0.2); }
+    </style>
+</head>
+<body class="flex items-center justify-center">
+
+    <div id="watermark"></div>
+
+    <div id="error-overlay" class="hidden fixed inset-0 bg-black/90 z-[9999] flex flex-col items-center justify-center p-6 text-center">
+        <i class="fas fa-satellite-dish text-6xl text-red-500 mb-4 animate-pulse"></i>
+        <h2 class="text-2xl font-bold mb-2">Koneksi Guild Terputus</h2>
+        <p class="text-slate-400">Gagal terhubung ke Database Pusat. Pastikan Anda berada di area terjangkau sinyal.</p>
+        <button onclick="location.reload()" class="mt-6 px-8 py-2 bg-slate-800 border border-slate-600 rounded-full">Coba Hubungkan Kembali</button>
+    </div>
+
+    <div id="custom-alert">
+        <i id="alert-icon" class="fas fa-exclamation-triangle text-3xl text-yellow-500 mb-3"></i>
+        <h3 id="alert-title" class="font-bold text-lg mb-2">Pemberitahuan Guild</h3>
+        <p id="alert-msg" class="text-slate-300 text-sm mb-6"></p>
+        <button onclick="closeAlert()" class="w-full py-3 bg-yellow-600 text-black font-bold rounded-lg active:scale-95 transition-transform">Izinkan / Lanjutkan</button>
+    </div>
+
+    <div class="guild-card w-[92%] max-w-md p-8 rounded-3xl fade-in relative overflow-hidden">
+        
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-black italic tracking-tighter gold-text">PICK ME</h1>
+            <p class="text-[10px] tracking-[0.3em] uppercase text-slate-400 mt-1">Guild Life: Real Life Mission Terminal</p>
+        </div>
+
+        <div class="flex bg-slate-900/80 p-1 rounded-2xl mb-6 border border-slate-800">
+            <button id="btn-adv" onclick="switchRole('adventurer')" class="flex-1 py-3 text-sm font-bold rounded-xl transition-all bg-yellow-600 text-black shadow-lg">ADVENTURER</button>
+            <button id="btn-req" onclick="switchRole('requester')" class="flex-1 py-3 text-sm font-bold rounded-xl transition-all text-slate-400">REQUESTER</button>
+        </div>
+
+        <div id="form-container" class="space-y-4">
+            <div class="relative">
+                <i class="fas fa-id-badge absolute left-4 top-4 text-slate-500"></i>
+                <input type="text" id="user-id" placeholder="Nickname Adventurer" class="w-full pl-12 pr-4 py-4 rounded-2xl text-sm focus:outline-none">
+            </div>
+
+            <div class="relative">
+                <i class="fas fa-lock absolute left-4 top-4 text-slate-500"></i>
+                <input type="password" id="user-pass" placeholder="Password Kunci" class="w-full pl-12 pr-4 py-4 rounded-2xl text-sm focus:outline-none">
+            </div>
+
+            <div class="flex items-center space-x-3 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+                <div class="bg-slate-800 px-3 py-1 rounded-lg font-mono text-yellow-500 italic select-none" id="captcha-code">A7X9</div>
+                <input type="text" id="captcha-input" placeholder="Verifikasi Human" class="flex-1 bg-transparent !border-none !p-0 text-sm">
+            </div>
+
+            <div class="flex justify-between items-center text-xs px-1">
+                <button onclick="showAlert('Sistem Forgot Password akan memverifikasi 3 Pertanyaan Rahasia Anda.', 'info')" class="text-slate-400 hover:text-yellow-500 transition-colors">Lupa Password?</button>
+                <button onclick="goToRegister()" class="text-yellow-500 font-bold">Daftar Akun Baru</button>
+            </div>
+
+            <button onclick="performLogin()" class="w-full py-4 bg-gradient-to-r from-yellow-600 to-yellow-500 text-black font-black rounded-2xl shadow-xl shadow-yellow-900/20 active:scale-95 transition-transform mt-4 uppercase tracking-wider">
+                Masuk ke Terminal
+            </button>
+            
+            <div class="text-center mt-6">
+                <button onclick="strangerLogin()" class="text-xs text-slate-500 hover:text-slate-300">Lanjutkan sebagai Stranger (Tanpa Akun)</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Konfigurasi Pusat (The Great Hall)
+        const firebaseConfig = {
+            apiKey: "AIzaSy...",
+            authDomain: "pickme-pusat.firebaseapp.com",
+            projectId: "pickme-pusat",
+            storageBucket: "pickme-pusat.appspot.com",
+            messagingSenderId: "...",
+            appId: "..."
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentRole = 'adventurer';
+
+        // THE IRON WALL: ANTI-INSPECT
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.onkeydown = (e) => {
+            if(e.keyCode == 123 || (e.ctrlKey && e.shiftKey && (e.keyCode == 73 || e.keyCode == 74))) return false;
+        };
+
+        // UI FUNCTIONS
+        window.switchRole = (role) => {
+            playAudio('click');
+            currentRole = role;
+            const btnAdv = document.getElementById('btn-adv');
+            const btnReq = document.getElementById('btn-req');
+            const inputId = document.getElementById('user-id');
+
+            if(role === 'adventurer') {
+                btnAdv.className = "flex-1 py-3 text-sm font-bold rounded-xl transition-all bg-yellow-600 text-black shadow-lg";
+                btnReq.className = "flex-1 py-3 text-sm font-bold rounded-xl transition-all text-slate-400";
+                inputId.placeholder = "Nickname Adventurer";
+            } else {
+                btnReq.className = "flex-1 py-3 text-sm font-bold rounded-xl transition-all bg-yellow-600 text-black shadow-lg";
+                btnAdv.className = "flex-1 py-3 text-sm font-bold rounded-xl transition-all text-slate-400";
+                inputId.placeholder = "Nomor Telepon (+62)";
+            }
+        };
+
+        // LOGIN LOGIC (SERVER ROUTER)
+        window.performLogin = async () => {
+            const userIdInput = document.getElementById('user-id').value;
+            const passInput = document.getElementById('user-pass').value;
+
+            if(!userIdInput || !passInput) return showAlert('Harap isi Nickname/No Telp dan Password!', 'warn');
+
+            showLoading();
+            
+            try {
+                // 1. Check Registry Pusat
+                // Di sistem kita, email dibuat otomatis: nickname@pickme.com atau phone@pickme.com
+                const loginEmail = currentRole === 'adventurer' ? `${userIdInput.toLowerCase()}@guild.com` : `${userIdInput}@requester.com`;
+                
+                const userCredential = await signInWithEmailAndPassword(auth, loginEmail, passInput);
+                const user = userCredential.user;
+
+                // 2. Ambil Lokasi Server (Router)
+                const userRef = doc(db, "user_registry", user.uid);
+                const userSnap = await getDoc(userRef);
+
+                if (userSnap.exists()) {
+                    const serverAddr = userSnap.data().Alamat_Server;
+                    const isVerified = userSnap.data().status_terverifikasi;
+
+                    // Simpan alamat server ke Local Storage untuk sesi ini
+                    localStorage.setItem('ACTIVE_SERVER', serverAddr);
+
+                    // 3. Routing Berdasarkan Verifikasi
+                    if(!isVerified && currentRole === 'adventurer') {
+                        playAudio('success');
+                        window.location.href = "waiting-room.html";
+                    } else {
+                        playAudio('success');
+                        window.location.href = `board.html?server=${serverAddr}`;
+                    }
+                } else {
+                    showAlert('Data Akun tidak ditemukan di Registry Pusat.', 'error');
+                }
+            } catch (error) {
+                playAudio('error');
+                showAlert('Gagal Masuk: Credential Salah atau Masalah Jaringan.', 'error');
+            } finally {
+                hideLoading();
+            }
+        };
+
+        window.strangerLogin = () => {
+            playAudio('click');
+            window.location.href = "create-mission.html?mode=anonymous";
+        };
+
+        window.goToRegister = () => {
+            playAudio('click');
+            window.location.href = "register.html";
+        };
+
+        // UTILITIES
+        function playAudio(type) {
+            const audio = new Audio(`assets/sounds/${type}.mp3`);
+            audio.play().catch(() => {});
+        }
+
+        window.showAlert = (msg, type) => {
+            document.getElementById('alert-msg').innerText = msg;
+            document.getElementById('custom-alert').style.display = 'block';
+            if(type === 'error') playAudio('error');
+        };
+
+        window.closeAlert = () => {
+            playAudio('click');
+            document.getElementById('custom-alert').style.display = 'none';
+        };
+
+        function showLoading() { /* Animasi Shimmer atau Overlay */ }
+        function hideLoading() { /* Hapus Shimmer atau Overlay */ }
+
+        // IDLE TIMER (5 MIN)
+        let idleTime = 0;
+        document.onmousemove = () => idleTime = 0;
+        setInterval(() => {
+            idleTime++;
+            if(idleTime > 300) window.location.reload(); 
+        }, 1000);
+
+        // FILL WATERMARK
+        const wm = document.getElementById('watermark');
+        for(let i=0; i<100; i++) wm.innerHTML += `<span>PICK-ME-SECURE &nbsp;</span>`;
+
+    </script>
+</body>
+</html>
