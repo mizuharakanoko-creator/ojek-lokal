@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | Laporan Misi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * { -webkit-tap-highlight-color: transparent; user-select: none; }
+        body { background: #020617; color: #f8fafc; font-family: 'Inter', sans-serif; overflow: hidden; }
+        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(234, 179, 8, 0.2); }
+        .gold-text { background: linear-gradient(to right, #fde047, #ca8a04); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; }
+        #watermark { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.02; z-index: 9998; display: flex; flex-wrap: wrap; }
+    </style>
+</head>
+<body class="flex flex-col h-screen p-6">
+    <div id="watermark"></div>
+
+    <div class="flex-1 flex flex-col justify-center space-y-8">
+        <div class="text-center">
+            <h1 class="text-2xl font-black italic gold-text uppercase">Konfirmasi Selesai</h1>
+            <p class="text-xs text-slate-500 uppercase tracking-widest mt-2">Berikan laporan akhir misi Anda</p>
+        </div>
+
+        <div class="glass rounded-3xl p-6 space-y-6">
+            <div class="space-y-2">
+                <label class="text-[10px] font-bold text-yellow-500 uppercase">Catatan Penyelesaian</label>
+                <textarea id="report-text" class="w-full h-32 bg-slate-900/50 border border-slate-800 rounded-2xl p-4 text-sm text-white focus:border-yellow-500 transition-all" placeholder="Contoh: Barang sudah diterima oleh Bapak Budi di lobi..."></textarea>
+            </div>
+
+            <div class="flex flex-col items-center space-y-3">
+                <p class="text-[10px] text-slate-500 uppercase font-bold">Rating Pengalaman Anda</p>
+                <div class="flex space-x-4 text-2xl text-slate-700" id="star-rating">
+                    <i class="fas fa-star cursor-pointer hover:text-yellow-500 transition-colors" data-value="1"></i>
+                    <i class="fas fa-star cursor-pointer hover:text-yellow-500 transition-colors" data-value="2"></i>
+                    <i class="fas fa-star cursor-pointer hover:text-yellow-500 transition-colors" data-value="3"></i>
+                    <i class="fas fa-star cursor-pointer hover:text-yellow-500 transition-colors" data-value="4"></i>
+                    <i class="fas fa-star cursor-pointer hover:text-yellow-500 transition-colors" data-value="5"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button onclick="submitReport()" class="w-full py-5 bg-gradient-to-r from-yellow-600 to-yellow-500 text-black font-black rounded-2xl uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all mb-4">
+        Kirim Laporan & Klaim Reward
+    </button>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = { /* CONFIG */ };
+        const app = initializeApp(firebaseConfig);
+        const rtdb = getDatabase(app);
+        const urlParams = new URLSearchParams(window.location.search);
+        const questId = urlParams.get('id');
+
+        // Star Selection Logic
+        document.querySelectorAll('#star-rating i').forEach(star => {
+            star.onclick = () => {
+                const val = star.getAttribute('data-value');
+                document.querySelectorAll('#star-rating i').forEach(s => {
+                    s.classList.toggle('text-yellow-500', s.getAttribute('data-value') <= val);
+                });
+            };
+        });
+
+        window.submitReport = async () => {
+            const report = document.getElementById('report-text').value;
+            if(!report) return alert("Harap isi laporan singkat.");
+
+            try {
+                // Update status di RTDB agar Requester tahu misi selesai
+                await update(ref(rtdb, `Active_Short_Quests/${questId}`), {
+                    status: "Completed_Waiting_Review",
+                    final_report: report
+                });
+                window.location.href = `clear-chance.html?id=${questId}`;
+            } catch (e) { alert(e.message); }
+        };
+
+        const wm = document.getElementById('watermark');
+        for(let i=0; i<50; i++) wm.innerHTML += `<span>PICK-ME-RATING &nbsp;</span>`;
+    </script>
+</body>
+</html>
