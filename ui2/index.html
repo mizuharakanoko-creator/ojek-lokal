@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <title>TERMINAL MISI | GUILD LIFE RPG</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* =========================================
+           MASTER CSS - GUILD LIFE RPG (CYBERPUNK)
+           ========================================= */
+        :root {
+          --bg-main: #05050a; --bg-card: #0a0a14; --bg-input: #12121e;
+          --text-main: #e0e0e0; --text-muted: #8888a0;
+          --neon-pink: #ff00ff; --neon-pink-dim: rgba(255, 0, 255, 0.2);
+          --neon-cyan: #00ffff; --neon-cyan-dim: rgba(0, 255, 255, 0.2);
+          --neon-red: #ff0055; --neon-red-dim: rgba(255, 0, 85, 0.2);
+          --border-color: #2a0a3a; --border-cyan: #005555;
+          --font-terminal: 'Courier New', Courier, monospace;
+          --font-main: 'Segoe UI', Roboto, Helvetica, sans-serif;
+        }
+
+        [data-theme="light"] {
+          --bg-main: #f8f9fc; --bg-card: #ffffff; --bg-input: #ffffff;
+          --text-main: #12121e; --text-muted: #4b5563;
+          --neon-pink: #d900d9; --neon-pink-dim: rgba(217, 0, 217, 0.15);
+          --neon-cyan: #008080; --neon-cyan-dim: rgba(0, 128, 128, 0.15);
+          --neon-red: #cc0044; --neon-red-dim: rgba(204, 0, 68, 0.15);
+          --border-color: #e2e8f0; --border-cyan: #99cccc;
+        }
+
+        [data-theme="light"] .input-field { border: 1.5px solid #cbd5e1; box-shadow: none; }
+        [data-theme="light"] .card { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        [data-theme="light"] .loading-overlay { background-color: rgba(248, 249, 252, 0.95); }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background-color: var(--bg-main); color: var(--text-main); font-family: var(--font-main); font-size: 14px; line-height: 1.5; transition: 0.3s ease; }
+        
+        .app-container { width: 100%; max-width: 480px; min-height: 100vh; margin: 0 auto; background-color: var(--bg-main); position: relative; overflow-x: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.5); padding-bottom: 30px; }
+        
+        h1, h2, h3 { font-family: var(--font-terminal); text-transform: uppercase; letter-spacing: 1px; }
+        .text-neon-pink { color: var(--neon-pink); text-shadow: 0 0 5px var(--neon-pink-dim); }
+        .text-neon-cyan { color: var(--neon-cyan); text-shadow: 0 0 5px var(--neon-cyan-dim); }
+        .text-neon-red { color: var(--neon-red); text-shadow: 0 0 5px var(--neon-red-dim); }
+
+        .card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin: 15px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); position: relative; animation: slideUp 0.4s ease-out; }
+        .card::before, .card::after { content: ''; position: absolute; width: 10px; height: 10px; border: 2px solid var(--neon-pink); border-radius: 2px; }
+        .card::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+        .card::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+        .input-group { margin-bottom: 15px; display: flex; flex-direction: column; }
+        .input-group label { font-size: 10px; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; font-family: var(--font-terminal); }
+        .input-field { background-color: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); padding: 12px; border-radius: 4px; font-family: var(--font-main); outline: none; transition: 0.3s; width: 100%; }
+        .input-field:focus { border-color: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan-dim); }
+        .input-field:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 4px; font-family: var(--font-terminal); font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer; transition: 0.2s; }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background-color: var(--neon-pink); color: #fff; box-shadow: 0 0 10px var(--neon-pink-dim); }
+        .btn-secondary { background-color: transparent; color: var(--neon-cyan); border: 1px solid var(--neon-cyan); }
+        .btn-danger { background-color: transparent; color: var(--neon-red); border: 1px dashed var(--neon-red); }
+        .btn-danger:hover { background-color: var(--neon-red-dim); }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(5, 5, 10, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; visibility: hidden; opacity: 0; transition: 0.3s; }
+        .loading-overlay.active { visibility: visible; opacity: 1; }
+        .spinner { width: 50px; height: 50px; border: 3px solid var(--bg-input); border-top: 3px solid var(--neon-cyan); border-radius: 50%; animation: spin 1s linear infinite; box-shadow: 0 0 15px var(--neon-cyan-dim); }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Komponen Spesifik */
+        .network-status { position: absolute; top: 10px; right: 15px; display: flex; align-items: center; gap: 6px; font-size: 9px; font-family: var(--font-terminal); z-index: 100; }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--neon-red); box-shadow: 0 0 5px var(--neon-red); }
+        .status-dot.online { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
+
+        .user-ribbon { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border-cyan); background: var(--neon-cyan-dim); cursor: pointer; border-radius: 4px; margin-bottom: 15px; }
+        .user-ribbon:active { opacity: 0.8; }
+
+        .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .cat-grid.sub { grid-template-columns: 1fr 1fr 1fr 1fr; border-top: 1px dashed var(--border-color); padding-top: 15px; }
+        .cat-box { border: 1px solid var(--border-color); background: var(--bg-input); padding: 12px 5px; text-align: center; border-radius: 4px; cursor: pointer; transition: 0.3s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .cat-box span { font-size: 10px; font-weight: bold; font-family: var(--font-terminal); }
+        .cat-box.active { border-color: var(--neon-cyan); background: var(--neon-cyan-dim); box-shadow: 0 0 10px var(--neon-cyan-dim); }
+        .cat-box.locked { opacity: 0.4; border-color: var(--neon-red) !important; cursor: not-allowed; }
+        .cat-grid.sub .cat-box span { font-size: 8px; }
+
+        .urgent-box { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--neon-red); background: var(--neon-red-dim); border-radius: 4px; cursor: pointer; margin-bottom: 20px; }
+        .urgent-box input[type="checkbox"] { appearance: none; width: 18px; height: 18px; border: 2px solid var(--neon-red); border-radius: 2px; outline: none; }
+        .urgent-box input[type="checkbox"]:checked { background: var(--neon-red); box-shadow: 0 0 8px var(--neon-red); }
+        .urgent-box span { font-size: 11px; color: var(--neon-red); font-family: var(--font-terminal); font-weight: bold; text-shadow: 0 0 5px var(--neon-red-dim); }
+
+        .btn-gps { background: var(--bg-input); border: 1px dashed var(--neon-cyan); color: var(--neon-cyan); padding: 15px; text-align: center; font-family: var(--font-terminal); font-size: 12px; cursor: pointer; border-radius: 4px; transition: 0.3s; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .btn-gps.scanning { background: var(--neon-cyan-dim); animation: pulse 1s infinite; }
+        .btn-gps.locked { background: var(--neon-cyan); color: #000; border-style: solid; font-weight: bold; }
+
+        .suggestions-box { position: absolute; top: 60px; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--neon-cyan); z-index: 1000; display: none; border-radius: 4px; box-shadow: 0 5px 15px rgba(0,0,0,0.8); }
+        .suggestion-item { padding: 12px; border-bottom: 1px solid var(--border-color); cursor: pointer; font-family: var(--font-main); font-size: 12px; display: flex; flex-direction: column; }
+        .suggestion-item:active { background: var(--neon-cyan-dim); }
+
+        #price-section { display: none; opacity: 0; transform: translateY(10px); transition: 0.5s; margin-top: 20px; }
+        .price-section-show { display: block !important; opacity: 1 !important; transform: translateY(0) !important; }
+        .price-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .price-card { border: 1px solid var(--border-color); background: var(--bg-input); padding: 15px 5px; text-align: center; border-radius: 4px; cursor: pointer; transition: 0.3s; }
+        .price-card.selected { border-color: var(--neon-pink); background: var(--neon-pink-dim); box-shadow: 0 0 10px var(--neon-pink-dim); }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 5000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(4px); padding: 20px; }
+        .modal-content { background: var(--bg-card); border: 1px solid var(--neon-cyan); border-radius: 8px; padding: 20px; width: 100%; max-width: 400px; box-shadow: 0 0 20px rgba(0,255,255,0.2); }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <div class="network-status">
+        <div id="netDot" class="status-dot"></div>
+        <span id="netText">CONNECTING...</span>
+    </div>
+
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div style="margin-top:20px; font-family:var(--font-terminal); color:var(--neon-cyan);" class="animate-pulse">SINKRONISASI SERVER...</div>
+    </div>
+
+    <div id="gateModal" class="modal-overlay">
+        <div class="modal-content" style="text-align: center;">
+            <h2 class="text-neon-cyan" style="margin-bottom: 10px;">AKSES TERMINAL</h2>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px;">Identifikasi diperlukan sebelum membuat misi.</p>
+            
+            <button class="btn btn-secondary" style="margin-bottom: 10px; border-color: var(--text-muted); color: var(--text-main);" onclick="initSession('stranger')">LANJUT SEBAGAI STRANGER</button>
+            <button class="btn btn-primary" style="margin-bottom: 10px;" onclick="window.location.href='login.html'">LOGIN (CITIZEN / ADVENTURE)</button>
+            <button class="btn btn-secondary" style="margin-bottom: 20px;" onclick="window.location.href='register.html'">DAFTAR AKUN BARU</button>
+            
+            <div style="border-top: 1px dashed var(--border-color); padding-top: 15px;">
+                <button class="btn btn-danger" style="font-size: 10px; padding: 10px;" onclick="clearSystemCache()">⚠️ CLEAR CACHE / RESET APLIKASI</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="infoModal" class="modal-overlay">
+        <div class="modal-content" style="text-align: center;">
+            <h2 id="infoTitle" class="text-neon-pink" style="margin-bottom: 10px;">INFO</h2>
+            <p id="infoMsg" style="font-size: 12px; color: var(--text-main); margin-bottom: 20px; line-height: 1.6;"></p>
+            <button class="btn btn-secondary" onclick="closeModal('infoModal')">MENGERTI</button>
+        </div>
+    </div>
+
+    <div id="profileModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 class="text-neon-cyan" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">DATA ENTITAS</h2>
+            <div id="profileContent" style="font-size: 12px; color: var(--text-muted); line-height: 2;"></div>
+            
+            <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
+                <button class="btn btn-secondary" onclick="closeModal('profileModal')">TUTUP PANEL</button>
+                <button class="btn btn-danger" onclick="clearSystemCache()">⚠️ HAPUS SESI & REBOOT TERMINAL</button>
+            </div>
+        </div>
+    </div>
+
+    <div style="padding-top: 40px;"> 
+        <div class="card">
+            <div class="user-ribbon" onclick="openProfile()">
+                <div>
+                    <div id="ui-username" class="text-neon-cyan" style="font-family: var(--font-terminal); font-weight: bold; font-size: 16px;">LOADER_ERR</div>
+                    <div id="ui-userstatus" style="font-size: 10px; color: var(--text-muted);">STATUS: ---</div>
+                </div>
+                <div style="font-size: 10px; color: var(--neon-cyan); border: 1px solid var(--neon-cyan); padding: 3px 8px; border-radius: 10px;">DETAIL</div>
+            </div>
+
+            <h3 class="text-neon-pink" style="font-size: 12px; margin-bottom: 10px;">[1] KATEGORI MISI</h3>
+            
+            <div class="cat-grid">
+                <div class="cat-box active" data-cat="motor" onclick="selectCategory('motor')">
+                    <span style="font-size:16px;">🏍️</span><span>PENGAWALAN<br>(MOTOR-RIDE)</span>
+                </div>
+                <div class="cat-box" data-cat="car" onclick="selectCategory('car')">
+                    <span style="font-size:16px;">🚗</span><span>PENGAWALAN<br>(CAR-RIDE)</span>
+                </div>
+                <div class="cat-box" data-cat="ekspedisi" onclick="selectCategory('ekspedisi')">
+                    <span style="font-size:16px;">📦</span><span>EKSPEDISI<br>(PICK & DROP)</span>
+                </div>
+                <div class="cat-box" data-cat="belanja" onclick="selectCategory('belanja')">
+                    <span style="font-size:16px;">🛒</span><span>TITIP BELI<br>(BELANJA/MAKAN)</span>
+                </div>
+            </div>
+
+            <div class="cat-grid sub">
+                <div class="cat-box" data-cat="antree" onclick="selectCategory('antree')"><span>JASA<br>ANTREE</span></div>
+                <div class="cat-box" data-cat="buruh" onclick="selectCategory('buruh')"><span>BURUH<br>KASAR</span></div>
+                <div class="cat-box" data-cat="ahli" onclick="selectCategory('ahli')"><span>JASA<br>AHLI</span></div>
+                <div class="cat-box" data-cat="sewa" onclick="selectCategory('sewa')"><span>JASA<br>SEWA</span></div>
+            </div>
+
+            <div class="urgent-box" onclick="document.getElementById('isUrgent').click()">
+                <input type="checkbox" id="isUrgent" onclick="event.stopPropagation()">
+                <span>TANDAI SEBAGAI MISI DARURAT (URGENT)</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="text-neon-pink" style="font-size: 12px; margin-bottom: 15px;">[2] KOORDINAT OPERASI</h3>
+
+            <div class="input-group">
+                <label id="lbl-pickup">TITIK JEMPUT (LOKASI ANDA)</label>
+                <div id="btn-gps" class="btn-gps" onclick="requestGPS()">
+                    <span style="font-size: 18px;">📍</span>
+                    <span id="txt-gps">KLIK UNTUK IZINKAN LOKASI</span>
+                </div>
+                <input type="hidden" id="pickup-coords">
+            </div>
+
+            <div class="input-group" style="position: relative;">
+                <label id="lbl-drop">TITIK TUJUAN (KETIK DESA / JALAN)</label>
+                <input type="text" id="dest-search" class="input-field" placeholder="Ketik nama desa..." autocomplete="off">
+                <div id="suggestions" class="suggestions-box"></div>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <div class="input-group" style="flex: 1;">
+                    <label>KECAMATAN</label>
+                    <select id="dest-kecamatan" class="input-field" onchange="loadDesaDropdown(this.value)">
+                        <option value="">- PILIH -</option>
+                    </select>
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label>DESA</label>
+                    <select id="dest-desa" class="input-field" onchange="triggerPriceCalculation()">
+                        <option value="">- PILIH -</option>
+                    </select>
+                </div>
+            </div>
+
+            <button id="btn-unlock" class="btn btn-secondary" style="display: none; padding: 8px; font-size: 10px; margin-bottom: 15px;" onclick="unlockDestination()">🔄 UBAH TUJUAN</button>
+
+            <div id="price-section">
+                <h3 class="text-neon-cyan" style="font-size: 12px; margin-bottom: 10px; border-top: 1px dashed var(--border-color); padding-top: 15px;">[3] OPSI PENDANAAN (BOUNTY)</h3>
+                <div class="price-grid">
+                    <div class="price-card" onclick="selectPriceTier(this, 'hemat')">
+                        <div style="font-size: 10px; color: var(--text-muted); font-family: var(--font-terminal);">HEMAT</div>
+                        <div id="lbl-hemat" style="font-size: 14px; font-weight: bold; color: var(--text-main); margin-top: 5px;">0</div>
+                    </div>
+                    <div class="price-card selected" style="border-color: var(--neon-cyan);" onclick="selectPriceTier(this, 'reguler')">
+                        <div style="font-size: 10px; color: var(--neon-cyan); font-family: var(--font-terminal);">STANDAR</div>
+                        <div id="lbl-reguler" style="font-size: 14px; font-weight: bold; color: var(--text-main); margin-top: 5px;">0</div>
+                    </div>
+                    <div class="price-card" onclick="selectPriceTier(this, 'kilat')">
+                        <div style="font-size: 10px; color: var(--neon-pink); font-family: var(--font-terminal);">KILAT</div>
+                        <div id="lbl-kilat" style="font-size: 14px; font-weight: bold; color: var(--text-main); margin-top: 5px;">0</div>
+                    </div>
+                </div>
+                <input type="hidden" id="final-price" value="0">
+            </div>
+
+            <div class="input-group" style="margin-top: 20px;">
+                <label>CATATAN (OPSIONAL)</label>
+                <textarea id="mission-note" class="input-field" rows="3" placeholder="Detail patokan rumah, warna baju, atau rincian barang belanjaan..."></textarea>
+            </div>
+
+            <button class="btn btn-primary" style="margin-top: 10px;" onclick="executeDoubleWrite()">PUBLIKASIKAN MISI</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* =====================================================================
+       1. KONFIGURASI FIREBASE & INISIALISASI
+       ===================================================================== */
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.database();
+
+    /* =====================================================================
+       2. MOCK DATA WILAYAH & GLOBAL VARIABLES
+       ===================================================================== */
+    const mockWilayah = {
+        "kuningan": { 
+            server_id: "sv_kuningan_pusat",
+            desa: [{name: "Purwawinangun", lat: -6.9752, lng: 108.4831}, {name: "Cijoho", lat: -6.9651, lng: 108.4852}] 
+        },
+        "cigugur": { 
+            server_id: "sv_kuningan_barat",
+            desa: [{name: "Cigugur", lat: -6.9680, lng: 108.4631}, {name: "Cisantana", lat: -6.9580, lng: 108.4551}] 
+        }
+    };
+    
+    const dbWilayah = typeof dataWilayah !== 'undefined' ? dataWilayah : mockWilayah;
+
+    let SESSION = {
+        id: null, name: "ANONIM", role: "stranger", status: "STRANGER",
+        joinDate: "N/A", totalOrders: 0, cancel: 0, like: 0
+    };
+    
+    let activeCategory = 'motor';
+    let calculatedKm = 0;
+
+    /* =====================================================================
+       3. SYSTEM CACHE MANAGER (BARU)
+       ===================================================================== */
+    function clearSystemCache() {
+        if(confirm("SYSTEM OVERRIDE:\n\nTindakan ini akan menghapus semua memori lokal, cache pencarian, dan mengeluarkan Anda dari sesi saat ini. Lanjutkan?")) {
+            // Hapus Local & Session Storage
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Bypass browser cache dengan memuat ulang beserta query string waktu
+            window.location.href = window.location.pathname + "?reset=" + new Date().getTime();
+        }
+    }
+
+    /* =====================================================================
+       4. INITIALIZATION & GATEKEEPER
+       ===================================================================== */
+    window.onload = () => {
+        setupNetworkMonitor();
+        populateKecamatan();
+        
+        // Cek LocalStorage
+        const savedId = localStorage.getItem('user_id');
+        const savedRole = localStorage.getItem('user_role');
+
+        if (savedId && savedRole === 'client') {
+            initSession('logged_in', savedId);
+        } else {
+            document.getElementById('gateModal').style.display = 'flex';
+        }
+    };
+
+    function initSession(type, uid = null) {
+        if (type === 'stranger') {
+            SESSION.id = "STR-" + Math.floor(Math.random() * 99999);
+            SESSION.role = "stranger";
+            document.getElementById('gateModal').style.display = 'none';
+            enforceStrangerRules();
+        } else if (type === 'logged_in') {
+            SESSION.id = uid;
+            SESSION.name = "CITIZEN X";
+            SESSION.role = "client";
+            SESSION.status = "TERPERCAYA";
+            SESSION.joinDate = "Maret 2026";
+            SESSION.totalOrders = 42;
+            SESSION.cancel = 1;
+            SESSION.like = 38;
+            document.getElementById('gateModal').style.display = 'none';
+        }
+        updateProfileUI();
+    }
+
+    function updateProfileUI() {
+        document.getElementById('ui-username').innerText = SESSION.name;
+        document.getElementById('ui-userstatus').innerText = "STATUS: " + evaluateReputation();
+    }
+
+    function enforceStrangerRules() {
+        document.querySelectorAll('.cat-box').forEach(box => {
+            if (box.dataset.cat !== 'motor') box.classList.add('locked');
+        });
+    }
+
+    function evaluateReputation() {
+        if (SESSION.role === 'stranger') return "STRANGER";
+        if (SESSION.totalOrders < 5) return "PENGGUNA BARU";
+        if (SESSION.cancel > 10) return "BERESIKO";
+        return SESSION.status;
+    }
+
+    /* =====================================================================
+       5. LOGIKA UI & PENCARIAN (Dipadatkan)
+       ===================================================================== */
+    function selectCategory(cat) {
+        if (SESSION.role === 'stranger' && cat !== 'motor') {
+            showInfo("AKSES DIBATASI", "Entitas 'Stranger' hanya memiliki izin untuk misi Motor-Ride.");
+            return;
+        }
+        activeCategory = cat;
+        document.querySelectorAll('.cat-box').forEach(b => b.classList.remove('active'));
+        document.querySelector(`[data-cat="${cat}"]`).classList.add('active');
+
+        const labels = {
+            'ekspedisi': ["TITIK AMBIL PAKET (PICK)", "TITIK ANTAR PAKET (DROP)"],
+            'belanja': ["LOKASI TOKO / WARUNG", "TITIK ANTAR PESANAN"],
+            'antree': ["LOKASI PELAKSANAAN TUGAS", "AREA TARGET (JIKA ADA)"],
+            'buruh': ["LOKASI PELAKSANAAN TUGAS", "AREA TARGET (JIKA ADA)"],
+            'ahli': ["LOKASI PELAKSANAAN TUGAS", "AREA TARGET (JIKA ADA)"],
+            'sewa': ["LOKASI PELAKSANAAN TUGAS", "AREA TARGET (JIKA ADA)"],
+            'default': ["TITIK JEMPUT (LOKASI ANDA)", "TITIK TUJUAN OPERASI"]
+        };
+        
+        const set = labels[cat] || labels['default'];
+        document.getElementById('lbl-pickup').innerText = set[0];
+        document.getElementById('lbl-drop').innerText = set[1];
+    }
+
+    function requestGPS() {
+        const btn = document.getElementById('btn-gps');
+        const txt = document.getElementById('txt-gps');
+        btn.classList.add('scanning'); txt.innerText = "MEMINDAI SATELIT...";
+
+        if (!navigator.geolocation) {
+            btn.classList.remove('scanning');
+            showInfo("PERANGKAT TIDAK MENDUKUNG", "Perangkat Anda tidak mendukung fitur GPS.");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                document.getElementById('pickup-coords').value = `${pos.coords.latitude},${pos.coords.longitude}`;
+                btn.className = 'btn-gps locked';
+                txt.innerText = "KOORDINAT TERKUNCI";
+                triggerPriceCalculation();
+            },
+            (err) => {
+                btn.classList.remove('scanning');
+                txt.innerText = "KLIK UNTUK IZINKAN LOKASI";
+                showInfo("KONEKSI GPS GAGAL", "Pastikan izin lokasi browser Anda aktif.");
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }
+
+    const inpSearch = document.getElementById('dest-search');
+    const boxSugg = document.getElementById('suggestions');
+    const selKec = document.getElementById('dest-kecamatan');
+    const selDesa = document.getElementById('dest-desa');
+
+    function populateKecamatan() {
+        selKec.innerHTML = '<option value="">- PILIH KECAMATAN -</option>';
+        for (let kec in dbWilayah) selKec.innerHTML += `<option value="${kec}">${kec.toUpperCase()}</option>`;
+    }
+
+    function loadDesaDropdown(kec) {
+        selDesa.innerHTML = '<option value="">- PILIH DESA -</option>';
+        if (dbWilayah[kec]) {
+            dbWilayah[kec].desa.forEach((desa, i) => selDesa.innerHTML += `<option value="${i}">${desa.name.toUpperCase()}</option>`);
+        }
+        triggerPriceCalculation();
+    }
+
+    inpSearch.addEventListener('input', function() {
+        const keyword = this.value.toLowerCase();
+        boxSugg.innerHTML = '';
+        if (keyword.length < 2) { boxSugg.style.display = 'none'; return; }
+
+        let matchCount = 0;
+        for (let kec in dbWilayah) {
+            dbWilayah[kec].desa.forEach((desa, i) => {
+                if (desa.name.toLowerCase().includes(keyword) && matchCount < 6) {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.innerHTML = `<b class="text-neon-cyan">${desa.name.toUpperCase()}</b><span style="font-size:10px; color:var(--text-muted)">Kec. ${kec.toUpperCase()}</span>`;
+                    div.onclick = () => {
+                        inpSearch.value = desa.name.toUpperCase();
+                        inpSearch.disabled = selKec.disabled = selDesa.disabled = true;
+                        selKec.value = kec; loadDesaDropdown(kec);
+                        setTimeout(() => { selDesa.value = i; boxSugg.style.display = 'none'; document.getElementById('btn-unlock').style.display = 'block'; triggerPriceCalculation(); }, 100);
+                    };
+                    boxSugg.appendChild(div); matchCount++;
+                }
+            });
+        }
+        boxSugg.style.display = matchCount > 0 ? 'block' : 'none';
+    });
+
+    document.addEventListener('click', (e) => { if (e.target !== inpSearch && e.target !== boxSugg) boxSugg.style.display = 'none'; });
+
+    function unlockDestination() {
+        inpSearch.disabled = selKec.disabled = selDesa.disabled = false;
+        inpSearch.value = selKec.value = ''; selDesa.innerHTML = '<option value="">- PILIH DESA -</option>';
+        document.getElementById('btn-unlock').style.display = 'none';
+        document.getElementById('price-section').classList.remove('price-section-show');
+    }
+
+    /* =====================================================================
+       6. RPG CALCULATIONS & DOUBLE WRITE
+       ===================================================================== */
+    function calcDistance(lat1, lon1, lat2, lon2) {
+        const p = 0.017453292519943295;
+        const c = Math.cos;
+        const a = 0.5 - c((lat2 - lat1) * p)/2 + c(lat1 * p) * c(lat2 * p) * (1 - c((lon2 - lon1) * p))/2;
+        return 12742 * Math.asin(Math.sqrt(a));
+    }
+
+    function triggerPriceCalculation() {
+        const pick = document.getElementById('pickup-coords').value;
+        if (!pick || selKec.value === "" || selDesa.value === "") return;
+
+        const target = dbWilayah[selKec.value].desa[selDesa.value];
+        const [pLat, pLng] = pick.split(',').map(Number);
+        
+        calculatedKm = (calcDistance(pLat, pLng, target.lat, target.lng) * 1.4).toFixed(1);
+        const baseTarif = Math.max(2, calculatedKm) * 2500;
+
+        const hHemat = Math.ceil((baseTarif * 0.8) / 1000) * 1000;
+        const hReguler = Math.ceil(baseTarif / 1000) * 1000;
+        const hKilat = Math.ceil((baseTarif * 1.5) / 1000) * 1000;
+
+        const formatRp = (num) => "Rp " + num.toLocaleString('id-ID');
+        document.getElementById('lbl-hemat').innerText = formatRp(Math.max(8000, hHemat));
+        document.getElementById('lbl-reguler').innerText = formatRp(Math.max(10000, hReguler));
+        document.getElementById('lbl-kilat').innerText = formatRp(Math.max(15000, hKilat));
+
+        document.getElementById('final-price').value = Math.max(10000, hReguler);
+        document.getElementById('price-section').classList.add('price-section-show');
+    }
+
+    function selectPriceTier(el, type) {
+        document.querySelectorAll('.price-card').forEach(c => { c.classList.remove('selected'); c.style.borderColor = "var(--border-color)"; });
+        el.classList.add('selected'); el.style.borderColor = "var(--neon-cyan)";
+        document.getElementById('final-price').value = el.querySelector('div:nth-child(2)').innerText.replace(/\D/g, '');
+    }
+
+    function executeDoubleWrite() {
+        const pick = document.getElementById('pickup-coords').value;
+        const price = parseInt(document.getElementById('final-price').value);
+        if (!pick || selKec.value === "" || selDesa.value === "" || price <= 0) return showInfo("GAGAL", "Pastikan kordinat dan tujuan valid.");
+
+        document.getElementById('loadingOverlay').classList.add('active');
+
+        const kec = selKec.value;
+        const targetDesa = dbWilayah[kec].desa[selDesa.value].name;
+        const serverRouter = dbWilayah[kec].server_id;
+        const missionId = "QUEST-" + Date.now() + "-" + Math.floor(Math.random()*1000);
+        const isUrgent = document.getElementById('isUrgent').checked;
+
+        const tier = price <= 12000 ? "TERI" : price <= 25000 ? "LELE" : price <= 50000 ? "KAKAP" : price <= 100000 ? "HIU" : "PAUS";
+
+        const fullData = {
+            id: missionId, category: activeCategory, isUrgent: isUrgent, status: "SEARCHING", timestamp: firebase.database.ServerValue.TIMESTAMP,
+            client: { id: SESSION.id, name: SESSION.name, label: evaluateReputation() },
+            route: { pickupCoords: pick, destKecamatan: kec, destDesa: targetDesa, estimatedKm: calculatedKm },
+            bounty: { price: price, note: document.getElementById('mission-note').value || "-" },
+            rpgSystem: { tier: tier, reqStamina: Math.max(1, Math.ceil(calculatedKm * 1.5)), rewardExp: Math.ceil(price / 1000) }
+        };
+
+        const briefData = { id: missionId, server: serverRouter, title: `[${activeCategory.toUpperCase()}] Ke ${targetDesa.toUpperCase()}`, price: price, tier: tier, urgent: isUrgent, timestamp: firebase.database.ServerValue.TIMESTAMP };
+
+        const updates = {};
+        updates[`database_regional/${serverRouter}/missions/${missionId}`] = fullData;
+        updates[`board_central/active_quests/${missionId}`] = briefData;
+
+        db.ref().update(updates).then(() => {
+            localStorage.setItem('active_quest_id', missionId);
+            localStorage.setItem('active_server_node', serverRouter);
+            setTimeout(() => window.location.replace('waiting-client.html'), 1500);
+        }).catch((err) => {
+            document.getElementById('loadingOverlay').classList.remove('active');
+            showInfo("TRANSMISI GAGAL", err.message);
+        });
+    }
+
+    /* =====================================================================
+       7. UTILITY & MODALS
+       ===================================================================== */
+    function showInfo(title, msg) {
+        document.getElementById('infoTitle').innerText = title;
+        document.getElementById('infoMsg').innerText = msg;
+        document.getElementById('infoModal').style.display = 'flex';
+    }
+
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    function openProfile() {
+        document.getElementById('profileContent').innerHTML = `
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; margin-bottom:5px;"><span>ID ENTITAS:</span> <span class="text-neon-cyan">${SESSION.id}</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; margin-bottom:5px;"><span>PERINGKAT:</span> <span class="text-neon-cyan">${evaluateReputation()}</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; margin-bottom:5px;"><span>MISI SELESAI:</span> <span class="text-neon-cyan">${SESSION.totalOrders}</span></div>
+            <div style="display:flex; justify-content:space-between; border-bottom:1px solid #333; margin-bottom:5px;"><span>PELANGGARAN:</span> <span style="color:var(--neon-red)">${SESSION.cancel}</span></div>
+        `;
+        document.getElementById('profileModal').style.display = 'flex';
+    }
+
+    function setupNetworkMonitor() {
+        const dot = document.getElementById('netDot'), txt = document.getElementById('netText');
+        const updateNet = () => { dot.className = navigator.onLine ? "status-dot online" : "status-dot"; txt.innerText = navigator.onLine ? "SERVER TERHUBUNG" : "KONEKSI TERPUTUS"; };
+        window.addEventListener('online', updateNet); window.addEventListener('offline', updateNet); updateNet();
+    }
+</script>
+
+</body>
+</html>
