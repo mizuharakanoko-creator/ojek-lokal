@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SOVEREIGN | WAITING TERMINAL</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --n-cyan: #00f3ff; --n-pink: #ff00ea; --n-gold: #ffcc00; --n-red: #ff003c; --n-green: #00ff88;
+            --bg-deep: #050508; --bg-glass: rgba(15, 15, 25, 0.9);
+            --border-glow: rgba(0, 243, 255, 0.2);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { 
+            background: var(--bg-deep); color: #fff; font-family: 'Rajdhani', sans-serif; 
+            overflow-x: hidden; min-height: 100vh; transition: 0.3s;
+            background-image: radial-gradient(circle at 50% 50%, #101020 0%, #050508 100%);
+        }
+
+        /* --- 01. HEADER STATUS --- */
+        .header-status {
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(15px); border-bottom: 1px solid var(--border-glow);
+            position: sticky; top: 0; z-index: 100;
+        }
+        .neural-info { display: flex; flex-direction: column; gap: 2px; }
+        .neural-title { font-family: 'Orbitron'; font-size: 10px; color: var(--n-cyan); letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }
+        .neural-bar { width: 100px; height: 3px; background: #222; border-radius: 2px; margin-top: 4px; overflow: hidden; }
+        .neural-fill { width: 100%; height: 100%; background: var(--n-cyan); box-shadow: 0 0 10px var(--n-cyan); animation: signal 2s infinite; }
+
+        /* --- 02. RADAR VISUALIZER --- */
+        .radar-container { height: 280px; position: relative; display: flex; justify-content: center; align-items: center; padding-top: 20px; }
+        .radar-circle {
+            position: absolute; border: 1px solid rgba(0, 243, 255, 0.1); border-radius: 50%;
+        }
+        .radar-scanner {
+            position: absolute; width: 220px; height: 220px;
+            background: conic-gradient(from 0deg, transparent 70%, rgba(0, 243, 255, 0.3) 100%);
+            border-radius: 50%; animation: rotate 4s linear infinite;
+        }
+        .radar-center {
+            width: 10px; height: 10px; background: var(--n-pink); border-radius: 50%;
+            box-shadow: 0 0 20px var(--n-pink); z-index: 2;
+        }
+
+        /* --- 03. APPLICANT DOSSIER --- */
+        .content-body { padding: 0 20px 120px 20px; }
+        .section-header { 
+            font-family: 'Orbitron'; font-size: 12px; color: var(--n-gold); 
+            margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .count-badge { background: var(--n-cyan); color: #000; padding: 2px 8px; border-radius: 4px; font-weight: 900; font-size: 10px; }
+
+        .dossier-card {
+            background: var(--bg-glass); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px;
+            padding: 15px; margin-bottom: 15px; display: flex; gap: 15px;
+            position: relative; animation: slideUp 0.5s ease-out backwards;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        .dossier-card::after {
+            content: 'READY'; position: absolute; top: 10px; right: 10px;
+            font-family: 'Orbitron'; font-size: 8px; color: var(--n-green);
+            border: 1px solid var(--n-green); padding: 2px 5px; border-radius: 3px;
+        }
+
+        .portrait-area { position: relative; }
+        .pfp { width: 65px; height: 65px; border-radius: 10px; border: 2px solid var(--n-cyan); object-fit: cover; }
+        .rank-tag {
+            position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
+            background: var(--n-gold); color: #000; font-weight: 900; font-size: 10px;
+            padding: 2px 6px; border-radius: 4px; font-family: 'Orbitron';
+        }
+
+        .data-area { flex: 1; }
+        .adv-name { font-family: 'Orbitron'; font-size: 15px; color: #fff; margin-bottom: 4px; letter-spacing: 1px; }
+        .stat-row { display: flex; gap: 15px; margin-top: 8px; border-top: 1px solid #222; padding-top: 8px; }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 9px; color: #555; text-transform: uppercase; }
+        .stat-value { font-size: 13px; font-weight: bold; color: var(--n-cyan); }
+
+        .btn-pick {
+            background: var(--n-cyan); color: #000; border: none; padding: 12px 20px;
+            border-radius: 8px; font-family: 'Orbitron'; font-weight: 900; font-size: 12px;
+            align-self: center; cursor: pointer; transition: 0.3s;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+        }
+        .btn-pick:active { transform: scale(0.9); }
+
+        /* --- 04. EDU TIPS --- */
+        .edu-terminal {
+            background: rgba(0,0,0,0.4); border: 1px solid #222; border-radius: 8px;
+            padding: 12px; margin-bottom: 25px; display: flex; gap: 12px; align-items: flex-start;
+        }
+        .edu-terminal i { color: var(--n-gold); margin-top: 3px; }
+        .edu-text { font-size: 12px; color: #aaa; line-height: 1.4; font-style: italic; }
+
+        /* --- 05. FOOTER & MODALS --- */
+        .footer-hud { position: fixed; bottom: 0; left: 0; width: 100%; padding: 20px; background: linear-gradient(to top, #000 70%, transparent); display: flex; gap: 10px; z-index: 100; }
+        .btn-abort {
+            flex: 1; background: rgba(255,0,60,0.1); color: var(--n-red); border: 1px solid var(--n-red);
+            padding: 16px; border-radius: 10px; font-family: 'Orbitron'; font-weight: bold; font-size: 11px;
+        }
+
+        .modal { 
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); 
+            z-index: 1000; align-items: center; justify-content: center; padding: 25px;
+            backdrop-filter: blur(10px);
+        }
+        .modal-box { 
+            background: var(--bg-deep); border: 1px solid var(--n-pink); padding: 30px 20px; 
+            border-radius: 20px; text-align: center; width: 100%; max-width: 400px;
+        }
+
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes signal { 0%, 100% { opacity: 0.8; } 50% { opacity: 0.4; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    </style>
+</head>
+<body onload="initTerminal()">
+
+    <div class="header-status">
+        <div class="neural-info">
+            <div class="neural-title">
+                <div id="status-dot" style="width:8px; height:8px; background:var(--n-cyan); border-radius:50%; box-shadow:0 0 10px var(--n-cyan);"></div>
+                NEURAL LINK: ESTABLISHED
+            </div>
+            <div class="neural-bar"><div class="neural-fill"></div></div>
+        </div>
+        <div style="display:flex; gap:15px; align-items:center;">
+            <button onclick="toggleAudio()" id="btn-audio" style="background:none; border:none; color:var(--n-gold); font-size:20px;"><i class="fa-solid fa-volume-high"></i></button>
+            <div id="timer" style="font-family:'Orbitron'; font-size:12px; color:var(--n-pink);">00:00</div>
+        </div>
+    </div>
+
+    <div class="radar-container">
+        <div class="radar-circle" style="width:260px; height:260px;"></div>
+        <div class="radar-circle" style="width:180px; height:180px;"></div>
+        <div class="radar-circle" style="width:100px; height:100px;"></div>
+        <div class="radar-scanner"></div>
+        <div class="radar-center"></div>
+        <div style="position:absolute; bottom:30px; font-family:'Orbitron'; font-size:9px; color:var(--n-cyan); letter-spacing:3px; animation:signal 1.5s infinite;">SCANNING FREQUENCY...</div>
+    </div>
+
+    <div class="content-body">
+        <div class="edu-terminal">
+            <i class="fa-solid fa-circle-info"></i>
+            <div class="edu-text" id="guild-tip">
+                Tip: Adventurer dengan Rank lebih tinggi (S/A) memiliki tingkat keberhasilan misi 99% namun biaya bounty biasanya lebih premium.
+            </div>
+        </div>
+
+        <div class="section-header">
+            <span>INCOMING ADVENTURERS</span>
+            <div class="count-badge" id="app-count">0</div>
+        </div>
+
+        <div id="applicant-list">
+            <div style="text-align:center; padding:50px; opacity:0.3;">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size:30px; margin-bottom:15px;"></i>
+                <div style="font-size:12px;">MENGHUBUNGKI NODE REGIONAL...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-hud">
+        <button class="btn-abort" onclick="openModal('modal-abort')">
+            <i class="fa-solid fa-burst"></i> ABORT MISSION
+        </button>
+    </div>
+
+    <div id="modal-abort" class="modal">
+        <div class="modal-box">
+            <i class="fa-solid fa-triangle-exclamation" style="font-size:40px; color:var(--n-red); margin-bottom:15px;"></i>
+            <h2 style="font-family:'Orbitron'; color:#fff; margin-bottom:10px;">GUGURKAN MISI?</h2>
+            <p style="font-size:13px; color:#777; margin-bottom:25px;">Membatalkan di tahap ini akan menghapus semua data antrean. Tindakan ini tidak dapat dibatalkan.</p>
+            <div style="display:flex; gap:10px;">
+                <button onclick="closeModal('modal-abort')" style="flex:1; padding:15px; background:#111; color:#fff; border:1px solid #333; border-radius:10px;">KEMBALI</button>
+                <button onclick="confirmAbort()" style="flex:1; padding:15px; background:var(--n-red); color:#fff; border:none; border-radius:10px; font-weight:bold;">YA, ABORT</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-confirm" class="modal">
+        <div class="modal-box" id="confirm-content">
+            </div>
+    </div>
+
+    <script>
+        // --- FIREBASE SETUP ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const questId = localStorage.getItem('active_quest_id');
+        const node = localStorage.getItem('active_server_node') || 'kng1';
+        let isAudioOn = true;
+        let activeApplicant = null;
+
+        // --- AUDIO ---
+        const sndPing = new Audio('https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3');
+        const sndClick = new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3');
+
+        function initTerminal() {
+            if(!questId) return window.location.replace('create-mission.html');
+            
+            startTimer();
+            listenToApplicants();
+            listenToMissionStatus();
+            rotateTips();
+        }
+
+        // --- REALTIME LISTENERS ---
+        function listenToApplicants() {
+            const listEl = document.getElementById('applicant-list');
+            const countEl = document.getElementById('app-count');
+
+            db.ref(`database_regional/${node}/missions/${questId}/applicants`).on('value', snap => {
+                const data = snap.val();
+                listEl.innerHTML = "";
+                
+                if (!data) {
+                    listEl.innerHTML = `<div style="text-align:center; padding:40px; opacity:0.2; font-size:12px;">MENUNGGU RESPONS ADVENTURER...</div>`;
+                    countEl.innerText = "0";
+                    return;
+                }
+
+                const keys = Object.keys(data);
+                countEl.innerText = keys.length;
+                if(isAudioOn) sndPing.play();
+
+                keys.forEach((key, index) => {
+                    const app = data[key];
+                    listEl.innerHTML += renderDossier(key, app, index);
+                });
+            });
+        }
+
+        function renderDossier(nick, data, index) {
+            const successRate = data.success_rate || (85 + Math.floor(Math.random() * 14));
+            return `
+                <div class="dossier-card" style="animation-delay: ${index * 0.1}s">
+                    <div class="portrait-area">
+                        <img src="${data.photo || 'https://via.placeholder.com/100'}" class="pfp">
+                        <div class="rank-tag">RANK ${data.rank || 'D'}</div>
+                    </div>
+                    <div class="data-area">
+                        <div class="adv-name">${nick.toUpperCase()}</div>
+                        <div class="stat-row">
+                            <div class="stat-item">
+                                <span class="stat-label">Bounty</span>
+                                <span class="stat-value" style="color:var(--n-gold)">Rp ${data.price.toLocaleString()}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Success Rate</span>
+                                <span class="stat-value">${successRate}%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn-pick" onclick="openConfirm('${nick}', ${data.price})">PICK</button>
+                </div>
+            `;
+        }
+
+        function listenToMissionStatus() {
+            // Jika driver sudah mengonfirmasi di sisi mereka
+            db.ref(`database_regional/${node}/missions/${questId}/status`).on('value', snap => {
+                if (snap.val() === 'ON_THE_WAY') {
+                    window.location.replace('on-trip-client.html');
+                }
+            });
+        }
+
+        // --- ACTIONS ---
+        function openConfirm(nick, price) {
+            activeApplicant = { nick, price };
+            const content = document.getElementById('confirm-content');
+            content.innerHTML = `
+                <h3 style="font-family:'Orbitron'; color:var(--n-cyan); margin-bottom:15px;">KONFIRMASI UNIT</h3>
+                <p style="font-size:14px; color:#ccc; margin-bottom:10px;">Anda akan menugaskan <strong>${nick.toUpperCase()}</strong> untuk misi ini.</p>
+                <div style="background:#111; padding:15px; border-radius:10px; margin-bottom:20px; border:1px solid var(--n-gold);">
+                    <span style="font-size:10px; color:#555; display:block;">ESTIMASI BIAYA (CASH)</span>
+                    <span style="font-size:20px; font-weight:bold; color:var(--n-gold);">Rp ${price.toLocaleString()}</span>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="closeModal('modal-confirm')" style="flex:1; padding:15px; background:none; color:#fff; border:1px solid #333; border-radius:10px;">BATAL</button>
+                    <button onclick="executeSelection()" style="flex:1; padding:15px; background:var(--n-cyan); color:#000; border:none; border-radius:10px; font-weight:bold;">DEPLOY UNIT</button>
+                </div>
+            `;
+            openModal('modal-confirm');
+        }
+
+        async function executeSelection() {
+            if(!activeApplicant) return;
+            sndClick.play();
+
+            const updates = {};
+            updates[`database_regional/${node}/missions/${questId}/status`] = "ON_THE_WAY";
+            updates[`database_regional/${node}/missions/${questId}/executor`] = activeApplicant.nick;
+            updates[`database_regional/${node}/missions/${questId}/final_price`] = activeApplicant.price;
+            
+            // Hapus dari Board Publik agar tidak bisa diambil orang lain
+            updates[`board_central/active_quests/${questId}`] = null;
+
+            try {
+                await db.ref().update(updates);
+                // Listener status akan otomatis redirect
+            } catch (e) {
+                alert("Neural Link Error: Gagal mengunci unit.");
+            }
+        }
+
+        async function confirmAbort() {
+            const updates = {};
+            updates[`database_regional/${node}/missions/${questId}`] = null;
+            updates[`board_central/active_quests/${questId}`] = null;
+
+            await db.ref().update(updates);
+            localStorage.removeItem('active_quest_id');
+            window.location.replace('create-mission.html');
+        }
+
+        // --- UTILS ---
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function startTimer() {
+            let sec = 0;
+            setInterval(() => {
+                sec++;
+                let m = Math.floor(sec / 60).toString().padStart(2, '0');
+                let s = (sec % 60).toString().padStart(2, '0');
+                document.getElementById('timer').innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function rotateTips() {
+            const tips = [
+                "Tip: Rank S adalah elite dengan perlengkapan terbaik.",
+                "Info: Anda bisa membatalkan misi jika belum memilih Adventurer.",
+                "Tip: Perhatikan 'Success Rate' untuk meminimalisir kendala di jalan.",
+                "Sovereign: Gunakan mode Dark untuk menghemat energi neural Anda."
+            ];
+            let i = 0;
+            setInterval(() => {
+                i = (i + 1) % tips.length;
+                document.getElementById('guild-tip').innerText = tips[i];
+            }, 7000);
+        }
+
+        function toggleAudio() {
+            isAudioOn = !isAudioOn;
+            document.getElementById('btn-audio').innerHTML = isAudioOn ? '<i class="fa-solid fa-volume-high"></i>' : '<i class="fa-solid fa-volume-xmark"></i>';
+        }
+    </script>
+</body>
+</html>
