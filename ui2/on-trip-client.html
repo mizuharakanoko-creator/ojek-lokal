@@ -1,236 +1,523 @@
 <!DOCTYPE html>
-<html lang="id" data-theme="dark">
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TRACKING MISSION | GUILD LIFE</title>
+    <title>LIVE TRACKING | GUILD LIFE</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <style>
-        :root {
-            --neon-cyan: #00ffff; --neon-pink: #ff00ff; --bg-dark: #05050a;
-            --glass: rgba(10, 10, 20, 0.85); --font-mono: 'Courier New', monospace;
+        /* ========================================================
+           01. CORE VARIABLES & THEMES
+           ======================================================== */
+        :root { 
+            --neon-cyan: #00f3ff; --neon-pink: #ff00ea; --neon-gold: #ffcc00;
+            --bg-main: #050508; --bg-glass: rgba(10, 10, 15, 0.85);
+            --text-main: #ffffff; --text-muted: #8888a0;
+            --border-glow: rgba(0, 243, 255, 0.4);
+            --chat-me: var(--neon-cyan); --chat-them: #222230;
+            --map-filter: grayscale(0.8) contrast(1.2) invert(1) hue-rotate(180deg);
         }
 
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: var(--bg-dark); color: #fff; overflow: hidden; }
+        [data-theme="light"] {
+            --neon-cyan: #008cff; --neon-pink: #d000ff; --neon-gold: #e6b800;
+            --bg-main: #f0f2f5; --bg-glass: rgba(255, 255, 255, 0.95);
+            --text-main: #111111; --text-muted: #555566;
+            --border-glow: rgba(0, 140, 255, 0.3);
+            --chat-me: var(--neon-cyan); --chat-them: #e4e6eb;
+            --map-filter: none;
+        }
 
-        /* MAP STYLING */
-        #map { height: 100vh; width: 100%; z-index: 1; filter: brightness(0.7) contrast(1.2) hue-rotate(180deg) invert(100%); }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Rajdhani', sans-serif; background: var(--bg-main); color: var(--text-main); overflow: hidden; transition: 0.3s; }
 
-        /* UI OVERLAYS */
-        .overlay { position: absolute; z-index: 10; width: 100%; pointer-events: none; }
-        .interactive { pointer-events: auto; }
+        /* ========================================================
+           02. MAP & MARKER ANIMATIONS
+           ======================================================== */
+        #map { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; filter: var(--map-filter); transition: filter 0.5s; }
+        
+        /* Animasi Radar pada Marker Driver */
+        .driver-ping {
+            width: 20px; height: 20px; background: var(--neon-pink); border-radius: 50%;
+            box-shadow: 0 0 15px var(--neon-pink); position: relative;
+        }
+        .driver-ping::after {
+            content: ''; position: absolute; top: -10px; left: -10px; right: -10px; bottom: -10px;
+            border: 2px solid var(--neon-pink); border-radius: 50%; animation: ping 1.5s infinite ease-out;
+        }
+        @keyframes ping { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
 
-        /* TOP INFO: ADVENTURER MINI CARD */
-        .top-info { top: 15px; padding: 0 15px; }
-        .adv-card { background: var(--glass); border: 1px solid var(--neon-cyan); border-radius: 12px; padding: 12px; backdrop-filter: blur(10px); display: flex; align-items: center; gap: 12px; transition: 0.3s; }
-        .adv-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid var(--neon-cyan); object-fit: cover; }
-        .eta-box { margin-left: auto; text-align: right; font-family: var(--font-mono); }
+        /* ========================================================
+           03. TOP HUD (HEADS UP DISPLAY)
+           ======================================================== */
+        .hud-top {
+            position: absolute; top: 0; left: 0; width: 100%; z-index: 10;
+            padding: 15px; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+        }
+        .driver-card {
+            background: var(--bg-glass); backdrop-filter: blur(10px);
+            border: 1px solid var(--border-glow); border-left: 4px solid var(--neon-cyan);
+            border-radius: 15px; padding: 12px 15px; display: flex; align-items: center; gap: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); cursor: pointer; transition: transform 0.2s;
+        }
+        .driver-card:active { transform: scale(0.98); }
+        .avatar-box { position: relative; width: 60px; height: 60px; }
+        .avatar-img { width: 100%; height: 100%; border-radius: 12px; border: 2px solid var(--neon-cyan); object-fit: cover; }
+        .rank-badge {
+            position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
+            background: var(--neon-gold); color: #000; font-family: 'Orbitron'; font-size: 9px;
+            font-weight: bold; padding: 2px 8px; border-radius: 10px; white-space: nowrap;
+        }
+        .driver-info { flex: 1; }
+        .driver-name { font-family: 'Orbitron'; font-size: 16px; margin-bottom: 2px; }
+        .driver-vehicle { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+        
+        .eta-box { text-align: right; border-left: 1px dashed var(--border-glow); padding-left: 15px; }
+        .eta-time { font-family: 'Orbitron'; font-size: 18px; color: var(--neon-cyan); font-weight: bold; }
+        .eta-dist { font-size: 11px; color: var(--text-muted); }
 
-        /* BOTTOM CONTROLS */
-        .bottom-ui { bottom: 0; padding: 15px; background: linear-gradient(transparent, var(--bg-dark)); }
-        .control-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .btn-theme {
+            position: absolute; top: 15px; right: 15px; background: var(--bg-glass);
+            border: 1px solid var(--border-glow); color: var(--neon-cyan);
+            width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer; z-index: 11;
+        }
 
-        /* CHAT SYSTEM */
-        .chat-drawer { position: fixed; bottom: -70%; left: 0; width: 100%; height: 70%; background: var(--bg-dark); z-index: 100; border-top: 2px solid var(--neon-cyan); transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); padding: 15px; display: flex; flex-direction: column; }
-        .chat-open { bottom: 0; }
-        .chat-messages { flex: 1; overflow-y: auto; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px; }
-        .msg { padding: 8px 12px; border-radius: 8px; max-width: 80%; font-size: 13px; line-height: 1.4; }
-        .msg.client { align-self: flex-end; background: var(--neon-cyan); color: #000; }
-        .msg.adv { align-self: flex-start; background: #222; border: 1px solid #444; }
+        /* ========================================================
+           04. BOTTOM ACTION BAR (Besar & Jelas untuk user)
+           ======================================================== */
+        .hud-bottom {
+            position: absolute; bottom: 0; left: 0; width: 100%; z-index: 10;
+            padding: 20px 15px 30px; background: linear-gradient(to top, rgba(0,0,0,0.9) 30%, transparent);
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        }
+        .btn-action {
+            padding: 15px; border-radius: 12px; border: none; font-family: 'Orbitron';
+            font-size: 14px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 10px;
+            cursor: pointer; transition: 0.2s; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .btn-action:active { transform: translateY(2px); }
+        .btn-chat { background: var(--bg-glass); border: 1px solid var(--neon-cyan); color: var(--neon-cyan); }
+        .btn-wa { background: #25D366; color: white; }
+        .btn-finish { grid-column: span 2; background: var(--neon-pink); color: white; padding: 18px; font-size: 16px; box-shadow: 0 0 20px rgba(255,0,234,0.4); }
+        .btn-cancel { grid-column: span 2; background: transparent; border: 1px solid #ff4444; color: #ff4444; padding: 12px; font-size: 12px; }
 
-        /* QUICK CHAT BUTTONS */
-        .quick-chat { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; }
-        .q-btn { background: #1a1a2e; border: 1px solid var(--neon-cyan); color: var(--neon-cyan); padding: 5px 12px; border-radius: 15px; white-space: nowrap; font-size: 11px; }
+        /* ========================================================
+           05. COMMUNICATION DRAWER (CHAT)
+           ======================================================== */
+        .chat-drawer {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: 80vh;
+            background: var(--bg-main); z-index: 1000; border-radius: 25px 25px 0 0;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.8); transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; flex-direction: column; border-top: 2px solid var(--neon-cyan);
+        }
+        .chat-drawer.open { bottom: 0; }
+        
+        .chat-header {
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border-glow); background: var(--bg-glass); border-radius: 25px 25px 0 0;
+        }
+        .chat-title { font-family: 'Orbitron'; font-size: 16px; color: var(--neon-cyan); display: flex; align-items: center; gap: 10px; }
+        .online-dot { width: 10px; height: 10px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 8px #00ff00; }
+        
+        .chat-body { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
+        .msg { max-width: 80%; padding: 12px 16px; border-radius: 18px; font-size: 15px; position: relative; animation: popIn 0.3s ease; line-height: 1.4; }
+        .msg-img { width: 100%; border-radius: 12px; margin-top: 5px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); }
+        .msg-time { font-size: 10px; opacity: 0.6; display: block; text-align: right; margin-top: 6px; font-family: 'Orbitron'; }
+        
+        .msg.client { align-self: flex-end; background: var(--chat-me); color: #000; border-bottom-right-radius: 4px; box-shadow: 0 4px 10px rgba(0, 243, 255, 0.2); }
+        .msg.adv { align-self: flex-start; background: var(--chat-them); color: var(--text-main); border-bottom-left-radius: 4px; }
 
-        /* ACTION BUTTONS */
-        .btn { padding: 12px; border: none; border-radius: 6px; font-weight: bold; font-family: var(--font-mono); cursor: pointer; text-transform: uppercase; }
-        .btn-cancel { background: #331111; color: #ff4444; border: 1px solid #ff4444; }
-        .btn-finish { background: var(--neon-cyan); color: #000; box-shadow: 0 0 15px var(--neon-cyan); }
+        .chat-input-area { padding: 15px; background: var(--bg-glass); display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--border-glow); }
+        .chat-input { flex: 1; background: var(--bg-main); border: 1px solid var(--border-glow); color: var(--text-main); padding: 15px; border-radius: 12px; font-family: 'Rajdhani'; font-size: 15px; outline: none; }
+        .chat-input:focus { border-color: var(--neon-cyan); }
+        .btn-icon { background: none; border: none; color: var(--neon-cyan); font-size: 22px; cursor: pointer; padding: 10px; }
+        .btn-send { background: var(--neon-cyan); color: #000; border: none; padding: 15px; border-radius: 12px; font-size: 18px; cursor: pointer; box-shadow: 0 0 15px rgba(0,243,255,0.3); }
 
-        /* ERROR & LOADING */
-        #error-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #770000; padding: 20px; border: 2px solid red; z-index: 999; display: none; }
+        /* ========================================================
+           06. MODALS & POPUPS (Floating Alerts)
+           ======================================================== */
+        .floating-alert {
+            position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 2000;
+            background: var(--neon-cyan); color: #000; padding: 12px 25px; border-radius: 30px;
+            font-family: 'Orbitron'; font-size: 12px; font-weight: bold; display: none;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); align-items: center; gap: 10px;
+        }
+
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+            z-index: 3000; display: none; align-items: center; justify-content: center; padding: 20px;
+            animation: fadeIn 0.3s;
+        }
+        .modal-box {
+            background: var(--bg-main); border: 1px solid var(--neon-pink); border-radius: 20px;
+            width: 100%; max-width: 360px; padding: 30px 20px; text-align: center;
+            box-shadow: 0 0 40px rgba(255,0,234,0.2); position: relative; overflow: hidden;
+        }
+        .modal-box::before { content:''; position:absolute; top:0; left:0; width:100%; height:4px; background: var(--neon-pink); }
+        
+        .stars-container { margin: 25px 0; display: flex; justify-content: center; gap: 10px; }
+        .stars-container i { font-size: 35px; color: #444; cursor: pointer; transition: 0.2s; }
+        .stars-container i.active { color: var(--neon-gold); text-shadow: 0 0 15px var(--neon-gold); transform: scale(1.1); }
+
+        @keyframes popIn { 0% { opacity: 0; transform: translateY(10px) scale(0.95); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideDownOut { 0% { top: 80px; opacity: 0; } 10% { top: 100px; opacity: 1; } 90% { top: 100px; opacity: 1; } 100% { top: 80px; opacity: 0; } }
+
     </style>
 </head>
 <body>
 
+    <audio id="sfx-msg" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
+    <audio id="sfx-alert" src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3"></audio>
+    <audio id="sfx-success" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
+
+    <div id="float-alert" class="floating-alert"><i class="fa-solid fa-bell"></i> <span id="alert-text">Pesan Baru</span></div>
+    <button class="btn-theme" onclick="toggleTheme()"><i class="fa-solid fa-moon" id="theme-icon"></i></button>
+
     <div id="map"></div>
 
-    <div class="overlay top-info">
-        <div class="adv-card interactive" onclick="toggleAdvProfile()">
-            <img id="adv-pfp" src="https://via.placeholder.com/50" class="adv-img">
-            <div>
-                <div id="adv-name" style="font-weight: bold; font-size: 14px;">MENUNGGU...</div>
-                <div id="adv-rank" style="font-size: 10px; color: var(--neon-cyan);">RANK: -</div>
+    <div class="hud-top">
+        <div class="driver-card" onclick="document.getElementById('modal-adv-detail').style.display='flex'">
+            <div class="avatar-box">
+                <img id="ui-photo" src="https://via.placeholder.com/100" class="avatar-img">
+                <div id="ui-rank" class="rank-badge">RANK -</div>
+            </div>
+            <div class="driver-info">
+                <div id="ui-name" class="driver-name">SINKRONISASI...</div>
+                <div id="ui-vehicle" class="driver-vehicle">Mencari Data Kendaraan</div>
             </div>
             <div class="eta-box">
-                <div id="eta-time" style="color: var(--neon-cyan); font-size: 16px;">-- Menit</div>
-                <div id="eta-dist" style="font-size: 10px; opacity: 0.7;">-- KM</div>
+                <div id="ui-eta" class="eta-time">-- : --</div>
+                <div id="ui-dist" class="eta-dist">Menghitung...</div>
             </div>
         </div>
+    </div>
+
+    <div class="hud-bottom">
+        <button class="btn-action btn-chat" onclick="toggleChat()">
+            <i class="fa-solid fa-message"></i> CHAT <span id="chat-badge" style="background:var(--neon-pink); color:white; padding:2px 6px; border-radius:10px; font-size:10px; display:none;">New</span>
+        </button>
+        <button class="btn-action btn-wa" onclick="openWA()">
+            <i class="fa-brands fa-whatsapp"></i> HUBUNGI
+        </button>
+        <button class="btn-action btn-finish" onclick="openRating()">
+            <i class="fa-solid fa-flag-checkered"></i> MISI SELESAI
+        </button>
+        <button class="btn-action btn-cancel" onclick="confirmCancel()">
+            <i class="fa-solid fa-triangle-exclamation"></i> BATALKAN MISI
+        </button>
     </div>
 
     <div id="chatDrawer" class="chat-drawer">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <span style="font-family: var(--font-mono); color: var(--neon-cyan);">COMMS LINK</span>
-            <button class="q-btn" onclick="toggleChat()">TUTUP</button>
+        <div class="chat-header">
+            <div class="chat-title"><div class="online-dot"></div> COMMS LINK</div>
+            <button onclick="toggleChat()" style="background:none; border:none; color:var(--text-main); font-size:24px; cursor:pointer;"><i class="fa-solid fa-chevron-down"></i></button>
         </div>
         
-        <div class="quick-chat">
-            <button class="q-btn" onclick="sendQuickMsg('Sudah sesuai titik ya?')">Sesuai Titik?</button>
-            <button class="q-btn" onclick="sendQuickMsg('Ditunggu di depan gerbang')">Depan Gerbang</button>
-            <button class="q-btn" onclick="sendQuickMsg('Bawa kembalian?')">Kembalian?</button>
+        <div style="padding: 10px 15px; display:flex; gap:10px; overflow-x:auto; border-bottom:1px solid var(--border-glow); white-space:nowrap;">
+            <button onclick="sendMsg('Sesuai titik koordinat ya.')" style="background:#111; color:var(--neon-cyan); border:1px solid var(--neon-cyan); padding:5px 15px; border-radius:15px; font-size:12px;">📍 Sesuai Titik</button>
+            <button onclick="sendMsg('Saya tunggu di depan.')" style="background:#111; color:var(--neon-cyan); border:1px solid var(--neon-cyan); padding:5px 15px; border-radius:15px; font-size:12px;">🚶‍♂️ Tunggu di Depan</button>
+            <button onclick="sendMsg('Mohon siapkan kembalian.')" style="background:#111; color:var(--neon-cyan); border:1px solid var(--neon-cyan); padding:5px 15px; border-radius:15px; font-size:12px;">💵 Bawa Kembalian</button>
         </div>
 
-        <div class="chat-messages" id="chatLogs"></div>
-
-        <div style="display: flex; gap: 8px;" class="interactive">
-            <button class="q-btn" onclick="triggerImgUpload()">📷</button>
-            <input type="text" id="chatInput" placeholder="Ketik pesan..." style="flex: 1; background: #111; border: 1px solid #333; color: white; padding: 10px; border-radius: 4px;">
-            <button class="btn btn-finish" style="padding: 5px 15px;" onclick="sendManualMsg()">KIRIM</button>
+        <div id="chat-body" class="chat-body">
+            <div style="text-align:center; font-size:11px; color:var(--text-muted); margin:10px 0; font-family:'Orbitron';">--- ENCRYPTED CHANNEL ESTABLISHED ---</div>
         </div>
-    </div>
-
-    <div class="overlay bottom-ui">
-        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <button class="btn interactive" style="flex:1; background: #25d366; color:#fff;" onclick="socialLink('WA')">WHATSAPP</button>
-            <button class="btn interactive" style="flex:1; background: #1a1a2e; color:var(--neon-cyan);" onclick="toggleChat()">BUKA CHAT</button>
-        </div>
-        <div class="control-group">
-            <button class="btn btn-cancel interactive" onclick="confirmAction('CANCEL')">BATAL</button>
-            <button class="btn btn-finish interactive" onclick="confirmAction('FINISH')">SELESAI</button>
+        
+        <div class="chat-input-area">
+            <input type="file" id="img-upload" accept="image/*" style="display: none;" onchange="uploadImage(event)">
+            <button class="btn-icon" onclick="document.getElementById('img-upload').click()"><i class="fa-solid fa-camera"></i></button>
+            <input type="text" id="chat-input" class="chat-input" placeholder="Ketik pesan..." onkeypress="if(event.key === 'Enter') sendManualMsg()">
+            <button class="btn-send" onclick="sendManualMsg()"><i class="fa-solid fa-paper-plane"></i></button>
         </div>
     </div>
 
-    <audio id="snd-msg" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
-    <audio id="snd-alert" src="https://assets.mixkit.co/active_storage/sfx/995/995-preview.mp3"></audio>
+    <div id="modal-rating" class="modal-overlay">
+        <div class="modal-box">
+            <h2 style="font-family:'Orbitron'; color:var(--neon-gold); margin-bottom:10px;">QUEST CLEARED!</h2>
+            <p style="font-size:14px; color:var(--text-muted);">Bagaimana performa Adventurer ini? Reputasi Guild bergantung pada penilaian Anda.</p>
+            
+            <div class="stars-container" id="star-box">
+                <i class="fa-solid fa-star" onclick="setStar(1)"></i>
+                <i class="fa-solid fa-star" onclick="setStar(2)"></i>
+                <i class="fa-solid fa-star" onclick="setStar(3)"></i>
+                <i class="fa-solid fa-star" onclick="setStar(4)"></i>
+                <i class="fa-solid fa-star" onclick="setStar(5)"></i>
+            </div>
+            
+            <button onclick="processFinish()" style="width:100%; padding:15px; border-radius:12px; background:var(--neon-pink); color:white; border:none; font-family:'Orbitron'; font-weight:bold; font-size:16px; cursor:pointer; box-shadow: 0 5px 15px rgba(255,0,234,0.3);">KONFIRMASI SELESAI</button>
+            <button onclick="document.getElementById('modal-rating').style.display='none'" style="width:100%; padding:15px; background:none; color:var(--text-muted); border:none; font-weight:bold; cursor:pointer; margin-top:5px;">BATAL</button>
+        </div>
+    </div>
+
+    <div id="modal-cancel" class="modal-overlay">
+        <div class="modal-box" style="border-color:#ff4444;">
+            <h2 style="font-family:'Orbitron'; color:#ff4444; margin-bottom:10px;">PERINGATAN SISTEM</h2>
+            <p style="font-size:14px; color:var(--text-muted); margin-bottom:20px;">Membatalkan misi saat Adventurer sedang menuju lokasi dapat mengurangi Reputasi Akun Anda. Lanjutkan?</p>
+            
+            <button onclick="processCancel()" style="width:100%; padding:15px; border-radius:12px; background:#ff4444; color:white; border:none; font-family:'Orbitron'; font-weight:bold; cursor:pointer;">YA, HANCURKAN KONTRAK</button>
+            <button onclick="document.getElementById('modal-cancel').style.display='none'" style="width:100%; padding:15px; background:none; color:var(--text-main); border:none; font-weight:bold; cursor:pointer; margin-top:5px;">KEMBALI</button>
+        </div>
+    </div>
 
     <script>
-        // INIT DATA FROM LOCALSTORAGE
-        const questId = localStorage.getItem('active_quest_id');
-        const node = localStorage.getItem('active_server_node');
-        let map, driverMarker, clientMarker;
-        let isChatOpen = false;
-
-        // FIREBASE SETUP (Using your existing config)
+        // ========================================================
+        // 01. FIREBASE CONFIGURATION & INIT
+        // ========================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        function initApp() {
-            // Anti-Back Logic
-            history.pushState(null, null, location.href);
-            window.onpopstate = () => history.go(1);
+        // Ambil Data dari LocalStorage (Double-Write Architecture Support)
+        const questId = localStorage.getItem('active_quest_id');
+        const serverNode = localStorage.getItem('active_server_node');
+        
+        let driverData = null;
+        let map, driverMarker, routeLine;
+        let pickupCoords = null;
+        let selectedStar = 5;
+        let isDrawerOpen = false;
 
-            // Auto-Finish on Close Logic
-            window.addEventListener('beforeunload', () => {
-                // Notifikasi ke driver lewat DB sebelum window mati
-                db.ref(`database_regional/${node}/tracking/${questId}/client_status`).set('OFFLINE');
-            });
-
+        // ========================================================
+        // 02. CORE INITIALIZATION
+        // ========================================================
+        window.onload = () => {
+            if (!questId || !serverNode) {
+                alert("Sesi misi tidak valid.");
+                window.location.replace('index.html');
+                return;
+            }
+            initTheme();
             initMap();
-            listenToTracking();
-            listenToChats();
+            loadMissionData();
+            listenToChat();
+        };
+
+        function initTheme() {
+            if(localStorage.getItem('theme') === 'light') toggleTheme();
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isLight = html.getAttribute('data-theme') === 'dark';
+            html.setAttribute('data-theme', isLight ? 'light' : 'dark');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            document.getElementById('theme-icon').className = isLight ? "fa-solid fa-sun" : "fa-solid fa-moon";
+            
+            // Ubah layer peta (menggunakan trik filter CSS, jadi tidak perlu load ulang tile)
         }
 
         function initMap() {
-            map = L.map('map', { zoomControl: false }).setView([-6.97, 108.48], 15);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-6.9585, 108.5096], 15);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-            // Icon Custom (Cyberpunk Style)
-            const driverIcon = L.divIcon({
-                className: 'custom-div-icon',
-                html: "<div style='background: #ff00ff; width:15px; height:15px; border-radius:50%; box-shadow: 0 0 10px #ff00ff;'></div>",
-                iconSize: [15, 15]
-            });
-
-            driverMarker = L.marker([0,0], {icon: driverIcon}).addTo(map);
+            // Icon Custom
+            const dIcon = L.divIcon({ className: 'driver-ping', iconSize: [20,20] });
+            driverMarker = L.marker([0,0], {icon: dIcon}).addTo(map);
+            
+            // Garis Tracker
+            routeLine = L.polyline([], {color: '#00f3ff', weight: 4, dashArray: '10, 10', opacity: 0.8}).addTo(map);
         }
 
-        function listenToTracking() {
-            const trackRef = db.ref(`database_regional/${node}/tracking/${questId}`);
-            trackRef.on('value', (snap) => {
+        // ========================================================
+        // 03. REALTIME DATA TRACKING
+        // ========================================================
+        function loadMissionData() {
+            const missionRef = db.ref(`database_regional/${serverNode}/missions/${questId}`);
+            
+            missionRef.on('value', snap => {
                 const data = snap.val();
-                if(!data) return;
+                if (!data) return;
 
-                // Update Marker Position
-                const pos = [data.lat, data.lng];
-                driverMarker.setLatLng(pos);
-                map.panTo(pos);
+                // Set Titik Jemput
+                if (data.route && data.route.lat && data.route.lng && !pickupCoords) {
+                    pickupCoords = [data.route.lat, data.route.lng];
+                    L.marker(pickupCoords, {icon: L.divIcon({className:'', html:'<div style="font-size:30px; filter:drop-shadow(0 0 10px #00ffff);">📍</div>', iconSize:[30,30]})}).addTo(map);
+                    map.setView(pickupCoords, 15);
+                }
 
-                // Update ETA & Distance (Simulasi)
-                document.getElementById('eta-time').innerText = data.eta || "5 Min";
-                document.getElementById('eta-dist').innerText = data.distance || "1.2 KM";
-                
-                // Update Info Singkat Adventurer
-                document.getElementById('adv-name').innerText = data.adv_name || "ADVENTURER";
-                document.getElementById('adv-rank').innerText = "RANK: " + (data.adv_rank || "D");
+                // Ambil Data Driver Terpilih
+                if (data.rpgSystem && data.rpgSystem.adventurer) {
+                    const advName = data.rpgSystem.adventurer;
+                    // Simulasi: Jika ada database user khusus, ambil dari sana. Di sini kita render dari nama.
+                    document.getElementById('ui-name').innerText = advName.toUpperCase();
+                    driverData = { name: advName, phone: data.rpgSystem.driverPhone || "628000000000" };
+                }
+
+                // Tracking Lokasi Live (Asumsi driver push koordinat ke node tracking)
+                db.ref(`database_regional/${serverNode}/tracking/${questId}`).on('value', tSnap => {
+                    const track = tSnap.val();
+                    if(track && track.lat && track.lng) {
+                        const dPos = [track.lat, track.lng];
+                        driverMarker.setLatLng(dPos);
+                        
+                        if(pickupCoords) {
+                            routeLine.setLatLngs([pickupCoords, dPos]);
+                            const dist = map.distance(pickupCoords, dPos);
+                            document.getElementById('ui-dist').innerText = dist > 1000 ? (dist/1000).toFixed(1) + ' KM' : Math.round(dist) + ' M';
+                            
+                            // Hitung ETA kasar (Asumsi kecepatan 30km/jam -> 500m / menit)
+                            const menit = Math.max(1, Math.round(dist / 500));
+                            document.getElementById('ui-eta').innerText = menit + " MIN";
+                        }
+                    }
+                });
             });
         }
 
-        function listenToChats() {
-            const chatRef = db.ref(`database_regional/${node}/chats/${questId}`).limitToLast(20);
-            chatRef.on('child_added', (snap) => {
-                const msg = snap.val();
-                displayMessage(msg);
-                if(msg.sender === 'adv') document.getElementById('snd-msg').play();
+        // ========================================================
+        // 04. CHAT & COMMUNICATION SYSTEM
+        // ========================================================
+        let initialChatLoad = true;
+        
+        function listenToChat() {
+            db.ref(`database_regional/${serverNode}/chats/${questId}`).on('child_added', snap => {
+                const chat = snap.val();
+                renderMsg(chat);
+
+                if (!initialChatLoad && chat.sender !== 'client') {
+                    document.getElementById('sfx-msg').play();
+                    if (!isDrawerOpen) {
+                        showFloatingAlert("Pesan Baru Masuk!");
+                        document.getElementById('chat-badge').style.display = 'inline-block';
+                    }
+                }
             });
+            // Beri jeda agar load awal tidak bunyi notifikasi
+            setTimeout(() => { initialChatLoad = false; }, 1000);
         }
 
-        function displayMessage(msg) {
-            const container = document.getElementById('chatLogs');
-            const div = document.createElement('div');
-            div.className = `msg ${msg.sender === 'client' ? 'client' : 'adv'}`;
-            div.innerText = msg.text;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
+        function renderMsg(chat) {
+            const box = document.getElementById('chat-body');
+            const isMe = chat.sender === 'client';
+            const time = new Date(chat.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            let content = chat.type === 'image' 
+                ? `<img src="${chat.msg}" class="msg-img" onclick="window.open(this.src)">` 
+                : chat.msg;
+            
+            box.innerHTML += `
+                <div class="msg ${isMe ? 'client' : 'adv'}">
+                    ${content}
+                    <span class="msg-time">${time}</span>
+                </div>
+            `;
+            box.scrollTop = box.scrollHeight;
         }
 
         function toggleChat() {
-            isChatOpen = !isChatOpen;
-            document.getElementById('chatDrawer').classList.toggle('chat-open', isChatOpen);
+            isDrawerOpen = !isDrawerOpen;
+            document.getElementById('chatDrawer').classList.toggle('open');
+            document.getElementById('chat-badge').style.display = 'none';
         }
 
         function sendManualMsg() {
-            const input = document.getElementById('chatInput');
-            if(!input.value) return;
-            sendMsg(input.value);
+            const input = document.getElementById('chat-input');
+            if(!input.value.trim()) return;
+            sendMsg(input.value.trim());
             input.value = "";
         }
 
-        function sendMsg(text) {
-            db.ref(`database_regional/${node}/chats/${questId}`).push({
-                sender: 'client',
-                text: text,
-                timestamp: Date.now()
+        function sendMsg(text, type='text') {
+            db.ref(`database_regional/${serverNode}/chats/${questId}`).push({
+                sender: 'client', msg: text, type: type, timestamp: Date.now()
             });
         }
 
-        function confirmAction(type) {
-            document.getElementById('snd-alert').play();
-            if(type === 'CANCEL') {
-                if(confirm("Batalkan Misi? Reputasi Anda akan dikurangi.")) {
-                    db.ref(`database_regional/${node}/missions/${questId}`).update({ status: 'CANCELLED_BY_CLIENT' });
-                    window.location.replace('dashboard.html');
-                }
+        function uploadImage(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => sendMsg(ev.target.result, 'image');
+            reader.readAsDataURL(file);
+        }
+
+        function showFloatingAlert(text) {
+            const alertBox = document.getElementById('float-alert');
+            document.getElementById('alert-text').innerText = text;
+            alertBox.style.display = 'flex';
+            alertBox.style.animation = 'slideDownOut 4s forwards';
+            setTimeout(() => { alertBox.style.display = 'none'; }, 4000);
+        }
+
+        function openWA() {
+            if(driverData && driverData.phone) {
+                window.open(`https://wa.me/${driverData.phone}?text=Halo, saya menunggu di lokasi untuk quest ${questId}.`);
             } else {
-                // Tampilkan Modal Rating/Ulasan (Bisa dibuat halaman terpisah atau overlay)
-                const rating = prompt("Misi Selesai! Beri Rating (1-5):", "5");
-                db.ref(`database_regional/${node}/missions/${questId}`).update({ status: 'COMPLETED', rating: rating });
-                alert("Quest Clear! Reward telah dikirim ke Adventurer.");
-                window.location.replace('dashboard.html');
+                alert("Nomor Adventurer belum tersinkronisasi.");
             }
         }
 
-        function socialLink(platform) {
-            // Logika P2P: Ambil nomor dari database adventurer
-            alert("Membuka " + platform + " Adventurer...");
-            // window.open('https://wa.me/....');
+        // ========================================================
+        // 05. CORE ACTION: DOUBLE-DELETE LOGIC (FINISH & CANCEL)
+        // ========================================================
+        
+        function openRating() { 
+            document.getElementById('modal-rating').style.display = 'flex'; 
+            setStar(5); 
+        }
+        
+        function setStar(val) {
+            selectedStar = val;
+            const stars = document.getElementById('star-box').children;
+            for(let i=0; i<5; i++) {
+                stars[i].className = i < val ? "fa-solid fa-star active" : "fa-solid fa-star";
+            }
         }
 
-        window.onload = initApp;
+        function confirmCancel() {
+            document.getElementById('sfx-alert').play();
+            document.getElementById('modal-cancel').style.display = 'flex';
+        }
+
+        // FUNGSI UTAMA PEMBERSIHAN DATA (CLEANING SERVICE)
+        async function executeDoubleDelete(finalStatus) {
+            const updates = {};
+            
+            // 1. Opsi Backup Log (Mencegah kehilangan history transaksi sebelum dihapus)
+            // Anda bisa menambahkan logika di sini untuk memindah data ke path arsip/log
+            
+            // 2. Hancurkan Data dari Papan Pusat (Mencegah Ghost Order)
+            updates[`board_central/active_quests/${questId}`] = null;
+            
+            // 3. Hancurkan Data dari Database Wilayah (Menjaga Limit & Storage)
+            updates[`database_regional/${serverNode}/missions/${questId}`] = null;
+            
+            // *Hapus juga tracking & chat agar database benar-benar bersih
+            updates[`database_regional/${serverNode}/tracking/${questId}`] = null;
+            updates[`database_regional/${serverNode}/chats/${questId}`] = null;
+
+            try {
+                await db.ref().update(updates);
+                localStorage.removeItem('active_quest_id'); // Clear session
+                
+                if(finalStatus === 'DONE') {
+                    document.getElementById('sfx-success').play();
+                    alert("QUEST CLEARED! EXP dan Reward telah dikirim. Terima kasih.");
+                } else {
+                    alert("Misi Dibatalkan. Kontrak telah dihancurkan dari database.");
+                }
+                window.location.replace('index.html'); // Kembali ke beranda
+            } catch (err) {
+                alert("SYSTEM ERROR: Gagal membersihkan data server. " + err.message);
+            }
+        }
+
+        function processFinish() { executeDoubleDelete('DONE'); }
+        function processCancel() { executeDoubleDelete('CANCEL'); }
+
     </script>
 </body>
 </html>
