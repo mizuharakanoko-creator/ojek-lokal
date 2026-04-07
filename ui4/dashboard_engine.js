@@ -30,6 +30,28 @@ const Engine = {
         this.listenToQuests();
     },
 
+    // Tambahkan di dalam Engine.init() atau window.onload
+async checkUnfinishedMission() {
+    const abandonedQuestId = localStorage.getItem('active_mission_id');
+    
+    if (abandonedQuestId) {
+        console.warn("Misi terputus terdeteksi. Memulai prosedur pembersihan...");
+        
+        // Opsi A: Paksa user kembali ke halaman misi (Recovery)
+        // window.location.href = `active_mission.html?id=${abandonedQuestId}`;
+
+        // Opsi B: Anggap selesai/gagal dan bersihkan (Auto-Clearance)
+        alert("Sistem mendeteksi misi yang belum selesai. Jalur sinyal telah dibersihkan otomatis.");
+        localStorage.removeItem('active_mission_id');
+        
+        // Sinkronisasi ke DB bahwa user sudah tidak di misi lagi
+        await this.db.ref(`identity_adventurer/${this.session.shard}/${this.session.id}/current_quest_id`).set(null);
+        
+        window.location.reload(); // Refresh untuk memastikan state bersih
+    }
+}
+
+
     // --- SECURITY & UTILS ---
     applyIronWall() {
         document.addEventListener('contextmenu', e => e.preventDefault());
