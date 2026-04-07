@@ -122,7 +122,7 @@ const HubEngine = {
 
             // 4. Redirect Requester ke Halaman Active Mission
             setTimeout(() => {
-                window.location.href = `active_mission_requester.html?id=${this.questId}`;
+                window.location.href = `active_mission.html?id=${this.questId}`;
             }, 1500);
 
         } catch(e) { alert("Error saat menetapkan misi!"); }
