@@ -3,155 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GUILD MISSION BOARD</title>
+    <title>GUILD - MISSION BOARD</title>
     <link rel="stylesheet" href="guild_style.css">
+    <style>
+        .online-tag { font-size: 10px; color: var(--neon); border: 1px solid var(--neon); padding: 2px 5px; border-radius: 3px; }
+        .reward-tag { color: var(--gold); font-weight: bold; }
+    </style>
 </head>
 <body>
     <div class="container">
         <h2 class="title">/// MISSION BOARD ///</h2>
-        <div id="boardBox"></div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <span id="uLocation" style="font-size: 12px; color: #666;">📍 Memuat Lokasi...</span>
+            <span class="online-tag">SIGNAL: ACTIVE</span>
+        </div>
+
+        <div id="boardContainer">
+            <p style="text-align:center; color:#333;">Mencari kontrak di wilayah ini...</p>
+        </div>
+
+        <button class="btn" style="margin-top:20px; border-color:#333; color:#555;" onclick="location.href='profile.html'">KEMBALI KE PROFIL</button>
     </div>
 
     <script>
-
-        // Simulasi Koordinat (Bisa diganti navigator.geolocation nanti)
-const myLat = -6.2000 + (Math.random() * 0.01); 
-const myLng = 106.8166 + (Math.random() * 0.01);
-
-function updateMyLocation() {
-    let locals = JSON.parse(localStorage.getItem('active_locations') || '{}');
-    locals[user.id] = {
-        id: user.id,
-        name: user.name,
-        lat: myLat,
-        lng: myLng,
-        lastSeen: Date.now()
-    };
-    localStorage.setItem('active_locations', JSON.stringify(locals));
-}
-setInterval(updateMyLocation, 5000); // Lapor lokasi tiap 5 detik
-
-
-        
         const user = JSON.parse(localStorage.getItem('guild_session'));
         if(!user || user.role !== 'adventurer') window.location.href = 'index.html';
 
+        document.getElementById('uLocation').innerText = "📍 Wilayah: " + user.shard;
+
+        // 1. FUNGSI HEARTBEAT (Melapor ke Radar Requester)
+        function sendHeartbeat() {
+            let locations = JSON.parse(localStorage.getItem('active_locations') || '{}');
+            locations[user.id] = {
+                id: user.id,
+                name: user.name,
+                shard: user.shard,
+                rating: user.rating,
+                successRate: user.successRate,
+                lastSeen: Date.now()
+            };
+            localStorage.setItem('active_locations', JSON.stringify(locations));
+        }
+
+        // 2. FUNGSI MONITOR UNDANGAN (Direct Invite)
+        function checkInvites() {
+            let invites = JSON.parse(localStorage.getItem('global_invites') || '[]');
+            const myInvite = invites.find(inv => inv.toId === user.id && inv.status === "PENDING");
+
+            if(myInvite) {
+                if(confirm(`[UNDANGAN KHUSUS]\n\nRequester ${myInvite.from} mengundang Anda secara pribadi.\n\nTerima Tantangan?`)) {
+                    myInvite.status = "ACCEPTED";
+                    localStorage.setItem('global_invites', JSON.stringify(invites));
+                    // Logika: Jika diterima, arahkan ke My Mission List si pengundang (atau briefing jika sudah diproses)
+                    alert("Segera temui Requester!");
+                } else {
+                    myInvite.status = "REJECTED";
+                    localStorage.setItem('global_invites', JSON.stringify(invites));
+                }
+            }
+        }
+
+        // 3. FUNGSI RENDER BOARD (Filter Shard)
         function renderBoard() {
             const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
             
-            // 1. CEK NOTIFIKASI TERPILIH (Auto-Teleport)
-            const chosen = missions.find(m => m.acceptedAdv === user.id && m.status === "ACTIVE");
-            if(chosen) {
-                alert("!!! PERINGATAN: KONTRAK ANDA DISETUJUI !!!");
-                window.location.href = "briefing.html?id=" + chosen.id;
+            // CEK APAKAH SAYA SUDAH DISETUJUI DI SUATU MISI (Auto Redirect)
+            const acceptedMsn = missions.find(m => m.acceptedAdv === user.id && m.status === "ACTIVE");
+            if(acceptedMsn) {
+                window.location.href = "briefing.html?id=" + acceptedMsn.id;
                 return;
             }
 
-            // 2. TAMPILKAN DAFTAR MISI
-            const openMissions = missions.filter(m => m.status === "OPEN");
-            const box = document.getElementById('boardBox');
+            // FILTER: Tampilkan hanya misi OPEN di Shard yang sama
+            const available = missions.filter(m => m.status === "OPEN" && m.shard === user.shard);
+            const container = document.getElementById('boardContainer');
 
-            if(openMissions.length === 0) {
-                box.innerHTML = "<p style='text-align:center; color:#444;'>Papan misi kosong...</p>";
+            if(available.length === 0) {
+                container.innerHTML = "<p style='text-align:center; color:#444;'>Tidak ada kontrak terbuka di Shard ini.</p>";
                 return;
             }
 
-            let html = "";
-            openMissions.forEach(m => {
-                const isApplied = m.applicants.some(a => a.id === user.id);
-                html += `
+            container.innerHTML = available.map(m => {
+                const hasApplied = m.applicants.some(a => a.id === user.id);
+                return `
                     <div class="card">
-                        <div class="badge">REWARD: ${m.reward} STONE</div>
+                        <div class="badge">REQ: ${m.requesterName}</div>
                         <h3 style="margin:5px 0; color:var(--neon);">${m.title}</h3>
-                        <p style="font-size:11px; color:#666;">Requester: ${m.requesterName}</p>
-                        <button class="btn" onclick="apply('${m.id}')" ${isApplied ? 'disabled' : ''}>
-                            ${isApplied ? 'MENUNGGU KONFIRMASI' : 'AMBIL KONTRAK'}
-                        </button>
+                        <p style="font-size:11px; color:#777; margin-bottom:10px;">${m.desc || 'Tanpa deskripsi tambahan.'}</p>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span class="reward-tag">${m.reward} STONE</span>
+                            <button class="btn" style="width:auto; padding:8px 15px; font-size:11px;" 
+                                onclick="apply('${m.id}')" ${hasApplied ? 'disabled' : ''}>
+                                ${hasApplied ? 'MENUNGGU...' : 'LAMAR MISI'}
+                            </button>
+                        </div>
                     </div>
                 `;
-            });
-            box.innerHTML = html;
+            }).join('');
         }
 
         function apply(msnId) {
-            let missions = JSON.parse(localStorage.getItem('global_missions'));
+            let missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
             let m = missions.find(x => x.id === msnId);
-            m.applicants.push({ id: user.id, name: user.name });
+            
+            // Masukkan profil saya ke daftar pelamar misi tersebut
+            m.applicants.push({ 
+                id: user.id, 
+                name: user.name, 
+                rating: user.rating.toFixed(1) 
+            });
+            
             localStorage.setItem('global_missions', JSON.stringify(missions));
-            alert("Lamaran dikirim ke Requester!");
+            alert("Lamaran terkirim!");
             renderBoard();
         }
 
-        function checkInvites() {
-    let invites = JSON.parse(localStorage.getItem('global_invites') || '[]');
-    // Cari undangan untuk saya yang belum dijawab
-    const myInvite = invites.find(inv => inv.toId === user.id && inv.status === "PENDING");
+        // Jalankan sistem secara berkala
+        setInterval(() => {
+            sendHeartbeat();
+            checkInvites();
+            renderBoard();
+        }, 2000);
 
-    if(myInvite) {
-        if(confirm(`[UNDANGAN GUILD]\n\n${myInvite.from} mengundang Anda.\nTerima tawaran ini?`)) {
-            // Logika jika diterima: Arahkan ke Post Mission milik si pengundang
-            myInvite.status = "ACCEPTED";
-            localStorage.setItem('global_invites', JSON.stringify(invites));
-            alert("Menuju lokasi Requester...");
-        } else {
-            myInvite.status = "REJECTED";
-            localStorage.setItem('global_invites', JSON.stringify(invites));
-        }
-    }
-}
-setInterval(checkInvites, 4000);
-
-
-        // --- LOGIKA HEARTBEAT ---
-function updateHeartbeat() {
-    let locations = JSON.parse(localStorage.getItem('active_locations') || '{}');
-    
-    // Kirim sinyal aktif saya
-    locations[user.id] = {
-        id: user.id,
-        name: user.name,
-        lat: -6.2, // Koordinat simulasi
-        lng: 106.8,
-        lastSeen: Date.now() 
-    };
-
-    // Bersihkan User Hantu (yang tidak lapor lebih dari 30 detik)
-    const now = Date.now();
-    for (let id in locations) {
-        if (now - locations[id].lastSeen > 30000) {
-            delete locations[id];
-        }
-    }
-    localStorage.setItem('active_locations', JSON.stringify(locations));
-}
-
-// --- LOGIKA LIMIT SATU MISI ---
-function checkMissionLimit() {
-    const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
-    // Cari apakah saya punya misi yang statusnya sedang berjalan (bukan OPEN atau COMPLETED)
-    const imBusy = missions.find(m => 
-        m.acceptedAdv === user.id && 
-        (m.status === "ACTIVE" || m.status === "ON_PROGRESS" || m.status === "WAITING_CONFIRM")
-    );
-
-    const btnAmbil = document.querySelectorAll('.btn-ambil'); // Asumsi tombol ambil punya class ini
-    if (imBusy) {
-        btnAmbil.forEach(b => {
-            b.disabled = true;
-            b.innerText = "ANDA SEDANG DALAM MISI";
-        });
-    }
-}
-
-setInterval(() => {
-    updateHeartbeat();
-    checkMissionLimit();
-}, 2000);
-
-
-
-        setInterval(renderBoard, 1500);
         renderBoard();
+        sendHeartbeat();
     </script>
 </body>
 </html>
