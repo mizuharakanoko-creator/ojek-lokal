@@ -31,42 +31,50 @@
         const urlParams = new URLSearchParams(window.location.search);
         const questId = urlParams.get('id');
 
+        
         function updateMission() {
-            const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
-            const m = missions.find(x => x.id === questId);
-            if(!m) return;
+    const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
+    const m = missions.find(x => x.id === questId);
+    if(!m) return;
 
-            document.getElementById('mTitle').innerText = m.title;
-            const area = document.getElementById('controlArea');
+    const area = document.getElementById('controlArea');
 
-            if(m.status === "ON_PROGRESS") {
-                if(user.role === 'adventurer') {
-                    area.innerHTML = `<button class="btn" onclick="setStatus('WAITING_CONFIRM')">LAPORKAN SELESAI</button>`;
-                } else {
-                    area.innerHTML = `<p style="text-align:center; color:#555;">Adventurer sedang bertugas...</p>`;
-                }
-            } else if(m.status === "WAITING_CONFIRM") {
-                if(user.role === 'requester') {
-                    area.innerHTML = `
-                        <p style="text-align:center; color:var(--gold); font-size:12px;">Adventurer sudah melapor. Selesaikan?</p>
-                        <button class="btn" onclick="finishMission()">KONFIRMASI SELESAI (BAYAR)</button>
-                    `;
-                } else {
-                    area.innerHTML = `<p style="text-align:center; color:var(--neon);">Menunggu konfirmasi Requester...</p>`;
-                }
-            } else if(m.status === "COMPLETED") {
-                // Jika sudah selesai, arahkan ke tahap akhir: RATING
-                window.location.href = "rating.html?id=" + questId;
-            }
-            renderChat();
+    // LOGIKA SINKRONISASI STATUS
+    if(m.status === "ON_PROGRESS") {
+        if(user.role === 'adventurer') {
+            area.innerHTML = `<button class="btn" onclick="changeStatus('WAITING_CONFIRM')">LAPORKAN SELESAI</button>`;
+        } else {
+            area.innerHTML = `<p style="text-align:center; color:#555;">Adventurer sedang bekerja...</p>`;
         }
-
-        function setStatus(newStatus) {
-            let missions = JSON.parse(localStorage.getItem('global_missions'));
-            let m = missions.find(x => x.id === questId);
-            m.status = newStatus;
-            localStorage.setItem('global_missions', JSON.stringify(missions));
+    } 
+    else if(m.status === "WAITING_CONFIRM") {
+        if(user.role === 'requester') {
+            area.innerHTML = `
+                <p style="text-align:center; color:var(--gold);">Adventurer melapor selesai. Konfirmasi?</p>
+                <button class="btn" onclick="changeStatus('COMPLETED')">TERIMA & BAYAR</button>
+            `;
+        } else {
+            area.innerHTML = `<p style="text-align:center; color:var(--neon);">Menunggu konfirmasi Requester...</p>`;
         }
+    }
+    else if(m.status === "COMPLETED") {
+        // Jika sudah selesai, kedua pihak pindah ke halaman Rating
+        window.location.href = "rating.html?id=" + questId;
+    }
+
+    renderChat(); // Update chat secara real-time
+}
+
+function changeStatus(newStatus) {
+    let missions = JSON.parse(localStorage.getItem('global_missions'));
+    let m = missions.find(x => x.id === questId);
+    m.status = newStatus;
+    localStorage.setItem('global_missions', JSON.stringify(missions));
+}
+
+// JALANKAN SETIAP 1 DETIK
+setInterval(updateMission, 1000);
+
 
         function finishMission() {
             setStatus('COMPLETED');
