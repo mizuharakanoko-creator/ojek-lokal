@@ -1,79 +1,69 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-    <title>GUILD BOARD</title>
-    <style>
-        body { background: #000; color: #ffcc00; font-family: monospace; padding: 20px; }
-        .quest-card { border: 1px solid #ffcc00; padding: 15px; margin-bottom: 10px; max-width: 400px; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GUILD MISSION BOARD</title>
+    <link rel="stylesheet" href="guild_style.css">
 </head>
 <body>
-    <h3>GUILD MISSION BOARD</h3>
-    <div id="boardBox">Memuat pengumuman...</div>
+    <div class="container">
+        <h2 class="title">/// MISSION BOARD ///</h2>
+        <div id="boardBox"></div>
+    </div>
 
     <script>
-    // Ambil data user yang login
-    const user = JSON.parse(localStorage.getItem('guild_session'));
-    if(!user) window.location.href = 'index.html';
+        const user = JSON.parse(localStorage.getItem('guild_session'));
+        if(!user || user.role !== 'adventurer') window.location.href = 'index.html';
 
-    function renderBoard() {
-        // Ambil data misi dari storage global
-        const rawMissions = localStorage.getItem('global_missions');
-        const missions = JSON.parse(rawMissions || '[]');
-        
-        // Filter hanya misi yang statusnya "OPEN"
-        const openMissions = missions.filter(m => m.status === "OPEN");
-        
-        const boardBox = document.getElementById('boardBox');
-        
-        if (openMissions.length === 0) {
-            boardBox.innerHTML = "<p style='color:#444'>[ CS GUILD: Belum ada kontrak masuk... ]</p>";
-            return;
-        }
-
-        let html = "";
-        openMissions.forEach(m => {
-            // Cek apakah kita sudah melamar misi ini
-            const isApplied = m.applicants.some(a => a.id === user.id);
+        function renderBoard() {
+            const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
             
-            html += `
-                <div class="quest-card">
-                    <b style="color:#fff">${m.title}</b><br>
-                    <small>ID: ${m.id}</small><br>
-                    <span style="color:#0f0">${m.reward} STONE</span><br>
-                    <button onclick="apply('${m.id}')" ${isApplied ? 'disabled' : ''}>
-                        ${isApplied ? 'SUDAH DILAMAR' : 'AMBIL KONTRAK'}
-                    </button>
-                </div>
-            `;
-        });
-        boardBox.innerHTML = html;
+            // 1. CEK NOTIFIKASI TERPILIH (Auto-Teleport)
+            const chosen = missions.find(m => m.acceptedAdv === user.id && m.status === "ACTIVE");
+            if(chosen) {
+                alert("!!! PERINGATAN: KONTRAK ANDA DISETUJUI !!!");
+                window.location.href = "briefing.html?id=" + chosen.id;
+                return;
+            }
 
-        // FITUR AUTO-REDIRECT: Jika terpilih oleh Requester
-        const myActiveMission = missions.find(m => m.acceptedAdventurer === user.id && m.status === "ACTIVE");
-        if(myActiveMission) {
-            alert("KONTRAK DISETUJUI! Masuk ke Briefing...");
-            window.location.href = "briefing.html?id=" + myActiveMission.id;
+            // 2. TAMPILKAN DAFTAR MISI
+            const openMissions = missions.filter(m => m.status === "OPEN");
+            const box = document.getElementById('boardBox');
+
+            if(openMissions.length === 0) {
+                box.innerHTML = "<p style='text-align:center; color:#444;'>Papan misi kosong...</p>";
+                return;
+            }
+
+            let html = "";
+            openMissions.forEach(m => {
+                const isApplied = m.applicants.some(a => a.id === user.id);
+                html += `
+                    <div class="card">
+                        <div class="badge">REWARD: ${m.reward} STONE</div>
+                        <h3 style="margin:5px 0; color:var(--neon);">${m.title}</h3>
+                        <p style="font-size:11px; color:#666;">Requester: ${m.requesterName}</p>
+                        <button class="btn" onclick="apply('${m.id}')" ${isApplied ? 'disabled' : ''}>
+                            ${isApplied ? 'MENUNGGU KONFIRMASI' : 'AMBIL KONTRAK'}
+                        </button>
+                    </div>
+                `;
+            });
+            box.innerHTML = html;
         }
-    }
 
-    function apply(msnId) {
-        let missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
-        let mIndex = missions.findIndex(m => m.id === msnId);
-        
-        if(mIndex !== -1) {
-            // Tambahkan data kita ke daftar pelamar di misi tersebut
-            missions[mIndex].applicants.push({ id: user.id, name: user.name });
+        function apply(msnId) {
+            let missions = JSON.parse(localStorage.getItem('global_missions'));
+            let m = missions.find(x => x.id === msnId);
+            m.applicants.push({ id: user.id, name: user.name });
             localStorage.setItem('global_missions', JSON.stringify(missions));
-            alert("Lamaran dicatat oleh CS Guild!");
-            renderBoard(); // Update tampilan tombol
+            alert("Lamaran dikirim ke Requester!");
+            renderBoard();
         }
-    }
 
-    // Jalankan pengecekan setiap 1 detik (Simulasi Realtime)
-    setInterval(renderBoard, 1000);
-    renderBoard(); // Jalankan sekali saat start
-</script>
-
+        setInterval(renderBoard, 1500);
+        renderBoard();
+    </script>
 </body>
 </html>
