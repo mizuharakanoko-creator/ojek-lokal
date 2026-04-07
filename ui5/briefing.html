@@ -3,72 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MISSION BRIEFING</title>
+    <title>GUILD - BRIEFING ROOM</title>
     <link rel="stylesheet" href="guild_style.css">
     <style>
-        .stamp {
-            position: absolute;
-            right: 10px;
-            bottom: 10px;
-            border: 2px solid var(--danger);
-            color: var(--danger);
-            padding: 5px;
-            font-weight: bold;
-            transform: rotate(-15deg);
-            opacity: 0.8;
-            font-size: 12px;
-        }
-        .line-item {
-            display: flex;
-            justify-content: space-between;
-            border-bottom: 1px solid #222;
-            padding: 8px 0;
-            font-size: 13px;
-        }
-        .label { color: #666; }
-        .value { color: var(--gold); font-weight: bold; }
+        .doc-paper { background: #111; border: 1px dashed #444; padding: 20px; font-family: 'Courier New', Courier, monospace; line-height: 1.6; position: relative; }
+        .seal { position: absolute; bottom: 20px; right: 20px; border: 2px double var(--gold); color: var(--gold); padding: 5px; transform: rotate(-15deg); opacity: 0.5; font-weight: bold; display: none; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2 class="title">/// MISSION BRIEFING ///</h2>
+        <h2 class="title">/// CONTRACT BRIEFING ///</h2>
         
-        <div class="card" id="contractDoc">
-            <div class="badge">OFFICIAL CONTRACT</div>
-            <h3 style="color: var(--neon); margin: 10px 0;" id="txtTitle">MEMUAT DATA...</h3>
+        <div class="doc-paper">
+            <h3 id="mTitle" style="color:var(--gold); margin-top:0;">...</h3>
+            <p style="font-size:12px;">CONTRACT ID: <span id="mId">-</span></p>
+            <hr style="border:0; border-top:1px solid #333;">
+            <p style="font-size:13px;" id="mDesc">Memuat instruksi...</p>
+            <p style="font-size:14px; color:var(--neon);">REWARD: <span id="mReward">0</span> STONE</p>
             
-            <div class="line-item">
-                <span class="label">MISSION ID</span>
-                <span class="value" id="txtId">-</span>
+            <div id="statusInfo" style="margin-top:20px; font-size:11px; color:#555;">
+                STATUS: MENUNGGU TANDA TANGAN ADVENTURER...
             </div>
-            <div class="line-item">
-                <span class="label">REQUESTER</span>
-                <span class="value" id="txtReq">-</span>
-            </div>
-            <div class="line-item">
-                <span class="label">ADVENTURER</span>
-                <span class="value" id="txtAdv">-</span>
-            </div>
-            <div class="line-item">
-                <span class="label">TOTAL REWARD</span>
-                <span class="value" style="color: var(--neon);" id="txtReward">0 STONE</span>
-            </div>
-
-            <div style="margin-top: 20px; font-size: 11px; color: #888; line-height: 1.5;">
-                <b style="color: var(--danger);">SOP GUILD:</b><br>
-                1. Dilarang membatalkan misi setelah kontrak ditandatangani.<br>
-                2. Komunikasi wajib dilakukan melalui jalur resmi Guild.<br>
-                3. Reward akan dicairkan otomatis setelah sistem memverifikasi penyelesaian misi.
-            </div>
-
-            <div class="stamp">GUILD APPROVED</div>
+            <div class="seal" id="sealDone">SIGNED</div>
         </div>
 
-        <div id="actionArea">
-            <p style="text-align: center; font-size: 12px; color: var(--gold);">Menunggu inisialisasi sistem...</p>
-        </div>
+        <div id="actionArea" style="margin-top:20px;">
+            </div>
     </div>
 
     <script>
         const user = JSON.parse(localStorage.getItem('guild_session'));
-        const urlParams = new URLSearchParams
+        const urlParams = new URLSearchParams(window.location.search);
+        const questId = urlParams.get('id');
+
+        function updateBriefing() {
+            const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
+            const m = missions.find(x => x.id === questId);
+
+            if(!m) return;
+
+            document.getElementById('mTitle').innerText = m.title;
+            document.getElementById('mId').innerText = m.id;
+            document.getElementById('mDesc').innerText = m.desc || "Laksanakan tugas dengan profesional.";
+            document.getElementById('mReward').innerText = m.reward;
+
+            const area = document.getElementById('actionArea');
+            
+            if(m.status === "ACTIVE") {
+                if(user.role === 'adventurer') {
+                    area.innerHTML = `<button class="btn" onclick="signContract()">TANDA TANGANI KONTRAK</button>`;
+                } else {
+                    area.innerHTML = `<p style="text-align:center; color:#444;">Menunggu Adventurer memulai...</p>`;
+                }
+            } else if(m.status === "ON_PROGRESS") {
+                // Jika sudah mulai, otomatis pindah ke Active Mission
+                window.location.href = "active_mission.html?id=" + questId;
+            }
+        }
+
+        function signContract() {
+            let missions = JSON.parse(localStorage.getItem('global_missions'));
+            let m = missions.find(x => x.id === questId);
+            
+            m.status = "ON_PROGRESS"; // Misi resmi dimulai
+            localStorage.setItem('global_missions', JSON.stringify(missions));
+            
+            document.getElementById('sealDone').style.display = 'block';
+            alert("Kontrak Ditandatangani! Portal Komunikasi Dibuka.");
+            window.location.href = "active_mission.html?id=" + questId;
+        }
+
+        setInterval(updateBriefing, 2000);
+        updateBriefing();
+    </script>
+</body>
+</html>
