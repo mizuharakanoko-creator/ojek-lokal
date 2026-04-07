@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>GATEWAY | PICK ME GUILD</title>
+    
+    <link rel="stylesheet" href="guild_system.css">
+    
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: radial-gradient(circle at center, #111, #000);
+            animation: fadeIn 1s ease-out;
+            text-align: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .logo-container { margin-bottom: 50px; }
+        .logo-text {
+            font-size: 32px;
+            font-weight: 900;
+            color: var(--neon-blue);
+            text-shadow: 0 0 20px rgba(0, 217, 255, 0.5);
+            letter-spacing: 5px;
+            margin: 0;
+        }
+        .sub-text {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 10px;
+            color: #888;
+            letter-spacing: 2px;
+        }
+
+        .menu-container {
+            width: 80%;
+            max-width: 350px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .btn-gate {
+            width: 100%; padding: 18px; border-radius: 12px;
+            font-family: 'Courier New', Courier, monospace; font-weight: bold; font-size: 14px;
+            cursor: pointer; transition: 0.3s;
+            border: 1px solid transparent; text-transform: uppercase;
+        }
+        .btn-gate:active { transform: scale(0.95); }
+
+        .btn-stranger { background: #111; color: #fff; border-color: #333; }
+        .btn-login { background: var(--neon-blue); color: #000; box-shadow: 0 0 15px rgba(0, 217, 255, 0.3); }
+        .btn-register { background: transparent; color: var(--neon-gold); border-color: var(--neon-gold); }
+
+        /* Loader Transition Overlay */
+        #gateLoader {
+            position: fixed; inset: 0; background: #000; z-index: 9999;
+            display: none; justify-content: center; align-items: center; flex-direction: column;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="guild-watermark"></div>
+
+    <div id="gateLoader">
+        <div style="border: 3px solid #222; border-top: 3px solid var(--neon-blue); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom:20px;"></div>
+        <div style="font-family:'Courier New'; color:var(--neon-blue); font-size:12px; letter-spacing:2px;">ESTABLISHING CONNECTION...</div>
+    </div>
+    <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
+
+    <div class="logo-container">
+        <h1 class="logo-text">PICK ME</h1>
+        <div class="sub-text">LOCAL ADVENTURER GUILD SYSTEM</div>
+    </div>
+
+    <div class="menu-container" id="menuArea">
+        </div>
+
+    <audio id="sndClick" src="assets/click.mp3" preload="auto"></audio>
+    <audio id="sndTransition" src="assets/transition.mp3" preload="auto"></audio>
+
+    <script>
+        document.addEventListener('contextmenu', e => e.preventDefault());
+
+        const Gateway = {
+            session: JSON.parse(localStorage.getItem('pickme_user')),
+            
+            init() {
+                const menu = document.getElementById('menuArea');
+                
+                if (this.session) {
+                    // Jika sudah login/stranger, arahkan ke terminal masing-masing
+                    menu.innerHTML = `
+                        <div style="margin-bottom:20px; color:#888; font-size:12px;">Welcome back, ${this.session.role.toUpperCase()}</div>
+                        <button class="btn-gate btn-login" onclick="Gateway.route('home')">ENTER TERMINAL</button>
+                        <button class="btn-gate btn-stranger" onclick="Gateway.logout()" style="margin-top:20px; font-size:10px;">[ LOGOUT ]</button>
+                    `;
+                } else {
+                    // Tampilan awal bagi user baru
+                    menu.innerHTML = `
+                        <button class="btn-gate btn-stranger" onclick="Gateway.route('stranger')">CONTINUE AS STRANGER</button>
+                        <button class="btn-gate btn-login" onclick="Gateway.route('login')">LOGIN (CITIZEN / ADVENTURER)</button>
+                        <button class="btn-gate btn-register" onclick="Gateway.route('register')">REGISTER NEW ACCOUNT</button>
+                    `;
+                }
+            },
+
+            playClick() { document.getElementById('sndClick').play().catch(()=>{}); },
+
+            route(destination) {
+                this.playClick();
+                document.getElementById('sndTransition').play().catch(()=>{});
+                document.getElementById('gateLoader').style.display = 'flex';
+                
+                setTimeout(() => {
+                    if (destination === 'stranger') {
+                        // Setup temporary session for stranger
+                        localStorage.setItem('pickme_user', JSON.stringify({
+                            id: "STRANGER_" + Date.now(),
+                            role: "stranger",
+                            shard: "KNG_01", // Default Server
+                            name: "Anon Citizen"
+                        }));
+                        window.location.href = "create_mission.html";
+                    } else if (destination === 'login') {
+                        window.location.href = "login.html";
+                    } else if (destination === 'register') {
+                        // Tampilkan opsi register Requester atau Adventurer
+                        window.location.href = "register_selector.html"; // (Opsional, file pemisah)
+                    } else if (destination === 'home') {
+                        if(this.session.role === 'adventurer') window.location.href = "dashboard.html";
+                        else window.location.href = "create_mission.html"; // Requester / Stranger
+                    }
+                }, 1500);
+            },
+
+            logout() {
+                localStorage.removeItem('pickme_user');
+                window.location.reload();
+            }
+        };
+
+        window.onload = () => Gateway.init();
+    </script>
+</body>
+</html>
