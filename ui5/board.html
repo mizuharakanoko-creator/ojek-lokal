@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GUILD BOARD</title>
+    <style>
+        body { background: #000; color: #ffcc00; font-family: monospace; padding: 20px; }
+        .quest-card { border: 1px solid #ffcc00; padding: 15px; margin-bottom: 10px; max-width: 400px; }
+    </style>
+</head>
+<body>
+    <h3>GUILD MISSION BOARD</h3>
+    <div id="boardBox">Memuat pengumuman...</div>
+
+    <script>
+        const user = JSON.parse(localStorage.getItem('guild_session'));
+
+        function loadBoard() {
+            const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
+            const openMissions = missions.filter(m => m.status === "OPEN");
+            
+            let html = "";
+            openMissions.forEach(m => {
+                html += `<div class="quest-card">
+                    <b>${m.title}</b><br>Reward: ${m.reward} Stone<br>
+                    <button onclick="apply('${m.id}')">AJUKAN DIRI</button>
+                </div>`;
+            });
+            document.getElementById('boardBox').innerHTML = html || "Tidak ada misi tersedia.";
+
+            // Cek jika sudah diterima (Simulasi CS memanggil ke Briefing)
+            const active = missions.find(m => m.acceptedAdventurer === user.id && m.status === "ACTIVE");
+            if(active) window.location.href = "active_mission.html?id=" + active.id;
+        }
+
+        function apply(msnId) {
+            let missions = JSON.parse(localStorage.getItem('global_missions'));
+            let m = missions.find(m => m.id === msnId);
+            if(!m.applicants.find(a => a.id === user.id)) {
+                m.applicants.push({ id: user.id, name: user.name });
+                localStorage.setItem('global_missions', JSON.stringify(missions));
+                alert("Lamaran dikirim ke CS Guild. Tunggu persetujuan Requester.");
+            }
+        }
+
+        setInterval(loadBoard, 2000);
+    </script>
+</body>
+</html>
