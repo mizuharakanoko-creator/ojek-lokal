@@ -102,6 +102,54 @@ setInterval(updateMyLocation, 5000); // Lapor lokasi tiap 5 detik
 setInterval(checkInvites, 4000);
 
 
+        // --- LOGIKA HEARTBEAT ---
+function updateHeartbeat() {
+    let locations = JSON.parse(localStorage.getItem('active_locations') || '{}');
+    
+    // Kirim sinyal aktif saya
+    locations[user.id] = {
+        id: user.id,
+        name: user.name,
+        lat: -6.2, // Koordinat simulasi
+        lng: 106.8,
+        lastSeen: Date.now() 
+    };
+
+    // Bersihkan User Hantu (yang tidak lapor lebih dari 30 detik)
+    const now = Date.now();
+    for (let id in locations) {
+        if (now - locations[id].lastSeen > 30000) {
+            delete locations[id];
+        }
+    }
+    localStorage.setItem('active_locations', JSON.stringify(locations));
+}
+
+// --- LOGIKA LIMIT SATU MISI ---
+function checkMissionLimit() {
+    const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
+    // Cari apakah saya punya misi yang statusnya sedang berjalan (bukan OPEN atau COMPLETED)
+    const imBusy = missions.find(m => 
+        m.acceptedAdv === user.id && 
+        (m.status === "ACTIVE" || m.status === "ON_PROGRESS" || m.status === "WAITING_CONFIRM")
+    );
+
+    const btnAmbil = document.querySelectorAll('.btn-ambil'); // Asumsi tombol ambil punya class ini
+    if (imBusy) {
+        btnAmbil.forEach(b => {
+            b.disabled = true;
+            b.innerText = "ANDA SEDANG DALAM MISI";
+        });
+    }
+}
+
+setInterval(() => {
+    updateHeartbeat();
+    checkMissionLimit();
+}, 2000);
+
+
+
         setInterval(renderBoard, 1500);
         renderBoard();
     </script>
