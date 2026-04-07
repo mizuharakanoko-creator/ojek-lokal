@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WAITING ROOM | GUILD VERIFICATION</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-yellow: #f39c12;
+            --bg-dark: #050505;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+        body { 
+            background: var(--bg-dark); color: #fff; font-family: 'Segoe UI', sans-serif;
+            display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0;
+            overflow: hidden;
+        }
+        .container { text-align: center; width: 90%; max-width: 400px; padding: 20px; }
+        
+        /* Animasi Radar Scanning */
+        .radar {
+            width: 150px; height: 150px; border: 2px solid #111; border-radius: 50%;
+            margin: 0 auto 30px; position: relative; overflow: hidden;
+            background: radial-gradient(circle, #0f2027, #000);
+        }
+        .radar::after {
+            content: ''; position: absolute; top: 50%; left: 50%; width: 200%; height: 200%;
+            background: conic-gradient(from 0deg, transparent, rgba(243, 156, 18, 0.4));
+            transform-origin: top left; animation: scan 3s linear infinite;
+        }
+        @keyframes scan { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .status-badge {
+            background: rgba(243, 156, 18, 0.1); border: 1px solid var(--neon-yellow);
+            color: var(--neon-yellow); padding: 8px 15px; border-radius: 20px;
+            font-family: var(--font-terminal); font-size: 11px; letter-spacing: 2px;
+            display: inline-block; margin-bottom: 20px;
+        }
+
+        h2 { font-size: 18px; letter-spacing: 2px; margin: 0 0 10px; }
+        p { color: #666; font-size: 13px; line-height: 1.6; }
+
+        .tips-box {
+            margin-top: 40px; padding: 15px; border: 1px dashed #222; text-align: left;
+        }
+        .tips-box h4 { font-family: var(--font-terminal); font-size: 10px; color: #888; margin: 0 0 5px; }
+        .tips-box p { font-size: 11px; color: #444; margin: 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="radar"></div>
+    
+    <div class="status-badge" id="statusLabel">VERIFICATION IN PROGRESS</div>
+    
+    <h2 id="userName">HEALING IN TAVERN...</h2>
+    <p>Admin Guild sedang meninjau dokumen NIK dan identitas Anda. Harap tunggu di ruangan ini. Portal akan terbuka otomatis setelah verifikasi selesai.</p>
+
+    <div class="tips-box">
+        <h4>[ SYSTEM TIPS ]</h4>
+        <p>Gunakan waktu ini untuk memeriksa kembali perlengkapan (Arsenal) Anda. Pastikan koneksi stabil agar sinyal verifikasi tidak terputus.</p>
+    </div>
+
+    <button onclick="logout()" style="margin-top:30px; background:none; border:none; color: #333; font-family:var(--font-terminal); font-size:10px; cursor:pointer;">[ CANCEL CONTRACT / LOGOUT ]</button>
+</div>
+
+<script>
+    // 1. LOAD SESSION
+    const session = JSON.parse(localStorage.getItem('pickme_user'));
+    if(!session) window.location.href = "login.html";
+
+    document.getElementById('userName').innerText = "AGENT: " + session.id.toUpperCase();
+
+    // 2. CONFIG MASTER (Hanya untuk akses Shard)
+    const masterConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(masterConfig);
+    const db = firebase.database();
+
+    // 3. REAL-TIME LISTENER (Inti dari Waiting Room)
+    // Pantau field 'status_terverifikasi' di Shard
+    const statusPath = `identity_adventurer/${session.shard}/${session.id}/status_terverifikasi`;
+    
+    db.ref(statusPath).on('value', (snapshot) => {
+        const status = snapshot.val();
+        
+        if(status === "ACTIVE") {
+            document.getElementById('statusLabel').innerText = "ACCESS GRANTED";
+            document.getElementById('statusLabel').style.borderColor = "#00ff00";
+            document.getElementById('statusLabel').style.color = "#00ff00";
+            
+            // Suara Berhasil (Pilar 2: Sensory Engine)
+            playSuccessTone();
+            
+            setTimeout(() => {
+                window.location.href = "dashboard.html";
+            }, 2000);
+        } else if(status === "BANISHED") {
+            alert("Kontrak Anda telah diputus secara sepihak oleh Guild.");
+            logout();
+        }
+    });
+
+    function logout() {
+        localStorage.removeItem('pickme_user');
+        window.location.href = "login.html";
+    }
+
+    function playSuccessTone() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.setValueAtTime(800, ctx.currentTime);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(); osc.stop(ctx.currentTime + 0.3);
+        } catch(e) {}
+    }
+</script>
+</body>
+</html>
