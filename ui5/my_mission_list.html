@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLICANT TRACKER</title>
+    <link rel="stylesheet" href="guild_style.css">
+</head>
+<body>
+    <div class="container">
+        <h2 class="title">/// APPLICANT TRACKER ///</h2>
+        <div id="listContainer"></div>
+        
+        <button class="btn" style="margin-top: 20px; border-color: #555;" onclick="location.href='post_mission.html'">
+             kembali ke Post Mission
+        </button>
+    </div>
+
+    <script>
+        const user = JSON.parse(localStorage.getItem('guild_session'));
+
+        function renderTracker() {
+            const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
+            // Ambil semua misi milik saya yang statusnya masih OPEN
+            const myOpenMissions = missions.filter(m => m.requesterId === user.id && m.status === "OPEN");
+            const container = document.getElementById('listContainer');
+
+            if(myOpenMissions.length === 0) {
+                container.innerHTML = "<p style='text-align:center; color:#444;'>Tidak ada pelamar aktif.</p>";
+                return;
+            }
+
+            let html = "";
+            myOpenMissions.forEach(m => {
+                html += `<div class="card">
+                    <div class="badge">MISSION ID: ${m.id}</div>
+                    <h3 style="margin:5px 0;">${m.title}</h3>
+                    <hr style="border:0; border-top:1px solid #333; margin:10px 0;">
+                    <p style="font-size:11px; color:var(--gold);">DAFTAR PELAMAR:</p>
+                `;
+
+                if(m.applicants.length === 0) {
+                    html += "<p style='font-size:12px; color:#555;'>Belum ada pelamar...</p>";
+                } else {
+                    m.applicants.forEach(app => {
+                        html += `
+                            <div style="display:flex; justify-content:space-between; align-items:center; background:#000; padding:10px; margin-bottom:5px;">
+                                <span style="font-size:13px;">${app.name}</span>
+                                <button class="btn" style="width:auto; padding:5px 15px; font-size:10px;" 
+                                        onclick="accept('${m.id}', '${app.id}')">TERIMA</button>
+                            </div>
+                        `;
+                    });
+                }
+                html += `</div>`;
+            });
+            container.innerHTML = html;
+
+            // Logika Sinkronisasi: Jika ada misi yang berubah jadi ACTIVE, lempar ke briefing
+            const activeMsn = missions.find(m => m.requesterId === user.id && m.status === "ACTIVE");
+            if(activeMsn) {
+                window.location.href = "briefing.html?id=" + activeMsn.id;
+            }
+        }
+
+        function accept(msnId, advId) {
+            let missions = JSON.parse(localStorage.getItem('global_missions'));
+            let m = missions.find(x => x.id === msnId);
+            m.status = "ACTIVE";
+            m.acceptedAdv = advId;
+            localStorage.setItem('global_missions', JSON.stringify(missions));
+            alert("Adventurer Terpilih!");
+        }
+
+        setInterval(renderTracker, 1500);
+        renderTracker();
+    </script>
+</body>
+</html>
