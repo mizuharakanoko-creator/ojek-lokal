@@ -75,5 +75,52 @@
         setInterval(renderTracker, 1500);
         renderTracker();
     </script>
+
+    <div class="card" style="border-color: var(--neon);">
+    <div class="badge" style="background: var(--neon);">NEARBY ADVENTURERS</div>
+    <div id="nearbyList" style="font-size: 12px; margin-top: 10px;">Mencari sinyal...</div>
+</div>
+
+<script>
+function renderNearby() {
+    const locations = JSON.parse(localStorage.getItem('active_locations') || '{}');
+    const box = document.getElementById('nearbyList');
+    let html = "";
+
+    Object.values(locations).forEach(adv => {
+        if(adv.id === user.id) return; // Jangan lihat diri sendiri
+        
+        // Cek jika sudah lama tidak aktif (lebih dari 30 detik)
+        if(Date.now() - adv.lastSeen > 30000) return;
+
+        html += `
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px; border-bottom:1px solid #222; padding-bottom:5px;">
+                <span>📍 ${adv.name} <br><small style="color:#555;">Jarak: ~500m</small></span>
+                <button class="btn" style="width:auto; padding:5px 10px; font-size:10px;" 
+                        onclick="sendInvite('${adv.id}')">UNDANG</button>
+            </div>
+        `;
+    });
+    box.innerHTML = html || "Tidak ada Adventurer di sekitar.";
+}
+
+function sendInvite(advId) {
+    let invites = JSON.parse(localStorage.getItem('global_invites') || '[]');
+    invites.push({
+        from: user.name,
+        fromId: user.id,
+        toId: advId,
+        msg: "Anda diundang untuk menjalankan misi rahasia!",
+        status: "PENDING",
+        timestamp: Date.now()
+    });
+    localStorage.setItem('global_invites', JSON.stringify(invites));
+    alert("Undangan Terkirim!");
+}
+setInterval(renderNearby, 3000);
+</script>
+
+
+    
 </body>
 </html>
