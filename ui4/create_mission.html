@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CREATE MISSION | REQUESTER TERMINAL</title>
+    
+    <link rel="stylesheet" href="guild_system.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        body { background: var(--bg-black); overflow-y: auto; padding-bottom: 100px; }
+        
+        .header { padding: 20px; background: #0a0a0a; border-bottom: 1px solid #222; position: sticky; top:0; z-index:100; }
+        .header h2 { margin: 0; color: #fff; font-size: 18px; letter-spacing: 1px; }
+        .btn-login-top { position: absolute; right: 20px; top: 20px; font-size: 10px; color: var(--neon-blue); border: 1px solid var(--neon-blue); background: transparent; padding: 5px 10px; border-radius: 5px; font-family: monospace; cursor: pointer; display: none; }
+
+        /* Kategori Grid */
+        .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px; }
+        .cat-box { 
+            background: #111; border: 1px solid #333; border-radius: 10px; padding: 15px 5px; 
+            text-align: center; cursor: pointer; transition: 0.3s;
+        }
+        .cat-box.active { background: rgba(0, 217, 255, 0.1); border-color: var(--neon-blue); box-shadow: 0 0 10px rgba(0, 217, 255, 0.2); }
+        .cat-box.disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(100%); }
+        .cat-icon { font-size: 24px; margin-bottom: 5px; }
+        .cat-name { font-size: 10px; font-weight: bold; font-family: monospace; color: #aaa; }
+
+        /* Form Area */
+        .form-section { display: none; padding: 0 20px; animation: slideUp 0.4s ease-out; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .input-group { margin-bottom: 20px; background: #0a0a0a; padding: 15px; border-radius: 10px; border: 1px solid #222; }
+        .input-label { font-size: 11px; color: #888; font-family: monospace; display: block; margin-bottom: 10px; text-transform: uppercase; }
+        
+        .loc-btn { 
+            width: 100%; padding: 15px; background: #1a1a1a; color: #fff; border: 1px dashed #555; 
+            border-radius: 8px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px;
+        }
+        .loc-btn.success { border: 1px solid #00ff00; background: rgba(0, 255, 0, 0.05); }
+        
+        .loc-detail { font-size: 12px; color: #00ff00; margin-top: 10px; display: none; word-wrap: break-word; }
+
+        select, input[type="text"], input[type="number"], textarea {
+            width: 100%; padding: 12px; background: #111; border: 1px solid #333; color: #fff; border-radius: 8px; font-size: 14px; outline: none; margin-bottom: 10px;
+        }
+
+        /* Mode Tabs (Dropdown vs Buta Alamat) */
+        .tab-bar { display: flex; gap: 5px; margin-bottom: 15px; background: #111; padding: 5px; border-radius: 8px; }
+        .tab-btn { flex: 1; text-align: center; padding: 10px; font-size: 11px; color: #888; border-radius: 5px; cursor: pointer; transition: 0.3s; }
+        .tab-btn.active { background: #333; color: #fff; }
+
+        /* Pricing Cards */
+        .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; display: none; }
+        .price-card { background: #111; border: 1px solid #333; padding: 15px 5px; text-align: center; border-radius: 8px; cursor: pointer; }
+        .price-card.active { border-color: var(--neon-gold); background: rgba(255, 204, 0, 0.1); }
+        .p-type { font-size: 10px; color: #aaa; font-family: monospace; display: block; margin-bottom: 5px; }
+        .p-amount { font-size: 14px; font-weight: bold; color: var(--neon-gold); }
+
+        .btn-submit { width: 100%; padding: 20px; background: var(--neon-blue); color: #000; font-weight: bold; font-family: monospace; border: none; border-radius: 10px; font-size: 16px; margin-top: 20px; cursor: pointer; }
+        
+        /* Custom Alert */
+        #customAlert { position: fixed; inset:0; background:rgba(0,0,0,0.9); z-index:9999; display:none; justify-content:center; align-items:center; }
+        .alert-box { background: #111; border: 1px solid var(--neon-blue); padding: 20px; border-radius: 10px; text-align: center; width: 80%; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>MISSION CREATION</h2>
+        <button id="btnLoginTop" class="btn-login-top" onclick="window.location.href='login.html'">LOGIN</button>
+    </div>
+
+    <div class="cat-grid" id="categoryGrid">
+        <div class="cat-box active" onclick="Mission.selectCategory('motor-ride', this)">
+            <div class="cat-icon">🏍️</div><div class="cat-name">MOTOR-RIDE</div>
+        </div>
+        <div class="cat-box" onclick="Mission.selectCategory('car-ride', this)">
+            <div class="cat-icon">🚗</div><div class="cat-name">CAR-RIDE</div>
+        </div>
+        <div class="cat-box" onclick="Mission.selectCategory('ekspedisi', this)">
+            <div class="cat-icon">📦</div><div class="cat-name">EKSPEDISI</div>
+        </div>
+        <div class="cat-box" onclick="Mission.selectCategory('titip-beli', this)">
+            <div class="cat-icon">🛍️</div><div class="cat-name">TITIP BELI</div>
+        </div>
+        <div class="cat-box disabled" onclick="Mission.lockedCategory()">
+            <div class="cat-icon">⏳</div><div class="cat-name">ANTREE</div>
+        </div>
+        <div class="cat-box disabled" onclick="Mission.lockedCategory()">
+            <div class="cat-icon">⚒️</div><div class="cat-name">BURUH</div>
+        </div>
+        <div class="cat-box disabled" onclick="Mission.lockedCategory()">
+            <div class="cat-icon">🎓</div><div class="cat-name">AHLI</div>
+        </div>
+        <div class="cat-box disabled" onclick="Mission.lockedCategory()">
+            <div class="cat-icon">🏠</div><div class="cat-name">SEWA</div>
+        </div>
+    </div>
+
+    <div id="form-ride" class="form-section" style="display:block;">
+        
+        <div class="input-group">
+            <span class="input-label">Titik Penjemputan (Current Location)</span>
+            <button class="loc-btn" id="btnPickupLoc" onclick="Mission.getPickupLocation()">
+                📍 <span>Klik untuk memindai koordinat...</span>
+            </button>
+            <div id="txtPickupDetail" class="loc-detail"></div>
+        </div>
+
+        <div class="input-group">
+            <span class="input-label">Titik Tujuan</span>
+            
+            <div class="tab-bar">
+                <div class="tab-btn active" id="tabDrop" onclick="Mission.switchDestMode('dropdown')">SISTEM ALAMAT</div>
+                <div class="tab-btn" id="tabButa" onclick="Mission.switchDestMode('buta')">BUTA ALAMAT</div>
+            </div>
+
+            <div id="destSystem">
+                <input type="text" id="inpManualDest" placeholder="Ketik cepat Desa / Kecamatan tujuan..." onkeyup="Mission.mockAutocomplete(this.value)">
+                
+                <select id="selKab" onchange="Mission.checkPriceCalc()">
+                    <option value="">-- Pilih Kabupaten --</option>
+                    <option value="kuningan">Kuningan</option>
+                    <option value="cirebon">Cirebon</option>
+                </select>
+                <select id="selKec" onchange="Mission.checkPriceCalc()">
+                    <option value="">-- Pilih Kecamatan --</option>
+                    </select>
+                <select id="selDesa" onchange="Mission.checkPriceCalc()">
+                    <option value="">-- Pilih Desa --</option>
+                    </select>
+            </div>
+
+            <div id="destButa" style="display:none;">
+                <textarea id="inpButaDesc" rows="3" placeholder="Contoh: Depan warung sate madura dekat alun-alun, cat pagarnya biru..." oninput="Mission.checkPriceCalc()"></textarea>
+                <div style="font-size:10px; color:var(--neon-gold); font-family:monospace; margin-top:5px;">⚠️ TARIF AKAN DITENTUKAN OLEH ADVENTURER (NEGO)</div>
+            </div>
+        </div>
+
+        <div id="priceSection" class="input-group" style="display:none;">
+            <span class="input-label">Pilihan Tarif (Estimasi: <span id="estDist">0</span> Km)</span>
+            <div class="price-grid" id="priceCards">
+                <div class="price-card" onclick="Mission.selectPrice('hemat', this)">
+                    <span class="p-type">HEMAT</span><span class="p-amount" id="pHemat">0</span>
+                </div>
+                <div class="price-card active" onclick="Mission.selectPrice('normal', this)">
+                    <span class="p-type">NORMAL</span><span class="p-amount" id="pNormal">0</span>
+                </div>
+                <div class="price-card" onclick="Mission.selectPrice('dermawan', this)">
+                    <span class="p-type">DERMAWAN</span><span class="p-amount" id="pDermawan">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <span class="input-label">Catatan Tambahan (Opsional)</span>
+            <input type="text" id="inpCatatanRide" placeholder="Cth: Bawa helm 2, saya pakai jaket merah">
+            
+            <label style="display:flex; align-items:center; gap:10px; margin-top:15px; cursor:pointer;">
+                <input type="checkbox" id="chkUrgentRide" style="width:20px; height:20px;">
+                <span style="color:#ff4444; font-weight:bold; font-size:14px;">URGENT! (Butuh Cepat)</span>
+            </label>
+        </div>
+
+        <button class="btn-submit" onclick="Mission.submitRide()">PUBLISH MISSION TO BOARD</button>
+    </div>
+
+    <audio id="sndClick" src="assets/click.mp3" preload="auto"></audio>
+    <audio id="sndSuccess" src="assets/success.mp3" preload="auto"></audio>
+    <audio id="sndError" src="assets/error.mp3" preload="auto"></audio>
+
+    <div id="customAlert">
+        <div class="alert-box">
+            <h3 style="color:var(--neon-blue); margin-top:0;" id="alertTitle">WARNING</h3>
+            <p style="color:#aaa; font-size:14px;" id="alertMsg">Message</p>
+            <button onclick="document.getElementById('customAlert').style.display='none'" style="padding:10px 20px; background:var(--neon-blue); border:none; border-radius:5px; margin-top:15px; font-weight:bold; cursor:pointer;">MENGERTI</button>
+        </div>
+    </div>
+
+    <script src="create_mission_engine.js"></script>
+</body>
+</html>
