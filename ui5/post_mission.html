@@ -1,71 +1,100 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-    <title>POST MISSION</title>
-    <style>
-        body { background: #000; color: #00d9ff; font-family: monospace; padding: 20px; }
-        .mission-form { border: 1px solid #00d9ff; padding: 15px; max-width: 400px; }
-        .app-list { margin-top: 20px; border-top: 1px solid #333; }
-        .app-card { background: #111; padding: 10px; margin: 5px 0; display: flex; justify-content: space-between; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REQUESTER TERMINAL</title>
+    <link rel="stylesheet" href="guild_style.css">
 </head>
 <body>
-    <div class="mission-form">
-        <h3>CREATE MISSION CONTRACT</h3>
-        <input type="text" id="title" placeholder="Judul Misi (Contoh: Antar Paket)">
-        <input type="number" id="reward" placeholder="Reward Stone">
-        <button onclick="postMission()">POST KE PAPAN PENGUMUMAN</button>
-    </div>
+    <div class="container">
+        <h2 class="title">/// POST MISSION ///</h2>
+        
+        <div class="card">
+            <div class="badge">NEW CONTRACT</div>
+            <input type="text" id="title" placeholder="Nama Pekerjaan...">
+            <input type="number" id="reward" placeholder="Reward (Stone)...">
+            <button class="btn" onclick="postMission()">TERBITKAN MISI</button>
+        </div>
 
-    <div id="myMissions" class="app-list">
-        <h4>Pelamar Misi Anda (CS Guild Tracker):</h4>
-        <div id="applicantBox">Belum ada pelamar...</div>
+        <h2 class="title" style="margin-top: 40px;">/// APPLICANT TRACKER ///</h2>
+        <div id="applicantBox">
+            <p style="text-align:center; color:#444;">Menunggu kontrak diterbitkan...</p>
+        </div>
     </div>
 
     <script>
         const user = JSON.parse(localStorage.getItem('guild_session'));
+        if(!user || user.role !== 'requester') window.location.href = 'index.html';
 
         function postMission() {
+            const t = document.getElementById('title').value;
+            const r = document.getElementById('reward').value;
+            if(!t || !r) return alert("Lengkapi data misi!");
+
             const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
-            const newMission = {
+            const newMsn = {
                 id: "MSN-" + Date.now(),
                 requesterId: user.id,
-                title: document.getElementById('title').value,
-                reward: document.getElementById('reward').value,
+                requesterName: user.name,
+                title: t,
+                reward: r,
                 applicants: [],
-                status: "OPEN"
+                status: "OPEN",
+                acceptedAdv: null
             };
-            missions.push(newMission);
+            missions.push(newMsn);
             localStorage.setItem('global_missions', JSON.stringify(missions));
-            alert("Misi dicatat oleh CS Guild!");
-            location.reload();
+            alert("Kontrak dipajang di Papan Guild!");
+            document.getElementById('title').value = "";
+            document.getElementById('reward').value = "";
+            renderTracker();
         }
 
-        // Jalankan polling sederhana untuk melihat pelamar
-        setInterval(() => {
+        function renderTracker() {
             const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
             const myMsn = missions.find(m => m.requesterId === user.id && m.status === "OPEN");
-            if(myMsn && myMsn.applicants.length > 0) {
-                let html = "";
-                myMsn.applicants.forEach(app => {
-                    html += `<div class="app-card">
-                        <span>${app.name} (${app.id})</span>
-                        <button onclick="accept('${myMsn.id}', '${app.id}')">TERIMA KONTRAK</button>
-                    </div>`;
-                });
-                document.getElementById('applicantBox').innerHTML = html;
+            const box = document.getElementById('applicantBox');
+
+            if(!myMsn) {
+                box.innerHTML = "<p style='text-align:center; color:#444;'>Tidak ada misi aktif.</p>";
+                return;
             }
-        }, 2000);
+
+            let html = `<div class="card"><b>MISI: ${myMsn.title}</b><hr style="border:0; border-top:1px solid #333; margin:10px 0;">`;
+            if(myMsn.applicants.length === 0) {
+                html += "<p style='font-size:12px; color:var(--gold)'>[!] Menunggu pelamar merespon...</p>";
+            } else {
+                myMsn.applicants.forEach(app => {
+                    html += `
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <span>${app.name}</span>
+                            <button class="btn" style="width:auto; padding:5px 15px;" onclick="accept('${myMsn.id}', '${app.id}')">TERIMA</button>
+                        </div>
+                    `;
+                });
+            }
+            box.innerHTML = html + "</div>";
+
+            // AUTO REDIRECT jika status sudah berubah (Sinkronisasi dengan Adventurer)
+            const acceptedMsn = missions.find(m => m.requesterId === user.id && m.status === "ACTIVE");
+            if(acceptedMsn) {
+                window.location.href = "briefing.html?id=" + acceptedMsn.id;
+            }
+        }
 
         function accept(msnId, advId) {
             let missions = JSON.parse(localStorage.getItem('global_missions'));
-            let m = missions.find(m => m.id === msnId);
+            let m = missions.find(x => x.id === msnId);
             m.status = "ACTIVE";
-            m.acceptedAdventurer = advId;
+            m.acceptedAdv = advId;
             localStorage.setItem('global_missions', JSON.stringify(missions));
-            alert("Kontrak Disetujui! Membuka Portal...");
-            window.location.href = "active_mission.html?id=" + msnId;
+            alert("Adventurer Terpilih! Membuka Dokumen Briefing...");
+            window.location.href = "briefing.html?id=" + msnId;
         }
+
+        setInterval(renderTracker, 1500);
+        renderTracker();
     </script>
 </body>
 </html>
