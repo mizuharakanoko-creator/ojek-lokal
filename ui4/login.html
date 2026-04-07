@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GATEWAY | PICK ME LOGIN</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* Menggunakan style yang sama dengan Register untuk konsistensi visual */
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --bg-main: #050505;
+            --border-color: #222;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+
+        body { 
+            background-color: var(--bg-main); color: #fff; 
+            font-family: 'Segoe UI', sans-serif; margin: 0; 
+            display: flex; justify-content: center; align-items: center; min-height: 100vh;
+        }
+
+        .login-box {
+            width: 90%; max-width: 380px; background: #0a0a0a;
+            border: 1px solid var(--border-color); border-radius: 8px;
+            padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+
+        .input-group { margin-bottom: 20px; }
+        .input-group label { 
+            display: block; font-family: var(--font-terminal); font-size: 11px; 
+            color: #888; margin-bottom: 8px; letter-spacing: 1px;
+        }
+
+        .input-field {
+            width: 100%; background: #111; border: 1px solid var(--border-color);
+            color: #fff; padding: 14px; border-radius: 4px; font-size: 14px;
+        }
+
+        .input-field:focus { border-color: var(--neon-cyan); outline: none; }
+
+        .btn-login {
+            width: 100%; padding: 15px; background: var(--neon-cyan);
+            color: #000; border: none; border-radius: 4px;
+            font-family: var(--font-terminal); font-weight: bold;
+            letter-spacing: 2px; cursor: pointer; transition: 0.3s;
+        }
+
+        .btn-login:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+        .status-msg {
+            margin-top: 15px; font-size: 10px; font-family: var(--font-terminal);
+            text-align: center; color: var(--neon-pink); min-height: 15px;
+        }
+
+        .loader-dots { display: none; gap: 5px; justify-content: center; margin-top: 10px; }
+        .dot { width: 6px; height: 6px; background: var(--neon-cyan); border-radius: 50%; animation: bounce 0.5s infinite alternate; }
+        .dot:nth-child(2) { animation-delay: 0.1s; }
+        .dot:nth-child(3) { animation-delay: 0.2s; }
+        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-5px); } }
+    </style>
+</head>
+<body>
+
+<div class="login-box">
+    <div style="text-align:center; margin-bottom: 30px;">
+        <h1 style="color: var(--neon-pink); margin:0; letter-spacing:3px;">LOGIN</h1>
+        <p style="font-family: var(--font-terminal); font-size:9px; color: var(--neon-cyan);">GUILD ACCESS TERMINAL</p>
+    </div>
+
+    <div class="input-group">
+        <label>CODENAME / ID <span style="color:var(--neon-pink)">*</span></label>
+        <input type="text" id="loginNick" class="input-field" placeholder="Ex: ShadowWalker" autocomplete="off">
+    </div>
+
+    <div class="input-group">
+        <label>ENCRYPTION CODE (PASSWORD) <span style="color:var(--neon-pink)">*</span></label>
+        <input type="password" id="loginPass" class="input-field" placeholder="••••••••">
+    </div>
+
+    <button id="btnEnter" class="btn-login" onclick="Auth.startLogin()">INITIATE ACCESS</button>
+
+    <div id="loader" class="loader-dots">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+    
+    <div id="statusMsg" class="status-msg"></div>
+
+    <div style="margin-top: 25px; text-align: center; border-top: 1px solid #222; padding-top: 15px;">
+        <p style="font-size: 11px; color: #555;">Don't have a contract?</p>
+        <a href="register_adventurer.html" style="color: var(--neon-cyan); font-size: 12px; text-decoration: none; font-family: var(--font-terminal);">[ REGISTER ADVENTURER ]</a>
+        <br><br>
+        <a href="register_requester.html" style="color: var(--neon-pink); font-size: 12px; text-decoration: none; font-family: var(--font-terminal);">[ REGISTER REQUESTER ]</a>
+    </div>
+</div>
+
+<script>
+    const Auth = {
+        // Config Master (Gateway) - Pastikan sama dengan di register
+        masterConfig: {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        },
+
+        init() {
+            if (!firebase.apps.length) firebase.initializeApp(this.masterConfig, "MASTER_GATEWAY");
+            this.masterDb = firebase.app("MASTER_GATEWAY").database();
+        },
+
+        async startLogin() {
+            const nick = document.getElementById('loginNick').value.trim().toLowerCase();
+            const pass = document.getElementById('loginPass').value;
+            const btn = document.getElementById('btnEnter');
+            const msg = document.getElementById('statusMsg');
+            const loader = document.getElementById('loader');
+
+            if(!nick || !pass) { msg.innerText = "Lengkapi ID & Password!"; return; }
+
+            // UI State: Loading
+            btn.disabled = true;
+            btn.style.display = 'none';
+            loader.style.display = 'flex';
+            msg.innerText = "[ SEARCHING USER SHARD... ]";
+            msg.style.color = "var(--neon-cyan)";
+
+            try {
+                // 1. TAHAP: GATEWAY CHECK (Mencari Server)
+                const gatewayRef = await this.masterDb.ref(`gateway/adventurers_lookup/${nick}`).once('value');
+                
+                // Cek apakah user ada di Pusat
+                if(!gatewayRef.exists()) {
+                    // Jika tidak ada di Adventurer, coba cek Requester Lookup (Akan kita buat di Tahap 2)
+                    const reqLookup = await this.masterDb.ref(`gateway/requesters_lookup/${nick}`).once('value');
+                    if(!reqLookup.exists()) throw new Error("ID tidak terdaftar di database manapun!");
+                    
+                    // User adalah Requester
+                    this.verifyUser(nick, pass, reqLookup.val().shard_id, "requester");
+                } else {
+                    // User adalah Adventurer
+                    this.verifyUser(nick, pass, gatewayRef.val().shard_id, "adventurer");
+                }
+
+            } catch (error) {
+                this.fail(error.message);
+            }
+        },
+
+        async verifyUser(nick, pass, shardId, role) {
+            const msg = document.getElementById('statusMsg');
+            msg.innerText = `[ CONTACTING SERVER ${shardId}... ]`;
+
+            try {
+                // 2. TAHAP: SHARD VERIFICATION (Cek Password & Status di Wilayah)
+                // Di sistem nyata, kita inisialisasi app Shard di sini. 
+                // Untuk demo, kita gunakan path berbeda di MasterDB.
+                const path = role === "adventurer" ? `identity_adventurer/${shardId}/${nick}` : `identity_requester/${shardId}/${nick}`;
+                const userRef = await this.masterDb.ref(path).once('value');
+
+                if(!userRef.exists()) throw new Error("Data di Server Wilayah hilang! Hubungi Admin.");
+
+                const userData = userRef.val();
+
+                // Verifikasi Password
+                if(userData.password !== pass) throw new Error("Password salah! Akses ditolak.");
+
+                // 3. TAHAP: STATUS CHECK (Pengecekan WAITING_ROOM)
+                if(role === "adventurer") {
+                    if(userData.status_terverifikasi === "WAITING_ROOM") {
+                        msg.innerText = "[ ACCESS RESTRICTED: WAITING ROOM ]";
+                        setTimeout(() => { window.location.href = "waiting_room.html"; }, 1500);
+                        return;
+                    }
+                    if(userData.status_terverifikasi === "BANISHED") {
+                        throw new Error("Akun Anda telah di-BANISH dari Guild.");
+                    }
+                }
+
+                // SUCCESS LOGIN
+                msg.style.color = "#00ff00";
+                msg.innerText = "[ ACCESS GRANTED! REDIRECTING... ]";
+                
+                // Simpan Session Lokal
+                localStorage.setItem('pickme_user', JSON.stringify({
+                    id: nick,
+                    role: role,
+                    shard: shardId,
+                    name: userData.nama
+                }));
+
+                // Redirect sesuai Role
+                setTimeout(() => {
+                    window.location.href = role === "adventurer" ? "dashboard.html" : "requester_terminal.html";
+                }, 1500);
+
+            } catch (e) {
+                this.fail(e.message);
+            }
+        },
+
+        fail(error) {
+            const btn = document.getElementById('btnEnter');
+            const msg = document.getElementById('statusMsg');
+            const loader = document.getElementById('loader');
+            
+            msg.innerText = "[ ERROR: " + error.toUpperCase() + " ]";
+            msg.style.color = "var(--neon-pink)";
+            btn.disabled = false;
+            btn.style.display = 'block';
+            loader.style.display = 'none';
+        }
+    };
+
+    window.onload = () => Auth.init();
+</script>
+</body>
+</html>
