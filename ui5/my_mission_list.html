@@ -3,17 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APPLICANT TRACKER</title>
+    <title>GUILD - TRACKER</title>
     <link rel="stylesheet" href="guild_style.css">
 </head>
 <body>
     <div class="container">
-        <h2 class="title">/// APPLICANT TRACKER ///</h2>
-        <div id="listContainer"></div>
-        
-        <button class="btn" style="margin-top: 20px; border-color: #555;" onclick="location.href='post_mission.html'">
-             kembali ke Post Mission
-        </button>
+        <h2 class="title">/// MISSION TRACKER ///</h2>
+        <div id="activeMissions"></div>
+
+        <h2 class="title" style="margin-top:30px; font-size:14px;">RADAR: NEARBY ADVENTURERS</h2>
+        <div class="card" id="radarList" style="border-style:dashed;">
+            <p style="text-align:center; color:#444; font-size:11px;">Mencari sinyal di wilayah ${user.shard}...</p>
+        </div>
+
+        <button class="btn" onclick="location.href='post_mission.html'">BUAT MISI BARU</button>
     </div>
 
     <script>
@@ -21,46 +24,53 @@
 
         function renderTracker() {
             const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
-            // Ambil semua misi milik saya yang statusnya masih OPEN
-            const myOpenMissions = missions.filter(m => m.requesterId === user.id && m.status === "OPEN");
-            const container = document.getElementById('listContainer');
+            const myMissions = missions.filter(m => m.requesterId === user.id && m.status === "OPEN");
+            const container = document.getElementById('activeMissions');
 
-            if(myOpenMissions.length === 0) {
-                container.innerHTML = "<p style='text-align:center; color:#444;'>Tidak ada pelamar aktif.</p>";
+            if(myMissions.length === 0) {
+                container.innerHTML = "<p style='text-align:center; color:#444;'>Tidak ada misi aktif.</p>";
                 return;
             }
 
-            let html = "";
-            myOpenMissions.forEach(m => {
-                html += `<div class="card">
-                    <div class="badge">MISSION ID: ${m.id}</div>
+            container.innerHTML = myMissions.map(m => `
+                <div class="card">
+                    <div class="badge">${m.id}</div>
                     <h3 style="margin:5px 0;">${m.title}</h3>
-                    <hr style="border:0; border-top:1px solid #333; margin:10px 0;">
-                    <p style="font-size:11px; color:var(--gold);">DAFTAR PELAMAR:</p>
-                `;
-
-                if(m.applicants.length === 0) {
-                    html += "<p style='font-size:12px; color:#555;'>Belum ada pelamar...</p>";
-                } else {
-                    m.applicants.forEach(app => {
-                        html += `
-                            <div style="display:flex; justify-content:space-between; align-items:center; background:#000; padding:10px; margin-bottom:5px;">
-                                <span style="font-size:13px;">${app.name}</span>
-                                <button class="btn" style="width:auto; padding:5px 15px; font-size:10px;" 
-                                        onclick="accept('${m.id}', '${app.id}')">TERIMA</button>
+                    <p style="font-size:11px; color:var(--gold);">PELAMAR (${m.applicants.length}):</p>
+                    ${m.applicants.length === 0 ? '<small style="color:#444;">Menunggu respon...</small>' : 
+                        m.applicants.map(app => `
+                            <div style="display:flex; justify-content:space-between; align-items:center; background:#000; padding:8px; margin-top:5px; border-left:2px solid var(--neon);">
+                                <span style="font-size:12px;">${app.name} <br><small style="color:var(--gold);">⭐ ${app.rating || '5.0'}</small></span>
+                                <button class="btn" style="width:auto; padding:5px 12px; font-size:10px;" onclick="accept('${m.id}', '${app.id}')">TERIMA</button>
                             </div>
-                        `;
-                    });
-                }
-                html += `</div>`;
-            });
-            container.innerHTML = html;
+                        `).join('')
+                    }
+                </div>
+            `).join('');
+        }
 
-            // Logika Sinkronisasi: Jika ada misi yang berubah jadi ACTIVE, lempar ke briefing
-            const activeMsn = missions.find(m => m.requesterId === user.id && m.status === "ACTIVE");
-            if(activeMsn) {
-                window.location.href = "briefing.html?id=" + activeMsn.id;
+        function renderRadar() {
+            const locations = JSON.parse(localStorage.getItem('active_locations') || '{}');
+            const radarBox = document.getElementById('radarList');
+            
+            // Filter: Hanya yang satu Shard, sedang Online, dan bukan diri sendiri
+            const nearby = Object.values(locations).filter(adv => 
+                adv.shard === user.shard && 
+                adv.id !== user.id && 
+                (Date.now() - adv.lastSeen < 30000)
+            );
+
+            if(nearby.length === 0) {
+                radarBox.innerHTML = `<p style="text-align:center; color:#444; font-size:11px;">Tidak ada Adventurer aktif di ${user.shard}.</p>`;
+                return;
             }
+
+            radarBox.innerHTML = nearby.map(adv => `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #222; padding-bottom:5px;">
+                    <span style="font-size:12px;">📍 ${adv.name} <br><small style="color:var(--neon);">Seksama: ${adv.successRate}% | ⭐ ${adv.rating}</small></span>
+                    <button class="btn" style="width:auto; padding:5px 10px; font-size:10px;" onclick="invite('${adv.id}')">UNDANG</button>
+                </div>
+            `).join('');
         }
 
         function accept(msnId, advId) {
@@ -69,58 +79,19 @@
             m.status = "ACTIVE";
             m.acceptedAdv = advId;
             localStorage.setItem('global_missions', JSON.stringify(missions));
-            alert("Adventurer Terpilih!");
+            alert("Kontrak disetujui! Membuka Dokumen Briefing...");
+            window.location.href = "briefing.html?id=" + msnId;
         }
 
-        setInterval(renderTracker, 1500);
-        renderTracker();
+        function invite(advId) {
+            let invites = JSON.parse(localStorage.getItem('global_invites') || '[]');
+            invites.push({ from: user.name, fromId: user.id, toId: advId, status: "PENDING", time: Date.now() });
+            localStorage.setItem('global_invites', JSON.stringify(invites));
+            alert("Undangan dikirim!");
+        }
+
+        setInterval(() => { renderTracker(); renderRadar(); }, 2000);
+        renderTracker(); renderRadar();
     </script>
-
-    <div class="card" style="border-color: var(--neon);">
-    <div class="badge" style="background: var(--neon);">NEARBY ADVENTURERS</div>
-    <div id="nearbyList" style="font-size: 12px; margin-top: 10px;">Mencari sinyal...</div>
-</div>
-
-<script>
-function renderNearby() {
-    const locations = JSON.parse(localStorage.getItem('active_locations') || '{}');
-    const box = document.getElementById('nearbyList');
-    let html = "";
-
-    Object.values(locations).forEach(adv => {
-        if(adv.id === user.id) return; // Jangan lihat diri sendiri
-        
-        // Cek jika sudah lama tidak aktif (lebih dari 30 detik)
-        if(Date.now() - adv.lastSeen > 30000) return;
-
-        html += `
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; border-bottom:1px solid #222; padding-bottom:5px;">
-                <span>📍 ${adv.name} <br><small style="color:#555;">Jarak: ~500m</small></span>
-                <button class="btn" style="width:auto; padding:5px 10px; font-size:10px;" 
-                        onclick="sendInvite('${adv.id}')">UNDANG</button>
-            </div>
-        `;
-    });
-    box.innerHTML = html || "Tidak ada Adventurer di sekitar.";
-}
-
-function sendInvite(advId) {
-    let invites = JSON.parse(localStorage.getItem('global_invites') || '[]');
-    invites.push({
-        from: user.name,
-        fromId: user.id,
-        toId: advId,
-        msg: "Anda diundang untuk menjalankan misi rahasia!",
-        status: "PENDING",
-        timestamp: Date.now()
-    });
-    localStorage.setItem('global_invites', JSON.stringify(invites));
-    alert("Undangan Terkirim!");
-}
-setInterval(renderNearby, 3000);
-</script>
-
-
-    
 </body>
 </html>
