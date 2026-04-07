@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>REQUESTER REGISTRY | PICK ME GUILD</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* =========================================
+           CORE AESTHETICS: NEON VIOLET (Requester Theme)
+           ========================================= */
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --neon-violet: #bc13fe; /* Warna khas Requester */
+            --bg-main: #050505;
+            --bg-card: #0a0a0a;
+            --border-color: #222;
+            --text-main: #fff;
+            --text-muted: #888;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+
+        /* Anti-Inspect & Security UX */
+        * { 
+            -webkit-user-select: none; user-select: none; 
+            -webkit-tap-highlight-color: transparent; 
+            box-sizing: border-box;
+        }
+        input, select, textarea { 
+            -webkit-user-select: text; user-select: text; 
+            outline: none; 
+        }
+        body { 
+            background-color: var(--bg-main); color: var(--text-main); 
+            margin: 0; padding: 0; overflow-x: hidden;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            overscroll-behavior-y: contain;
+        }
+
+        /* UI Components */
+        .app-container { max-width: 500px; margin: 0 auto; padding: 20px; }
+        
+        .header-section { text-align: center; margin-bottom: 30px; }
+        .header-section h1 { 
+            color: var(--neon-violet); font-size: 24px; letter-spacing: 5px; margin: 0;
+            text-shadow: 0 0 15px rgba(188, 19, 254, 0.4);
+        }
+        .bilingual-sub { font-family: var(--font-terminal); font-size: 9px; color: var(--neon-cyan); letter-spacing: 1px; }
+
+        .card { 
+            background: var(--bg-card); border: 1px solid var(--border-color); 
+            border-radius: 12px; padding: 25px; margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative; overflow: hidden;
+        }
+
+        /* Step Progress */
+        .step-bar { display: flex; gap: 5px; margin-bottom: 25px; }
+        .step-segment { height: 4px; flex: 1; background: #222; border-radius: 2px; transition: 0.4s; }
+        .step-segment.active { background: var(--neon-violet); box-shadow: 0 0 10px var(--neon-violet); }
+
+        /* Form Styling */
+        .input-group { margin-bottom: 20px; }
+        .input-group label { 
+            display: block; font-family: var(--font-terminal); font-size: 11px; 
+            color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;
+        }
+        .input-field {
+            width: 100%; background: #111; border: 1px solid var(--border-color);
+            color: #fff; padding: 14px; border-radius: 6px; font-size: 14px;
+            transition: 0.3s;
+        }
+        .input-field:focus { border-color: var(--neon-violet); box-shadow: 0 0 8px rgba(188, 19, 254, 0.2); }
+
+        .btn-primary {
+            width: 100%; padding: 16px; background: var(--neon-violet);
+            color: #fff; border: none; border-radius: 6px; font-weight: bold;
+            font-family: var(--font-terminal); cursor: pointer; letter-spacing: 1px;
+            transition: 0.3s; margin-bottom: 10px;
+        }
+        .btn-primary:active { transform: scale(0.98); opacity: 0.8; }
+        
+        .btn-stranger {
+            width: 100%; padding: 12px; background: transparent;
+            color: var(--neon-cyan); border: 1px solid var(--neon-cyan);
+            border-radius: 6px; font-size: 11px; font-family: var(--font-terminal);
+            cursor: pointer; transition: 0.3s;
+        }
+
+        /* Section Visibility */
+        .reg-section { display: none; }
+        .reg-section.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Custom Modal */
+        #statusOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 10000;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; padding: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <header class="header-section">
+            <h1>REQUESTER</h1>
+            <div class="bilingual-sub">MISSION GIVER REGISTRY PROTOCOL</div>
+        </header>
+
+        <div class="step-bar">
+            <div class="step-segment active" id="seg1"></div>
+            <div class="step-segment" id="seg2"></div>
+            <div class="step-segment" id="seg3"></div>
+        </div>
+
+        <form id="requesterForm">
+            <div class="reg-section active" id="sec1">
+                <div class="card">
+                    <div class="input-group">
+                        <label>Target Shard <span class="bilingual-hint">(Wilayah Operasi)</span></label>
+                        <select id="reqShard" class="input-field">
+                            <option value="">-- SELECT SERVER --</option>
+                            <option value="KNG_01">KAB. KUNINGAN (SERVER KNG-01)</option>
+                            <option value="CRB_01">KAB. CIREBON (SERVER CRB-01)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Unique ID <span class="bilingual-hint">(ID Akun - Tanpa Spasi)</span></label>
+                        <input type="text" id="reqId" class="input-field" placeholder="Ex: MasterZ" oninput="this.value=this.value.replace(/\s/g,'').toLowerCase()">
+                    </div>
+                    <div class="input-group">
+                        <label>Encryption Code <span class="bilingual-hint">(Password)</span></label>
+                        <input type="password" id="reqPass" class="input-field" placeholder="••••••••">
+                    </div>
+                </div>
+                <button type="button" class="btn-primary" onclick="Logic.move(1)">PROCEED TO IDENTITY</button>
+                <button type="button" class="btn-stranger" onclick="Logic.beStranger()">[ POST AS STRANGER / ANONIM ]</button>
+            </div>
+
+            <div class="reg-section" id="sec2">
+                <div class="card">
+                    <div class="input-group">
+                        <label>Full Name <span class="bilingual-hint">(Nama Lengkap Sesuai KTP)</span></label>
+                        <input type="text" id="reqName" class="input-field" placeholder="Nama asli Anda">
+                    </div>
+                    <div class="input-group">
+                        <label>National ID <span class="bilingual-hint">(NIK 16 Digit)</span></label>
+                        <input type="number" id="reqNik" class="input-field" placeholder="3208...">
+                    </div>
+                    <div class="input-group">
+                        <label>Phone Number <span class="bilingual-hint">(Nomor WhatsApp Aktif)</span></label>
+                        <input type="tel" id="reqPhone" class="input-field" placeholder="0812...">
+                    </div>
+                </div>
+                <button type="button" class="btn-primary" onclick="Logic.move(1)">PROCEED TO SECURITY</button>
+                <button type="button" style="background:none; border:none; color:#555; width:100%; font-family:var(--font-terminal); cursor:pointer;" onclick="Logic.move(-1)">GO BACK</button>
+            </div>
+
+            <div class="reg-section" id="sec3">
+                <div class="card">
+                    <div class="input-group">
+                        <label>Full Address <span class="bilingual-hint">(Alamat Lengkap Domisili)</span></label>
+                        <textarea id="reqAddress" class="input-field" style="height:80px; resize:none;" placeholder="Blok, RT/RW, Desa, Kec..."></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Security Question <span class="bilingual-hint">(Pertanyaan Rahasia)</span></label>
+                        <input type="text" id="reqQ" class="input-field" placeholder="Ex: Nama Ibu Kandung?">
+                    </div>
+                    <div class="input-group">
+                        <label>Security Answer <span class="bilingual-hint">(Jawaban Rahasia)</span></label>
+                        <input type="text" id="reqA" class="input-field" placeholder="Jawaban Anda...">
+                    </div>
+                </div>
+                <button type="button" id="btnFinal" class="btn-primary" onclick="Logic.submit()">FINALIZE REGISTRATION</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="statusOverlay">
+        <div id="loaderAnim" style="border: 4px solid #222; border-top: 4px solid var(--neon-violet); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
+        <h2 id="statusTitle" style="color: var(--neon-violet); font-family: var(--font-terminal); margin: 0;">ENCRYPTING DATA</h2>
+        <p id="statusDesc" style="color: #888; font-size: 12px; margin-top: 10px;"></p>
+    </div>
+
+    <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+
+    <script>
+        /** =========================================
+         * REQUESTER CORE LOGIC: THE SHARD ENGINE
+         * ========================================= */
+        const Logic = {
+            currentStep: 1,
+            
+            // Konfigurasi Master (Sama dengan Register Adventurer)
+            masterConfig: {
+                apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+                authDomain: "ojeklokal-42b84.firebaseapp.com",
+                databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "ojeklokal-42b84"
+            },
+
+            init() {
+                if (!firebase.apps.length) firebase.initializeApp(this.masterConfig, "MASTER_GATEWAY");
+                this.masterDb = firebase.app("MASTER_GATEWAY").database();
+                
+                // Anti-Inspect Simple
+                document.addEventListener('contextmenu', e => e.preventDefault());
+            },
+
+            move(dir) {
+                if(dir === 1 && !this.validate(this.currentStep)) return;
+                
+                this.currentStep += dir;
+                document.querySelectorAll('.reg-section').forEach((s, i) => s.classList.toggle('active', i === this.currentStep - 1));
+                document.querySelectorAll('.step-segment').forEach((s, i) => s.classList.toggle('active', i < this.currentStep));
+            },
+
+            validate(step) {
+                if(step === 1) {
+                    if(!document.getElementById('reqShard').value) return alert("Pilih Server Wilayah!");
+                    if(document.getElementById('reqId').value.length < 4) return alert("ID minimal 4 karakter!");
+                    if(document.getElementById('reqPass').value.length < 6) return alert("Password minimal 6 karakter!");
+                }
+                if(step === 2) {
+                    if(!document.getElementById('reqName').value) return alert("Nama Lengkap wajib diisi!");
+                    if(document.getElementById('reqNik').value.length !== 16) return alert("NIK harus 16 digit!");
+                }
+                return true;
+            },
+
+            async beStranger() {
+                // Logika Jalur Anonim (Stranger)
+                const timestamp = Date.now();
+                const strangerId = "STRANGER_" + timestamp;
+                const shard = document.getElementById('reqShard').value;
+
+                if(!shard) return alert("Pilih Server Wilayah terlebih dahulu untuk jalur Stranger!");
+
+                if(confirm("Masuk sebagai STRANGER? Anda bisa posting misi tapi tidak memiliki riwayat reputasi.")) {
+                    localStorage.setItem('pickme_user', JSON.stringify({
+                        id: strangerId,
+                        role: "stranger",
+                        shard: shard,
+                        name: "Stranger User"
+                    }));
+                    window.location.href = "requester_terminal.html";
+                }
+            },
+
+            async submit() {
+                const btn = document.getElementById('btnFinal');
+                const overlay = document.getElementById('statusOverlay');
+                const desc = document.getElementById('statusDesc');
+
+                // Validasi Terakhir
+                if(!document.getElementById('reqAddress').value) return alert("Alamat wajib diisi!");
+
+                overlay.style.display = 'flex';
+                desc.innerText = "Checking uniqueness in Master Registry...";
+                btn.disabled = true;
+
+                try {
+                    const id = document.getElementById('reqId').value;
+                    const shard = document.getElementById('reqShard').value;
+
+                    // 1. CEK DUPLIKAT DI MASTER (Gateway)
+                    const check = await this.masterDb.ref(`gateway/requesters_lookup/${id}`).once('value');
+                    if(check.exists()) throw new Error("ID sudah terdaftar!");
+
+                    desc.innerText = "Double-writing to Master & Shard...";
+
+                    // 2. DATA STRUKTUR (Sesuai Catatan Anda)
+                    const requesterData = {
+                        requester_id: id,
+                        nama: document.getElementById('reqName').value,
+                        nik_ktp: document.getElementById('reqNik').value,
+                        nomor_telepon: document.getElementById('reqPhone').value,
+                        password: document.getElementById('reqPass').value,
+                        alamat_lengkap: document.getElementById('reqAddress').value,
+                        pertanyaan_forgot_password: document.getElementById('reqQ').value,
+                        jawaban_forgot_password: document.getElementById('reqA').value,
+                        reputasi: "PENGGUNA BARU",
+                        jumlah_like: 0,
+                        jumlah_dislike: 0,
+                        total_misi_selesai: 0,
+                        total_misi_batal: 0,
+                        join_date: new Date().toISOString()
+                    };
+
+                    // 3. WRITE KE MASTER (Lookup)
+                    await this.masterDb.ref(`gateway/requesters_lookup/${id}`).set({
+                        shard_id: shard,
+                        status: "ACTIVE"
+                    });
+
+                    // 4. WRITE KE SHARD WILAYAH
+                    // Menggunakan path identity_requester per wilayah
+                    await this.masterDb.ref(`identity_requester/${shard}/${id}`).set(requesterData);
+
+                    desc.innerText = "SUCCESS! Protocol established.";
+                    setTimeout(() => { window.location.href = "login.html"; }, 2000);
+
+                } catch (e) {
+                    overlay.style.display = 'none';
+                    alert(e.message);
+                    btn.disabled = false;
+                }
+            }
+        };
+
+        window.onload = () => Logic.init();
+    </script>
+</body>
+</html>
