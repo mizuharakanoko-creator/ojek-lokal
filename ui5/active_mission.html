@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MISSION IN PROGRESS</title>
+    <link rel="stylesheet" href="guild_style.css">
+    <style>
+        .status-header { text-align: center; padding: 10px; background: rgba(0,217,255,0.1); border: 1px solid var(--neon); margin-bottom: 20px; }
+        .chat-sim { height: 150px; background: #000; border: 1px solid #222; margin: 15px 0; padding: 10px; font-size: 12px; color: #555; overflow-y: auto; }
+        .live-indicator { width: 10px; height: 10px; background: #0f0; border-radius: 50%; display: inline-block; margin-right: 5px; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-header">
+            <span class="live-indicator"></span> 
+            <span style="color: var(--neon); font-weight: bold;">MISSION ACTIVE</span>
+        </div>
+
+        <div class="card">
+            <h3 id="txtTitle" style="margin: 0; color: var(--gold);">...</h3>
+            <p style="font-size: 12px; color: #666;">ID: <span id="txtId">-</span></p>
+            <hr style="border: 0; border-top: 1px solid #333;">
+            
+            <div id="missionLog" class="chat-sim">
+                <div>[SYSTEM] Jalur komunikasi aman terjalin.</div>
+                <div>[SYSTEM] Menunggu laporan aktivitas...</div>
+            </div>
+        </div>
+
+        <div id="controlArea">
+            </div>
+    </div>
+
+    <script>
+        const user = JSON.parse(localStorage.getItem('guild_session'));
+        const urlParams = new URLSearchParams(window.location.search);
+        const questId = urlParams.get('id');
+
+        function updateBattlefield() {
+            const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
+            const m = missions.find(x => x.id === questId);
+
+            if(!m) return;
+
+            document.getElementById('txtTitle').innerText = m.title;
+            document.getElementById('txtId').innerText = m.id;
+
+            const area = document.getElementById('controlArea');
+
+            // LOGIKA SELESAI MISI
+            if(m.status === "ON_PROGRESS") {
+                if(user.role === 'adventurer') {
+                    area.innerHTML = `<button class="btn" onclick="setStep('WAITING_CONFIRM')">LAPORKAN SELESAI</button>`;
+                } else {
+                    area.innerHTML = `<p style="text-align:center; color:#555;">Adventurer sedang bekerja...</p>`;
+                }
+            } 
+            else if(m.status === "WAITING_CONFIRM") {
+                if(user.role === 'requester') {
+                    area.innerHTML = `
+                        <p style="color:var(--gold); text-align:center; font-size:12px;">Adventurer menyatakan misi selesai. Konfirmasi?</p>
+                        <button class="btn" onclick="setStep('COMPLETED')">KONFIRMASI SELESAI (BAYAR)</button>
+                    `;
+                } else {
+                    area.innerHTML = `<p style="text-align:center; color:var(--neon);">Menunggu konfirmasi Requester...</p>`;
+                }
+            }
+            else if(m.status === "COMPLETED") {
+                area.innerHTML = `
+                    <div class="card" style="border-color:var(--gold); text-align:center;">
+                        <h2 style="color:var(--gold);">MISSION CLEAR!</h2>
+                        <p style="font-size:12px;">Reward ${m.reward} Stone telah ditransfer.</p>
+                        <button class="btn" onclick="location.href='index.html'">KEMBALI KE GUILD</button>
+                    </div>
+                `;
+            }
+        }
+
+        function setStep(newStatus) {
+            let missions = JSON.parse(localStorage.getItem('global_missions'));
+            let m = missions.find(x => x.id === questId);
+            m.status = newStatus;
+            localStorage.setItem('global_missions', JSON.stringify(missions));
+            
+            // Log Sederhana
+            const log = document.getElementById('missionLog');
+            const entry = document.createElement('div');
+            entry.innerText = `[LOG] Status berubah menjadi: ${newStatus}`;
+            log.appendChild(entry);
+            
+            updateBattlefield();
+        }
+
+        setInterval(updateBattlefield, 1500);
+        updateBattlefield();
+    </script>
+</body>
+</html>
