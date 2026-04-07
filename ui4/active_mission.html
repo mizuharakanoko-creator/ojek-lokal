@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BATTLEFIELD | MISSION HUB</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root[data-theme="dark"] {
+            --bg-main: #050508; --bg-glass: rgba(10, 10, 15, 0.9);
+            --text-main: #ffffff; --neon: #00f3ff; --neon-alt: #ff00ea;
+        }
+        :root[data-theme="light"] {
+            --bg-main: #f0f2f5; --bg-glass: rgba(255, 255, 255, 0.9);
+            --text-main: #1a1a1a; --neon: #0077ff; --neon-alt: #d400ff;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg-main); color: var(--text-main); overflow: hidden; margin: 0; }
+        
+        /* Map Layer */
+        #map { width: 100%; height: 100vh; position: absolute; z-index: 1; }
+        [data-theme="dark"] #map { filter: brightness(0.6) invert(1) hue-rotate(180deg); }
+
+        /* Floating HUD */
+        .hud-top, .hud-bottom { position: absolute; left: 0; width: 100%; z-index: 10; padding: 15px; box-sizing: border-box; }
+        .hud-top { top: 0; background: linear-gradient(to bottom, var(--bg-main), transparent); }
+        .hud-bottom { bottom: 0; background: linear-gradient(to top, var(--bg-main), transparent); }
+
+        .info-card { 
+            background: var(--bg-glass); backdrop-filter: blur(10px); border: 1px solid var(--neon);
+            border-radius: 15px; padding: 12px; display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .pfp-circle { width: 45px; height: 45px; border-radius: 50%; border: 2px solid var(--neon); cursor: pointer; }
+
+        /* Chat System */
+        .chat-drawer {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: 80vh;
+            background: var(--bg-main); z-index: 1000; border-radius: 20px 20px 0 0;
+            transition: 0.4s; display: flex; flex-direction: column; border-top: 2px solid var(--neon);
+        }
+        .chat-drawer.open { bottom: 0; }
+        .chat-body { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 80%; padding: 10px; border-radius: 12px; font-size: 14px; position: relative; }
+        .msg.me { align-self: flex-end; background: var(--neon); color: #000; }
+        .msg.them { align-self: flex-start; background: #333; color: #fff; }
+
+        /* Action Buttons */
+        .btn-circle { width: 50px; height: 50px; border-radius: 50%; border: none; background: var(--bg-glass); color: var(--text-main); cursor: pointer; font-size: 18px; border: 1px solid #444; }
+        .btn-finish { width: 100%; padding: 15px; border-radius: 12px; border: none; background: #00ff88; color: #000; font-weight: bold; font-size: 16px; margin-top: 10px; cursor: pointer; }
+
+        /* Rating Modal */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 5000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-content { background: var(--bg-main); border: 1px solid var(--neon); padding: 25px; border-radius: 20px; width: 100%; max-width: 400px; text-align: center; }
+        .star-rating { font-size: 30px; color: #444; margin: 15px 0; }
+        .star-rating .active { color: #ffcc00; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div class="hud-top">
+        <div class="info-card">
+            <img id="target-pfp" src="assets/pfp_placeholder.jpg" class="pfp-circle" onclick="showDetailedProfile()">
+            <div style="flex:1">
+                <div id="target-name" style="font-weight:bold; font-size:16px;">MEMUAT...</div>
+                <div id="target-status" style="font-size:11px; color: var(--neon);">Sedang Bergerak</div>
+            </div>
+            <button class="btn-circle" onclick="toggleTheme()"><i class="fa-solid fa-circle-half-stroke"></i></button>
+            <button class="btn-circle" id="btn-wa" onclick="directWA()"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i></button>
+        </div>
+    </div>
+
+    <div class="hud-bottom">
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <button class="btn-circle" style="flex:1; border-radius: 12px;" onclick="toggleChat()">
+                <i class="fa-solid fa-comments"></i> CHAT
+            </button>
+            <button id="btn-nav" class="btn-circle" style="flex:1; border-radius: 12px;" onclick="openNavigation()">
+                <i class="fa-solid fa-location-arrow"></i> NAVIGASI
+            </button>
+        </div>
+        <button class="btn-finish" onclick="openRating()">MISI SELESAI</button>
+    </div>
+
+    <div id="chatDrawer" class="chat-drawer">
+        <div style="padding:15px; border-bottom:1px solid #333; display:flex; justify-content:space-between;">
+            <strong>COMMS SYSTEM</strong>
+            <i class="fa-solid fa-xmark" onclick="toggleChat()"></i>
+        </div>
+        <div class="chat-body" id="chat-body"></div>
+        <div style="padding:10px; display:flex; gap:8px; background: rgba(0,0,0,0.2);">
+            <input type="file" id="cam-input" accept="image/*" capture="environment" style="display:none" onchange="uploadImage(this)">
+            <button class="btn-circle" style="width:40px; height:40px;" onclick="document.getElementById('cam-input').click()">
+                <i class="fa-solid fa-camera"></i>
+            </button>
+            <input type="text" id="chat-in" placeholder="Kirim pesan..." style="flex:1; background:#222; border:none; border-radius:20px; padding:0 15px; color:#fff;">
+            <button class="btn-circle" style="width:40px; height:40px; background:var(--neon); color:#000;" onclick="sendChat()">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="modalRating" class="modal">
+        <div class="modal-content">
+            <h2 id="rate-title">EVALUASI MISI</h2>
+            <p style="font-size:13px; color:#888;">Bagaimana performa partner Anda?</p>
+            
+            <div class="star-rating" id="stars">
+                <i class="fa-solid fa-star" onclick="setStar(1)"></i>
+                <i class="fa-solid fa-star" onclick="setStar(2)"></i>
+                <i class="fa-solid fa-star" onclick="setStar(3)"></i>
+                <i class="fa-solid fa-star" onclick="setStar(4)"></i>
+                <i class="fa-solid fa-star" onclick="setStar(5)"></i>
+            </div>
+
+            <textarea id="rate-note" placeholder="Tambahkan catatan jika perlu..." style="width:100%; background:#111; border:1px solid #333; color:#fff; padding:10px; border-radius:10px;"></textarea>
+            
+            <button class="btn-finish" style="margin-top:20px;" onclick="submitRating()">KIRIM & SELESAIKAN</button>
+        </div>
+    </div>
+
+    <script>
+        // CONFIG
+        const session = JSON.parse(localStorage.getItem('pickme_user'));
+        const isAdv = session.role === 'adventurer';
+        const questId = new URLSearchParams(window.location.search).get('id') || "TEST_QUEST";
+        
+        const config = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        };
+        firebase.initializeApp(config);
+        const db = firebase.database();
+
+        let map, myMarker, targetMarker;
+        let ratingValue = 0;
+
+        // INIT
+        window.onload = () => {
+            initMap();
+            loadTargetData();
+            startTracking();
+            listenChat();
+            
+            // Sembunyikan WA jika Adventurer (Aturan: Requester yang biasa hub WA duluan)
+            if(isAdv) document.getElementById('btn-wa').style.display = 'none';
+        };
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([-6.97, 108.48], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            myMarker = L.marker([0,0]).addTo(map);
+            targetMarker = L.marker([0,0], { opacity: 0.8 }).addTo(map);
+        }
+
+        function toggleTheme() {
+            const root = document.documentElement;
+            const current = root.getAttribute('data-theme');
+            root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+        }
+
+        function startTracking() {
+            navigator.geolocation.watchPosition(pos => {
+                const { latitude, longitude } = pos.coords;
+                myMarker.setLatLng([latitude, longitude]);
+                
+                // Update posisi saya ke DB
+                const myPath = `tracking/${questId}/${session.id}`;
+                db.ref(myPath).set({ lat: latitude, lng: longitude, role: session.role });
+
+                // Pantau posisi lawan
+                db.ref(`tracking/${questId}`).on('value', snap => {
+                    snap.forEach(child => {
+                        if(child.key !== session.id) {
+                            targetMarker.setLatLng([child.val().lat, child.val().lng]);
+                        }
+                    });
+                });
+            });
+        }
+
+        function loadTargetData() {
+            // Logika: Jika saya Adv, target saya adalah Requester. Begitu sebaliknya.
+            const targetName = isAdv ? "Requester: Bpk. Budi" : "Adventurer: Aris (Rank C)";
+            document.getElementById('target-name').innerText = targetName;
+        }
+
+        // --- CHAT LOGIC ---
+        function toggleChat() { document.getElementById('chatDrawer').classList.toggle('open'); }
+
+        function sendChat() {
+            const val = document.getElementById('chat-in').value;
+            if(!val) return;
+            db.ref(`chats/${questId}`).push({
+                sender: session.id,
+                msg: val,
+                time: Date.now()
+            });
+            document.getElementById('chat-in').value = "";
+        }
+
+        function listenChat() {
+            db.ref(`chats/${questId}`).on('child_added', snap => {
+                const data = snap.val();
+                const isMe = data.sender === session.id;
+                const div = document.createElement('div');
+                div.className = `msg ${isMe ? 'me' : 'them'}`;
+                div.innerText = data.msg;
+                document.getElementById('chat-body').appendChild(div);
+                document.getElementById('chat-body').scrollTop = document.getElementById('chat-body').scrollHeight;
+            });
+        }
+
+        // --- NAVIGATION & WA ---
+        function openNavigation() {
+            // Adventurer diarahkan ke titik jemput, Requester ke titik Adventurer
+            const lat = targetMarker.getLatLng().lat;
+            const lng = targetMarker.getLatLng().lng;
+            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
+        }
+
+        function directWA() {
+            window.open(`https://wa.me/628123456789?text=Halo, saya Requester misi ${questId}`);
+        }
+
+        // --- RATING LOGIC ---
+        function openRating() { document.getElementById('modalRating').style.display = 'flex'; }
+
+        function setStar(n) {
+            ratingValue = n;
+            const stars = document.getElementById('stars').children;
+            for(let i=0; i<5; i++) {
+                stars[i].classList.toggle('active', i < n);
+            }
+        }
+
+        function submitRating() {
+            if(ratingValue === 0) return alert("Berikan bintang!");
+            
+            // Simpan Rating ke DB sebelum hapus misi
+            db.ref(`ratings/${questId}/${session.id}`).set({
+                stars: ratingValue,
+                note: document.getElementById('rate-note').value,
+                role: session.role
+            }).then(() => {
+                alert("Misi Selesai! Terima kasih Hero.");
+                window.location.href = "dashboard.html"; // Kembali ke utama
+            });
+        }
+    </script>
+</body>
+</html>
