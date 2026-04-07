@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TERMINAL | PICK ME GUILD LIFE</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* =========================================
+           CORE STYLING: NEON RPG AESTHETIC
+           ========================================= */
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --neon-cyan-dim: rgba(0, 255, 255, 0.1);
+            --bg-main: #050505;
+            --bg-card: #0d0d0d;
+            --border-color: #222;
+            --text-main: #fff;
+            --text-muted: #888;
+            --rank-f: #888;
+            --rank-e: #4ade80;
+            --rank-d: #3b82f6;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+
+        * { 
+            -webkit-user-select: none; user-select: none; 
+            -webkit-tap-highlight-color: transparent; 
+            box-sizing: border-box;
+        }
+
+        body { 
+            background-color: var(--bg-main); 
+            color: var(--text-main); 
+            font-family: 'Segoe UI', sans-serif; 
+            margin: 0; 
+            padding: 0;
+            overflow-x: hidden;
+            padding-bottom: 80px; /* Space for Bottom Nav */
+        }
+
+        /* HEADER & STATUS BARS */
+        .header-guild {
+            background: linear-gradient(180deg, #111 0%, #050505 100%);
+            padding: 20px 15px;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        .profile-strip {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
+        }
+
+        .adventurer-info h2 {
+            margin: 0; font-size: 18px; letter-spacing: 1px; color: var(--neon-cyan);
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+        }
+
+        .adventurer-info p {
+            margin: 0; font-size: 10px; font-family: var(--font-terminal); color: var(--text-muted);
+        }
+
+        .rank-badge {
+            background: #222; border: 1px solid var(--neon-cyan); color: var(--neon-cyan);
+            padding: 4px 10px; border-radius: 4px; font-family: var(--font-terminal);
+            font-weight: bold; font-size: 14px;
+        }
+
+        /* STATUS BARS (STAMINA & EXP) */
+        .status-container { display: flex; gap: 10px; flex-direction: column; }
+        .bar-wrapper { width: 100%; }
+        .bar-label { 
+            display: flex; justify-content: space-between; 
+            font-family: var(--font-terminal); font-size: 9px; margin-bottom: 4px; 
+        }
+        .bar-bg { height: 6px; background: #222; border-radius: 3px; overflow: hidden; position: relative; }
+        .bar-fill { height: 100%; transition: width 0.5s ease-in-out; }
+        .stamina-fill { background: var(--neon-pink); box-shadow: 0 0 10px var(--neon-pink); }
+        .exp-fill { background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan); }
+
+        /* CURRENCY (RED STONE) */
+        .currency-bar {
+            display: flex; gap: 15px; margin-top: 15px;
+            background: rgba(255, 255, 255, 0.03); padding: 8px 12px; border-radius: 6px;
+        }
+        .currency-item { display: flex; align-items: center; gap: 6px; font-family: var(--font-terminal); font-size: 12px; }
+        .stone-icon { width: 12px; height: 12px; background: var(--neon-pink); transform: rotate(45deg); display: inline-block; }
+
+        /* MISSION BOARD (PAPAN MISI) */
+        .terminal-title {
+            padding: 20px 15px 10px 15px; font-family: var(--font-terminal);
+            font-size: 12px; color: var(--text-muted); letter-spacing: 2px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .live-dot { width: 8px; height: 8px; background: #00ff00; border-radius: 50%; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        .mission-list { padding: 0 15px; }
+        .mission-card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 15px; margin-bottom: 12px;
+            position: relative; overflow: hidden; transition: transform 0.2s;
+        }
+        .mission-card:active { transform: scale(0.98); background: #151515; }
+        
+        .mission-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .mission-type { 
+            font-size: 9px; font-family: var(--font-terminal); background: #222; 
+            padding: 2px 6px; border-radius: 3px; color: var(--neon-cyan);
+        }
+        .mission-reward { font-family: var(--font-terminal); font-weight: bold; color: var(--neon-pink); font-size: 14px; }
+        
+        .mission-title { font-size: 15px; font-weight: bold; margin: 0 0 5px 0; letter-spacing: 0.5px; }
+        .mission-loc { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+        
+        .mission-footer {
+            margin-top: 12px; padding-top: 10px; border-top: 1px dashed #333;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .mission-rank-req { font-family: var(--font-terminal); font-size: 10px; color: var(--rank-e); }
+        .btn-view {
+            background: var(--neon-cyan); color: #000; border: none; padding: 6px 15px;
+            border-radius: 4px; font-size: 11px; font-weight: bold; font-family: var(--font-terminal);
+        }
+
+        /* BOTTOM NAVIGATION */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%; height: 65px;
+            background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(10px);
+            border-top: 1px solid var(--border-color);
+            display: flex; justify-content: space-around; align-items: center; z-index: 1000;
+        }
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            color: var(--text-muted); font-size: 10px; font-family: var(--font-terminal);
+            text-decoration: none; transition: 0.3s;
+        }
+        .nav-item.active { color: var(--neon-cyan); }
+        .nav-icon { font-size: 20px; }
+
+        /* LOADING & EMPTY STATE */
+        #loading-overlay {
+            padding: 40px; text-align: center; color: var(--text-muted); font-family: var(--font-terminal); font-size: 12px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header class="header-guild">
+        <div class="profile-strip">
+            <div class="adventurer-info">
+                <p>CODENAME:</p>
+                <h2 id="displayNick">LOADING...</h2>
+            </div>
+            <div class="rank-badge" id="displayRank">RANK -</div>
+        </div>
+
+        <div class="status-container">
+            <div class="bar-wrapper">
+                <div class="bar-label">
+                    <span>STAMINA <span class="bilingual-hint">(Energi Harian)</span></span>
+                    <span id="staminaVal">0 / 100</span>
+                </div>
+                <div class="bar-bg">
+                    <div id="staminaFill" class="bar-fill stamina-fill" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="bar-wrapper">
+                <div class="bar-label">
+                    <span>REPUTATION <span class="bilingual-hint">(Pengalaman)</span></span>
+                    <span id="expVal">0 / 1000</span>
+                </div>
+                <div class="bar-bg">
+                    <div id="expFill" class="bar-fill exp-fill" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="currency-bar">
+            <div class="currency-item">
+                <div class="stone-icon"></div>
+                <span id="redStoneVal">0</span> 
+                <span class="bilingual-hint">RED STONES</span>
+            </div>
+            <div class="currency-item" style="color: #fbbf24;">
+                <span style="font-weight:bold;">T</span> 
+                <span id="trustVal">100%</span> 
+                <span class="bilingual-hint">TRUST</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="terminal-title">
+        <span>ACTIVE MISSION BOARD <br><span class="bilingual-hint" style="font-size: 9px; letter-spacing: 0;">PAPAN MISI TERSEDIA</span></span>
+        <div style="display:flex; align-items:center; gap:5px;">
+            <div class="live-dot"></div>
+            <span style="font-size: 9px; color: #00ff00;">LIVE FEED</span>
+        </div>
+    </div>
+
+    <main class="mission-list" id="missionContainer">
+        <div id="loading-overlay">
+            <p>[ SCANNING FOR LOCAL MISSIONS... ]</p>
+            <p class="bilingual-hint">Mencari misi di wilayah Anda...</p>
+        </div>
+    </main>
+
+    <nav class="bottom-nav">
+        <a href="#" class="nav-item active">
+            <span class="nav-icon">📡</span>
+            <span>TERMINAL</span>
+        </a>
+        <a href="inventory.html" class="nav-item">
+            <span class="nav-icon">🎒</span>
+            <span>BAG</span>
+        </a>
+        <a href="quest.html" class="nav-item">
+            <span class="nav-icon">⚔️</span>
+            <span>QUEST</span>
+        </a>
+        <a href="profile.html" class="nav-item">
+            <span class="nav-icon">⚙️</span>
+            <span>SYSTEM</span>
+        </a>
+    </nav>
+
+    <script>
+        /** =========================================
+         * ADVENTURER TERMINAL ENGINE
+         * ========================================= */
+        const Terminal = {
+            // Mock Data User (Nanti diambil dari Firebase Auth/Session)
+            currentUser: {
+                nick: "ShadowWalker",
+                rank: "TRAINER (F)",
+                stamina: 85,
+                maxStamina: 100,
+                exp: 450,
+                maxExp: 1000,
+                redStones: 25000,
+                trust: 100,
+                area: "KAB. KUNINGAN (SERVER KNG-01)"
+            },
+
+            init() {
+                this.updateIdentityUI();
+                this.loadMissions();
+                this.initHaptics();
+            },
+
+            updateIdentityUI() {
+                const u = this.currentUser;
+                document.getElementById('displayNick').innerText = u.nick;
+                document.getElementById('displayRank').innerText = u.rank;
+                document.getElementById('staminaVal').innerText = `${u.stamina} / ${u.maxStamina}`;
+                document.getElementById('staminaFill').style.width = (u.stamina / u.maxStamina * 100) + "%";
+                document.getElementById('expVal').innerText = `${u.exp} / ${u.maxExp}`;
+                document.getElementById('expFill').style.width = (u.exp / u.maxExp * 100) + "%";
+                document.getElementById('redStoneVal').innerText = u.redStones.toLocaleString('id-ID');
+                document.getElementById('trustVal').innerText = u.trust + "%";
+            },
+
+            async loadMissions() {
+                const container = document.getElementById('missionContainer');
+                
+                // Simulasi delay jaringan terminal
+                setTimeout(() => {
+                    container.innerHTML = ''; // Bersihkan loader
+                    
+                    // Contoh Data Misi dari Server
+                    const missions = [
+                        {
+                            id: "M-9921",
+                            title: "TITIP BELI: SEBLAK CEKER PRAPATAN",
+                            type: "COMMODITY (TITIP)",
+                            reward: "15.000",
+                            loc: "Cigugur, Kuningan",
+                            rank: "RANK F-TRAINER"
+                        },
+                        {
+                            id: "M-9925",
+                            title: "DELIVERY: DOKUMEN PENTING (URGENT)",
+                            type: "COURIER (KIRIM)",
+                            reward: "25.000",
+                            loc: "Kuningan Kota - Cirendang",
+                            rank: "RANK E-SCOUT"
+                        },
+                        {
+                            id: "M-9930",
+                            title: "PERSONAL ASSISTANT: BELANJA PASAR BARU",
+                            type: "MANDATE (JASA)",
+                            reward: "40.000",
+                            loc: "Pasar Baru Kuningan",
+                            rank: "RANK F-TRAINER"
+                        }
+                    ];
+
+                    missions.forEach(m => {
+                        const card = document.createElement('div');
+                        card.className = 'mission-card';
+                        card.innerHTML = `
+                            <div class="mission-header">
+                                <span class="mission-type">${m.type}</span>
+                                <span class="mission-reward">RS ${m.reward}</span>
+                            </div>
+                            <h3 class="mission-title">${m.title}</h3>
+                            <div class="mission-loc">
+                                <span>📍</span> ${m.loc}
+                            </div>
+                            <div class="mission-footer">
+                                <span class="mission-rank-req">REQ: ${m.rank}</span>
+                                <button class="btn-view" onclick="Terminal.viewDetails('${m.id}')">DETAILS</button>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
+
+                }, 1500);
+            },
+
+            viewDetails(id) {
+                if(navigator.vibrate) navigator.vibrate(20);
+                // Logika menuju halaman detail misi
+                console.log("Viewing mission: " + id);
+                alert("Misi [" + id + "] detail akan terbuka. (Lanjut ke part detail misi?)");
+            },
+
+            initHaptics() {
+                document.querySelectorAll('.nav-item, .btn-view').forEach(el => {
+                    el.addEventListener('click', () => {
+                        if(navigator.vibrate) navigator.vibrate(10);
+                    });
+                });
+            }
+        };
+
+        window.onload = () => Terminal.init();
+    </script>
+</body>
+</html>
