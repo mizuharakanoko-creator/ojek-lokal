@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>POST MISSION</title>
+    <style>
+        body { background: #000; color: #00d9ff; font-family: monospace; padding: 20px; }
+        .mission-form { border: 1px solid #00d9ff; padding: 15px; max-width: 400px; }
+        .app-list { margin-top: 20px; border-top: 1px solid #333; }
+        .app-card { background: #111; padding: 10px; margin: 5px 0; display: flex; justify-content: space-between; }
+    </style>
+</head>
+<body>
+    <div class="mission-form">
+        <h3>CREATE MISSION CONTRACT</h3>
+        <input type="text" id="title" placeholder="Judul Misi (Contoh: Antar Paket)">
+        <input type="number" id="reward" placeholder="Reward Stone">
+        <button onclick="postMission()">POST KE PAPAN PENGUMUMAN</button>
+    </div>
+
+    <div id="myMissions" class="app-list">
+        <h4>Pelamar Misi Anda (CS Guild Tracker):</h4>
+        <div id="applicantBox">Belum ada pelamar...</div>
+    </div>
+
+    <script>
+        const user = JSON.parse(localStorage.getItem('guild_session'));
+
+        function postMission() {
+            const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
+            const newMission = {
+                id: "MSN-" + Date.now(),
+                requesterId: user.id,
+                title: document.getElementById('title').value,
+                reward: document.getElementById('reward').value,
+                applicants: [],
+                status: "OPEN"
+            };
+            missions.push(newMission);
+            localStorage.setItem('global_missions', JSON.stringify(missions));
+            alert("Misi dicatat oleh CS Guild!");
+            location.reload();
+        }
+
+        // Jalankan polling sederhana untuk melihat pelamar
+        setInterval(() => {
+            const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
+            const myMsn = missions.find(m => m.requesterId === user.id && m.status === "OPEN");
+            if(myMsn && myMsn.applicants.length > 0) {
+                let html = "";
+                myMsn.applicants.forEach(app => {
+                    html += `<div class="app-card">
+                        <span>${app.name} (${app.id})</span>
+                        <button onclick="accept('${myMsn.id}', '${app.id}')">TERIMA KONTRAK</button>
+                    </div>`;
+                });
+                document.getElementById('applicantBox').innerHTML = html;
+            }
+        }, 2000);
+
+        function accept(msnId, advId) {
+            let missions = JSON.parse(localStorage.getItem('global_missions'));
+            let m = missions.find(m => m.id === msnId);
+            m.status = "ACTIVE";
+            m.acceptedAdventurer = advId;
+            localStorage.setItem('global_missions', JSON.stringify(missions));
+            alert("Kontrak Disetujui! Membuka Portal...");
+            window.location.href = "active_mission.html?id=" + msnId;
+        }
+    </script>
+</body>
+</html>
