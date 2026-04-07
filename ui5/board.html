@@ -12,37 +12,68 @@
     <div id="boardBox">Memuat pengumuman...</div>
 
     <script>
-        const user = JSON.parse(localStorage.getItem('guild_session'));
+    // Ambil data user yang login
+    const user = JSON.parse(localStorage.getItem('guild_session'));
+    if(!user) window.location.href = 'index.html';
 
-        function loadBoard() {
-            const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
-            const openMissions = missions.filter(m => m.status === "OPEN");
+    function renderBoard() {
+        // Ambil data misi dari storage global
+        const rawMissions = localStorage.getItem('global_missions');
+        const missions = JSON.parse(rawMissions || '[]');
+        
+        // Filter hanya misi yang statusnya "OPEN"
+        const openMissions = missions.filter(m => m.status === "OPEN");
+        
+        const boardBox = document.getElementById('boardBox');
+        
+        if (openMissions.length === 0) {
+            boardBox.innerHTML = "<p style='color:#444'>[ CS GUILD: Belum ada kontrak masuk... ]</p>";
+            return;
+        }
+
+        let html = "";
+        openMissions.forEach(m => {
+            // Cek apakah kita sudah melamar misi ini
+            const isApplied = m.applicants.some(a => a.id === user.id);
             
-            let html = "";
-            openMissions.forEach(m => {
-                html += `<div class="quest-card">
-                    <b>${m.title}</b><br>Reward: ${m.reward} Stone<br>
-                    <button onclick="apply('${m.id}')">AJUKAN DIRI</button>
-                </div>`;
-            });
-            document.getElementById('boardBox').innerHTML = html || "Tidak ada misi tersedia.";
+            html += `
+                <div class="quest-card">
+                    <b style="color:#fff">${m.title}</b><br>
+                    <small>ID: ${m.id}</small><br>
+                    <span style="color:#0f0">${m.reward} STONE</span><br>
+                    <button onclick="apply('${m.id}')" ${isApplied ? 'disabled' : ''}>
+                        ${isApplied ? 'SUDAH DILAMAR' : 'AMBIL KONTRAK'}
+                    </button>
+                </div>
+            `;
+        });
+        boardBox.innerHTML = html;
 
-            // Cek jika sudah diterima (Simulasi CS memanggil ke Briefing)
-            const active = missions.find(m => m.acceptedAdventurer === user.id && m.status === "ACTIVE");
-            if(active) window.location.href = "active_mission.html?id=" + active.id;
+        // FITUR AUTO-REDIRECT: Jika terpilih oleh Requester
+        const myActiveMission = missions.find(m => m.acceptedAdventurer === user.id && m.status === "ACTIVE");
+        if(myActiveMission) {
+            alert("KONTRAK DISETUJUI! Masuk ke Briefing...");
+            window.location.href = "briefing.html?id=" + myActiveMission.id;
         }
+    }
 
-        function apply(msnId) {
-            let missions = JSON.parse(localStorage.getItem('global_missions'));
-            let m = missions.find(m => m.id === msnId);
-            if(!m.applicants.find(a => a.id === user.id)) {
-                m.applicants.push({ id: user.id, name: user.name });
-                localStorage.setItem('global_missions', JSON.stringify(missions));
-                alert("Lamaran dikirim ke CS Guild. Tunggu persetujuan Requester.");
-            }
+    function apply(msnId) {
+        let missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
+        let mIndex = missions.findIndex(m => m.id === msnId);
+        
+        if(mIndex !== -1) {
+            // Tambahkan data kita ke daftar pelamar di misi tersebut
+            missions[mIndex].applicants.push({ id: user.id, name: user.name });
+            localStorage.setItem('global_missions', JSON.stringify(missions));
+            alert("Lamaran dicatat oleh CS Guild!");
+            renderBoard(); // Update tampilan tombol
         }
+    }
 
-        setInterval(loadBoard, 2000);
-    </script>
+    // Jalankan pengecekan setiap 1 detik (Simulasi Realtime)
+    setInterval(renderBoard, 1000);
+    renderBoard(); // Jalankan sekali saat start
+</script>
+
 </body>
 </html>
