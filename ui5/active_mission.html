@@ -34,6 +34,17 @@
             </div>
     </div>
 
+    <div class="card">
+    <div class="badge">SECURE CHAT CHANNEL</div>
+    <div id="chatBox" style="height: 200px; overflow-y: auto; background: #000; padding: 10px; font-size: 13px; border: 1px solid #222; margin-bottom: 10px;">
+        </div>
+    <div style="display: flex; gap: 5px;">
+        <input type="text" id="chatInput" placeholder="Ketik pesan..." style="margin:0;">
+        <button class="btn" style="width: 80px;" onclick="sendChat()">KIRIM</button>
+    </div>
+</div>
+
+
     <script>
         const user = JSON.parse(localStorage.getItem('guild_session'));
         const urlParams = new URLSearchParams(window.location.search);
@@ -93,6 +104,44 @@
             
             updateBattlefield();
         }
+
+
+        function sendChat() {
+    const input = document.getElementById('chatInput');
+    if (!input.value) return;
+
+    const chatData = {
+        sender: user.name,
+        text: input.value,
+        time: new Date().toLocaleTimeString()
+    };
+
+    let allChats = JSON.parse(localStorage.getItem('chats_' + questId) || '[]');
+    allChats.push(chatData);
+    localStorage.setItem('chats_' + questId, JSON.stringify(allChats));
+    
+    input.value = "";
+    renderChat();
+}
+
+function renderChat() {
+    const chatBox = document.getElementById('chatBox');
+    const allChats = JSON.parse(localStorage.getItem('chats_' + questId) || '[]');
+    
+    chatBox.innerHTML = allChats.map(c => `
+        <div style="margin-bottom: 8px; border-left: 2px solid ${c.sender === user.name ? 'var(--neon)' : 'var(--gold)'}; padding-left: 8px;">
+            <small style="color: #555;">${c.time} - ${c.sender}</small><br>
+            <span>${c.text}</span>
+        </div>
+    `).join('');
+    
+    // Auto scroll ke bawah
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// Jalankan renderChat setiap detik agar pesan dari lawan bicara muncul
+setInterval(renderChat, 1000);
+
 
         setInterval(updateBattlefield, 1500);
         updateBattlefield();
