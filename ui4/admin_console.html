@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARCHITECT CONSOLE | MASTER ADMIN</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        :root { --admin-red: #ff4757; --admin-gold: #ffa502; --bg: #0a0a0c; --glass: rgba(20, 20, 25, 0.95); }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #eee; margin: 0; display: flex; height: 100vh; }
+        
+        /* Sidebar */
+        .sidebar { width: 240px; background: #111; border-right: 1px solid #222; padding: 20px; }
+        .nav-item { padding: 12px; border-radius: 8px; cursor: pointer; margin-bottom: 5px; transition: 0.3s; color: #888; }
+        .nav-item:hover, .nav-item.active { background: var(--admin-red); color: #fff; }
+
+        /* Main Content */
+        .main { flex: 1; overflow-y: auto; padding: 30px; position: relative; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        
+        /* Search & Filter Bar */
+        .search-container { position: relative; flex: 1; max-width: 500px; margin-right: 20px; }
+        .search-bar { width: 100%; background: #1a1a1e; border: 1px solid #333; padding: 12px 40px; border-radius: 10px; color: #fff; outline: none; }
+        .search-icon { position: absolute; left: 15px; top: 14px; color: #555; }
+        .autocomplete-box { position: absolute; top: 50px; width: 100%; background: #1a1a1e; border: 1px solid #333; z-index: 100; border-radius: 10px; display: none; max-height: 200px; overflow-y: auto; }
+        .suggestion { padding: 10px; cursor: pointer; border-bottom: 1px solid #222; }
+        .suggestion:hover { background: #25252b; }
+
+        /* Flexible Table */
+        .data-table { width: 100%; border-collapse: collapse; background: var(--glass); border-radius: 15px; overflow: hidden; }
+        .data-table th { background: #1a1a1e; padding: 15px; text-align: left; font-size: 13px; color: var(--admin-gold); text-transform: uppercase; }
+        .data-table td { padding: 15px; border-bottom: 1px solid #222; font-size: 14px; }
+        
+        /* Status Badges */
+        .badge { padding: 4px 8px; border-radius: 5px; font-size: 10px; font-weight: bold; }
+        .badge-verified { background: #2ecc7122; color: #2ecc71; border: 1px solid #2ecc71; }
+        .badge-pending { background: #e67e2222; color: #e67e22; border: 1px solid #e67e22; }
+
+        /* Modal Editor */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-box { background: #1a1a1e; padding: 25px; border-radius: 20px; width: 90%; max-width: 500px; border: 1px solid #444; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 11px; color: #888; margin-bottom: 5px; }
+        .form-group input, .form-group select { width: 100%; background: #111; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 8px; box-sizing: border-box; }
+        
+        .btn-save { background: var(--admin-red); color: #fff; border: none; padding: 12px 20px; border-radius: 10px; width: 100%; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2 style="color:var(--admin-red); font-size:18px;"><i class="fa-solid fa-crown"></i> ARCHITECT</h2>
+        <hr style="border: 0.5px solid #222; margin: 20px 0;">
+        <div class="nav-item active" onclick="Admin.switchCategory('identity_adventurer')"><i class="fa-solid fa-shield"></i> Adventurers</div>
+        <div class="nav-item" onclick="Admin.switchCategory('identity_requester')"><i class="fa-solid fa-user-tie"></i> Requesters</div>
+        <div class="nav-item" onclick="Admin.switchCategory('quest_board')"><i class="fa-solid fa-scroll"></i> Mission Board</div>
+        <div class="nav-item" onclick="Admin.logout()"><i class="fa-solid fa-power-off"></i> Logout</div>
+    </div>
+
+    <div class="main">
+        <div class="header">
+            <div class="search-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" class="search-bar" id="searchInp" placeholder="Search by ID or Name..." oninput="Admin.handleSearch(this.value)">
+                <div id="autocomplete" class="autocomplete-box"></div>
+            </div>
+            <button class="btn-save" style="width: auto;" onclick="Admin.refreshData()"><i class="fa-solid fa-sync"></i> Sync Data</button>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr id="tableHeader">
+                    </tr>
+            </thead>
+            <tbody id="tableBody">
+                </tbody>
+        </table>
+    </div>
+
+    <div id="editModal" class="modal">
+        <div class="modal-box">
+            <h3 id="editTitle" style="margin-top:0;">EDIT DATA</h3>
+            <div id="editFields"></div>
+            <button class="btn-save" onclick="Admin.saveChanges()">SIMPAN PERUBAHAN</button>
+            <button onclick="Admin.closeModal()" style="background:none; border:none; color:#888; width:100%; margin-top:10px; cursor:pointer;">BATAL</button>
+        </div>
+    </div>
+
+    <script>
+        const Admin = {
+            currentCategory: 'identity_adventurer',
+            db: null,
+            rawData: {},
+            selectedId: null,
+
+            init() {
+                const config = {
+                    apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+                    databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app"
+                };
+                firebase.initializeApp(config);
+                this.db = firebase.database();
+                this.fetchData();
+            },
+
+            async fetchData() {
+                // Fetch data berdasarkan kategori (misal: identity_adventurer)
+                const snap = await this.db.ref(this.currentCategory).once('value');
+                this.rawData = snap.val() || {};
+                this.renderTable();
+            },
+
+            switchCategory(cat) {
+                this.currentCategory = cat;
+                document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+                event.currentTarget.classList.add('active');
+                this.fetchData();
+            },
+
+            renderTable(filterData = null) {
+                const body = document.getElementById('tableBody');
+                const header = document.getElementById('tableHeader');
+                const dataToRender = filterData || this.rawData;
+
+                body.innerHTML = '';
+                // Set Header based on category
+                if (this.currentCategory.includes('adventurer')) {
+                    header.innerHTML = `<th>Shard</th><th>Name</th><th>Rank</th><th>Status</th><th>Action</th>`;
+                } else {
+                    header.innerHTML = `<th>ID</th><th>Details</th><th>Action</th>`;
+                }
+
+                // Kita harus iterasi Shard dulu, baru ID user
+                for (let shard in dataToRender) {
+                    for (let id in dataToRender[shard]) {
+                        const item = dataToRender[shard][id];
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${shard}</td>
+                            <td>${item.name || id}</td>
+                            <td>${item.rank || '-'}</td>
+                            <td><span class="badge ${item.is_verified ? 'badge-verified' : 'badge-pending'}">${item.is_verified ? 'VERIFIED' : 'UNVERIFIED'}</span></td>
+                            <td><button onclick="Admin.openEdit('${shard}', '${id}')" style="background:#333; color:#fff; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">EDIT</button></td>
+                        `;
+                        body.appendChild(row);
+                    }
+                }
+            },
+
+            handleSearch(val) {
+                const box = document.getElementById('autocomplete');
+                if (!val) { box.style.display = 'none'; return; }
+
+                box.innerHTML = '';
+                box.style.display = 'block';
+                
+                // Cari di rawData
+                for (let shard in this.rawData) {
+                    for (let id in this.rawData[shard]) {
+                        const name = this.rawData[shard][id].name || "";
+                        if (name.toLowerCase().includes(val.toLowerCase()) || id.toLowerCase().includes(val.toLowerCase())) {
+                            const div = document.createElement('div');
+                            div.className = 'suggestion';
+                            div.innerText = `${name} (${id})`;
+                            div.onclick = () => {
+                                document.getElementById('searchInp').value = name;
+                                box.style.display = 'none';
+                                // Logika Filter Table
+                                const filtered = { [shard]: { [id]: this.rawData[shard][id] } };
+                                this.renderTable(filtered);
+                            };
+                            box.appendChild(div);
+                        }
+                    }
+                }
+            },
+
+            openEdit(shard, id) {
+                this.selectedId = { shard, id };
+                const data = this.rawData[shard][id];
+                const container = document.getElementById('editFields');
+                container.innerHTML = '';
+
+                // Buat input dinamis untuk semua field dalam data
+                for (let key in data) {
+                    if (typeof data[key] !== 'object') {
+                        container.innerHTML += `
+                            <div class="form-group">
+                                <label>${key.toUpperCase()}</label>
+                                <input type="text" id="edit_${key}" value="${data[key]}">
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Tambahkan field verifikasi khusus jika belum ada
+                if (data.is_verified === undefined) {
+                     container.innerHTML += `
+                        <div class="form-group">
+                            <label>IS_VERIFIED (true/false)</label>
+                            <input type="text" id="edit_is_verified" value="false">
+                        </div>
+                    `;
+                }
+
+                document.getElementById('editModal').style.display = 'flex';
+            },
+
+            async saveChanges() {
+                const { shard, id } = this.selectedId;
+                const data = this.rawData[shard][id];
+                const updates = {};
+
+                // Ambil nilai dari semua input modal
+                for (let key in data) {
+                    const input = document.getElementById(`edit_${key}`);
+                    if (input) {
+                        let val = input.value;
+                        if (val === "true") val = true;
+                        if (val === "false") val = false;
+                        updates[key] = val;
+                    }
+                }
+
+                try {
+                    await this.db.ref(`${this.currentCategory}/${shard}/${id}`).update(updates);
+                    alert("Data Updated Successfully!");
+                    this.closeModal();
+                    this.fetchData();
+                } catch (e) { alert("Error: " + e.message); }
+            },
+
+            closeModal() { document.getElementById('editModal').style.display = 'none'; },
+            refreshData() { this.fetchData(); }
+        };
+
+        Admin.init();
+    </script>
+</body>
+</html>
