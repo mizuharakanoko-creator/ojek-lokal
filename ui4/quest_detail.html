@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QUEST DETAIL | PICK ME GUILD</title>
+    
+    <link rel="stylesheet" href="guild_system.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* Smooth Slide-In Transition */
+        body {
+            animation: slideIn 0.4s ease-out;
+            background: var(--bg-black);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .header-nav {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .content-area {
+            padding: 0 20px;
+            padding-bottom: 120px;
+        }
+
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid #222;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .label-rpg {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .quest-title {
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--neon-blue);
+            margin-bottom: 15px;
+        }
+
+        .price-tag {
+            font-size: 28px;
+            font-weight: 900;
+            color: var(--neon-gold);
+            text-shadow: 0 0 15px rgba(255, 204, 0, 0.3);
+        }
+
+        /* Negotiation Box */
+        .negotiation-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: #0a0a0a;
+            border-top: 2px solid #222;
+            padding: 20px;
+            border-radius: 20px 20px 0 0;
+            z-index: 1000;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+        }
+
+        .btn-action {
+            width: 100%;
+            padding: 18px;
+            border-radius: 10px;
+            border: none;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+        }
+
+        .btn-take { background: var(--neon-blue); color: #000; margin-bottom: 10px; }
+        .btn-nego { background: transparent; border: 1px solid var(--neon-gold); color: var(--neon-gold); }
+
+        /* Nego Modal Custom (SweetAlert Style) */
+        #negoModal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+        }
+
+        .input-nego {
+            width: 100%;
+            background: #111;
+            border: 1px solid var(--neon-gold);
+            color: var(--neon-gold);
+            padding: 20px;
+            font-size: 24px;
+            text-align: center;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="guild-watermark"></div>
+
+    <div class="header-nav">
+        <div onclick="history.back()" style="cursor:pointer;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </div>
+        <div style="font-family: 'Courier New', monospace; font-size: 12px; color:#888;">MISSION_FILE_#<span id="txtQuestId">...</span></div>
+    </div>
+
+    <div class="content-area">
+        <div id="loadingState">
+            <div class="info-card shimmer" style="height: 150px;"></div>
+            <div class="info-card shimmer" style="height: 100px;"></div>
+            <div class="info-card shimmer" style="height: 200px;"></div>
+        </div>
+
+        <div id="mainContent" style="display: none;">
+            <div class="info-card">
+                <span class="label-rpg">Active Mission</span>
+                <div class="quest-title" id="dispTitle">---</div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                    <div>
+                        <span class="label-rpg">Reward</span>
+                        <div class="price-tag"><span id="dispStone">0</span> <span style="font-size:14px;">STONE</span></div>
+                    </div>
+                    <div id="dispRank" style="border:1px solid #444; padding:5px 15px; border-radius:5px; font-weight:bold;">RANK -</div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <span class="label-rpg">Requester Detail</span>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+                    <div style="width:40px; height:40px; background:#222; border-radius:50%; display:flex; justify-content:center; align-items:center;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                    <div>
+                        <div id="dispReqName" style="font-size:14px; font-weight:bold;">Loading...</div>
+                        <div id="dispReqRep" style="font-size:10px; color:var(--neon-gold);">★★★★★</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <span class="label-rpg">Briefing / Description</span>
+                <p id="dispDesc" style="color:#aaa; line-height:1.6; font-size:14px; margin-top:10px;">---</p>
+                
+                <span class="label-rpg" style="margin-top:20px;">Location Intelligence</span>
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <div style="flex:1; background:#111; padding:10px; border-radius:8px;">
+                        <span style="font-size:9px; color:#444; display:block;">PICKUP</span>
+                        <div id="dispLoc1" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">---</div>
+                    </div>
+                    <div style="flex:1; background:#111; padding:10px; border-radius:8px;">
+                        <span style="font-size:9px; color:#444; display:block;">DESTINATION</span>
+                        <div id="dispLoc2" style="font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">---</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="negotiation-panel">
+        <button class="btn-action btn-take" onclick="NegoEngine.directTake()">TAKE MISSION IMMEDIATELY</button>
+        <button class="btn-action btn-nego" onclick="NegoEngine.openNego()">PROPOSE NEW PRICE</button>
+    </div>
+
+    <div id="negoModal">
+        <div style="width:100%; text-align:center;">
+            <span class="label-rpg">PROPOSE STONE REWARD</span>
+            <input type="number" id="negoInput" class="input-nego" placeholder="0">
+            <p style="color:#444; font-size:11px; margin-bottom:30px;">Requester akan menerima notifikasi tawaran Anda secara real-time.</p>
+            <button class="btn-action btn-take" onclick="NegoEngine.sendOffer()">SEND PROPOSAL</button>
+            <button onclick="document.getElementById('negoModal').style.display='none'" style="background:none; border:none; color:#555; margin-top:20px; font-family:monospace; cursor:pointer;">[ CANCEL ]</button>
+        </div>
+    </div>
+
+    <audio id="sndClick" src="assets/click.mp3" preload="auto"></audio>
+    <audio id="sndNego" src="assets/nego_sent.mp3" preload="auto"></audio>
+
+    <script src="quest_detail_engine.js"></script>
+</body>
+</html>
