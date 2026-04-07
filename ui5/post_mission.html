@@ -3,90 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CREATE CONTRACT</title>
+    <title>GUILD - POST MISSION</title>
     <link rel="stylesheet" href="guild_style.css">
 </head>
 <body>
     <div class="container">
         <h2 class="title">/// NEW CONTRACT ///</h2>
         
-        <div class="card" id="tierInfo" style="border-color: var(--gold); font-size: 11px; text-align: center; color: var(--gold);">
-            </div>
-
-        <div class="card">
-            <label>JUDUL MISI</label>
-            <input type="text" id="title" placeholder="Contoh: Antar Paket Cepat...">
-            
-            <label>REWARD (STONE)</label>
-            <input type="number" id="reward" placeholder="Jumlah imbalan...">
-            
-            <button class="btn" id="btnPost" onclick="postMission()">TERBITKAN KONTRAK</button>
+        <div class="card" id="limitNotice" style="display:none; border-color:var(--danger); color:var(--danger); font-size:11px; text-align:center;">
+            [!] LIMIT TERCAPAI: SELESAIKAN MISI AKTIF ANDA TERLEBIH DAHULU.
         </div>
 
-        <button class="btn" style="border-color: var(--gold); color: var(--gold); margin-bottom: 10px;" 
-                onclick="location.href='my_mission_list.html'">
-            🔍 LIHAT PELAMAR (TRACKER)
-        </button>
-        
-        <button class="btn" style="border-color: #555; color: #888;" 
-                onclick="location.href='active_mission.html'">
-            ⚔️ MISI SEDANG BERJALAN
-        </button>
+        <div class="card">
+            <label>JUDUL KONTRAK</label>
+            <input type="text" id="mTitle" placeholder="Contoh: Pengawalan ke Hutan Terlarang...">
+            
+            <label>REWARD (STONE)</label>
+            <input type="number" id="mReward" placeholder="Jumlah imbalan...">
+            
+            <label>DESKRIPSI SINGKAT</label>
+            <textarea id="mDesc" style="width:100%; background:#000; color:#fff; border:1px solid #333; padding:10px; font-family:monospace;" rows="3" placeholder="Detail tugas..."></textarea>
+            
+            <button class="btn" id="btnPost" style="margin-top:15px;" onclick="publishMission()">TERBITKAN KONTRAK</button>
+        </div>
+
+        <button class="btn" style="border-color:var(--gold); color:var(--gold);" onclick="location.href='my_mission_list.html'">LIHAT TRACKER PELAMAR</button>
+        <button class="btn" style="margin-top:10px; border-color:#333; color:#555;" onclick="location.href='profile.html'">KEMBALI KE PROFIL</button>
     </div>
 
     <script>
         const user = JSON.parse(localStorage.getItem('guild_session'));
-        
-        // Simulasi Sistem Tier (Bisa diubah manual di console untuk tes)
-        // Default: 'standard', Ubah ke 'premium' untuk unlimited
-        if(!user.tier) user.tier = 'standard'; 
+        if(!user || user.role !== 'requester') window.location.href = 'index.html';
 
-        function checkLimit() {
+        function checkPostLimit() {
             const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
-            const myActiveMissions = missions.filter(m => m.requesterId === user.id && m.status !== "COMPLETED");
-            
-            const info = document.getElementById('tierInfo');
-            const btn = document.getElementById('btnPost');
+            const myActive = missions.filter(m => m.requesterId === user.id && m.status !== "COMPLETED");
 
-            if(user.tier === 'standard') {
-                const remaining = 1 - myActiveMissions.length;
-                info.innerText = `TIER: STANDARD (Limit: ${myActiveMissions.length}/1 Misi Aktif)`;
-                if(remaining <= 0) {
-                    btn.disabled = true;
-                    btn.innerText = "LIMIT TIER TERCAPAI";
-                }
-            } else {
-                info.innerText = `TIER: PREMIUM (UNLIMITED POST)`;
-                info.style.borderColor = "var(--neon)";
-                info.style.color = "var(--neon)";
+            if(user.tier === 'standard' && myActive.length >= 1) {
+                document.getElementById('btnPost').disabled = true;
+                document.getElementById('limitNotice').style.display = 'block';
             }
         }
 
-        function postMission() {
-            const t = document.getElementById('title').value;
-            const r = document.getElementById('reward').value;
-            if(!t || !r) return alert("Data kontrak tidak lengkap!");
+        function publishMission() {
+            const title = document.getElementById('mTitle').value;
+            const reward = document.getElementById('mReward').value;
+            const desc = document.getElementById('mDesc').value;
+
+            if(!title || !reward) return alert("Data misi tidak lengkap!");
 
             const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
-            
-            const newMsn = {
+            const newMission = {
                 id: "MSN-" + Date.now(),
                 requesterId: user.id,
                 requesterName: user.name,
-                title: t,
-                reward: r,
-                applicants: [],
+                shard: user.shard, // Misi otomatis masuk ke wilayah si pembuat
+                title: title,
+                reward: reward,
+                desc: desc,
                 status: "OPEN",
-                acceptedAdv: null
+                applicants: [],
+                acceptedAdv: null,
+                createdAt: new Date().toLocaleString()
             };
 
-            missions.push(newMsn);
+            missions.push(newMission);
             localStorage.setItem('global_missions', JSON.stringify(missions));
-            alert("Kontrak Berhasil Dipajang!");
+            alert("Misi telah dipajang di Papan Guild " + user.shard);
             window.location.href = 'my_mission_list.html';
         }
 
-        checkLimit();
+        checkPostLimit();
     </script>
 </body>
 </html>
