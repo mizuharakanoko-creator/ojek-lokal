@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | ADVENTURER REGISTRATION</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* =========================================
+           PILAR 1: THE IRON WALL & AESTHETICS
+           ========================================= */
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --neon-cyan-dim: rgba(0, 255, 255, 0.1);
+            --bg-main: #050505;
+            --bg-card: #0a0a0a;
+            --border-color: #222;
+            --text-main: #fff;
+            --text-muted: #888;
+            --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+
+        /* Anti-Inspect & Native Feel */
+        * { 
+            -webkit-user-select: none; user-select: none; 
+            -webkit-tap-highlight-color: transparent; 
+            box-sizing: border-box;
+        }
+        input, select, textarea { 
+            -webkit-user-select: text; user-select: text; 
+            outline: none; 
+        }
+        body { 
+            overscroll-behavior-y: contain; /* No-Scroll Bounce */
+            background-color: var(--bg-main); 
+            color: var(--text-main); 
+            min-height: 100vh; 
+            margin: 0; 
+            padding-bottom: 40px; 
+            overflow-x: hidden;
+            font-family: var(--font-main);
+        }
+
+        /* Typography & Colors */
+        .text-neon-pink { color: var(--neon-pink); text-shadow: 0 0 10px rgba(255,0,85,0.5); }
+        .text-neon-cyan { color: var(--neon-cyan); text-shadow: 0 0 10px rgba(0,255,255,0.5); }
+
+        /* Loader */
+        #page-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #000; z-index: 10000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            transition: opacity 0.5s;
+        }
+        .loader-bar { width: 200px; height: 2px; background: rgba(255,255,255,0.1); position: relative; overflow: hidden; margin-top: 20px; }
+        .loader-progress { width: 0%; height: 100%; background: var(--neon-pink); position: absolute; animation: loadAnim 2s infinite; }
+        @keyframes loadAnim { 0% { width: 0%; left: 0; } 50% { width: 100%; left: 0; } 100% { width: 0%; left: 100%; } }
+
+        /* Status Koneksi */
+        #conn-status {
+            position: fixed; top: 15px; left: 20px; z-index: 10001;
+            display: flex; align-items: center; gap: 6px;
+            font-family: var(--font-terminal); font-size: 9px; letter-spacing: 1px;
+            padding: 4px 8px; border-radius: 4px; background: rgba(0,0,0,0.5);
+            transition: 0.3s; pointer-events: none;
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .online { color: var(--neon-cyan); }
+        .online .status-dot { background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+        .offline { color: var(--neon-pink); }
+        .offline .status-dot { background: var(--neon-pink); box-shadow: 0 0 8px var(--neon-pink); animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        /* Layout & Cards */
+        .app-container { max-width: 500px; margin: 0 auto; position: relative; }
+        .card { 
+            background: var(--bg-card); 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin: 0 15px 15px 15px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        /* Step Progress */
+        .step-indicator { display: flex; justify-content: space-between; padding: 20px 30px; position: relative; margin-bottom: 10px; }
+        .step-dot { width: 16px; height: 16px; border-radius: 50%; background: #222; border: 2px solid #444; position: relative; z-index: 2; transition: 0.5s; font-size: 9px; display:flex; justify-content:center; align-items:center; color:transparent;}
+        .step-dot.active { background: var(--neon-pink); border-color: var(--neon-pink); box-shadow: 0 0 12px var(--neon-pink); color:#fff; }
+        .step-line { position: absolute; top: 27px; left: 40px; right: 40px; height: 2px; background: #222; z-index: 1; }
+        .step-line-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--neon-pink); width: 0%; transition: 0.5s; }
+
+        /* Forms */
+        .reg-section { display: none; animation: slideIn 0.4s ease-out; }
+        .reg-section.active { display: block; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+        .input-group { margin-bottom: 15px; }
+        .input-group label { 
+            display: block; font-family: var(--font-terminal); font-size: 11px; 
+            color: var(--text-muted); margin-bottom: 5px; font-weight: bold; letter-spacing: 1px;
+        }
+        .bilingual-hint { font-size: 9px; color: #555; text-transform: none; font-family: var(--font-main); }
+        
+        .input-field, .textarea-field {
+            width: 100%; background: #111; border: 1px solid var(--border-color);
+            color: var(--text-main); padding: 12px 15px; border-radius: 4px;
+            font-family: var(--font-main); font-size: 14px; transition: border-color 0.3s;
+        }
+        .input-field:focus, .textarea-field:focus { border-color: var(--neon-cyan); box-shadow: 0 0 5px var(--neon-cyan-dim); }
+        .textarea-field { resize: none; height: 80px; }
+        
+        .strength-bar-bg { height: 2px; width: 100%; background: rgba(255,255,255,0.05); margin-top: 5px; }
+        .strength-fill { height: 100%; width: 0%; transition: 0.5s; background: var(--neon-pink); }
+
+        /* Buttons */
+        .nav-buttons { display: flex; gap: 10px; margin-top: 20px; padding: 0 15px; }
+        .btn { 
+            flex: 1; padding: 14px; border: none; border-radius: 4px; 
+            font-family: var(--font-terminal); font-weight: bold; font-size: 13px; 
+            letter-spacing: 1px; cursor: pointer; transition: 0.2s;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: var(--neon-cyan); color: #000; box-shadow: 0 0 10px var(--neon-cyan-dim); }
+        .btn-secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border-color); }
+
+        /* Bottom Sheet Picker */
+        .bottom-sheet {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: 60%;
+            background: var(--bg-card); border-top: 2px solid var(--neon-cyan);
+            z-index: 100000; transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column; padding: 20px; border-radius: 20px 20px 0 0;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+        }
+        .bottom-sheet.active { bottom: 0; }
+        .sheet-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 99999; display: none;
+        }
+        .sheet-list { overflow-y: auto; flex: 1; margin-top: 15px; padding-bottom: 20px; }
+        .sheet-item { 
+            padding: 18px 10px; border-bottom: 1px solid var(--border-color); 
+            color: var(--text-main); font-family: var(--font-terminal); font-size: 13px;
+        }
+        .sheet-item:active { background: var(--neon-cyan-dim); color: var(--neon-cyan); }
+
+        /* Modals & TOS Vault */
+        #customModal, #termsModal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95);
+            display: none; justify-content: center; align-items: center; z-index: 99999;
+        }
+        .modal-box { 
+            width: 90%; max-width: 400px; padding: 25px; border: 2px solid var(--neon-cyan); 
+            background: #0a0a0a; text-align: center; animation: scaleIn 0.3s ease-out; 
+            box-shadow: 0 0 30px rgba(0,0,0,1), inset 0 0 10px rgba(0, 255, 255, 0.05); 
+        }
+        @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        .tos-vault {
+            text-align: left; background: #000; border: 1px solid #333; border-radius: 4px;
+            padding: 15px; max-height: 50vh; overflow-y: auto; margin: 15px 0;
+            font-size: 11px; line-height: 1.6; color: #ccc;
+        }
+        .tos-vault h4 { color: var(--neon-cyan); margin: 10px 0 5px 0; font-size: 12px; }
+        .tos-vault p { margin: 0 0 10px 0; }
+        .tos-vault::-webkit-scrollbar { width: 4px; }
+        .tos-vault::-webkit-scrollbar-thumb { background: var(--neon-cyan); }
+
+    </style>
+</head>
+<body>
+
+<div id="conn-status" class="online">
+    <div class="status-dot"></div>
+    <span id="status-text">SYSTEM ONLINE</span>
+</div>
+
+<div id="page-loader">
+    <h2 class="text-neon-pink" style="letter-spacing: 5px; font-size: 14px; font-family: var(--font-terminal);">INITIATING GUILD PROTOCOL</h2>
+    <div class="loader-bar"><div class="loader-progress"></div></div>
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay" onclick="UI.closePicker()"></div>
+<div class="bottom-sheet" id="bottomSheet">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
+        <h3 id="sheetTitle" class="text-neon-cyan" style="font-size:14px; margin:0; font-family: var(--font-terminal);">SELECT DATA</h3>
+        <span onclick="UI.closePicker()" style="color:var(--neon-pink); font-size:12px; font-weight:bold; cursor:pointer; font-family: var(--font-terminal);">[ CLOSE ]</span>
+    </div>
+    <div class="sheet-list" id="sheetList"></div>
+</div>
+
+<div class="app-container">
+    <div style="text-align:center; padding-top:40px; margin-bottom: 10px;">
+        <h1 class="text-neon-pink" style="font-size:28px; margin:0; letter-spacing:4px; font-weight: 900;">PICK ME</h1>
+        <p style="color:var(--neon-cyan); font-size:10px; letter-spacing:2px; font-family: var(--font-terminal); margin-top: 5px;">GUILD LIFE : REAL LIFE MISSION TERMINAL</p>
+    </div>
+
+    <div class="step-indicator">
+        <div class="step-line"><div class="step-line-fill" id="stepLine"></div></div>
+        <div class="step-dot active">1</div><div class="step-dot">2</div><div class="step-dot">3</div>
+        <div class="step-dot">4</div><div class="step-dot">5</div><div class="step-dot">6</div>
+    </div>
+
+    <form id="regForm" autocomplete="off">
+        
+        <div class="reg-section active" id="step1">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; font-family: var(--font-terminal);">SEC I: TERMINAL ID <br><span class="bilingual-hint">(Identitas Akun)</span></h3>
+                <p style="font-size:10px; color:var(--text-muted); margin-bottom:15px;">Codename/Nickname ini akan digunakan sebagai identitas LOGIN Anda di Terminal.</p>
+                
+                <div class="input-group">
+                    <label>UNIQUE CODENAME <br><span class="bilingual-hint">(Nama Panggilan Bebas Tanpa Spasi)</span></label>
+                    <input type="text" id="regNick" class="input-field" placeholder="Ex: SpeedsterKuningan" oninput="this.value = this.value.replace(/\s+/g, '').toLowerCase()">
+                </div>
+                <div class="input-group">
+                    <label>ENCRYPTION CODE <br><span class="bilingual-hint">(Kata Sandi / Password - Min. 8 Huruf/Angka)</span></label>
+                    <input type="password" id="regPass" class="input-field" placeholder="Ketik sandi rahasia anda..." oninput="FormLogic.checkPassword(this)">
+                    <div class="strength-bar-bg"><div id="strengthFill" class="strength-fill"></div></div>
+                </div>
+                <div class="input-group">
+                    <label>CONFIRM ENCRYPTION <br><span class="bilingual-hint">(Ulangi Kata Sandi)</span></label>
+                    <input type="password" id="regPassConf" class="input-field" placeholder="Ketik ulang sandi...">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step2">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; font-family: var(--font-terminal);">SEC II: CIVILIAN DATA <br><span class="bilingual-hint">(Data Warga Sipil)</span></h3>
+                <div class="input-group">
+                    <label>FULL NAME <br><span class="bilingual-hint">(Nama Lengkap Sesuai KTP)</span></label>
+                    <input type="text" id="regFullName" class="input-field" placeholder="Masukkan nama asli Anda" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="input-group">
+                    <label>NATIONAL ID <br><span class="bilingual-hint">(16 Digit Nomor NIK KTP)</span></label>
+                    <input type="number" id="regNik" class="input-field" placeholder="Contoh: 320815..." oninput="FormLogic.checkNIK(this)">
+                    <div id="nikCounter" style="font-size: 10px; text-align: right; color: var(--text-muted); margin-top: 5px; font-family: var(--font-terminal);">0 / 16 DIGIT</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step3">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; font-family: var(--font-terminal);">SEC III: COMMS & CLASS <br><span class="bilingual-hint">(Kontak & Kategori Tugas)</span></h3>
+                <div class="input-group">
+                    <label>COMMUNICATION EMAIL <br><span class="bilingual-hint">(Alamat Email Aktif)</span></label>
+                    <input type="email" id="regEmail" class="input-field" placeholder="email@gmail.com" oninput="this.value = this.value.toLowerCase()">
+                </div>
+                <div class="input-group">
+                    <label>PRIMARY PHONE <br><span class="bilingual-hint">(Nomor WhatsApp Aktif)</span></label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 12px; top: 12px; color: var(--neon-cyan); font-weight: bold; font-family: var(--font-terminal);">+62</span>
+                        <input type="tel" id="regPhone" class="input-field" style="padding-left:45px;" placeholder="812..." oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 13);">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>STARTER KIT <br><span class="bilingual-hint">(Pilih Kategori Waktu Anda)</span></label>
+                    <div id="pickerCategory" class="input-field" style="cursor:pointer;" onclick="UI.openPicker('STARTER KIT', ['FULL TIME (ELITE)', 'PART TIME (SCOUT)'], 'regCategory')">Sentuh untuk memilih...</div>
+                    <input type="hidden" id="regCategory">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step4">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; font-family: var(--font-terminal);">SEC IV: TERRITORY <br><span class="bilingual-hint">(Wilayah Operasi & Domisili)</span></h3>
+                
+                <div class="input-group">
+                    <label>OPERATIONAL AREA <br><span class="bilingual-hint">(Pilih Server / Wilayah Tugas Anda)</span></label>
+                    <div id="pickerArea" class="input-field" style="cursor:pointer; border-color: var(--neon-cyan);" onclick="UI.openPicker('OPERATIONAL AREA', ['KAB. KUNINGAN (SERVER KNG-01)', 'KAB. CIREBON (SERVER CRB-01)'], 'regArea')">Pilih Server Guild...</div>
+                    <input type="hidden" id="regArea">
+                </div>
+
+                <div class="input-group">
+                    <label>CITY / REGENCY <br><span class="bilingual-hint">(Kabupaten / Kota Tinggal)</span></label>
+                    <div id="pickerKab" class="input-field" style="cursor:pointer;" onclick="UI.openPicker('KABUPATEN', ['KAB. KUNINGAN', 'KAB. CIREBON'], 'regKab')">Pilih Kabupaten...</div>
+                    <input type="hidden" id="regKab">
+                </div>
+                <div class="input-group">
+                    <label>DISTRICT & VILLAGE <br><span class="bilingual-hint">(Kecamatan & Desa)</span></label>
+                    <input type="text" id="regKecDesa" class="input-field" placeholder="Contoh: Kec. Cigugur, Desa Sukamulya" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="input-group">
+                    <label>PRIMARY BASE <br><span class="bilingual-hint">(Alamat Rumah Lengkap / Blok / RT RW)</span></label>
+                    <textarea id="regAddress" class="textarea-field" placeholder="Detail alamat tempat tinggal..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step5">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; font-family: var(--font-terminal);">SEC V: ARSENAL <br><span class="bilingual-hint">(Kendaraan / Alat Transportasi)</span></h3>
+                <div class="input-group">
+                    <label>VEHICLE TYPE <br><span class="bilingual-hint">(Jenis Kendaraan)</span></label>
+                    <div id="pickerVehicle" class="input-field" style="cursor:pointer;" onclick="UI.openPicker('VEHICLE TYPE', ['MOTORCYCLE (Motor)', 'CAR 4-SEAT (Mobil Kecil)', 'CAR 6-SEAT (Mobil Besar)', 'NON-VEHICLE (Jalan Kaki)'], 'regVehicle')">Pilih Jenis Kendaraan...</div>
+                    <input type="hidden" id="regVehicle">
+                </div>
+                <div class="input-group">
+                    <label>LICENSE PLATE <br><span class="bilingual-hint">(Plat Nomor Kendaraan)</span></label>
+                    <input type="text" id="regPlate" class="input-field" placeholder="Contoh: E 1234 YZ (Kosongkan jika jalan kaki)" oninput="this.value = this.value.toUpperCase()">
+                </div>
+            </div>
+        </div>
+
+        <div class="reg-section" id="step6">
+            <div class="card">
+                <h3 class="text-neon-cyan" style="font-size: 12px; font-family: var(--font-terminal);">SEC VI: THE VAULT & OATH <br><span class="bilingual-hint">(Keamanan & Persetujuan)</span></h3>
+                <p style="font-size:10px; color:var(--text-muted); margin-bottom:15px;">Buat 1 Pertanyaan Rahasia. Ini adalah satu-satunya cara memulihkan akun jika Anda lupa Sandi.</p>
+                
+                <div class="input-group">
+                    <input type="text" id="q1" class="input-field" placeholder="Pertanyaan (Ex: Nama hewan peliharaan?)" style="margin-bottom:8px;">
+                    <input type="text" id="a1" class="input-field" placeholder="Jawaban rahasia Anda...">
+                </div>
+
+                <div style="border-top:1px solid var(--border-color); margin-top:20px; padding-top:15px;">
+                    <p style="font-size: 11px; color: #ccc; line-height: 1.5; margin-bottom: 10px;">
+                        Sebelum bergabung dengan Guild, Anda wajib membaca dan menyetujui Aturan Terminal.
+                    </p>
+                    <button type="button" class="btn btn-secondary" style="width: 100%; border-color: var(--neon-pink); color: var(--neon-pink);" onclick="UI.openTerms()">READ TERMS OF SERVICE</button>
+                    
+                    <div style="display:flex; align-items:flex-start; gap:10px; margin-top: 15px;">
+                        <input type="checkbox" id="regAgree" style="width:20px; height:20px; accent-color:var(--neon-cyan); margin-top:2px;" disabled>
+                        <label style="font-size:11px; color:var(--text-muted); font-family: var(--font-terminal);">
+                            I have read and swear to follow the Guild Sovereignty Rules. (Centang otomatis setelah membaca)
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-buttons">
+            <button type="button" class="btn btn-secondary" id="btnPrev" style="display:none;" onclick="FormLogic.moveStep(-1)">PREVIOUS</button>
+            <button type="button" class="btn btn-primary" id="btnNext" onclick="FormLogic.moveStep(1)">CONTINUE</button>
+        </div>
+    </form>
+</div>
+
+<div id="customModal">
+    <div class="modal-box">
+        <h2 id="modalTitle" class="text-neon-pink" style="margin-top:0; font-family: var(--font-terminal);">NOTICE</h2>
+        <p id="modalMsg" style="font-size:13px; color:#ccc; line-height:1.6;"></p>
+        <button class="btn btn-secondary" style="width:100%; margin-top: 15px;" onclick="UI.closeModal('customModal')">ACKNOWLEDGE</button>
+    </div>
+</div>
+
+<div id="termsModal">
+    <div class="modal-box" style="border-color:var(--neon-cyan); width: 95%; max-width: 500px;">
+        <h2 class="text-neon-cyan" style="margin-top:0; font-size: 16px; font-family: var(--font-terminal);">TERMS OF SERVICE</h2>
+        <p style="font-size: 10px; color: var(--text-muted); margin-top: -10px;">PICK ME, GUILD LIFE: REAL LIFE MISSION TERMINAL</p>
+        
+        <div class="tos-vault">
+            <p><strong>PEMBERITAHUAN PENTING:</strong> Dengan mendaftar sebagai Adventurer atau Requester, Anda menyatakan telah memahami dan menyetujui bahwa Pick Me, Guild Life adalah sebuah Terminal Misi Digital. Hubungan hukum yang tercipta adalah antara Pengguna Mandiri dengan Penyedia Infrastruktur Teknologi.</p>
+            
+            <h4>BAGIAN I: DESKRIPSI PERAN APLIKASI</h4>
+            <p><strong>Fungsi Terminal:</strong> Pick Me, Guild Life berperan sebagai terminal informasi yang menghubungkan pemberi tugas (Requester) dengan pelaksana tugas (Adventurer). Aplikasi ini menyediakan sistem database, papan pengumuman (Papan Misi), dan mekanisme verifikasi untuk memfasilitasi interaksi antar pengguna.</p>
+            <p><strong>Status Perusahaan:</strong> Aplikasi ini TIDAK menyediakan jasa transportasi, pengiriman, atau jasa tenaga kerja secara langsung. Segala transaksi dan pelaksanaan misi terjadi secara mandiri antara Adventurer dan Requester di dunia nyata.</p>
+            
+            <h4>BAGIAN II: STATUS HUKUM & HUBUNGAN KERJA</h4>
+            <p><strong>Lisensi Akses Misi:</strong> Aplikasi tidak mempekerjakan Adventurer. Aplikasi hanya menyewakan Lisensi Akses Terminal melalui biaya langganan (Gemstone). Pembayaran ini adalah biaya sewa atas penggunaan fitur-fitur digital di dalam terminal.</p>
+            <p><strong>Kebebasan Kerja (Independensi):</strong> Adventurer memiliki kebebasan penuh dalam operasionalnya, meliputi: Bebas menentukan waktu aktif, bebas menerima/mengabaikan misi tanpa sanksi, dan menanggung biaya operasional sendiri.</p>
+            <p><strong>Platform Service Fee:</strong> Potongan dalam misi sukses adalah Biaya Layanan Terminal untuk pemeliharaan infrastruktur Server & Database.</p>
+            
+            <h4>BAGIAN III: KETENTUAN ADVENTURER</h4>
+            <p><strong>Verifikasi & Rank:</strong> Adventurer wajib melewati tahap Waiting Room. Peringkat (Rank) menentukan batasan fitur dan stamina.</p>
+            <p><strong>Tanggung Jawab Pribadi:</strong> Segala risiko keamanan, keselamatan jalan raya, dan kerugian materi saat misi adalah tanggung jawab penuh Adventurer. Terminal tidak bertanggung jawab atas insiden fisik apa pun.</p>
+
+            <h4>BAGIAN IV: KETENTUAN REQUESTER</h4>
+            <p><strong>Validitas Tugas:</strong> Dilarang memposting misi ilegal. Terminal berhak membekukan akun tanpa pemberitahuan.</p>
+            <p><strong>Mekanisme Titip Beli:</strong> Requester bertanggung jawab penuh atas pembayaran barang kepada Adventurer saat serah terima.</p>
+
+            <h4>BAGIAN V & VI: EKONOMI & SANKSI</h4>
+            <p><strong>Mata Uang Virtual:</strong> Red Stone adalah alat bayar utama (final dan tidak dapat diuangkan).</p>
+            <p><strong>Banishment:</strong> Terminal berhak mencabut Lisensi jika terjadi penipuan, manipulasi sistem, atau pelanggaran ekosistem Guild.</p>
+
+            <h4 style="color: var(--neon-pink); border-top: 1px solid #333; padding-top: 10px; margin-top: 15px;">Pernyataan Persetujuan:</h4>
+            <p style="color: #fff;">"Saya mengonfirmasi bahwa saya adalah pengguna mandiri dari infrastruktur Pick Me, Guild Life. Saya setuju bahwa tidak ada hubungan ketenagakerjaan antara saya dengan pengelola aplikasi ini."</p>
+        </div>
+        
+        <div style="display:flex; gap:10px; margin-top: 15px;">
+            <button class="btn btn-secondary" onclick="UI.closeTerms(false)">REJECT (TOLAK)</button>
+            <button class="btn btn-primary" onclick="UI.closeTerms(true)">I SWEAR (SAYA SETUJU)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /** =========================================
+     * PILAR 1 & 2: IRON WALL & SENSORY ENGINE
+     * ========================================= */
+    const CoreApp = {
+        ctx: null,
+        init() {
+            // Iron Wall: Anti-Inspect & No-Bounce
+            document.addEventListener('contextmenu', e => e.preventDefault());
+            document.addEventListener('keydown', e => {
+                if(e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key==="I"||e.key==="J"||e.key==="C")) || (e.ctrlKey && e.key==="U")) { e.preventDefault(); return false; }
+            });
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', e => {
+                const now = (new Date()).getTime();
+                if (now - lastTouchEnd <= 300) e.preventDefault();
+                lastTouchEnd = now;
+            }, false);
+
+            // Init Audio
+            try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+            
+            // Remove Loader
+            setTimeout(() => { document.getElementById('page-loader').style.opacity = '0'; setTimeout(() => document.getElementById('page-loader').style.display = 'none', 500); }, 1500);
+            this.monitorConnection();
+        },
+        playTone(freq, duration, type = "sine", vol = 0.05) {
+            if(!this.ctx) return;
+            const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(); gain.gain.exponentialRampToValueAtTime(0.00001, this.ctx.currentTime + duration); osc.stop(this.ctx.currentTime + duration);
+        },
+        haptic(type = 'click') {
+            if(navigator.vibrate) {
+                if(type === 'error') navigator.vibrate([100, 50, 100]);
+                else if(type === 'success') navigator.vibrate([30, 50, 30]);
+                else navigator.vibrate(15);
+            }
+            if(type === 'error') this.playTone(200, 0.4, "sawtooth", 0.1);
+            else if(type === 'success') { this.playTone(800, 0.1); setTimeout(()=>this.playTone(1200, 0.2), 100); }
+            else this.playTone(600, 0.05);
+        },
+        monitorConnection() {
+            const updateStatus = () => {
+                const isOnline = navigator.onLine;
+                document.getElementById('conn-status').className = isOnline ? 'online' : 'offline';
+                document.getElementById('status-text').innerText = isOnline ? 'SYSTEM ONLINE' : 'CONNECTION LOST';
+                if(!isOnline) UI.showAlert("Koneksi terputus! Data mungkin tidak tersimpan ke Terminal.", "SIGNAL BREACH");
+            };
+            window.addEventListener('online', updateStatus);
+            window.addEventListener('offline', updateStatus);
+        }
+    };
+
+    /** =========================================
+     * PILAR 3: MULTI-CONFIG REGISTRY MANAGER
+     * ========================================= */
+    const GuildRegistry = {
+        masterApp: null,
+        instances: {},
+        
+        // 1. Config Database Pusat (Gateway) - HARAP GANTI DENGAN CONFIG ASLI ANDA
+        masterConfig: {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        },
+
+        initMaster() {
+            if (!firebase.apps.length) this.masterApp = firebase.initializeApp(this.masterConfig, "MASTER_GATEWAY");
+            else this.masterApp = firebase.app("MASTER_GATEWAY");
+            return this.masterApp.database();
+        },
+
+        // Mock System: Karena kita belum punya 50 proyek, kita simulasikan Shard URL
+        // Di sistem nyata, fungsi ini memanggil Master DB untuk meminta Config Shard.
+        async getShardDb(areaString) {
+            let shardId = "KNG_01"; // Default
+            if(areaString.includes("CIREBON")) shardId = "CRB_01";
+            
+            // Simulasikan koneksi ke Shard (Di sini kita pakai masterDB tapi path berbeda untuk demo)
+            if(!this.instances[shardId]) {
+                // Konsep Asli: firebase.initializeApp(shardConfigLain, shardId);
+                // Untuk demo agar kode berjalan tanpa error:
+                this.instances[shardId] = this.masterApp.database(); 
+            }
+            return { id: shardId, db: this.instances[shardId] };
+        }
+    };
+
+    /** =========================================
+     * UI CONTROLLER (Modals, Pickers, Alerts)
+     * ========================================= */
+    const UI = {
+        showAlert(msg, title = "SYSTEM NOTICE") {
+            CoreApp.haptic('error');
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMsg').innerText = msg;
+            document.getElementById('customModal').style.display = 'flex';
+        },
+        closeModal(id) { CoreApp.haptic(); document.getElementById(id).style.display = 'none'; },
+        openTerms() { CoreApp.haptic(); document.getElementById('termsModal').style.display = 'flex'; },
+        closeTerms(agreed) { 
+            CoreApp.haptic(agreed ? 'success' : 'click'); 
+            if(agreed) {
+                document.getElementById('regAgree').checked = true;
+                document.getElementById('regAgree').disabled = false;
+            } else {
+                document.getElementById('regAgree').checked = false;
+            }
+            document.getElementById('termsModal').style.display = 'none'; 
+        },
+        openPicker(title, items, targetId) {
+            CoreApp.haptic();
+            document.getElementById('sheetTitle').innerText = title;
+            const list = document.getElementById('sheetList');
+            list.innerHTML = '';
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'sheet-item';
+                div.innerText = item;
+                div.onclick = () => {
+                    CoreApp.haptic();
+                    document.getElementById(targetId).value = item;
+                    // Update tampilan teks di div pemanggil
+                    document.getElementById(targetId.replace('reg', 'picker')).innerText = item;
+                    document.getElementById(targetId.replace('reg', 'picker')).style.color = '#fff';
+                    this.closePicker();
+                };
+                list.appendChild(div);
+            });
+            document.getElementById('sheetOverlay').style.display = 'block';
+            setTimeout(() => document.getElementById('bottomSheet').classList.add('active'), 10);
+        },
+        closePicker() {
+            document.getElementById('bottomSheet').classList.remove('active');
+            setTimeout(() => document.getElementById('sheetOverlay').style.display = 'none', 400);
+        }
+    };
+
+    /** =========================================
+     * FORM LOGIC & DOUBLE-WRITE PROCESSOR
+     * ========================================= */
+    const FormLogic = {
+        currentStep: 1,
+        maxStep: 6,
+        
+        checkPassword(el) {
+            const fill = document.getElementById('strengthFill');
+            const len = el.value.length;
+            if(len === 0) fill.style.width = '0%';
+            else if(len < 6) { fill.style.width = '30%'; fill.style.background = 'var(--neon-pink)'; }
+            else if(len < 10) { fill.style.width = '65%'; fill.style.background = '#ffbb33'; }
+            else { fill.style.width = '100%'; fill.style.background = 'var(--neon-cyan)'; }
+        },
+        checkNIK(el) {
+            if(el.value.length > 16) el.value = el.value.slice(0, 16);
+            const count = el.value.length;
+            document.getElementById('nikCounter').innerText = `${count} / 16 DIGIT`;
+            document.getElementById('nikCounter').style.color = count === 16 ? 'var(--neon-cyan)' : 'var(--text-muted)';
+        },
+
+        moveStep(dir) {
+            if(dir === 1 && !this.validateStep(this.currentStep)) return; // Stop if invalid
+            
+            if(dir === 1 && this.currentStep === this.maxStep) {
+                return this.submitData();
+            }
+
+            CoreApp.haptic();
+            this.currentStep += dir;
+            this.updateUI();
+        },
+
+        validateStep(step) {
+            if(step === 1) {
+                const n = document.getElementById('regNick').value;
+                const p = document.getElementById('regPass').value;
+                const c = document.getElementById('regPassConf').value;
+                if(n.length < 4) { UI.showAlert("Codename minimal 4 huruf/angka!"); return false; }
+                if(p.length < 8) { UI.showAlert("Password minimal 8 karakter demi keamanan!"); return false; }
+                if(p !== c) { UI.showAlert("Konfirmasi password tidak sama!"); return false; }
+            }
+            else if(step === 2) {
+                if(!document.getElementById('regFullName').value) { UI.showAlert("Nama Lengkap wajib diisi!"); return false; }
+                if(document.getElementById('regNik').value.length !== 16) { UI.showAlert("NIK harus tepat 16 Digit!"); return false; }
+            }
+            else if(step === 3) {
+                const e = document.getElementById('regEmail').value;
+                if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { UI.showAlert("Format email tidak valid!"); return false; }
+                if(document.getElementById('regPhone').value.length < 9) { UI.showAlert("Nomor telepon tidak valid!"); return false; }
+                if(!document.getElementById('regCategory').value) { UI.showAlert("Pilih Starter Kit (Kategori)!"); return false; }
+            }
+            else if(step === 4) {
+                if(!document.getElementById('regArea').value) { UI.showAlert("Pilih Area Operasional (Server)!"); return false; }
+                if(!document.getElementById('regKab').value || !document.getElementById('regAddress').value) { UI.showAlert("Lengkapi data wilayah dan alamat base!"); return false; }
+            }
+            else if(step === 5) {
+                if(!document.getElementById('regVehicle').value) { UI.showAlert("Pilih tipe kendaraan!"); return false; }
+            }
+            else if(step === 6) {
+                if(!document.getElementById('q1').value || !document.getElementById('a1').value) { UI.showAlert("Buat pertanyaan dan jawaban rahasia!"); return false; }
+                if(!document.getElementById('regAgree').checked) { UI.showAlert("Anda harus membaca dan menyetujui Guild Rules (TOS) terlebih dahulu!"); return false; }
+            }
+            return true;
+        },
+
+        updateUI() {
+            document.querySelectorAll('.reg-section').forEach((el, i) => el.classList.toggle('active', i === this.currentStep - 1));
+            document.querySelectorAll('.step-dot').forEach((el, i) => el.classList.toggle('active', i < this.currentStep));
+            document.getElementById('stepLine').style.width = ((this.currentStep - 1) / 5 * 100) + "%";
+            
+            document.getElementById('btnPrev').style.display = this.currentStep === 1 ? 'none' : 'block';
+            document.getElementById('btnNext').innerText = this.currentStep === this.maxStep ? 'AUTHORIZE & JOIN' : 'CONTINUE';
+        },
+
+        async submitData() {
+            const btn = document.getElementById('btnNext');
+            btn.innerText = "ENCRYPTING..."; btn.disabled = true;
+            CoreApp.haptic();
+
+            try {
+                const masterDb = GuildRegistry.initMaster();
+                const nickname = document.getElementById('regNick').value;
+                const phone = "62" + document.getElementById('regPhone').value;
+                const nik = document.getElementById('regNik').value;
+                const area = document.getElementById('regArea').value;
+
+                // 1. Validasi Duplikat di Database Pusat (Gateway)
+                const checkNick = await masterDb.ref(`gateway/adventurers_lookup/${nickname}`).once('value');
+                if(checkNick.exists()) throw new Error("Codename sudah dipakai Adventurer lain!");
+
+                // 2. Dapatkan Konfigurasi Shard Wilayah
+                const shardInfo = await GuildRegistry.getShardDb(area);
+                const shardDb = shardInfo.db;
+
+                // 3. Susun Data Identitas (Untuk Shard Wilayah)
+                const adventurerData = {
+                    user_id: nickname,
+                    nama: document.getElementById('regFullName').value,
+                    nik_ktp: nik,
+                    nomor_telepon: phone,
+                    email: document.getElementById('regEmail').value,
+                    password: document.getElementById('regPass').value, // Disarankan hash di sisi server nantinya
+                    area_tugas: area,
+                    current_server_shard: shardInfo.id,
+                    job: document.getElementById('regCategory').value,
+                    alamat_lengkap: document.getElementById('regAddress').value,
+                    kabupaten: document.getElementById('regKab').value,
+                    kecamatan_desa: document.getElementById('regKecDesa').value,
+                    vehicle: document.getElementById('regVehicle').value,
+                    plat_nomor: document.getElementById('regPlate').value || "NONE",
+                    pertanyaan_lupa_sandi: document.getElementById('q1').value,
+                    jawaban_lupa_sandi: document.getElementById('a1').value,
+                    level: 1, rank: "TRAINER", trust_score: 100, reputasi: 0,
+                    status_terverifikasi: "WAITING_ROOM",
+                    join_date: new Date().toISOString()
+                };
+
+                // 4. WRITE 1: Simpan Routing Data ke Database Pusat (Ringan)
+                await masterDb.ref(`gateway/adventurers_lookup/${nickname}`).set({
+                    shard_id: shardInfo.id,
+                    phone: phone,
+                    status: "ACTIVE"
+                });
+
+                // 5. WRITE 2: Simpan Full Data ke Shard Wilayah
+                await shardDb.ref(`identity_adventurer/${shardInfo.id}/${nickname}`).set(adventurerData);
+                
+                // 6. Inisialisasi Data Status (RTDB - Terpisah sesuai rancangan Anda)
+                await shardDb.ref(`adventurer_status/${shardInfo.id}/${nickname}`).set({
+                    exp: 0, max_exp: 1000, current_stamina: 100, max_stamina: 100,
+                    total_misi_selesai: 0, current_quest_id: "NONE"
+                });
+
+                CoreApp.haptic('success');
+                document.getElementById('modalTitle').innerText = "WELCOME TO THE GUILD";
+                document.getElementById('modalMsg').innerText = `Kontrak diterima, Agent ${nickname}! Sistem mendaftarkan Anda ke Server: ${shardInfo.id}. Menuju ruang tunggu...`;
+                document.getElementById('customModal').style.display = 'flex';
+                
+                // Redirect simulasi
+                setTimeout(() => { window.location.href = "login.html"; }, 4000);
+
+            } catch (error) {
+                UI.showAlert(error.message, "TRANSMISSION FAILED");
+                btn.innerText = "AUTHORIZE & JOIN"; btn.disabled = false;
+            }
+        }
+    };
+
+    // Boot App
+    window.onload = () => CoreApp.init();
+
+</script>
+</body>
+</html>
