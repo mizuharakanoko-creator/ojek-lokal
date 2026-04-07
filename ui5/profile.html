@@ -64,6 +64,32 @@
             window.location.href = (user.role === 'requester') ? 'post_mission.html' : 'board.html';
         }
 
+        function globalClearance() {
+    // 1. Bersihkan Lokasi yang sudah basi (> 1 jam)
+    let locations = JSON.parse(localStorage.getItem('active_locations') || '{}');
+    const now = Date.now();
+    let cleaned = false;
+
+    for (let id in locations) {
+        if (now - locations[id].lastSeen > 3600000) { // 1 Jam
+            delete locations[id];
+            cleaned = true;
+        }
+    }
+    if(cleaned) localStorage.setItem('active_locations', JSON.stringify(locations));
+
+    // 2. Bersihkan Undangan yang sudah lama
+    let invites = JSON.parse(localStorage.getItem('global_invites') || '[]');
+    invites = invites.filter(inv => (now - inv.time) < 86400000); // Hapus jika > 24 jam
+    localStorage.setItem('global_invites', JSON.stringify(invites));
+
+    console.log("System Clearance: Berhasil membersihkan data usang.");
+}
+
+// Jalankan saat profil dibuka
+globalClearance();
+
+
         function logout() {
             localStorage.removeItem('guild_session');
             window.location.href = 'index.html';
