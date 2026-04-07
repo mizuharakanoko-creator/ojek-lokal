@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADMIN GATE | SOVEREIGN</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        body { background: #050508; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .card { background: #111; padding: 40px; border-radius: 24px; border: 1px solid #ff4757; width: 350px; text-align: center; box-shadow: 0 10px 30px rgba(255, 71, 87, 0.1); }
+        h2 { color: #ff4757; letter-spacing: 2px; margin-bottom: 5px; }
+        p { font-size: 12px; color: #888; margin-bottom: 25px; }
+        input { width: 100%; padding: 14px; margin: 8px 0; background: #1a1a1a; border: 1px solid #333; color: #fff; border-radius: 10px; box-sizing: border-box; transition: 0.3s; }
+        input:focus { border-color: #ff4757; outline: none; background: #222; }
+        button { width: 100%; padding: 15px; background: #ff4757; border: none; color: #fff; font-weight: bold; border-radius: 10px; cursor: pointer; margin-top: 20px; transition: 0.3s; }
+        button:hover { background: #ff6b81; transform: translateY(-2px); }
+        #status { font-size: 11px; margin-top: 20px; color: #aaa; line-height: 1.4; }
+        .master-key { border-color: #555; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>ADMIN GATE</h2>
+        <p>AUTENTIKASI ARCHITECT & MASTER NEZZA</p>
+        
+        <input type="email" id="email" placeholder="Email Admin">
+        <input type="password" id="pass" placeholder="Password">
+        <hr style="border: 0.1px solid #222; margin: 20px 0;">
+        <input type="password" id="master_key" class="master-key" placeholder="SECRET MASTER KEY">
+        
+        <button onclick="handleAdminAuth()">ENTER COMMAND CENTER</button>
+        <div id="status">Sistem menunggu otorisasi...</div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        async function handleAdminAuth() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('pass').value;
+            const masterKey = document.getElementById('master_key').value;
+            const status = document.getElementById('status');
+
+            if (masterKey !== 'SOVEREIGN2026') {
+                status.innerText = "AKSES DITOLAK: Master Key Salah!";
+                status.style.color = "#ff4757";
+                return;
+            }
+
+            status.innerText = "Menghubungkan ke Arsitektur...";
+            status.style.color = "#888";
+
+            try {
+                // TAHAP 1: Coba Login terlebih dahulu
+                let user;
+                try {
+                    const loginRes = await auth.signInWithEmailAndPassword(email, password);
+                    user = loginRes.user;
+                    status.innerText = "Login Berhasil. Memeriksa Otoritas...";
+                } catch (loginError) {
+                    // TAHAP 2: Jika belum ada akun, otomatis Register
+                    if (loginError.code === 'auth/user-not-found') {
+                        status.innerText = "Akun tidak ditemukan. Mendaftarkan Admin baru...";
+                        const regRes = await auth.createUserWithEmailAndPassword(email, password);
+                        user = regRes.user;
+                        // Daftarkan ke Database
+                        await db.ref('admins/' + user.uid).set(true);
+                        status.innerText = "Registrasi & Otoritas Berhasil!";
+                    } else {
+                        throw loginError;
+                    }
+                }
+
+                // TAHAP 3: Validasi akhir di Database
+                const adminSnap = await db.ref('admins/' + user.uid).once('value');
+                if (adminSnap.val() === true) {
+                    status.style.color = "#00ff88";
+                    status.innerText = "AKSES DIBERIKAN. Mengalihkan ke Dashboard...";
+                    
+                    // ARAHKAN KE HALAMAN ADMIN ANDA DISINI
+                    setTimeout(() => {
+                        window.location.href = "admin_pro.html"; // Pastikan nama file sesuai
+                    }, 1500);
+                } else {
+                    status.innerText = "Error: UID Anda belum terdaftar di node 'admins' database.";
+                    status.style.color = "orange";
+                }
+
+            } catch (error) {
+                status.innerText = "Kegagalan Sistem: " + error.message;
+                status.style.color = "#ff4757";
+            }
+        }
+    </script>
+</body>
+</html>
