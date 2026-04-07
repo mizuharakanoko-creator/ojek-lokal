@@ -22,7 +22,7 @@
             <p style="font-size:14px; color:var(--neon);">REWARD: <span id="mReward">0</span> STONE</p>
             
             <div id="statusInfo" style="margin-top:20px; font-size:11px; color:#555;">
-                STATUS: MENUNGGU TANDA TANGAN ADVENTURER...
+                STATUS: MENUNGGU VERIFIKASI KONTRAK...
             </div>
             <div class="seal" id="sealDone">SIGNED</div>
         </div>
@@ -32,57 +32,75 @@
     </div>
 
     <script>
-        const user = JSON.parse(localStorage.getItem('guild_session'));
+        const session = JSON.parse(localStorage.getItem('guild_session'));
         const urlParams = new URLSearchParams(window.location.search);
         const questId = urlParams.get('id');
 
+        if(!session) window.location.href = 'index.html';
+
         function updateBriefing() {
-    const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
-    const m = missions.find(x => x.id === questId);
+            const missions = JSON.parse(localStorage.getItem('global_missions') || '[]');
+            const m = missions.find(x => x.id === questId);
 
-    if(!m) return;
+            if(!m) {
+                alert("Misi tidak ditemukan!");
+                window.location.href = 'profile.html';
+                return;
+            }
 
-    // Tampilkan data misi
-    document.getElementById('mTitle').innerText = m.title;
-    document.getElementById('mId').innerText = m.id;
-    document.getElementById('mReward').innerText = m.reward;
+            // Tampilkan data misi dasar
+            document.getElementById('mTitle').innerText = m.title;
+            document.getElementById('mId').innerText = m.id;
+            document.getElementById('mDesc').innerText = m.desc || "Laksanakan tugas dengan penuh tanggung jawab.";
+            document.getElementById('mReward').innerText = m.reward;
 
-    // LOGIKA SINKRONISASI: 
-    // Jika status sudah berubah jadi "ON_PROGRESS", 
-    // kedua belah pihak (Requester & Adventurer) harus pindah ke Active Mission
-    if(m.status === "ON_PROGRESS") {
-        window.location.href = "active_mission.html?id=" + questId;
-        return; 
-    }
+            // --- DETEKSI ROLE BERDASARKAN ID (Sangat Penting untuk Multi-Tab) ---
+            let myRoleInThisMission = "";
+            if (session.id === m.requesterId) {
+                myRoleInThisMission = "requester";
+            } else if (session.id === m.acceptedAdv) {
+                myRoleInThisMission = "adventurer";
+            }
 
-    // Tampilan Tombol sesuai Role
-    const area = document.getElementById('actionArea');
-    if(user.role === 'adventurer') {
-        area.innerHTML = `<button class="btn" onclick="signContract()">TANDA TANGANI KONTRAK</button>`;
-    } else {
-        area.innerHTML = `<div class="card" style="border-color:#333; color:#555; text-align:center;">
-                            MENUNGGU ADVENTURER MEMULAI...
-                          </div>`;
-    }
-}
+            // --- LOGIKA SINKRONISASI STATUS ---
+            if(m.status === "ON_PROGRESS") {
+                window.location.href = "active_mission.html?id=" + questId;
+                return; 
+            }
 
-// JALANKAN SETIAP 1 DETIK (Ini kuncinya agar sinkron)
-setInterval(updateBriefing, 1000);
-updateBriefing();
+            const area = document.getElementById('actionArea');
+            const info = document.getElementById('statusInfo');
 
-function signContract() {
-    let missions = JSON.parse(localStorage.getItem('global_missions'));
-    let m = missions.find(x => x.id === questId);
-    
-    m.status = "ON_PROGRESS"; // Merubah status di "Buku Besar"
-    localStorage.setItem('global_missions', JSON.stringify(missions));
-
-            document.getElementById('sealDone').style.display = 'block';
-            alert("Kontrak Ditandatangani! Portal Komunikasi Dibuka.");
-            window.location.href = "active_mission.html?id=" + questId;
+            if(myRoleInThisMission === 'adventurer') {
+                info.innerText = "STATUS: SILAKAN TANDA TANGANI KONTRAK UNTUK MEMULAI.";
+                area.innerHTML = `<button class="btn" onclick="signContract()">TANDA TANGANI KONTRAK</button>`;
+            } else if (myRoleInThisMission === 'requester') {
+                info.innerText = "STATUS: MENUNGGU ADVENTURER MENANDATANGANI KONTRAK...";
+                area.innerHTML = `<div class="card" style="text-align:center; color:#555; border-color:#222;">
+                                    MEMANTAU SINYAL ADVENTURER...
+                                  </div>`;
+            } else {
+                // Jika user nyasar ke sini (bukan pengundang/pelaksana)
+                area.innerHTML = `<button class="btn" onclick="location.href='profile.html'">KEMBALI KE PROFIL</button>`;
+            }
         }
 
-        setInterval(updateBriefing, 2000);
+        function signContract() {
+            let missions = JSON.parse(localStorage.getItem('global_missions'));
+            let mIndex = missions.findIndex(x => x.id === questId);
+            
+            if(mIndex !== -1) {
+                missions[mIndex].status = "ON_PROGRESS";
+                localStorage.setItem('global_missions', JSON.stringify(missions));
+                
+                document.getElementById('sealDone').style.display = 'block';
+                alert("Kontrak Disahkan! Membuka Jalur Komunikasi...");
+                window.location.href = "active_mission.html?id=" + questId;
+            }
+        }
+
+        // Jalankan pengecekan setiap 1 detik agar Tab Requester otomatis pindah
+        setInterval(updateBriefing, 1000);
         updateBriefing();
     </script>
 </body>
