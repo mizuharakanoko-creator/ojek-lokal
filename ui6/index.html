@@ -3,161 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GATEWAY | PICK ME GUILD</title>
+    <title>ADVENTURER HUB</title>
     
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <style>
-        :root {
-            --neon-blue: #00d9ff;
-            --neon-gold: #ffcc00;
-            --bg-dark: #0a0a0a;
-            --glass: rgba(255, 255, 255, 0.05);
-        }
-
-        body {
-            margin: 0; padding: 0;
-            background: radial-gradient(circle at center, #111, #000);
-            color: #fff;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex; justify-content: center; align-items: center;
-            height: 100vh; overflow: hidden;
-        }
-
-        .container {
-            width: 90%; max-width: 400px; text-align: center;
-            animation: fadeIn 1s ease-out;
-        }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
-        .logo-text { font-size: 40px; font-weight: 900; letter-spacing: 8px; color: var(--neon-blue); text-shadow: 0 0 20px rgba(0, 217, 255, 0.5); margin: 0; }
-        .sub-text { font-size: 10px; color: #555; letter-spacing: 3px; margin-bottom: 40px; }
-
-        .card { background: var(--glass); border: 1px solid #222; padding: 25px; border-radius: 15px; backdrop-filter: blur(10px); }
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Rajdhani:wght@500;700&display=swap');
+        :root { --neon: #00f3ff; --bg: #020204; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Rajdhani', sans-serif; overflow: hidden; }
         
-        label { display: block; text-align: left; font-size: 10px; color: var(--neon-blue); margin: 15px 0 5px; letter-spacing: 1px; }
-        input, select {
-            width: 100%; background: #111; border: 1px solid #333; color: #fff; 
-            padding: 12px; border-radius: 8px; font-family: monospace; box-sizing: border-box;
-            outline: none; transition: 0.3s;
-        }
-        input:focus { border-color: var(--neon-blue); box-shadow: 0 0 10px rgba(0, 217, 255, 0.2); }
-
-        .btn-gate {
-            width: 100%; padding: 15px; margin-top: 25px; border-radius: 8px;
-            font-weight: bold; cursor: pointer; transition: 0.3s;
-            border: none; text-transform: uppercase; letter-spacing: 2px;
-            background: var(--neon-blue); color: #000;
-        }
-        .btn-gate:active { transform: scale(0.95); }
-
-        #gateLoader {
-            position: fixed; inset: 0; background: #000; z-index: 9999;
-            display: none; justify-content: center; align-items: center; flex-direction: column;
-        }
-        .spinner { border: 3px solid #222; border-top: 3px solid var(--neon-blue); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        /* Loading Gate */
+        #neural-gate { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.8s; }
+        .ring { width: 80px; height: 80px; border: 3px solid transparent; border-top-color: var(--neon); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* UI Header */
+        .header { padding: 20px; background: rgba(255,255,255,0.02); border-bottom: 1px solid #111; }
+        .stamina-bar { width: 100%; height: 10px; background: #111; border-radius: 5px; margin-top: 10px; overflow: hidden; border: 1px solid #222; }
+        .stamina-fill { height: 100%; width: 0%; background: var(--neon); transition: 1s; box-shadow: 0 0 10px var(--neon); }
+        
+        .stats-row { display: flex; justify-content: space-between; margin-top: 15px; }
+        .stat-box { background: #0a0a0a; padding: 10px 15px; border-radius: 8px; border-left: 3px solid var(--neon); }
+        .stat-label { font-size: 9px; color: #555; text-transform: uppercase; }
+        .stat-val { font-family: 'Orbitron'; font-size: 14px; color: #fff; }
+
+        .radar-box { text-align: center; margin-top: 50px; color: #222; font-family: 'Orbitron'; }
     </style>
 </head>
-<body>
+<body onload="initSystem()">
 
-    <div id="gateLoader">
-        <div class="spinner"></div>
-        <div style="font-size:10px; letter-spacing:2px; color:var(--neon-blue);">ESTABLISHING SECURE CONNECTION...</div>
+    <div id="neural-gate">
+        <div class="ring"></div>
+        <p style="color:var(--neon); font-family:'Orbitron'; font-size:10px; margin-top:20px; letter-spacing:2px;">SYNCING IDENTITY...</p>
     </div>
 
-    <div class="container">
-        <h1 class="logo-text">PICK ME</h1>
-        <div class="sub-text">GUILD GLOBAL NETWORK</div>
+    <div class="header">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span id="ui-nick" style="font-family:'Orbitron'; font-weight:900; color:var(--neon);">PLAYER</span>
+            <span id="ui-rank" style="color:#ffcc00; font-weight:bold;">RANK -</span>
+        </div>
+        <div class="stamina-bar"><div id="stamina-fill" class="stamina-fill"></div></div>
+        <div style="font-size:9px; color:#444; margin-top:5px; text-align:right;" id="stamina-text">0 / 0 VITALITY</div>
 
-        <div class="card">
-            <label>IDENTITAS (NAMA)</label>
-            <input type="text" id="username" placeholder="Masukkan Nama...">
-
-            <label>PERAN (ROLE)</label>
-            <select id="role">
-                <option value="adventurer">ADVENTURER (Pelaksana)</option>
-                <option value="requester">REQUESTER (Pemberi Misi)</option>
-            </select>
-
-            <label>WILAYAH (SHARD)</label>
-            <select id="shard">
-                <option value="KNG_01">KUNINGAN (KNG_01)</option>
-                <option value="JKT_02">JAKARTA (JKT_02)</option>
-                <option value="BDG_03">BANDUNG (BDG_03)</option>
-            </select>
-
-            <button class="btn-gate" onclick="initSession()">INISIALISASI DATA</button>
+        <div class="stats-row">
+            <div class="stat-box">
+                <div class="stat-label">Balance</div>
+                <div class="stat-val" id="ui-stone">0 STONE</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Missions</div>
+                <div class="stat-val" id="ui-count">0</div>
+            </div>
         </div>
     </div>
 
-    <script>
-        // --- 1. CONFIG FIREBASE (PASTE PUNYA KAMU DI SINI) ---
-        const firebaseConfig = {
-            apiKey: "ISI_API_KEY_KAMU",
-            authDomain: "ISI_DOMAIN_KAMU",
-            databaseURL: "ISI_DATABASE_URL_KAMU",
-            projectId: "ISI_PROJECT_ID_KAMU",
-            storageBucket: "...",
-            messagingSenderId: "...",
-            appId: "..."
-        };
+    <div class="radar-box">
+        <p>RADAR STANDBY</p>
+        <button onclick="location.reload()" style="background:none; border:1px solid #333; color:#555; padding:10px; border-radius:5px; font-family:'Orbitron'; font-size:10px;">RESCAN SECTOR</button>
+    </div>
 
-        // Inisialisasi Firebase
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            authDomain: "ojeklokal-42b84.firebaseapp.com",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "ojeklokal-42b84"
+        };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        function initSession() {
-            const name = document.getElementById('username').value;
-            const role = document.getElementById('role').value;
-            const shard = document.getElementById('shard').value;
+        function initSystem() {
+            const myNick = localStorage.getItem('user_nickname');
+            const myRole = localStorage.getItem('user_role');
 
-            if(!name) return alert("Identitas wajib diisi!");
+            if(!myNick || myRole !== 'adventurer') {
+                window.location.href = "login.html";
+                return;
+            }
 
-            // Menampilkan Loader
-            document.getElementById('gateLoader').style.display = 'flex';
+            // Listener Realtime ke Path users_adventurer
+            db.ref(`users_adventurer/${myNick}`).on('value', snap => {
+                const data = snap.val();
+                
+                if(data) {
+                    // Update UI
+                    document.getElementById('ui-nick').innerText = data.nickname;
+                    document.getElementById('ui-rank').innerText = "RANK " + data.rank;
+                    document.getElementById('ui-stone').innerText = (data.stats?.balance_stone || 0) + " STONE";
+                    document.getElementById('ui-count').innerText = data.stats?.total_missions || 0;
+                    
+                    const cur = data.vitality?.stamina_current || 0;
+                    const max = data.vitality?.stamina_max || 1000;
+                    document.getElementById('stamina-fill').style.width = (cur/max*100) + "%";
+                    document.getElementById('stamina-text').innerText = `${cur} / ${max} VITALITY`;
 
-            const userData = {
-                id: "USR-" + Date.now(),
-                name: name,
-                role: role,
-                shard: shard,
-                rank: "F", // Rank awal
-                stone: 0,
-                status: "online",
-                last_seen: firebase.database.ServerValue.TIMESTAMP
-            };
-
-            // Simpan ke LocalStorage (Sesi HP)
-            localStorage.setItem('pickme_user', JSON.stringify(userData));
-
-            // Simpan ke Cloud (Firebase)
-            db.ref('users/' + userData.id).set(userData).then(() => {
-                setTimeout(() => {
-                    // Routing berdasarkan Role
-                    if(role === 'adventurer') {
-                        window.location.href = "dashboard.html";
-                    } else {
-                        window.location.href = "create_mission.html";
-                    }
-                }, 1500);
-            }).catch(err => {
-                alert("Koneksi Gagal: " + err.message);
-                document.getElementById('gateLoader').style.display = 'none';
+                    // HILANGKAN LOADING
+                    setTimeout(() => {
+                        document.getElementById('neural-gate').style.opacity = '0';
+                        setTimeout(() => document.getElementById('neural-gate').style.display = 'none', 800);
+                    }, 1000);
+                } else {
+                    alert("DATA TIDAK DITEMUKAN. SILAKAN LOGIN ULANG.");
+                    localStorage.clear();
+                    window.location.href = "login.html";
+                }
+            }, (error) => {
+                console.error("Database Error:", error);
+                alert("Koneksi ditolak! Cek Rules Firebase Anda.");
             });
         }
-
-        // Cek jika sudah ada sesi, langsung arahkan
-        window.onload = () => {
-            const session = JSON.parse(localStorage.getItem('pickme_user'));
-            if(session) {
-                document.getElementById('gateLoader').style.display = 'flex';
-                if(session.role === 'adventurer') window.location.href = "dashboard.html";
-                else window.location.href = "create_mission.html";
-            }
-        };
     </script>
 </body>
 </html>
