@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#050505">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="google" content="notranslate">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <title>PICK ME | LOBBY</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --neon-gold: #ffcc00;
+            --bg-dark: #050505;
+            --bg-card: #0f0f0f;
+            --border-ui: #222;
+            --font-main: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+
+        /* ANTI-WEB BEHAVIOR CSS */
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            user-select: none; 
+            -webkit-user-select: none;
+            outline: none;
+        }
+        
+        body { 
+            background: var(--bg-dark); color: white; 
+            font-family: var(--font-main); margin: 0; padding: 0;
+            overscroll-behavior: none; /* Block pull-to-refresh */
+            overflow-x: hidden;
+            height: 100vh;
+            display: flex; flex-direction: column;
+        }
+
+        /* Menghilangkan Google Translate & Scrollbar */
+        .goog-te-banner-frame { display: none !important; }
+        ::-webkit-scrollbar { display: none; }
+
+        /* NATIVE HEADER */
+        header {
+            padding: 20px 20px 10px;
+            background: linear-gradient(to bottom, #111, var(--bg-dark));
+            border-bottom: 1px solid var(--border-ui);
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        .status-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            font-family: var(--font-terminal); font-size: 10px; margin-bottom: 10px;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; animation: pulse 1.5s infinite; }
+        .dot-scanning { background: var(--neon-cyan); }
+        
+        h2 { margin: 0; font-size: 18px; letter-spacing: 1px; color: var(--neon-pink); text-shadow: 0 0 10px rgba(255,0,85,0.3); }
+
+        /* MISSION SUMMARY CARD */
+        .mission-summary {
+            background: var(--bg-card); border: 1px solid var(--border-ui);
+            border-radius: 8px; padding: 12px; margin: 10px 20px;
+            font-size: 12px; position: relative;
+        }
+        .summary-label { color: #555; font-family: var(--font-terminal); font-size: 9px; }
+        .summary-val { color: var(--neon-gold); font-weight: bold; }
+
+        /* RADAR ANIMATION */
+        .radar-container {
+            height: 100px; display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+        }
+        .radar-ripple {
+            position: absolute; border: 1px solid var(--neon-cyan); border-radius: 50%;
+            opacity: 0; animation: ripple 3s infinite;
+        }
+        .radar-ripple:nth-child(2) { animation-delay: 1s; }
+        .radar-ripple:nth-child(3) { animation-delay: 2s; }
+
+        @keyframes ripple {
+            0% { width: 0; height: 0; opacity: 0.5; }
+            100% { width: 300px; height: 300px; opacity: 0; }
+        }
+
+        /* APPLICANT LIST */
+        #applicantList { padding: 0 20px 100px; flex: 1; overflow-y: auto; }
+        
+        .applicant-card {
+            background: #0d0d0d; border: 1px solid #222; border-radius: 10px;
+            padding: 15px; margin-bottom: 15px; display: flex; 
+            justify-content: space-between; align-items: center;
+            position: relative; overflow: hidden;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        @keyframes slideIn { from { transform: translateX(30px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        .adv-info { display: flex; flex-direction: column; gap: 4px; }
+        .adv-nick { color: var(--neon-pink); font-weight: bold; font-size: 15px; display: flex; align-items: center; gap: 5px; }
+        .online-indicator { width: 6px; height: 6px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 5px #00ff00; }
+        
+        .adv-meta { font-size: 11px; color: #888; font-family: var(--font-terminal); }
+        .price-tag { color: var(--neon-gold); font-weight: bold; font-size: 13px; margin-top: 5px; display: block; }
+        .dist-tag { color: var(--neon-cyan); }
+
+        .btn-select {
+            background: var(--neon-cyan); color: #000; border: none; 
+            padding: 10px 15px; font-weight: bold; border-radius: 5px;
+            font-family: var(--font-terminal); font-size: 11px;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+            transition: 0.3s; cursor: pointer;
+        }
+        .btn-select:disabled { background: #333; color: #666; box-shadow: none; }
+
+        /* FOOTER & TIPS */
+        .footer-tips {
+            position: fixed; bottom: 0; width: 100%; background: #000;
+            border-top: 1px solid var(--border-ui); padding: 10px 20px;
+            z-index: 100;
+        }
+        .tips-scroller {
+            font-family: var(--font-terminal); font-size: 10px; color: #555;
+            white-space: nowrap; overflow: hidden; position: relative;
+        }
+        .tips-text { display: inline-block; animation: scrollText 20s linear infinite; }
+        @keyframes scrollText { from { transform: translateX(100%); } to { transform: translateX(-100%); } }
+
+        .btn-abort {
+            width: 100%; background: transparent; border: 1px solid #444;
+            color: #666; font-size: 10px; font-family: var(--font-terminal);
+            padding: 8px; margin-top: 10px; border-radius: 4px;
+        }
+
+        /* OVERLAYS */
+        #systemOverlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+            z-index: 10000; display: none; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center;
+            padding: 30px;
+        }
+        .spinner { border: 3px solid #111; border-top: 3px solid var(--neon-cyan); width: 40px; height: 40px; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body oncontextmenu="return false;"> <div id="systemOverlay">
+        <div class="spinner"></div>
+        <p id="overlayText" style="font-family: var(--font-terminal); color: var(--neon-cyan); margin-top: 20px; font-size: 12px;"></p>
+    </div>
+
+    <header>
+        <div class="status-bar">
+            <span>NODE: <span id="nodeId">SATELLITE-7</span></span>
+            <span><span class="status-dot dot-scanning"></span><span id="scanStatus">SCANNING...</span></span>
+        </div>
+        <h2>MISSION LOBBY</h2>
+    </header>
+
+    <div class="mission-summary">
+        <div style="display: flex; justify-content: space-between;">
+            <div>
+                <span class="summary-label">MISSION ID</span><br>
+                <span id="dispMId" class="summary-val">---</span>
+            </div>
+            <div style="text-align: right;">
+                <span class="summary-label">BASE REWARD</span><br>
+                <span id="dispPrice" class="summary-val">Rp 0</span>
+            </div>
+        </div>
+        <div style="margin-top: 10px; border-top: 1px solid #222; padding-top: 8px;">
+            <span class="summary-label">SHARD LOCATION:</span>
+            <span id="dispShard" style="color: #888; font-size: 11px;">---</span>
+        </div>
+    </div>
+
+    <div class="radar-container">
+        <div class="radar-ripple"></div>
+        <div class="radar-ripple"></div>
+        <div class="radar-ripple"></div>
+        <div style="z-index: 10; font-family: var(--font-terminal); font-size: 11px; color: var(--neon-cyan);" id="appCount">WAITING FOR SIGNAL</div>
+    </div>
+
+    <div id="applicantList">
+        <p style="text-align: center; color: #333; font-family: var(--font-terminal); margin-top: 20px;">MENUNGGU ADVENTURER MELAMAR...</p>
+    </div>
+
+    <div class="footer-tips">
+        <div class="tips-scroller">
+            <div class="tips-text" id="tipsText">Mencari Adventurer terbaik di area Anda... Berikan penawaran yang adil untuk hasil maksimal... Adventurer dengan Rating tinggi lebih terpercaya...</div>
+        </div>
+        <button class="btn-abort" onclick="Lobby.abortMission()">[ ABORT MISSION / BATALKAN ]</button>
+    </div>
+
+<script>
+    // --- FIREBASE CONFIG ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // --- AUDIO SYSTEM (Native) ---
+    const AudioUI = {
+        ctx: new (window.AudioContext || window.webkitAudioContext)(),
+        play(freq, type, dur) {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(); osc.stop(this.ctx.currentTime + dur);
+        },
+        beepIn() { this.play(800, 'sine', 0.1); },
+        beepSelect() { this.play(1200, 'square', 0.15); },
+        beepCancel() { this.play(200, 'sawtooth', 0.3); }
+    };
+
+    // --- LOBBY CORE LOGIC ---
+    const Lobby = {
+        mId: localStorage.getItem('active_mission_id'),
+        server: localStorage.getItem('active_mission_server'),
+        applicants: {},
+
+        init() {
+            if(!this.mId) { window.location.href = "index.html"; return; }
+            
+            document.getElementById('dispMId').innerText = this.mId;
+            document.getElementById('dispShard').innerText = this.server;
+            
+            this.maskWeb();
+            this.listenMissionDetails();
+            this.listenApplicants();
+            this.startTipsCycle();
+        },
+
+        maskWeb() {
+            // Disable Zoom
+            document.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 1) e.preventDefault();
+            }, { passive: false });
+            
+            // Wake Lock simulation
+            if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{});
+        },
+
+        listenMissionDetails() {
+            db.ref(`missions/${this.server}/${this.mId}`).on('value', snap => {
+                if(!snap.exists()) return;
+                const data = snap.val();
+                document.getElementById('dispPrice').innerText = "Rp " + (data.reward || 0).toLocaleString('id-ID');
+                
+                // Jika status berubah ke briefing, pindah halaman
+                if(data.status === "briefing") {
+                    AudioUI.beepSelect();
+                    window.location.href = "briefing.html";
+                }
+            });
+        },
+
+        listenApplicants() {
+            // Kita mendengarkan folder 'applicants' (sinkron dengan kode Driver baru)
+            db.ref(`missions/${this.server}/${this.mId}/applicants`).on('value', (snap) => {
+                const listDiv = document.getElementById('applicantList');
+                const countSpan = document.getElementById('appCount');
+                
+                if(!snap.exists()) {
+                    listDiv.innerHTML = `<p style="text-align: center; color: #333; font-family: var(--font-terminal); margin-top: 20px;">BELUM ADA PELAMAR...</p>`;
+                    countSpan.innerText = "0 ACTIVE SIGNAL";
+                    return;
+                }
+
+                let html = "";
+                let count = 0;
+                
+                snap.forEach(child => {
+                    const advId = child.key;
+                    const adv = child.val();
+                    count++;
+
+                    // Logika profesional: Highlight jika ada nego harga
+                    const isNego = adv.offer_price > 0;
+                    const displayPrice = isNego ? adv.offer_price : "---";
+
+                    html += `
+                        <div class="applicant-card" id="card-${advId}">
+                            <div class="adv-info">
+                                <span class="adv-nick">
+                                    <span class="online-indicator"></span> ${adv.nick || 'GHOST'}
+                                </span>
+                                <span class="adv-meta">⭐ RATING: ${adv.rating || '5.0'}</span>
+                                <span class="adv-meta dist-tag">📍 JARAK: ${adv.distance || '?'} KM</span>
+                                <span class="price-tag">BID: Rp ${displayPrice.toLocaleString('id-ID')}</span>
+                            </div>
+                            <button class="btn-select" onclick="Lobby.selectAdventurer('${advId}', '${adv.nick}')">CHOOSE</button>
+                        </div>
+                    `;
+
+                    // Sound alert jika ada pelamar baru
+                    if(!this.applicants[advId]) {
+                        AudioUI.beepIn();
+                        if(navigator.vibrate) navigator.vibrate(50);
+                    }
+                    this.applicants[advId] = adv;
+                });
+
+                listDiv.innerHTML = html;
+                countSpan.innerText = `${count} ADVENTURERS FOUND`;
+                document.getElementById('scanStatus').innerText = "ACTIVE SIGNAL FOUND";
+            });
+        },
+
+        async selectAdventurer(advId, nick) {
+            if(navigator.vibrate) navigator.vibrate([50, 30, 50]);
+            
+            const overlay = document.getElementById('systemOverlay');
+            const overlayText = document.getElementById('overlayText');
+            
+            if(!confirm(`Konfirmasi kontrak dengan ${nick}?`)) return;
+
+            overlay.style.display = "flex";
+            overlayText.innerText = "SYNCHRONIZING CONTRACT WITH NODE...";
+
+            try {
+                // Gunakan Transaction agar tidak terjadi double-pick
+                const missionRef = db.ref(`missions/${this.server}/${this.mId}`);
+                await missionRef.transaction((currentData) => {
+                    if (currentData && currentData.status === "open") {
+                        currentData.selected_adventurer = nick;
+                        currentData.selected_adv_id = advId;
+                        currentData.status = "briefing";
+                        return currentData;
+                    }
+                    return; // Abort transaction jika sudah terisi
+                });
+                
+                overlayText.innerText = "CONTRACT LOCKED. REDIRECTING...";
+            } catch (e) {
+                overlay.style.display = "none";
+                alert("Gagal mengunci kontrak. Coba lagi.");
+            }
+        },
+
+        async abortMission() {
+            if(!confirm("Batalkan misi ini? Data akan dihapus dari radar.")) return;
+            
+            AudioUI.beepCancel();
+            const overlay = document.getElementById('systemOverlay');
+            overlay.style.display = "flex";
+            overlayText.innerText = "TERMINATING MISSION SIGNAL...";
+
+            try {
+                await db.ref(`missions/${this.server}/${this.mId}`).remove();
+                localStorage.removeItem('active_mission_id');
+                window.location.href = "index.html";
+            } catch (e) {
+                overlay.style.display = "none";
+                alert("Gagal membatalkan misi.");
+            }
+        },
+
+        startTipsCycle() {
+            const tips = [
+                "Tips: Gunakan Adventurer terdekat untuk jemputan lebih cepat.",
+                "Info: Rating tinggi menjamin keamanan paket Anda.",
+                "Alert: Harga nego yang terlalu rendah mungkin tidak diterima Driver.",
+                "System: Sinyal GPS dienkripsi untuk privasi maksimal.",
+                "Tips: Pastikan titik jemput sudah sesuai sebelum mengunci kontrak."
+            ];
+            let i = 0;
+            setInterval(() => {
+                document.getElementById('tipsText').innerText = tips[i];
+                i = (i + 1) % tips.length;
+            }, 10000);
+        }
+    };
+
+    window.onload = () => Lobby.init();
+
+</script>
+</body>
+</html>
