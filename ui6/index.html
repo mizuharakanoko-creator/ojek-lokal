@@ -1,118 +1,152 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ADVENTURER HUB</title>
+    <title>PICK ME | CREATE MISSION</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Rajdhani:wght@500;700&display=swap');
-        :root { --neon: #00f3ff; --bg: #020204; }
-        body { margin: 0; background: var(--bg); color: #fff; font-family: 'Rajdhani', sans-serif; overflow: hidden; }
-        
-        /* Loading Gate */
-        #neural-gate { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.8s; }
-        .ring { width: 80px; height: 80px; border: 3px solid transparent; border-top-color: var(--neon); border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --bg-main: #050505;
+            --bg-card: #0a0a0a;
+            --border-color: #222;
+            --text-main: #fff;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
 
-        /* UI Header */
-        .header { padding: 20px; background: rgba(255,255,255,0.02); border-bottom: 1px solid #111; }
-        .stamina-bar { width: 100%; height: 10px; background: #111; border-radius: 5px; margin-top: 10px; overflow: hidden; border: 1px solid #222; }
-        .stamina-fill { height: 100%; width: 0%; background: var(--neon); transition: 1s; box-shadow: 0 0 10px var(--neon); }
-        
-        .stats-row { display: flex; justify-content: space-between; margin-top: 15px; }
-        .stat-box { background: #0a0a0a; padding: 10px 15px; border-radius: 8px; border-left: 3px solid var(--neon); }
-        .stat-label { font-size: 9px; color: #555; text-transform: uppercase; }
-        .stat-val { font-family: 'Orbitron'; font-size: 14px; color: #fff; }
+        body { 
+            background-color: var(--bg-main); color: var(--text-main); 
+            margin: 0; font-family: 'Segoe UI', sans-serif; padding: 20px;
+        }
 
-        .radar-box { text-align: center; margin-top: 50px; color: #222; font-family: 'Orbitron'; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .card { 
+            background: var(--bg-card); border: 1px solid var(--border-color); 
+            padding: 20px; border-radius: 8px; max-width: 500px; margin: 0 auto;
+        }
+
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-family: var(--font-terminal); font-size: 11px; color: #888; margin-bottom: 5px; }
+        
+        .input-field {
+            width: 100%; background: #111; border: 1px solid var(--border-color);
+            color: #fff; padding: 12px; border-radius: 4px; font-size: 14px; box-sizing: border-box;
+        }
+        .input-field:focus { border-color: var(--neon-cyan); outline: none; }
+
+        .btn-post {
+            width: 100%; padding: 15px; background: var(--neon-cyan);
+            color: #000; border: none; border-radius: 4px; cursor: pointer;
+            font-family: var(--font-terminal); font-weight: bold; margin-top: 10px;
+        }
+
+        .nav-link {
+            display: block; text-align: center; margin-top: 20px;
+            font-size: 12px; color: var(--neon-pink); text-decoration: none;
+            font-family: var(--font-terminal);
+        }
     </style>
 </head>
-<body onload="initSystem()">
+<body>
 
-    <div id="neural-gate">
-        <div class="ring"></div>
-        <p style="color:var(--neon); font-family:'Orbitron'; font-size:10px; margin-top:20px; letter-spacing:2px;">SYNCING IDENTITY...</p>
+<div class="header">
+    <h1 style="color: var(--neon-pink); letter-spacing: 5px; margin: 0;">PICK ME</h1>
+    <p style="font-size: 10px; color: var(--neon-cyan); font-family: var(--font-terminal);">REQUESTER TERMINAL: POST A QUEST</p>
+</div>
+
+<div class="card">
+    <div class="input-group">
+        <label>YOUR NAME (REQUESTER)</label>
+        <input type="text" id="reqName" class="input-field" placeholder="Ex: Merchant Joe">
     </div>
 
-    <div class="header">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span id="ui-nick" style="font-family:'Orbitron'; font-weight:900; color:var(--neon);">PLAYER</span>
-            <span id="ui-rank" style="color:#ffcc00; font-weight:bold;">RANK -</span>
+    <div class="input-group">
+        <label>QUEST TITLE</label>
+        <input type="text" id="mTitle" class="input-field" placeholder="Ex: Antar Paket Ramuan">
+    </div>
+
+    <div class="input-group">
+        <label>MISSION DESCRIPTION</label>
+        <textarea id="mDesc" class="input-field" style="height: 80px;" placeholder="Detail tugas..."></textarea>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+        <div class="input-group" style="flex: 1;">
+            <label>REWARD (RP)</label>
+            <input type="number" id="mReward" class="input-field" placeholder="50000">
         </div>
-        <div class="stamina-bar"><div id="stamina-fill" class="stamina-fill"></div></div>
-        <div style="font-size:9px; color:#444; margin-top:5px; text-align:right;" id="stamina-text">0 / 0 VITALITY</div>
-
-        <div class="stats-row">
-            <div class="stat-box">
-                <div class="stat-label">Balance</div>
-                <div class="stat-val" id="ui-stone">0 STONE</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Missions</div>
-                <div class="stat-val" id="ui-count">0</div>
-            </div>
+        <div class="input-group" style="flex: 1;">
+            <label>SERVER AREA</label>
+            <select id="mServer" class="input-field">
+                <option value="KNG-01">KNG-01 (KUNINGAN)</option>
+                <option value="CRB-01">CRB-01 (CIREBON)</option>
+            </select>
         </div>
     </div>
 
-    <div class="radar-box">
-        <p>RADAR STANDBY</p>
-        <button onclick="location.reload()" style="background:none; border:1px solid #333; color:#555; padding:10px; border-radius:5px; font-family:'Orbitron'; font-size:10px;">RESCAN SECTOR</button>
+    <div class="input-group">
+        <label>PICKUP POINT</label>
+        <input type="text" id="mPickup" class="input-field" placeholder="Lokasi Jemput">
     </div>
 
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
-            authDomain: "ojeklokal-42b84.firebaseapp.com",
-            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "ojeklokal-42b84"
+    <button class="btn-post" id="btnPost" onclick="postMission()">BROADCAST MISSION</button>
+</div>
+
+<a href="login.html" class="nav-link">SWITCH TO ADVENTURER LOGIN</a>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    async function postMission() {
+        const btn = document.getElementById('btnPost');
+        const server = document.getElementById('mServer').value;
+        
+        const missionData = {
+            requester_name: document.getElementById('reqName').value,
+            title: document.getElementById('mTitle').value,
+            description: document.getElementById('mDesc').value,
+            reward: parseInt(document.getElementById('mReward').value),
+            pickup_point: document.getElementById('mPickup').value,
+            status: "posted",
+            created_at: Date.now(),
+            applicants: {}
         };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
 
-        function initSystem() {
-            const myNick = localStorage.getItem('user_nickname');
-            const myRole = localStorage.getItem('user_role');
+        if(!missionData.title || !missionData.reward) return alert("Lengkapi data misi!");
 
-            if(!myNick || myRole !== 'adventurer') {
-                window.location.href = "login.html";
-                return;
-            }
+        btn.innerText = "BROADCASTING...";
+        btn.disabled = true;
 
-            // Listener Realtime ke Path users_adventurer
-            db.ref(`users_adventurer/${myNick}`).on('value', snap => {
-                const data = snap.val();
-                
-                if(data) {
-                    // Update UI
-                    document.getElementById('ui-nick').innerText = data.nickname;
-                    document.getElementById('ui-rank').innerText = "RANK " + data.rank;
-                    document.getElementById('ui-stone').innerText = (data.stats?.balance_stone || 0) + " STONE";
-                    document.getElementById('ui-count').innerText = data.stats?.total_missions || 0;
-                    
-                    const cur = data.vitality?.stamina_current || 0;
-                    const max = data.vitality?.stamina_max || 1000;
-                    document.getElementById('stamina-fill').style.width = (cur/max*100) + "%";
-                    document.getElementById('stamina-text').innerText = `${cur} / ${max} VITALITY`;
+        try {
+            // Generate ID Unik untuk Misi
+            const newMissionRef = db.ref(`missions/${server}`).push();
+            const mId = newMissionRef.key;
 
-                    // HILANGKAN LOADING
-                    setTimeout(() => {
-                        document.getElementById('neural-gate').style.opacity = '0';
-                        setTimeout(() => document.getElementById('neural-gate').style.display = 'none', 800);
-                    }, 1000);
-                } else {
-                    alert("DATA TIDAK DITEMUKAN. SILAKAN LOGIN ULANG.");
-                    localStorage.clear();
-                    window.location.href = "login.html";
-                }
-            }, (error) => {
-                console.error("Database Error:", error);
-                alert("Koneksi ditolak! Cek Rules Firebase Anda.");
-            });
+            await newMissionRef.set(missionData);
+
+            alert("Misi Berhasil di-Broadcast!");
+            // Simpan ID misi di session agar bisa masuk ke Lobby
+            localStorage.setItem('active_mission_id', mId);
+            localStorage.setItem('active_mission_server', server);
+            
+            window.location.href = "lobby.html";
+        } catch (e) {
+            alert(e.message);
+            btn.disabled = false;
         }
-    </script>
+    }
+</script>
 </body>
 </html>
