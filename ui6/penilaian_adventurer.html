@@ -3,19 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RATE ADVENTURER</title>
+    <title>RATE ADVENTURER | SOVEREIGN</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+        :root { --neon-blue: #00d9ff; --neon-gold: #ffcc00; }
         body { background: #000; color: #fff; font-family: monospace; text-align: center; padding: 20px; }
-        .rating-box { background: #111; padding: 30px; border-radius: 15px; border: 1px solid var(--neon-gold); }
-        .star-btn { font-size: 30px; background: none; border: none; color: #333; cursor: pointer; }
-        .star-btn.active { color: #ffcc00; }
-        .btn-submit { width: 100%; padding: 15px; background: #00d9ff; border: none; margin-top: 20px; font-weight: bold; border-radius: 8px; }
+        .rating-box { background: #0a0a0c; padding: 30px; border-radius: 15px; border: 1px solid var(--neon-gold); max-width: 400px; margin: 40px auto; }
+        h2 { font-family: 'Orbitron'; color: var(--neon-gold); font-size: 16px; }
+        .star-btn { font-size: 40px; background: none; border: none; color: #222; cursor: pointer; transition: 0.2s; }
+        .star-btn.active { color: var(--neon-gold); text-shadow: 0 0 10px var(--neon-gold); }
+        .btn-submit { width: 100%; padding: 15px; background: var(--neon-blue); border: none; margin-top: 30px; font-weight: bold; font-family: 'Orbitron'; cursor: pointer; border-radius: 8px; }
     </style>
 </head>
 <body>
-    <h2>PENILAIAN ADVENTURER</h2>
+    <h2>EVALUASI ADVENTURER</h2>
     <div class="rating-box">
-        <p>Berikan Rating untuk Adventurer atas jasanya:</p>
+        <p style="font-size: 11px; color: #666;">Berapa tingkat kepuasan Anda atas jasa mereka?</p>
         <div id="stars">
             <button class="star-btn" onclick="setRating(1)">★</button>
             <button class="star-btn" onclick="setRating(2)">★</button>
@@ -23,18 +28,39 @@
             <button class="star-btn" onclick="setRating(4)">★</button>
             <button class="star-btn" onclick="setRating(5)">★</button>
         </div>
-        <button class="btn-submit" onclick="submitReview()">KIRIM & SELESAIKAN</button>
+        <button class="btn-submit" onclick="submitReview()">KIRIM LAPORAN</button>
     </div>
 
     <script>
+        const firebaseConfig = { databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const mId = urlParams.get('id');
+        const srv = "SRV-JAKARTA";
         let currentRating = 0;
+
         function setRating(r) {
             currentRating = r;
             const btns = document.querySelectorAll('.star-btn');
             btns.forEach((b, i) => b.classList.toggle('active', i < r));
         }
-        function submitReview() {
+
+        async function submitReview() {
             if(currentRating === 0) return alert("Pilih rating!");
+
+            // Ambil data misi untuk tahu siapa executornya
+            const snap = await db.ref(`database_regional/${srv}/missions/${mId}`).get();
+            const m = snap.val();
+
+            if(m && m.executor) {
+                // Simpan rating ke data misi
+                await db.ref(`database_regional/${srv}/missions/${mId}`).update({
+                    ratingToAdv: currentRating,
+                    status: "ARCHIVED" // Misi benar-benar selesai
+                });
+            }
             window.location.href = "clearchance.html";
         }
     </script>
