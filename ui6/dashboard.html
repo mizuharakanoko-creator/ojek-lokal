@@ -286,35 +286,49 @@
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         },
 
-        locateDevice: function() {
+                locateDevice: function() {
             if(!navigator.geolocation) return this.showAlert("ERROR", "GPS Not Supported");
             
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                State.myLat = pos.coords.latitude; State.myLon = pos.coords.longitude;
+                State.myLat = pos.coords.latitude; 
+                State.myLon = pos.coords.longitude;
                 
                 try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${State.myLat}&lon=${State.myLon}&zoom=14`);
+                    // Paksa zoom lebih dalam agar kecamatan terdeteksi lebih akurat
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${State.myLat}&lon=${State.myLon}&zoom=18`);
                     const data = await res.json();
+                    const addr = data.address;
                     
-                    const prov = (data.address.state || "X").toUpperCase().replace(/[^A-Z]/g,'-');
-                    const kab = (data.address.city || data.address.county || "X").toUpperCase().replace(/[^A-Z]/g,'-');
-                    const kec = (data.address.city_district || data.address.suburb || "X").toUpperCase().replace(/[^A-Z]/g,'-');
+                    // Normalisasi Nama Shard (Penting agar cocok dengan Firebase)
+                    const prov = (addr.state || "X").toUpperCase().replace(/\s+/g, '-');
+                    const kab = (addr.city || addr.county || addr.regency || "KUNINGAN").toUpperCase().replace(/\s+/g, '-');
                     
-                    State.shardPath = `${prov}/${kab}/KEC-${kec}`;
-                    document.getElementById('dispShard').innerText = kec;
-                    document.getElementById('connBar').innerText = "CONNECTED TO SHARD: " + kec;
+                    // Ambil kecamatan, jika tidak ada pakai 'UNKNOWN'
+                    let kecRaw = addr.village || addr.suburb || addr.city_district || addr.district || "KUNINGAN";
+                    let kec = "KEC-" + kecRaw.toUpperCase().replace(/\s+/g, '-');
+                    
+                    // Gabungkan Path
+                    State.shardPath = `${prov}/${kab}/${kec}`;
+                    
+                    // DEBUG: Tampilkan di konsol untuk memastikan path-nya benar
+                    console.log("Listening to Firebase Path:", State.shardPath);
+                    
+                    document.getElementById('dispShard').innerText = kecRaw.toUpperCase();
+                    document.getElementById('connBar').innerText = "CONNECTED: " + State.shardPath;
                     
                     this.listenToShard();
                 } catch(e) {
-                    State.shardPath = "GLOBAL/RAW/COORD";
-                    document.getElementById('dispShard').innerText = "RAW GPS";
+                    console.error("Geocoding Error:", e);
+                    // Fallback jika API Nominatim limit
+                    State.shardPath = "JAWA-BARAT/KUNINGAN/KEC-KUNINGAN"; 
                     this.listenToShard();
                 }
-            }, () => {
-                this.showAlert("GPS FAILED", "Harap izinkan GPS.");
+            }, (err) => {
+                this.showAlert("GPS FAILED", "Harap aktifkan GPS dan refresh halaman.");
                 document.getElementById('connBar').innerText = "GPS OFFLINE";
-            });
+            }, { enableHighAccuracy: true });
         },
+
 
         listenToShard: function() {
             const ref = db.ref(`missions/${State.shardPath}`);
