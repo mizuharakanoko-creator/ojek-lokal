@@ -2,77 +2,30 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FORGE MISSION | SOVEREIGN GUILD</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEBUG MODE | FORGE MISSION</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;700&display=swap');
-        :root { --neon-blue: #00d9ff; --neon-gold: #ffcc00; --bg: #020204; --error: #ff4444; }
-        body { margin: 0; padding: 20px; background: var(--bg); color: #fff; font-family: 'Rajdhani', sans-serif; }
-        
-        .header { text-align: center; margin-bottom: 30px; }
-        .title { font-family: 'Orbitron'; color: var(--neon-gold); font-size: 18px; letter-spacing: 3px; text-shadow: 0 0 10px rgba(255, 204, 0, 0.3); }
-        
-        .status-bar { font-family: 'Orbitron'; font-size: 9px; text-align: center; margin-bottom: 10px; padding: 5px; border-radius: 5px; }
-        .online { color: #00ff00; background: rgba(0, 255, 0, 0.05); }
-        .offline { color: var(--error); background: rgba(255, 0, 0, 0.05); }
-
-        .form-card { background: rgba(255,255,255,0.02); border: 1px solid #1a1a24; padding: 25px; border-radius: 15px; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 40px rgba(0,0,0,0.7); position: relative; overflow: hidden; }
-        .form-card::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, var(--neon-blue), transparent); }
-
-        label { display: block; font-size: 10px; color: var(--neon-blue); margin: 15px 0 5px; text-transform: uppercase; font-family: 'Orbitron'; letter-spacing: 1px; }
-        input, textarea, select { width: 100%; background: #000; border: 1px solid #222; color: #fff; padding: 14px; border-radius: 8px; font-family: inherit; box-sizing: border-box; outline: none; transition: 0.3s; font-size: 15px; }
-        input:focus { border-color: var(--neon-blue); box-shadow: 0 0 10px rgba(0, 217, 255, 0.1); }
-        
-        .btn-publish { width: 100%; padding: 20px; margin-top: 30px; border-radius: 10px; font-family: 'Orbitron'; font-weight: bold; cursor: pointer; border: 1px solid var(--neon-gold); background: rgba(255, 204, 0, 0.05); color: var(--neon-gold); text-transform: uppercase; letter-spacing: 2px; transition: 0.3s; }
-        .btn-publish:hover:not(:disabled) { background: var(--neon-gold); color: #000; box-shadow: 0 0 20px rgba(255, 204, 0, 0.4); }
-        .btn-publish:disabled { opacity: 0.3; cursor: not-allowed; border-color: #333; }
-
-        .loading-overlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.8); z-index: 10; justify-content: center; align-items: center; font-family: 'Orbitron'; font-size: 12px; color: var(--neon-blue); }
+        body { background: #000; color: #00ff00; font-family: monospace; padding: 20px; }
+        .box { border: 1px solid #00ff00; padding: 20px; border-radius: 10px; }
+        input, textarea { width: 100%; background: #111; color: #0f0; border: 1px solid #0f0; margin: 10px 0; padding: 10px; box-sizing: border-box; }
+        button { width: 100%; padding: 20px; background: #00ff00; color: #000; font-weight: bold; cursor: pointer; border: none; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div id="connectionStatus" class="status-bar offline">CHECKING ENCRYPTION...</div>
-        <div class="title">/// FORGE NEW MISSION ///</div>
-    </div>
-
-    <div class="form-card">
-        <div id="loader" class="loading-overlay">TRANSMITTING...</div>
-
-        <label>QUEST TITLE</label>
-        <input type="text" id="mTitle" placeholder="Misal: Pengiriman Berkas Rahasia">
-
-        <label>QUEST DESCRIPTION</label>
-        <textarea id="mDesc" placeholder="Berikan instruksi detail untuk Adventurer..." style="height:100px;"></textarea>
-
-        <label>COORDINATES / PICKUP POINT</label>
-        <input type="text" id="mPickup" placeholder="Lokasi Penjemputan">
-
-        <div style="display: flex; gap: 15px;">
-            <div style="flex: 1;">
-                <label>BOUNTY (RP)</label>
-                <input type="number" id="mBounty" placeholder="Contoh: 50000">
-            </div>
-            <div style="flex: 1;">
-                <label>MIN. RANK</label>
-                <select id="mRank">
-                    <option value="F">RANK F</option>
-                    <option value="E">RANK E</option>
-                    <option value="D">RANK D</option>
-                    <option value="C">RANK C</option>
-                </select>
-            </div>
-        </div>
-
-        <button class="btn-publish" id="btnPublish" onclick="publishMission()" disabled>INITIALIZING BOARD...</button>
+    <div class="box">
+        <h3>/// SYSTEM DEBUG: MISSION FORGE ///</h3>
+        <input type="text" id="mTitle" placeholder="Judul Misi">
+        <textarea id="mDesc" placeholder="Deskripsi"></textarea>
+        <input type="text" id="mPickup" placeholder="Lokasi">
+        <input type="number" id="mBounty" placeholder="Bounty (Angka)">
+        <button onclick="forcePublish()">EXECUTE TRANSMISSION</button>
     </div>
 
     <script>
+        // 1. Inisialisasi Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
             authDomain: "ojeklokal-42b84.firebaseapp.com",
@@ -80,94 +33,57 @@
             projectId: "ojeklokal-42b84"
         };
 
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-
-        // Security Check
-        const myNick = localStorage.getItem('user_nickname');
-        const myRole = localStorage.getItem('user_role');
-
-        if(!myNick || myRole !== 'requester') {
-            alert("Sesi tidak valid. Kembali ke login.");
-            window.location.href = "login.html";
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+            console.log("✅ Firebase Initialized");
         }
 
-        // Connection Watcher
-        const connRef = db.ref(".info/connected");
-        connRef.on("value", (snap) => {
-            const btn = document.getElementById('btnPublish');
-            const status = document.getElementById('connectionStatus');
-            if (snap.val() === true) {
-                status.innerText = "LINK ESTABLISHED - SECURE";
-                status.className = "status-bar online";
-                btn.disabled = false;
-                btn.innerText = "PUBLISH TO BOARD";
-            } else {
-                status.innerText = "LINK SEVERED - RETRYING...";
-                status.className = "status-bar offline";
-                btn.disabled = true;
-            }
-        });
+        const db = firebase.database();
 
-        async function publishMission() {
-            const title = document.getElementById('mTitle').value.trim();
-            const desc = document.getElementById('mDesc').value.trim();
-            const bounty = document.getElementById('mBounty').value;
-            const rank = document.getElementById('mRank').value;
-            const pickup = document.getElementById('mPickup').value.trim();
-
-            if(!title || !bounty || !pickup) {
-                return alert("Quest Title, Pickup Point, and Bounty are REQUIRED!");
-            }
-
-            const loader = document.getElementById('loader');
-            const btn = document.getElementById('btnPublish');
+        async function forcePublish() {
+            console.log("🚀 Memulai proses forcePublish...");
             
-            loader.style.display = "flex";
-            btn.disabled = true;
-
+            const title = document.getElementById('mTitle').value;
+            const bounty = document.getElementById('mBounty').value;
+            const pickup = document.getElementById('mPickup').value;
+            const myNick = localStorage.getItem('user_nickname') || "GUEST_USER";
+            const srv = "SRV-JAKARTA";
             const mId = "MSN-" + Date.now();
-            const srv = "SRV-JAKARTA"; 
 
-            const missionData = {
+            // Cek kelengkapan data
+            if(!title || !bounty) {
+                alert("❌ Gagal: Judul dan Bounty tidak boleh kosong!");
+                return;
+            }
+
+            const payload = {
                 id: mId,
                 clientName: myNick,
                 title: title,
-                instructions: desc || "No additional instructions.",
+                instructions: document.getElementById('mDesc').value || "-",
                 bounty: parseInt(bounty),
-                requiredRank: rank,
                 status: "OPEN",
                 server: srv,
                 pickupLocation: pickup,
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
-                applicants: {} // Placeholder untuk list pelamar nanti
+                timestamp: firebase.database.ServerValue.TIMESTAMP
             };
 
+            console.log("📦 Data yang akan dikirim:");
+            console.table(payload);
+
             try {
-                // Gunakan update() untuk multiple paths agar atomik jika diperlukan
-                // Tapi untuk sekarang kita pastikan path regional benar
-                const updates = {};
-                updates[`database_regional/${srv}/missions/${mId}`] = missionData;
+                // Gunakan Path Global dulu untuk testing apakah koneksi masuk
+                console.log("📡 Mencoba menulis ke: database_regional/" + srv + "/missions/" + mId);
                 
-                // Tambahkan log di Central Board agar sistem audit tahu ada misi baru
-                updates[`board_central/logs/${mId}`] = { 
-                    type: "NEW_MISSION", 
-                    client: myNick, 
-                    time: firebase.database.ServerValue.TIMESTAMP 
-                };
-
-                await db.ref().update(updates);
-
-                alert("MISSION PUBLISHED TO " + srv);
-                // Redirect ke Dashboard khusus Requester untuk pantau pelamar
-                window.location.href = "waiting_approval.html?id=" + mId;
-
+                await db.ref(`database_regional/${srv}/missions/${mId}`).set(payload);
+                
+                console.log("✅ BERHASIL! Data masuk ke Firebase.");
+                alert("TRANSMISI BERHASIL!\nCek Firebase sekarang.");
+                
             } catch (error) {
-                console.error("Firebase Error:", error);
+                console.error("❌ FIREBASE ERROR:");
+                console.error(error);
                 alert("CRITICAL ERROR: " + error.message);
-                loader.style.display = "none";
-                btn.disabled = false;
             }
         }
     </script>
