@@ -24,7 +24,6 @@
             margin: 0; font-family: 'Segoe UI', sans-serif; padding-bottom: 80px;
         }
 
-        /* Header */
         header {
             background: var(--bg-card); padding: 15px 20px;
             border-bottom: 1px solid var(--border-color);
@@ -35,16 +34,22 @@
         .user-info { font-family: var(--font-terminal); font-size: 12px; }
         .user-nick { color: var(--neon-pink); font-weight: bold; }
 
-        /* Mission Card */
         .mission-container { padding: 15px; }
+        
+        /* Mission Card Styles */
         .mission-card {
             background: #0f0f0f; border: 1px solid var(--border-color);
             border-radius: 8px; padding: 15px; margin-bottom: 15px;
-            position: relative; overflow: hidden;
-            transition: 0.3s;
+            position: relative; transition: 0.3s;
         }
-        .mission-card:active { transform: scale(0.98); border-color: var(--neon-cyan); }
-        
+
+        /* State: Applied (Dimatikan) */
+        .mission-card.applied {
+            filter: grayscale(1) opacity(0.5);
+            pointer-events: none;
+            border-style: dashed;
+        }
+
         .mission-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
         .reward { color: #ffbb33; font-weight: bold; font-family: var(--font-terminal); }
         .m-title { font-size: 16px; font-weight: bold; margin: 0; color: var(--neon-cyan); }
@@ -62,10 +67,26 @@
             cursor: pointer; font-family: var(--font-terminal);
         }
 
-        /* Empty State */
+        /* Notification Overlay */
+        #notification-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 1000;
+            display: none; flex-direction: column; justify-content: center;
+            align-items: center; text-align: center; padding: 20px;
+        }
+        .notif-box {
+            border: 2px solid var(--neon-pink); padding: 30px;
+            background: #000; box-shadow: 0 0 20px var(--neon-pink);
+        }
+        .btn-go {
+            margin-top: 20px; padding: 15px 30px; background: var(--neon-pink);
+            color: white; border: none; font-weight: bold; font-family: var(--font-terminal);
+            cursor: pointer; animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
         #empty-msg { text-align: center; padding: 50px 20px; color: #444; font-family: var(--font-terminal); }
 
-        /* Navigation Bottom */
         nav.bottom-nav {
             position: fixed; bottom: 0; width: 100%; height: 60px;
             background: #000; border-top: 1px solid var(--border-color);
@@ -76,6 +97,14 @@
     </style>
 </head>
 <body>
+
+<div id="notification-overlay">
+    <div class="notif-box">
+        <h2 class="text-neon-pink" style="color:var(--neon-pink)">QUEST ACCEPTED!</h2>
+        <p id="notif-text">Requester telah memilih Anda untuk menjalankan misi.</p>
+        <button class="btn-go" onclick="goToBriefing()">BUKA KONTRAK & BRIEFING</button>
+    </div>
+</div>
 
 <header>
     <div class="user-info">
@@ -99,16 +128,13 @@
 </nav>
 
 <script>
-    // 1. SESSION CHECK
     const session = JSON.parse(localStorage.getItem('pickme_session'));
-    if(!session) {
-        window.location.href = "login.html";
-    } else {
+    if(!session) { window.location.href = "login.html"; }
+    else {
         document.getElementById('displayNick').innerText = session.nick;
         document.getElementById('displayServer').innerText = session.server;
     }
 
-    // 2. FIREBASE CONFIG
     const firebaseConfig = {
         apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
         authDomain: "ojeklokal-42b84.firebaseapp.com",
@@ -118,18 +144,15 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // 3. LOAD MISSIONS
-    const missionListDiv = document.getElementById('missionList');
-
-    // Kita hanya mengambil misi yang ada di Server/Shard yang sama dengan Adventurer
     function loadMissions() {
-        const missionRef = db.ref(`missions/${session.server}`).orderByChild('status').equalTo('posted');
+        const missionRef = db.ref(`missions/${session.server}`);
 
         missionRef.on('value', (snapshot) => {
+            const missionListDiv = document.getElementById('missionList');
             missionListDiv.innerHTML = "";
             
             if(!snapshot.exists()) {
-                missionListDiv.innerHTML = '<div id="empty-msg">NO MISSIONS AVAILABLE AT THE MOMENT.</div>';
+                missionListDiv.innerHTML = '<div id="empty-msg">NO MISSIONS AVAILABLE.</div>';
                 return;
             }
 
@@ -137,41 +160,63 @@
                 const m = child.val();
                 const mId = child.key;
 
-                const card = `
-                    <div class="mission-card">
-                        <div class="mission-header">
-                            <p class="m-title">${m.title}</p>
-                            <span class="reward">Rp ${m.reward.toLocaleString()}</span>
+                // Cek apakah user sudah melamar misi ini
+                const hasApplied = m.applicants && m.applicants[session.nick];
+                
+                // Cek apakah user terpilih (Trigger Notif)
+                if(m.selected_adventurer === session.nick && m.status === "briefing") {
+                    showSelectionNotice(mId);
+                }
+
+                // Hanya tampilkan misi yang statusnya 'posted' (tersedia)
+                if(m.status === "posted") {
+                    const cardClass = hasApplied ? "mission-card applied" : "mission-card";
+                    const btnLabel = hasApplied ? "WAITING..." : "TAKE QUEST";
+
+                    const card = `
+                        <div class="${cardClass}" id="card-${mId}">
+                            <div class="mission-header">
+                                <p class="m-title">${m.title}</p>
+                                <span class="reward">Rp ${m.reward.toLocaleString()}</span>
+                            </div>
+                            <p class="m-desc">${m.description}</p>
+                            <div class="m-footer">
+                                <span>📍 ${m.pickup_point}</span>
+                                <button class="btn-accept" onclick="applyMission('${mId}')">${btnLabel}</button>
+                            </div>
                         </div>
-                        <p class="m-desc">${m.description}</p>
-                        <div class="m-footer">
-                            <span>📍 ${m.pickup_point}</span>
-                            <button class="btn-accept" onclick="applyMission('${mId}')">TAKE QUEST</button>
-                        </div>
-                    </div>
-                `;
-                missionListDiv.innerHTML += card;
+                    `;
+                    missionListDiv.innerHTML += card;
+                }
             });
         });
     }
 
-    // 4. APPLY MISSION LOGIC
     function applyMission(mId) {
         if(!confirm("Ambil misi ini?")) return;
 
-        // Tambahkan Adventurer ke daftar pelamar di dalam misi tersebut
         const applyData = {
             nick: session.nick,
             timestamp: Date.now(),
-            rating: 5.0 // Default rating
+            rating: 5.0
         };
 
         db.ref(`missions/${session.server}/${mId}/applicants/${session.nick}`).set(applyData)
         .then(() => {
-            alert("Application Sent! Tunggu Requester memilih Anda.");
-            // Di sini Anda bisa mengarahkan ke halaman "Waiting Room" untuk misi tersebut
+            // Visual feedback instant
+            document.getElementById(`card-${mId}`).classList.add('applied');
         })
         .catch(e => alert(e.message));
+    }
+
+    function showSelectionNotice(mId) {
+        localStorage.setItem('active_mission_id', mId);
+        localStorage.setItem('active_mission_server', session.server);
+        document.getElementById('notification-overlay').style.display = 'flex';
+    }
+
+    function goToBriefing() {
+        window.location.href = "briefing.html";
     }
 
     function logout() {
@@ -179,9 +224,7 @@
         window.location.href = "login.html";
     }
 
-    // Start
     loadMissions();
-
 </script>
 
 </body>
