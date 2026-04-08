@@ -39,7 +39,10 @@
             width: 100%; padding: 18px; background: var(--neon-cyan);
             color: black; border: none; font-weight: bold; cursor: pointer;
             font-family: var(--font-terminal); border-radius: 4px; font-size: 14px;
+            letter-spacing: 1px;
         }
+
+        .btn-submit:disabled { background: #333; color: #555; }
 
         #gainText { font-weight: bold; }
         .status-danger { color: var(--neon-pink); animation: blink 1s infinite; }
@@ -50,7 +53,7 @@
 
 <div class="clearance-card">
     <h2 style="color:var(--neon-pink); font-family:var(--font-terminal); letter-spacing:2px;">GUILD EVALUATION</h2>
-    <p style="font-size:12px; color:#555;">Tentukan nasib Clearance Adventurer di lapangan.</p>
+    <p style="font-size:12px; color:#555; margin-bottom: 20px;">Tentukan nasib Clearance Adventurer di lapangan.</p>
 
     <div class="star-rating" id="starContainer">
         <span class="star" onclick="setRating(1)">★</span>
@@ -64,7 +67,7 @@
         <span id="gainText">SILAKAN BERI BINTANG...</span>
     </div>
 
-    <button class="btn-submit" id="btnFinish" onclick="submitFinalReport()">SUBMIT TO GUILD</button>
+    <button class="btn-submit" id="btnFinish" onclick="submitFinalReport()">SIMPAN KE ARSIP GUILD</button>
 </div>
 
 <script>
@@ -82,6 +85,7 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    // Ambil data misi sekali untuk tahu siapa Adventurer-nya
     db.ref(`missions/${server}/${mId}`).once('value', snap => {
         if(snap.exists()) targetAdv = snap.val().selected_adventurer;
     });
@@ -92,57 +96,81 @@
         stars.forEach((s, i) => s.classList.toggle('active', i < n));
 
         const gainText = document.getElementById('gainText');
-        if (n <= 1) { gainText.innerText = "⚠️ CRITICAL FAILURE: -50 REP"; gainText.className = "status-danger"; }
-        else if (n === 2) { gainText.innerText = "❌ POOR: -10 REP"; gainText.style.color = "#ff8800"; }
-        else if (n === 3) { gainText.innerText = "⚖️ NEUTRAL: +5 REP"; gainText.style.color = "#fff"; }
-        else if (n === 4) { gainText.innerText = "✅ GOOD: +25 REP"; gainText.style.color = "var(--neon-cyan)"; }
-        else { gainText.innerText = "🔥 PERFECT: +100 REP"; gainText.style.color = "var(--neon-cyan)"; }
+        gainText.className = ""; // Reset class
+
+        // LOGIKA PENILAIAN & CLEARANCE
+        if (n <= 1) {
+            gainText.innerText = "⚠️ CRITICAL FAILURE: -50 REP & STRIKE!";
+            gainText.classList.add('status-danger');
+        } else if (n === 2) {
+            gainText.innerText = "❌ POOR PERFORMANCE: -10 REP";
+            gainText.style.color = "#ff8800";
+        } else if (n === 3) {
+            gainText.innerText = "⚖️ NEUTRAL: +5 REP";
+            gainText.style.color = "#fff";
+        } else if (n === 4) {
+            gainText.innerText = "✅ GOOD JOB: +25 REP";
+            gainText.style.color = "var(--neon-cyan)";
+        } else {
+            gainText.innerText = "🔥 PERFECT CLEAR: +100 REP & LVL UP PROGRESS";
+            gainText.style.color = "var(--neon-cyan)";
+        }
     }
 
     async function submitFinalReport() {
-    if(currentRating === 0 || !targetAdv) return alert("Penilaian belum lengkap!");
+        if(currentRating === 0 || !targetAdv) return alert("Penilaian belum lengkap!");
 
-    const btn = document.getElementById('btnFinish');
-    btn.disabled = true;
-    btn.innerText = "SAVING TO GUILD...";
+        const btn = document.getElementById('btnFinish');
+        btn.disabled = true;
+        btn.innerText = "UPDATING DATABASE...";
 
-    try {
-        const advRef = db.ref(`identity_adventurer/${server}/${targetAdv}`);
-        const snapshot = await advRef.once('value');
-        const advData = snapshot.val();
+        try {
+            // 1. Dapatkan Profil Adventurer
+            const advRef = db.ref(`identity_adventurer/${server}/${targetAdv}`);
+            const snapshot = await advRef.once('value');
+            const advData = snapshot.val();
 
-        let rep = advData.stats.reputation || 0;
-        let lvl = advData.stats.level || 1;
+            // 2. Kalkulasi Reputasi & Level
+            let rep = advData.stats.reputation || 0;
+            let lvl = advData.stats.level || 1;
+            let status = "ACTIVE";
 
-        // Logika Reputasi
-        if(currentRating === 1) rep -= 50;
-        else if(currentRating === 5) rep += 100;
-        else rep += (currentRating * 10);
+            // Hitung perubahan
+            if(currentRating === 1) rep -= 50;
+            else if(currentRating === 2) rep -= 10;
+            else if(currentRating === 3) rep += 5;
+            else if(currentRating === 4) rep += 25;
+            else if(currentRating === 5) rep += 100;
 
-        const updates = {};
-        updates[`identity_adventurer/${server}/${targetAdv}/stats/reputation`] = rep;
-        updates[`identity_adventurer/${server}/${targetAdv}/stats/is_working`] = false; // RESET STATUS KERJA
-        updates[`missions/${server}/${mId}/status`] = "archived";
-        
-        await db.ref().update(updates);
+            // Logic Naik/Turun Level (Tiap 100 Rep)
+            if(rep >= (lvl * 100)) lvl += 1;
+            if(rep < ((lvl - 1) * 100) && lvl > 1) lvl -= 1;
 
-        alert(`Misi Selesai!`);
-        localStorage.removeItem('active_mission_id');
+            // Jika reputasi terlalu buruk, suspend akun
+            if(rep < -100) status = "BANNED / SUSPENDED";
 
-        // LOGIKA REDIRECT BERDASARKAN ROLE
-        if (session && session.nick === targetAdv) {
-            // Jika yang membuka adalah Adventurer
-            window.location.href = "dashboard.html";
-        } else {
-            // Jika yang membuka adalah Requester (Tidak ada session adventurer)
+            // 3. Eksekusi Update ke Database
+            const updates = {};
+            updates[`identity_adventurer/${server}/${targetAdv}/stats/reputation`] = rep;
+            updates[`identity_adventurer/${server}/${targetAdv}/stats/level`] = lvl;
+            updates[`identity_adventurer/${server}/${targetAdv}/stats/status`] = status;
+            
+            // Tandai misi sebagai arsip
+            updates[`missions/${server}/${mId}/status`] = "archived";
+            updates[`missions/${server}/${mId}/final_rating`] = currentRating;
+
+            await db.ref().update(updates);
+
+            alert(`Laporan Selesai! ${targetAdv} sekarang di level ${lvl}.`);
+            localStorage.removeItem('active_mission_id');
             window.location.href = "index.html";
-        }
 
-    } catch (e) {
-        console.error(e);
-        btn.disabled = false;
+        } catch (e) {
+            console.error(e);
+            btn.disabled = false;
+        }
     }
-}
 </script>
+
 </body>
 </html>
