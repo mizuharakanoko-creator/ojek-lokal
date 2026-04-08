@@ -1,173 +1,188 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DASHBOARD | SOVEREIGN GUILD</title>
+    <title>PICK ME | MISSION BOARD</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;700&display=swap');
-        :root { --neon-blue: #00d9ff; --neon-gold: #ffcc00; --bg-card: #0a0a0c; }
-        body { margin: 0; padding: 15px; background: #000; color: #fff; font-family: 'Rajdhani', sans-serif; }
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --bg-main: #050505;
+            --bg-card: #0a0a0a;
+            --border-color: #222;
+            --text-main: #fff;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+
+        body { 
+            background-color: var(--bg-main); color: var(--text-main); 
+            margin: 0; font-family: 'Segoe UI', sans-serif; padding-bottom: 80px;
+        }
+
+        /* Header */
+        header {
+            background: var(--bg-card); padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        .user-info { font-family: var(--font-terminal); font-size: 12px; }
+        .user-nick { color: var(--neon-pink); font-weight: bold; }
+
+        /* Mission Card */
+        .mission-container { padding: 15px; }
+        .mission-card {
+            background: #0f0f0f; border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 15px; margin-bottom: 15px;
+            position: relative; overflow: hidden;
+            transition: 0.3s;
+        }
+        .mission-card:active { transform: scale(0.98); border-color: var(--neon-cyan); }
         
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: rgba(255,255,255,0.02); border-radius: 10px; margin-bottom: 20px; border: 1px solid #111; }
-        .user-info { font-family: 'Orbitron'; font-size: 12px; color: var(--neon-blue); }
-        .rank-tag { background: var(--neon-gold); color: #000; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; margin-left: 10px; }
+        .mission-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .reward { color: #ffbb33; font-weight: bold; font-family: var(--font-terminal); }
+        .m-title { font-size: 16px; font-weight: bold; margin: 0; color: var(--neon-cyan); }
+        .m-desc { font-size: 13px; color: #aaa; margin: 5px 0; }
+        
+        .m-footer { 
+            margin-top: 10px; padding-top: 10px; border-top: 1px solid #222;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 11px; font-family: var(--font-terminal);
+        }
 
-        .board-title { font-family: 'Orbitron'; font-size: 12px; letter-spacing: 3px; color: #444; margin-bottom: 15px; text-align: center; }
-        .quest-list { display: flex; flex-direction: column; gap: 15px; padding-bottom: 50px; }
+        .btn-accept {
+            background: var(--neon-cyan); color: #000; border: none;
+            padding: 8px 15px; border-radius: 4px; font-weight: bold;
+            cursor: pointer; font-family: var(--font-terminal);
+        }
 
-        .quest-card { background: var(--bg-card); border: 1px solid #1a1a1a; border-radius: 12px; padding: 18px; border-left: 3px solid #333; transition: 0.3s; }
-        .quest-card:active { transform: scale(0.98); }
-        .q-title { font-family: 'Orbitron'; font-size: 14px; font-weight: bold; color: var(--neon-gold); margin-bottom: 5px; }
-        .q-reward { font-size: 13px; color: var(--neon-blue); font-weight: bold; margin-bottom: 10px; }
-        .q-desc { font-size: 12px; color: #777; line-height: 1.4; margin-bottom: 15px; }
+        /* Empty State */
+        #empty-msg { text-align: center; padding: 50px 20px; color: #444; font-family: var(--font-terminal); }
 
-        .btn-apply { width: 100%; padding: 12px; background: transparent; color: var(--neon-blue); border: 1px solid var(--neon-blue); border-radius: 8px; cursor: pointer; font-family: 'Orbitron'; font-size: 10px; font-weight: bold; }
-
-        /* Modal Nego */
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background: #0a0a0a; border: 1px solid var(--neon-blue); padding: 25px; border-radius: 15px; width: 85%; max-width: 350px; }
-        input, textarea { width: 100%; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 15px; box-sizing: border-box; font-family: inherit; outline: none; }
-        .btn-send { width: 100%; background: var(--neon-blue); border: none; padding: 15px; font-weight: bold; border-radius: 8px; font-family: 'Orbitron'; cursor: pointer; }
-        .btn-close { width: 100%; background: transparent; color: #ff4444; border: none; margin-top: 10px; cursor: pointer; font-family: 'Orbitron'; font-size: 10px; }
+        /* Navigation Bottom */
+        nav.bottom-nav {
+            position: fixed; bottom: 0; width: 100%; height: 60px;
+            background: #000; border-top: 1px solid var(--border-color);
+            display: flex; justify-content: space-around; align-items: center;
+        }
+        .nav-item { color: #555; font-size: 10px; text-align: center; text-decoration: none; }
+        .nav-item.active { color: var(--neon-pink); }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="user-info">
-            <span id="userName">---</span> 
-            <span class="rank-tag" id="userRank">-</span>
-        </div>
-        <div style="font-size: 9px; color: #444; font-family: 'Orbitron';" id="userShard">SRV: JAKARTA</div>
+<header>
+    <div class="user-info">
+        ADVENTURER: <span class="user-nick" id="displayNick">---</span><br>
+        SERVER: <span style="color:var(--neon-cyan)" id="displayServer">---</span>
     </div>
+    <button onclick="logout()" style="background:none; border:1px solid #333; color:#888; font-size:10px; padding:5px;">LOGOUT</button>
+</header>
 
-    <div class="board-title">/// ACTIVE QUEST BOARD ///</div>
-
-    <div class="quest-list" id="questContainer">
-        <div style="text-align:center; color:#222; margin-top:50px;">SCANNING BOARD...</div>
+<div class="mission-container">
+    <h3 style="font-family: var(--font-terminal); font-size: 14px; color: #555; margin-left: 5px;">AVAILABLE MISSIONS</h3>
+    <div id="missionList">
+        <div id="empty-msg">SCANNING FOR QUESTS...</div>
     </div>
+</div>
 
-    <div id="modalNego" class="modal">
-        <div class="modal-content">
-            <div style="color:var(--neon-gold); font-family:'Orbitron'; margin-bottom:20px;">[ CONTRACT PROPOSAL ]</div>
-            <input type="hidden" id="targetMsnId">
-            <label style="font-size: 10px; color: #555; display:block; margin-bottom:5px;">OFFER PRICE (RP)</label>
-            <input type="number" id="negoPrice">
-            <label style="font-size: 10px; color: #555; display:block; margin-bottom:5px;">ADDITIONAL NOTE</label>
-            <textarea id="negoNote" placeholder="Tuliskan alasan kenapa Anda yang terbaik..."></textarea>
-            <button class="btn-send" onclick="submitNego()">TRANSMIT APPLICATION</button>
-            <button class="btn-close" onclick="closeModal()">CANCEL</button>
-        </div>
-    </div>
+<nav class="bottom-nav">
+    <a href="#" class="nav-item active">BOARD</a>
+    <a href="#" class="nav-item">MY QUEST</a>
+    <a href="#" class="nav-item">PROFILE</a>
+</nav>
 
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
-            authDomain: "ojeklokal-42b84.firebaseapp.com",
-            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "ojeklokal-42b84"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+<script>
+    // 1. SESSION CHECK
+    const session = JSON.parse(localStorage.getItem('pickme_session'));
+    if(!session) {
+        window.location.href = "login.html";
+    } else {
+        document.getElementById('displayNick').innerText = session.nick;
+        document.getElementById('displayServer').innerText = session.server;
+    }
 
-        // 1. Ambil Data Session (Sesuai login.html)
-        const myNick = localStorage.getItem('user_nickname');
-        const myRole = localStorage.getItem('user_role');
-        const myShard = "SRV-JAKARTA"; 
+    // 2. FIREBASE CONFIG
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-        if(!myNick || myRole !== 'adventurer') window.location.href = "login.html";
+    // 3. LOAD MISSIONS
+    const missionListDiv = document.getElementById('missionList');
 
-        document.getElementById('userName').innerText = myNick;
-        
-        // 2. Load User Rank (Dari database_regional agar akurat)
-        db.ref(`users_adventurer/${myNick}`).on('value', snap => {
-            const val = snap.val();
-            if(val) document.getElementById('userRank').innerText = val.rank || 'F';
-        });
+    // Kita hanya mengambil misi yang ada di Server/Shard yang sama dengan Adventurer
+    function loadMissions() {
+        const missionRef = db.ref(`missions/${session.server}`).orderByChild('status').equalTo('posted');
 
-        // 3. WATCHER: Pantau Misi & Status Terpilih
-        db.ref(`database_regional/${myShard}/missions`).on('value', (snap) => {
-            const data = snap.val();
-            if(!data) {
-                document.getElementById('questContainer').innerHTML = `<div style="text-align:center; color:#222; margin-top:50px;">NO QUESTS AVAILABLE</div>`;
+        missionRef.on('value', (snapshot) => {
+            missionListDiv.innerHTML = "";
+            
+            if(!snapshot.exists()) {
+                missionListDiv.innerHTML = '<div id="empty-msg">NO MISSIONS AVAILABLE AT THE MOMENT.</div>';
                 return;
             }
 
-            // CEK JIKA SAYA TERPILIH (Status PICKED & Executor adalah saya)
-            for(let id in data) {
-                if(data[id].executor === myNick && data[id].status === "PICKED") {
-                    alert("KONTRAK DITERIMA! Silakan konfirmasi.");
-                    window.location.href = "confirm_mission.html?id=" + id;
-                    return;
-                }
-            }
+            snapshot.forEach((child) => {
+                const m = child.val();
+                const mId = child.key;
 
-            renderBoard(data);
-        });
-
-        function renderBoard(data) {
-            const container = document.getElementById('questContainer');
-            container.innerHTML = "";
-
-            // Filter misi yang masih OPEN
-            const available = Object.values(data).filter(m => m.status === "OPEN");
-
-            if(available.length === 0) {
-                container.innerHTML = `<div style="text-align:center; color:#222; margin-top:50px;">BOARD IS EMPTY</div>`;
-                return;
-            }
-
-            available.forEach(m => {
-                const card = document.createElement('div');
-                card.className = 'quest-card';
-                card.innerHTML = `
-    <div class="q-title">${m.title || "No Title"}</div>
-    <div class="q-reward">REWARD: Rp ${(m.bounty || 0).toLocaleString()}</div>
-    <div class="q-desc">${m.instructions || m.desc || "No instructions provided."}</div>
-    <button class="btn-apply" onclick="openModal('${m.id}', ${m.bounty || 0})">APPLY FOR QUEST</button>
-`;
-                container.appendChild(card);
+                const card = `
+                    <div class="mission-card">
+                        <div class="mission-header">
+                            <p class="m-title">${m.title}</p>
+                            <span class="reward">Rp ${m.reward.toLocaleString()}</span>
+                        </div>
+                        <p class="m-desc">${m.description}</p>
+                        <div class="m-footer">
+                            <span>📍 ${m.pickup_point}</span>
+                            <button class="btn-accept" onclick="applyMission('${mId}')">TAKE QUEST</button>
+                        </div>
+                    </div>
+                `;
+                missionListDiv.innerHTML += card;
             });
-        }
+        });
+    }
 
-        function openModal(id, baseReward) {
-            document.getElementById('targetMsnId').value = id;
-            document.getElementById('negoPrice').value = baseReward;
-            document.getElementById('modalNego').style.display = 'flex';
-        }
+    // 4. APPLY MISSION LOGIC
+    function applyMission(mId) {
+        if(!confirm("Ambil misi ini?")) return;
 
-        function closeModal() { document.getElementById('modalNego').style.display = 'none'; }
+        // Tambahkan Adventurer ke daftar pelamar di dalam misi tersebut
+        const applyData = {
+            nick: session.nick,
+            timestamp: Date.now(),
+            rating: 5.0 // Default rating
+        };
 
-        async function submitNego() {
-            const mId = document.getElementById('targetMsnId').value;
-            const price = document.getElementById('negoPrice').value;
-            const note = document.getElementById('negoNote').value;
-            const rank = document.getElementById('userRank').innerText;
+        db.ref(`missions/${session.server}/${mId}/applicants/${session.nick}`).set(applyData)
+        .then(() => {
+            alert("Application Sent! Tunggu Requester memilih Anda.");
+            // Di sini Anda bisa mengarahkan ke halaman "Waiting Room" untuk misi tersebut
+        })
+        .catch(e => alert(e.message));
+    }
 
-            if(!price) return alert("Masukkan harga penawaran!");
+    function logout() {
+        localStorage.clear();
+        window.location.href = "login.html";
+    }
 
-            const application = {
-                nickname: myNick,
-                rank: rank,
-                price: price,
-                note: note,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            };
+    // Start
+    loadMissions();
 
-            // Simpan lamaran ke path missions regional
-            try {
-                await db.ref(`database_regional/${myShard}/missions/${mId}/applicants/${myNick}`).set(application);
-                alert("Lamaran berhasil dikirim!");
-                closeModal();
-            } catch (e) {
-                alert("Gagal melamar: " + e.message);
-            }
-        }
-    </script>
+</script>
+
 </body>
 </html>
