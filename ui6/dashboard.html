@@ -31,11 +31,10 @@
             position: sticky; top: 0; z-index: 100;
         }
 
-        /* Banner Status Kerja */
         #dutyStatus {
             background: var(--neon-pink); color: white; font-size: 10px;
             text-align: center; padding: 5px; font-family: var(--font-terminal);
-            display: none; /* Muncul jika is_working true */
+            display: none;
         }
 
         .mission-container { padding: 15px; }
@@ -46,7 +45,6 @@
             position: relative; transition: 0.3s;
         }
 
-        /* State: Sedang bekerja atau sudah melamar */
         .mission-card.disabled {
             filter: grayscale(1) opacity(0.4);
             pointer-events: none;
@@ -66,7 +64,8 @@
             cursor: pointer; font-family: var(--font-terminal);
         }
 
-        /* Notif Signal Badge */
+        .btn-accept:disabled { background: #333; color: #666; cursor: not-allowed; }
+
         #newMissionAlert {
             background: var(--neon-pink); color: white; border-radius: 20px;
             padding: 2px 10px; font-size: 9px; display: none; margin-left: 10px;
@@ -100,7 +99,7 @@
 
 <nav class="bottom-nav">
     <a href="#" class="nav-item" style="color:var(--neon-pink); text-decoration:none;">BOARD</a>
-    <a href="#" class="nav-item" style="color:#555; text-decoration:none;">MY QUEST</a>
+    <a href="#" class="nav-item" style="color:#555; text-decoration:none;" onclick="alert('Fitur segera hadir!')">MY QUEST</a>
 </nav>
 
 <script>
@@ -118,34 +117,44 @@
 
     let isWorking = false;
 
-    // --- 1. MONITOR STATUS KERJA ADVENTURER ---
+    // --- 1. MONITOR STATUS KERJA ---
     function watchDutyStatus() {
         db.ref(`identity_adventurer/${session.server}/${session.nick}/stats/is_working`).on('value', snap => {
             isWorking = snap.val() || false;
+            
+            // Pengaman: Jika database bilang sibuk tapi LocalStorage kosong, 
+            // artinya ada data "stuck" dari sesi sebelumnya yang gagal reset.
+            const currentMId = localStorage.getItem('active_mission_id');
+            if (isWorking && !currentMId) {
+                console.warn("Status stuck terdeteksi. Silakan hubungi admin atau lakukan reset manual.");
+                // Opsi Auto-Reset (Gunakan jika ingin sangat user-friendly):
+                // db.ref(`identity_adventurer/${session.server}/${session.nick}/stats/is_working`).set(false);
+            }
+
             document.getElementById('dutyStatus').style.display = isWorking ? 'block' : 'none';
-            // Trigger render ulang list untuk disable tombol
             loadMissions();
         });
     }
 
-    // --- 2. SIGNAL NOTIFIER (Hemat Kuota) ---
+    // --- 2. SIGNAL NOTIFIER ---
     function watchSignal() {
         db.ref(`notif_signal/${session.server}`).on('value', snap => {
-            // Jika ada sinyal baru, tampilkan badge
-            document.getElementById('newMissionAlert').style.display = 'inline-block';
-            setTimeout(() => { document.getElementById('newMissionAlert').style.display = 'none'; }, 5000);
-            loadMissions();
+            if(snap.exists()){
+                document.getElementById('newMissionAlert').style.display = 'inline-block';
+                setTimeout(() => { document.getElementById('newMissionAlert').style.display = 'none'; }, 5000);
+                loadMissions();
+            }
         });
     }
 
-    // --- 3. LOAD MISSIONS DENGAN VALIDASI ---
+    // --- 3. LOAD MISSIONS ---
     function loadMissions() {
         db.ref(`missions/${session.server}`).orderByChild('status').equalTo('posted').once('value', snapshot => {
             const listDiv = document.getElementById('missionList');
             listDiv.innerHTML = "";
             
             if(!snapshot.exists()) {
-                listDiv.innerHTML = "<p style='text-align:center; color:#333;'>No missions available.</p>";
+                listDiv.innerHTML = "<p style='text-align:center; color:#444; font-size:12px; margin-top:30px;'>Papan misi sedang kosong...</p>";
                 return;
             }
 
@@ -154,7 +163,7 @@
                 const mId = child.key;
                 const hasApplied = m.applicants && m.applicants[session.nick];
                 
-                // Matikan kartu jika sedang kerja atau sudah melamar
+                // Card mati jika user sedang kerja atau sudah melamar ke sini
                 const isDisabled = isWorking || hasApplied;
 
                 listDiv.innerHTML += `
@@ -166,8 +175,8 @@
                         <p style="font-size:12px; color:#888;">${m.description}</p>
                         <div class="m-footer">
                             <span style="font-size:10px; color:var(--neon-cyan)">📍 ${m.pickup_point}</span>
-                            <button class="btn-accept" onclick="applyMission('${mId}')">
-                                ${hasApplied ? 'APPLIED' : (isWorking ? 'BUSY' : 'TAKE')}
+                            <button class="btn-accept" onclick="applyMission('${mId}')" ${isDisabled ? 'disabled' : ''}>
+                                ${hasApplied ? 'WAITING' : (isWorking ? 'ON DUTY' : 'TAKE')}
                             </button>
                         </div>
                     </div>
@@ -176,7 +185,7 @@
         });
     }
 
-    // --- 4. ANTI-RACE CONDITION (TRANSACTION) ---
+    // --- 4. TRANSACTIONAL APPLY ---
     function applyMission(mId) {
         if(isWorking) return alert("Selesaikan misi aktif Anda terlebih dahulu!");
         
@@ -184,32 +193,29 @@
 
         missionRef.transaction((mission) => {
             if (mission) {
-                // Cek apakah misi masih 'posted' (belum diambil orang lain)
                 if (mission.status === 'posted') {
                     if (!mission.applicants) mission.applicants = {};
-                    
-                    // Tambahkan data lamaran
                     mission.applicants[session.nick] = {
                         nick: session.nick,
                         timestamp: Date.now(),
                         rating: 5.0
                     };
-                    return mission; // Submit perubahan
+                    return mission;
                 }
             }
-            return; // Abort jika misi sudah berubah status
-        }, (error, committed, snapshot) => {
+            return; 
+        }, (error, committed) => {
             if (committed) {
-                alert("Lamaran Terkirim!");
-                // Opsional: Set is_working di sini atau tunggu dipilih Requester
+                alert("Berhasil melamar! Tunggu konfirmasi Requester.");
             } else {
-                alert("Gagal! Misi mungkin sudah tidak tersedia atau sudah diambil.");
+                alert("Misi sudah tidak tersedia.");
             }
         });
     }
 
-    // Monitor status terpilih (seperti kode sebelumnya)
+    // --- 5. WATCH SELECTION ---
     function watchSelection() {
+        // Child_changed dipicu saat Requester memilih kita (status berubah ke 'briefing')
         db.ref(`missions/${session.server}`).on('child_changed', snap => {
             const m = snap.val();
             if(m.selected_adventurer === session.nick && m.status === 'briefing') {
@@ -218,6 +224,12 @@
                 window.location.href = "briefing.html";
             }
         });
+    }
+
+    function logout() {
+        if(isWorking) return alert("Tidak bisa logout saat misi sedang aktif!");
+        localStorage.clear();
+        window.location.href = "login.html";
     }
 
     document.getElementById('displayNick').innerText = session.nick;
