@@ -3,57 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CREATE MISSION | SOVEREIGN GUILD</title>
+    <title>FORGE MISSION | SOVEREIGN GUILD</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;700&display=swap');
-        :root { --neon-blue: #00d9ff; --neon-gold: #ffcc00; --bg: #020204; }
+        :root { --neon-blue: #00d9ff; --neon-gold: #ffcc00; --bg: #020204; --error: #ff4444; }
         body { margin: 0; padding: 20px; background: var(--bg); color: #fff; font-family: 'Rajdhani', sans-serif; }
+        
         .header { text-align: center; margin-bottom: 30px; }
-        .title { font-family: 'Orbitron'; color: var(--neon-gold); font-size: 18px; letter-spacing: 3px; }
-        .form-card { background: rgba(255,255,255,0.03); border: 1px solid #1a1a24; padding: 25px; border-radius: 15px; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        label { display: block; font-size: 10px; color: var(--neon-blue); margin: 15px 0 5px; text-transform: uppercase; font-family: 'Orbitron'; }
-        input, textarea, select { width: 100%; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 8px; font-family: inherit; box-sizing: border-box; outline: none; transition: 0.3s; }
-        input:focus { border-color: var(--neon-blue); }
-        .btn-publish { width: 100%; padding: 18px; margin-top: 30px; border-radius: 10px; font-family: 'Orbitron'; font-weight: bold; cursor: pointer; border: 1px solid var(--neon-gold); background: rgba(255, 204, 0, 0.1); color: var(--neon-gold); text-transform: uppercase; letter-spacing: 2px; }
-        .btn-publish:hover { background: var(--neon-gold); color: #000; }
-        .back-link { display: block; text-align: center; margin-top: 20px; font-size: 11px; color: #555; text-decoration: none; font-family: 'Orbitron'; }
+        .title { font-family: 'Orbitron'; color: var(--neon-gold); font-size: 18px; letter-spacing: 3px; text-shadow: 0 0 10px rgba(255, 204, 0, 0.3); }
+        
+        .status-bar { font-family: 'Orbitron'; font-size: 9px; text-align: center; margin-bottom: 10px; padding: 5px; border-radius: 5px; }
+        .online { color: #00ff00; background: rgba(0, 255, 0, 0.05); }
+        .offline { color: var(--error); background: rgba(255, 0, 0, 0.05); }
+
+        .form-card { background: rgba(255,255,255,0.02); border: 1px solid #1a1a24; padding: 25px; border-radius: 15px; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 40px rgba(0,0,0,0.7); position: relative; overflow: hidden; }
+        .form-card::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, var(--neon-blue), transparent); }
+
+        label { display: block; font-size: 10px; color: var(--neon-blue); margin: 15px 0 5px; text-transform: uppercase; font-family: 'Orbitron'; letter-spacing: 1px; }
+        input, textarea, select { width: 100%; background: #000; border: 1px solid #222; color: #fff; padding: 14px; border-radius: 8px; font-family: inherit; box-sizing: border-box; outline: none; transition: 0.3s; font-size: 15px; }
+        input:focus { border-color: var(--neon-blue); box-shadow: 0 0 10px rgba(0, 217, 255, 0.1); }
+        
+        .btn-publish { width: 100%; padding: 20px; margin-top: 30px; border-radius: 10px; font-family: 'Orbitron'; font-weight: bold; cursor: pointer; border: 1px solid var(--neon-gold); background: rgba(255, 204, 0, 0.05); color: var(--neon-gold); text-transform: uppercase; letter-spacing: 2px; transition: 0.3s; }
+        .btn-publish:hover:not(:disabled) { background: var(--neon-gold); color: #000; box-shadow: 0 0 20px rgba(255, 204, 0, 0.4); }
+        .btn-publish:disabled { opacity: 0.3; cursor: not-allowed; border-color: #333; }
+
+        .loading-overlay { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.8); z-index: 10; justify-content: center; align-items: center; font-family: 'Orbitron'; font-size: 12px; color: var(--neon-blue); }
     </style>
 </head>
 <body>
 
     <div class="header">
+        <div id="connectionStatus" class="status-bar offline">CHECKING ENCRYPTION...</div>
         <div class="title">/// FORGE NEW MISSION ///</div>
-        <p style="font-size: 10px; color: #444; letter-spacing: 1px;">TRANSMITTING TO GLOBAL BOARD</p>
     </div>
 
     <div class="form-card">
-        <label>JUDUL MISI (QUEST TITLE)</label>
-        <input type="text" id="mTitle" placeholder="Misal: Pengawalan Barang Rahasia...">
+        <div id="loader" class="loading-overlay">TRANSMITTING...</div>
 
-        <label>DESKRIPSI (INSTRUCTIONS)</label>
-        <textarea id="mDesc" placeholder="Jelaskan detail tugas..." style="height:80px;"></textarea>
+        <label>QUEST TITLE</label>
+        <input type="text" id="mTitle" placeholder="Misal: Pengiriman Berkas Rahasia">
 
-        <label>LOKASI PENJEMPUTAN (PICKUP)</label>
-        <input type="text" id="mPickup" placeholder="Nama Jalan / Gedung...">
+        <label>QUEST DESCRIPTION</label>
+        <textarea id="mDesc" placeholder="Berikan instruksi detail untuk Adventurer..." style="height:100px;"></textarea>
 
-        <label>BOUNTY (REWARD - RP)</label>
-        <input type="number" id="mBounty" placeholder="Contoh: 50000">
+        <label>COORDINATES / PICKUP POINT</label>
+        <input type="text" id="mPickup" placeholder="Lokasi Penjemputan">
 
-        <label>REQUIRED RANK</label>
-        <select id="mRank">
-            <option value="F">RANK F</option>
-            <option value="E">RANK E</option>
-            <option value="D">RANK D</option>
-        </select>
+        <div style="display: flex; gap: 15px;">
+            <div style="flex: 1;">
+                <label>BOUNTY (RP)</label>
+                <input type="number" id="mBounty" placeholder="Contoh: 50000">
+            </div>
+            <div style="flex: 1;">
+                <label>MIN. RANK</label>
+                <select id="mRank">
+                    <option value="F">RANK F</option>
+                    <option value="E">RANK E</option>
+                    <option value="D">RANK D</option>
+                    <option value="C">RANK C</option>
+                </select>
+            </div>
+        </div>
 
-        <button class="btn-publish" onclick="publishMission()">PUBLISH TO BOARD</button>
+        <button class="btn-publish" id="btnPublish" onclick="publishMission()" disabled>INITIALIZING BOARD...</button>
     </div>
-
-    <a href="login.html" class="back-link">[ ABORT MISSION ]</a>
 
     <script>
         const firebaseConfig = {
@@ -62,57 +79,97 @@
             databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
             projectId: "ojeklokal-42b84"
         };
+
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Ambil session yang benar dari login.html
+        // Security Check
         const myNick = localStorage.getItem('user_nickname');
         const myRole = localStorage.getItem('user_role');
 
         if(!myNick || myRole !== 'requester') {
-            alert("Sesi Requester tidak ditemukan!");
+            alert("Sesi tidak valid. Kembali ke login.");
             window.location.href = "login.html";
         }
 
+        // Connection Watcher
+        const connRef = db.ref(".info/connected");
+        connRef.on("value", (snap) => {
+            const btn = document.getElementById('btnPublish');
+            const status = document.getElementById('connectionStatus');
+            if (snap.val() === true) {
+                status.innerText = "LINK ESTABLISHED - SECURE";
+                status.className = "status-bar online";
+                btn.disabled = false;
+                btn.innerText = "PUBLISH TO BOARD";
+            } else {
+                status.innerText = "LINK SEVERED - RETRYING...";
+                status.className = "status-bar offline";
+                btn.disabled = true;
+            }
+        });
+
         async function publishMission() {
-    const title = document.getElementById('mTitle').value;
-    const desc = document.getElementById('mDesc').value;
-    const bounty = document.getElementById('mBounty').value;
-    const rank = document.getElementById('mRank').value;
-    const pickup = document.getElementById('mPickup').value;
+            const title = document.getElementById('mTitle').value.trim();
+            const desc = document.getElementById('mDesc').value.trim();
+            const bounty = document.getElementById('mBounty').value;
+            const rank = document.getElementById('mRank').value;
+            const pickup = document.getElementById('mPickup').value.trim();
 
-    if(!title || !bounty || !pickup) return alert("Data wajib diisi!");
+            if(!title || !bounty || !pickup) {
+                return alert("Quest Title, Pickup Point, and Bounty are REQUIRED!");
+            }
 
-    const mId = "MSN-" + Date.now();
-    const srv = "SRV-JAKARTA"; // Pastikan ini sama persis dengan myShard di dashboard
+            const loader = document.getElementById('loader');
+            const btn = document.getElementById('btnPublish');
+            
+            loader.style.display = "flex";
+            btn.disabled = true;
 
-    const missionData = {
-        id: mId,
-        clientName: myNick,
-        title: title,
-        instructions: desc, // Dashboard membaca .instructions
-        bounty: parseInt(bounty), // Dashboard membaca .bounty
-        requiredRank: rank,
-        status: "OPEN", // Dashboard memfilter .status === "OPEN"
-        server: srv,
-        pickupLocation: pickup,
-        timestamp: firebase.database.ServerValue.TIMESTAMP
-    };
+            const mId = "MSN-" + Date.now();
+            const srv = "SRV-JAKARTA"; 
 
-    try {
-        // PERBAIKAN: Gunakan path yang sinkron dengan dashboard
-        await db.ref(`database_regional/${srv}/missions/${mId}`).set(missionData);
+            const missionData = {
+                id: mId,
+                clientName: myNick,
+                title: title,
+                instructions: desc || "No additional instructions.",
+                bounty: parseInt(bounty),
+                requiredRank: rank,
+                status: "OPEN",
+                server: srv,
+                pickupLocation: pickup,
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                applicants: {} // Placeholder untuk list pelamar nanti
+            };
 
-        alert("MISI BERHASIL DIPUBLIKASIKAN!");
-        // Arahkan ke halaman list misi milik requester (jika ada) atau tetap di sini
-        window.location.reload(); 
+            try {
+                // Gunakan update() untuk multiple paths agar atomik jika diperlukan
+                // Tapi untuk sekarang kita pastikan path regional benar
+                const updates = {};
+                updates[`database_regional/${srv}/missions/${mId}`] = missionData;
+                
+                // Tambahkan log di Central Board agar sistem audit tahu ada misi baru
+                updates[`board_central/logs/${mId}`] = { 
+                    type: "NEW_MISSION", 
+                    client: myNick, 
+                    time: firebase.database.ServerValue.TIMESTAMP 
+                };
 
-    } catch (error) {
-        console.error(error);
-        alert("Gagal posting misi: " + error.message);
-    }
-}
+                await db.ref().update(updates);
 
+                alert("MISSION PUBLISHED TO " + srv);
+                // Redirect ke Dashboard khusus Requester untuk pantau pelamar
+                window.location.href = "waiting_approval.html?id=" + mId;
+
+            } catch (error) {
+                console.error("Firebase Error:", error);
+                alert("CRITICAL ERROR: " + error.message);
+                loader.style.display = "none";
+                btn.disabled = false;
+            }
+        }
     </script>
 </body>
 </html>
