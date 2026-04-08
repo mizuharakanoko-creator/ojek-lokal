@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | MISSION CONTRACT</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --bg-main: #050505;
+            --bg-card: #0a0a0a;
+            --border-color: #222;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+
+        body { 
+            background-color: var(--bg-main); color: #fff; 
+            margin: 0; font-family: 'Segoe UI', sans-serif; padding: 20px;
+        }
+
+        /* Timer Style */
+        #timer-container {
+            text-align: center; margin-bottom: 20px;
+            padding: 10px; border: 1px solid var(--neon-pink);
+        }
+        #timer-count {
+            font-size: 30px; color: var(--neon-pink); font-family: var(--font-terminal);
+            font-weight: bold;
+        }
+
+        .contract-box {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            padding: 20px; border-radius: 8px; position: relative;
+        }
+
+        h2 { color: var(--neon-cyan); font-family: var(--font-terminal); font-size: 18px; }
+        
+        .detail-row { margin-bottom: 15px; border-bottom: 1px solid #1a1a1a; padding-bottom: 5px; }
+        .label { font-size: 10px; color: #555; text-transform: uppercase; font-family: var(--font-terminal); }
+        .value { display: block; font-size: 15px; margin-top: 3px; }
+
+        .rules {
+            background: #111; padding: 10px; border-left: 3px solid var(--neon-cyan);
+            font-size: 12px; color: #aaa; margin: 20px 0;
+        }
+
+        .btn-accept {
+            width: 100%; padding: 18px; background: var(--neon-pink);
+            color: white; border: none; font-weight: bold; cursor: pointer;
+            font-family: var(--font-terminal); font-size: 16px;
+        }
+
+        .btn-cancel {
+            width: 100%; padding: 10px; background: transparent;
+            color: #555; border: 1px solid #333; margin-top: 10px;
+            font-size: 11px; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div id="timer-container">
+    <div style="font-size: 10px; color: #888;">TIME REMAINING TO SIGN</div>
+    <div id="timer-count">90s</div>
+</div>
+
+<div class="contract-box">
+    <h2>MISSION CONTRACT</h2>
+    
+    <div class="detail-row">
+        <span class="label">Objective</span>
+        <span class="value" id="mTitle">...</span>
+    </div>
+
+    <div class="detail-row">
+        <span class="label">Reward</span>
+        <span class="value" id="mReward" style="color:#ffbb33">...</span>
+    </div>
+
+    <div class="detail-row">
+        <span class="label">Location</span>
+        <span class="value" id="mLoc">...</span>
+    </div>
+
+    <div class="rules">
+        <b>GUILD LAWS:</b>
+        <p>1. Kontrak ini bersifat mengikat.<br>
+        2. Kegagalan tanpa alasan logis akan menurunkan Clearance Level.<br>
+        3. Gunakan terminal chat untuk koordinasi.</p>
+    </div>
+
+    <button class="btn-accept" id="btnSign" onclick="acceptContract()">SIGN & START MISSION</button>
+    <button class="btn-cancel" onclick="abortMission()">REJECT CONTRACT</button>
+</div>
+
+<script>
+    const mId = localStorage.getItem('active_mission_id');
+    const server = localStorage.getItem('active_mission_server');
+    const session = JSON.parse(localStorage.getItem('pickme_session'));
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let countdown = 90;
+    let timerInterval;
+
+    function initBriefing() {
+        if(!mId) return window.location.href = "dashboard.html";
+
+        // Ambil Data Misi
+        db.ref(`missions/${server}/${mId}`).once('value', snap => {
+            const m = snap.val();
+            if(!m) return abortMission();
+
+            document.getElementById('mTitle').innerText = m.title;
+            document.getElementById('mReward').innerText = "Rp " + m.reward.toLocaleString();
+            document.getElementById('mLoc').innerText = m.pickup_point;
+
+            startTimer();
+            lockDutyStatus(true);
+        });
+
+        // Monitor jika Requester membatalkan dari sisi mereka
+        db.ref(`missions/${server}/${mId}/status`).on('value', snap => {
+            if(snap.val() === 'posted') {
+                alert("Kontrak dibatalkan oleh Requester.");
+                exitBriefing();
+            }
+        });
+    }
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            countdown--;
+            document.getElementById('timer-count').innerText = countdown + "s";
+            
+            if(countdown <= 0) {
+                clearInterval(timerInterval);
+                alert("Waktu habis! Kontrak otomatis dibatalkan.");
+                abortMission();
+            }
+        }, 1000);
+    }
+
+    async function lockDutyStatus(status) {
+        await db.ref(`identity_adventurer/${session.server}/${session.nick}/stats/is_working`).set(status);
+    }
+
+    async function acceptContract() {
+        clearInterval(timerInterval);
+        document.getElementById('btnSign').disabled = true;
+        document.getElementById('btnSign').innerText = "SIGNING...";
+
+        // Update status misi menjadi progress
+        await db.ref(`missions/${server}/${mId}`).update({
+            status: "on_progress",
+            started_at: Date.now()
+        });
+
+        window.location.href = "mission_active.html";
+    }
+
+    async function abortMission() {
+        clearInterval(timerInterval);
+        // Kembalikan misi ke Board (Hapus applicant & reset status)
+        await db.ref(`missions/${server}/${mId}`).update({
+            status: "posted",
+            selected_adventurer: null
+        });
+        // Hapus diri sendiri dari daftar applicants
+        await db.ref(`missions/${server}/${mId}/applicants/${session.nick}`).remove();
+        
+        exitBriefing();
+    }
+
+    async function exitBriefing() {
+        await lockDutyStatus(false);
+        localStorage.removeItem('active_mission_id');
+        window.location.href = "dashboard.html";
+    }
+
+    initBriefing();
+</script>
+</body>
+</html>
