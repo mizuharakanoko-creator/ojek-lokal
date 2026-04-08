@@ -75,57 +75,44 @@
         }
 
         async function publishMission() {
-            const title = document.getElementById('mTitle').value;
-            const desc = document.getElementById('mDesc').value;
-            const bounty = document.getElementById('mBounty').value;
-            const rank = document.getElementById('mRank').value;
-            const pickup = document.getElementById('mPickup').value;
+    const title = document.getElementById('mTitle').value;
+    const desc = document.getElementById('mDesc').value;
+    const bounty = document.getElementById('mBounty').value;
+    const rank = document.getElementById('mRank').value;
+    const pickup = document.getElementById('mPickup').value;
 
-            if(!title || !bounty || !pickup) return alert("Data wajib diisi!");
+    if(!title || !bounty || !pickup) return alert("Data wajib diisi!");
 
-            const mId = "MSN-" + Date.now();
-            const srv = "SRV-JAKARTA"; // Server default agar muncul di radar Adventurer
+    const mId = "MSN-" + Date.now();
+    const srv = "SRV-JAKARTA"; // Pastikan ini sama persis dengan myShard di dashboard
 
-            // Struktur data yang sesuai dengan sistem Radar & Shard
-            const missionData = {
-                id: mId,
-                clientName: myNick,
-                category: "DELIVERY",
-                title: title,
-                instructions: desc,
-                bounty: parseInt(bounty),
-                requiredRank: rank,
-                status: "OPEN",
-                server: srv,
-                route: {
-                    pickup: pickup,
-                    destination: "TBD",
-                    lat: -6.2000, // Contoh Koordinat (Harus diisi agar muncul di radar 1km)
-                    lng: 106.8166
-                },
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            };
+    const missionData = {
+        id: mId,
+        clientName: myNick,
+        title: title,
+        instructions: desc, // Dashboard membaca .instructions
+        bounty: parseInt(bounty), // Dashboard membaca .bounty
+        requiredRank: rank,
+        status: "OPEN", // Dashboard memfilter .status === "OPEN"
+        server: srv,
+        pickupLocation: pickup,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    };
 
-            try {
-                // 1. Simpan Detail Lengkap di Regional Database
-                await db.ref(`database_regional/${srv}/missions/${mId}`).set(missionData);
+    try {
+        // PERBAIKAN: Gunakan path yang sinkron dengan dashboard
+        await db.ref(`database_regional/${srv}/missions/${mId}`).set(missionData);
 
-                // 2. Simpan Ringkasan di Central Board (Agar Radar Adventurer bisa deteksi)
-                await db.ref(`board_central/active_quests/${mId}`).set({
-                    id: mId,
-                    server: srv,
-                    price: parseInt(bounty),
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                });
+        alert("MISI BERHASIL DIPUBLIKASIKAN!");
+        // Arahkan ke halaman list misi milik requester (jika ada) atau tetap di sini
+        window.location.reload(); 
 
-                alert("MISI BERHASIL DIPUBLIKASIKAN!");
-                window.location.href = "waiting_approval.html?id=" + mId;
+    } catch (error) {
+        console.error(error);
+        alert("Gagal posting misi: " + error.message);
+    }
+}
 
-            } catch (error) {
-                console.error(error);
-                alert("Gagal posting misi: " + error.message);
-            }
-        }
     </script>
 </body>
 </html>
