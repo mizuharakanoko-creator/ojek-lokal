@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PICK ME | MISSION BOARD</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --bg-main: #050505;
+            --bg-card: #0a0a0a;
+            --border-color: #222;
+            --text-main: #fff;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+
+        body { 
+            background-color: var(--bg-main); color: var(--text-main); 
+            margin: 0; font-family: 'Segoe UI', sans-serif; padding-bottom: 80px;
+        }
+
+        header {
+            background: var(--bg-card); padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        /* Banner Status Kerja */
+        #dutyStatus {
+            background: var(--neon-pink); color: white; font-size: 10px;
+            text-align: center; padding: 5px; font-family: var(--font-terminal);
+            display: none; /* Muncul jika is_working true */
+        }
+
+        .mission-container { padding: 15px; }
+        
+        .mission-card {
+            background: #0f0f0f; border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 15px; margin-bottom: 15px;
+            position: relative; transition: 0.3s;
+        }
+
+        /* State: Sedang bekerja atau sudah melamar */
+        .mission-card.disabled {
+            filter: grayscale(1) opacity(0.4);
+            pointer-events: none;
+        }
+
+        .m-title { font-size: 16px; font-weight: bold; margin: 0; color: var(--neon-cyan); }
+        .reward { color: #ffbb33; font-weight: bold; font-family: var(--font-terminal); }
+        
+        .m-footer { 
+            margin-top: 10px; padding-top: 10px; border-top: 1px solid #222;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .btn-accept {
+            background: var(--neon-cyan); color: #000; border: none;
+            padding: 8px 15px; border-radius: 4px; font-weight: bold;
+            cursor: pointer; font-family: var(--font-terminal);
+        }
+
+        /* Notif Signal Badge */
+        #newMissionAlert {
+            background: var(--neon-pink); color: white; border-radius: 20px;
+            padding: 2px 10px; font-size: 9px; display: none; margin-left: 10px;
+        }
+
+        nav.bottom-nav {
+            position: fixed; bottom: 0; width: 100%; height: 60px;
+            background: #000; border-top: 1px solid var(--border-color);
+            display: flex; justify-content: space-around; align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="dutyStatus">PERINGATAN: ANDA SEDANG DALAM MISI AKTIF / KONTRAK!</div>
+
+<header>
+    <div class="user-info" style="font-family: var(--font-terminal); font-size: 11px;">
+        ADVENTURER: <span style="color:var(--neon-pink)" id="displayNick">---</span>
+        <span id="newMissionAlert">NEW QUESTS</span>
+    </div>
+    <button onclick="logout()" style="background:none; border:1px solid #333; color:#888; font-size:10px; padding:5px;">LOGOUT</button>
+</header>
+
+<div class="mission-container">
+    <h3 style="font-family: var(--font-terminal); font-size: 13px; color: #555;">BOARD: <span id="displayServer">---</span></h3>
+    <div id="missionList">
+        <div style="text-align:center; padding:50px; color:#444;">MENCARI MISI...</div>
+    </div>
+</div>
+
+<nav class="bottom-nav">
+    <a href="#" class="nav-item" style="color:var(--neon-pink); text-decoration:none;">BOARD</a>
+    <a href="#" class="nav-item" style="color:#555; text-decoration:none;">MY QUEST</a>
+</nav>
+
+<script>
+    const session = JSON.parse(localStorage.getItem('pickme_session'));
+    if(!session) window.location.href = "login.html";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let isWorking = false;
+
+    // --- 1. MONITOR STATUS KERJA ADVENTURER ---
+    function watchDutyStatus() {
+        db.ref(`identity_adventurer/${session.server}/${session.nick}/stats/is_working`).on('value', snap => {
+            isWorking = snap.val() || false;
+            document.getElementById('dutyStatus').style.display = isWorking ? 'block' : 'none';
+            // Trigger render ulang list untuk disable tombol
+            loadMissions();
+        });
+    }
+
+    // --- 2. SIGNAL NOTIFIER (Hemat Kuota) ---
+    function watchSignal() {
+        db.ref(`notif_signal/${session.server}`).on('value', snap => {
+            // Jika ada sinyal baru, tampilkan badge
+            document.getElementById('newMissionAlert').style.display = 'inline-block';
+            setTimeout(() => { document.getElementById('newMissionAlert').style.display = 'none'; }, 5000);
+            loadMissions();
+        });
+    }
+
+    // --- 3. LOAD MISSIONS DENGAN VALIDASI ---
+    function loadMissions() {
+        db.ref(`missions/${session.server}`).orderByChild('status').equalTo('posted').once('value', snapshot => {
+            const listDiv = document.getElementById('missionList');
+            listDiv.innerHTML = "";
+            
+            if(!snapshot.exists()) {
+                listDiv.innerHTML = "<p style='text-align:center; color:#333;'>No missions available.</p>";
+                return;
+            }
+
+            snapshot.forEach(child => {
+                const m = child.val();
+                const mId = child.key;
+                const hasApplied = m.applicants && m.applicants[session.nick];
+                
+                // Matikan kartu jika sedang kerja atau sudah melamar
+                const isDisabled = isWorking || hasApplied;
+
+                listDiv.innerHTML += `
+                    <div class="mission-card ${isDisabled ? 'disabled' : ''}">
+                        <div style="display:flex; justify-content:space-between;">
+                            <p class="m-title">${m.title}</p>
+                            <span class="reward">Rp ${m.reward.toLocaleString()}</span>
+                        </div>
+                        <p style="font-size:12px; color:#888;">${m.description}</p>
+                        <div class="m-footer">
+                            <span style="font-size:10px; color:var(--neon-cyan)">📍 ${m.pickup_point}</span>
+                            <button class="btn-accept" onclick="applyMission('${mId}')">
+                                ${hasApplied ? 'APPLIED' : (isWorking ? 'BUSY' : 'TAKE')}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        });
+    }
+
+    // --- 4. ANTI-RACE CONDITION (TRANSACTION) ---
+    function applyMission(mId) {
+        if(isWorking) return alert("Selesaikan misi aktif Anda terlebih dahulu!");
+        
+        const missionRef = db.ref(`missions/${session.server}/${mId}`);
+
+        missionRef.transaction((mission) => {
+            if (mission) {
+                // Cek apakah misi masih 'posted' (belum diambil orang lain)
+                if (mission.status === 'posted') {
+                    if (!mission.applicants) mission.applicants = {};
+                    
+                    // Tambahkan data lamaran
+                    mission.applicants[session.nick] = {
+                        nick: session.nick,
+                        timestamp: Date.now(),
+                        rating: 5.0
+                    };
+                    return mission; // Submit perubahan
+                }
+            }
+            return; // Abort jika misi sudah berubah status
+        }, (error, committed, snapshot) => {
+            if (committed) {
+                alert("Lamaran Terkirim!");
+                // Opsional: Set is_working di sini atau tunggu dipilih Requester
+            } else {
+                alert("Gagal! Misi mungkin sudah tidak tersedia atau sudah diambil.");
+            }
+        });
+    }
+
+    // Monitor status terpilih (seperti kode sebelumnya)
+    function watchSelection() {
+        db.ref(`missions/${session.server}`).on('child_changed', snap => {
+            const m = snap.val();
+            if(m.selected_adventurer === session.nick && m.status === 'briefing') {
+                localStorage.setItem('active_mission_id', snap.key);
+                localStorage.setItem('active_mission_server', session.server);
+                window.location.href = "briefing.html";
+            }
+        });
+    }
+
+    document.getElementById('displayNick').innerText = session.nick;
+    document.getElementById('displayServer').innerText = session.server;
+    
+    watchDutyStatus();
+    watchSignal();
+    watchSelection();
+</script>
+
+</body>
+</html>
