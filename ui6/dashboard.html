@@ -24,13 +24,18 @@
         body { 
             background-color: var(--bg-main); color: var(--text-main); 
             margin: 0; font-family: 'Segoe UI', sans-serif; padding-bottom: 80px;
+            transition: filter 0.3s ease;
         }
+
+        /* STEALTH MODE (Low Profile) */
+        body.stealth { filter: grayscale(1) brightness(0.4) contrast(1.2); }
 
         /* Top Status Bar */
         #connBar {
             background: #111; color: var(--neon-cyan); text-align: center; 
             font-family: var(--font-terminal); font-size: 10px; font-weight: bold; 
             padding: 5px; border-bottom: 1px solid var(--border-color);
+            transition: background 0.3s;
         }
 
         header {
@@ -42,6 +47,11 @@
         .user-info { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-terminal); font-size: 11px; }
         .user-nick { color: var(--neon-pink); font-weight: bold; font-size: 14px; }
         
+        .header-actions { display: flex; gap: 5px; margin-top: 8px; }
+        .btn-mini { font-family: var(--font-terminal); font-size: 9px; padding: 4px 8px; border-radius: 3px; cursor: pointer; border: none; font-weight:bold; }
+        .btn-stealth { background: #333; color: #fff; border: 1px solid #555; }
+        .btn-sos { background: #800000; color: #ffaaaa; border: 1px solid red; }
+
         /* Stamina Bar */
         .stamina-container { width: 100%; background: #222; height: 8px; border-radius: 4px; margin-top: 10px; overflow: hidden; border: 1px solid #333; }
         .stamina-fill { height: 100%; background: #00ff00; width: 100%; transition: 0.3s; }
@@ -106,22 +116,61 @@
             background: #050505; border-top: 1px solid #222;
             display: flex; justify-content: space-around; align-items: center; z-index: 1000;
         }
-        .nav-item { color: #555; font-size: 10px; text-align: center; text-decoration: none; font-family: var(--font-terminal); }
+        .nav-item { color: #555; font-size: 10px; text-align: center; text-decoration: none; font-family: var(--font-terminal); cursor:pointer; }
         .nav-item.active { color: var(--neon-pink); font-weight: bold; }
         .nav-icon { font-size: 20px; display: block; margin-bottom: 2px; }
 
-        /* Alert Box Overlay */
-        #alertOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 9999; display: none; justify-content: center; align-items: center; }
-        .alert-box { background: #111; border: 1px solid var(--neon-pink); padding: 20px; width: 80%; border-radius: 8px; text-align: center; font-family: var(--font-terminal); }
+        /* Alert & Modals */
+        #alertOverlay, #loadingOverlay, #sleepOverlay, #profileModal { position: fixed; inset: 0; z-index: 9999; display: none; font-family: var(--font-terminal); }
+        #alertOverlay { background: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
+        .alert-box { background: #111; border: 1px solid var(--neon-pink); padding: 20px; width: 80%; border-radius: 8px; text-align: center; }
+        
+        /* Fake Loading Animation */
+        #loadingOverlay { background: rgba(0,0,0,0.85); justify-content: center; align-items: center; flex-direction: column; color: var(--neon-cyan); }
+        .spinner { border: 3px dashed var(--neon-cyan); width: 40px; height: 40px; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Sleep Screen */
+        #sleepOverlay { background: #000; z-index: 10000; justify-content: center; align-items: center; flex-direction: column; color: #555; text-align: center; }
+
+        /* Profile/Stats Modal */
+        #profileModal { background: rgba(0,0,0,0.95); justify-content: center; align-items: center; }
+        .profile-box { background: #111; border: 1px solid var(--neon-gold); width: 85%; border-radius: 8px; padding: 20px; }
+        .stat-row { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding: 10px 0; font-size: 12px;}
     </style>
 </head>
 <body>
+
+<div id="loadingOverlay">
+    <div class="spinner"></div>
+    <div id="loadingText">SYNCHRONIZING...</div>
+</div>
+
+<div id="sleepOverlay" onclick="App.wakeUp()">
+    <h2 style="color:#333; margin:0;">SYSTEM HIBERNATED</h2>
+    <p style="font-size:11px;">TAP ANYWHERE TO WAKE UP AND RE-SCAN</p>
+</div>
 
 <div id="alertOverlay">
     <div class="alert-box">
         <h3 style="color:var(--neon-pink); margin-top:0;" id="alTitle">WARNING</h3>
         <p style="color:#aaa; font-size:12px;" id="alMsg">Message</p>
         <button onclick="document.getElementById('alertOverlay').style.display='none'" style="margin-top:15px; background:var(--neon-pink); color:#fff; border:none; padding:10px 20px; border-radius:4px; font-weight:bold;">OK</button>
+    </div>
+</div>
+
+<div id="profileModal">
+    <div class="profile-box">
+        <h3 style="color:var(--neon-gold); margin-top:0; border-bottom:1px solid #333; padding-bottom:10px;">ADV STATS & LOGS</h3>
+        <div class="stat-row"><span>EST EARNINGS:</span> <span id="statEarn" style="color:var(--neon-cyan);">Rp 0</span></div>
+        <div class="stat-row" style="border:none;"><span>FUEL/MAINTENANCE:</span> <span id="statFuel" style="color:var(--neon-pink);">Rp 0</span></div>
+        
+        <div style="margin-top:15px; display:flex; gap:5px;">
+            <input type="number" id="inpFuel" placeholder="Biaya (Rp)" style="flex:1; background:#000; color:#fff; border:1px solid #333; padding:8px; font-family:var(--font-terminal);">
+            <button onclick="App.addFuel()" style="background:var(--neon-gold); color:#000; border:none; padding:8px; font-weight:bold; font-family:var(--font-terminal);">CATAT</button>
+        </div>
+        
+        <button onclick="document.getElementById('profileModal').style.display='none'" style="width:100%; margin-top:20px; background:#222; color:#fff; border:none; padding:10px; font-weight:bold; font-family:var(--font-terminal);">TUTUP</button>
     </div>
 </div>
 
@@ -137,6 +186,11 @@
             SHARD: <span style="color:var(--neon-cyan)" id="dispShard">---</span><br>
             <span style="color:var(--neon-gold)">LIMIT: <span id="dispDaily">0</span>/20</span>
         </div>
+    </div>
+    
+    <div class="header-actions">
+        <button class="btn-mini btn-stealth" onclick="App.toggleStealth()">[ STEALTH ]</button>
+        <button class="btn-mini btn-sos" onclick="App.triggerSOS()">[ S.O.S ]</button>
     </div>
 
     <div class="stamina-container">
@@ -168,9 +222,9 @@
 </div>
 
 <nav class="bottom-nav">
-    <a href="#" class="nav-item active"><span class="nav-icon">📡</span>BOARD</a>
-    <a href="#" class="nav-item"><span class="nav-icon">📋</span>CONTRACTS</a>
-    <a href="#" class="nav-item"><span class="nav-icon">👤</span>PROFILE</a>
+    <a onclick="App.fakeLoading('CALIBRATING SENSORS...', null)" class="nav-item active"><span class="nav-icon">📡</span>BOARD</a>
+    <a onclick="App.fakeLoading('ACCESSING CONTRACTS...', null)" class="nav-item"><span class="nav-icon">📋</span>CONTRACTS</a>
+    <a onclick="App.openProfile()" class="nav-item"><span class="nav-icon">👤</span>PROFILE</a>
 </nav>
 
 <script>
@@ -220,7 +274,14 @@
         stamina: 100,
         dailyMissions: 0,
         maxDaily: 20,
-        renderedMissions: new Set() // Track for Flash animation
+        renderedMissions: new Set(),
+        
+        // NEW STATES
+        earnings: 0,
+        fuelExpense: 0,
+        isSleeping: false,
+        sleepTimer: null,
+        radarExpanded: false
     };
 
     // --- CORE LOGIC ---
@@ -233,25 +294,142 @@
             this.updateStaminaUI();
             setInterval(() => this.regenStamina(), 10000); // +1 stamina every 10s
 
-            this.locateDevice();
+            // Interaction tracking for Sleep Mode
+            document.addEventListener('pointerdown', () => this.resetIdle());
+            document.addEventListener('scroll', () => this.resetIdle());
+            this.resetIdle();
+            this.startGhostEcho();
+
+            this.fakeLoading("INITIALIZING SHARD PROTOCOLS...", () => {
+                this.locateDevice();
+            });
         },
 
+        // --- NEW FEATURES LOGIC ---
+        fakeLoading: function(text, callback) {
+            document.getElementById('loadingText').innerText = text;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            setTimeout(() => {
+                document.getElementById('loadingOverlay').style.display = 'none';
+                if(callback) callback();
+            }, Math.random() * 1000 + 800); // 0.8s to 1.8s
+        },
+
+        resetIdle: function() {
+            if(State.isSleeping) return;
+            clearTimeout(State.sleepTimer);
+            // 3 minutes without touch = HIBERNATE to save Firebase Limit
+            State.sleepTimer = setTimeout(() => this.hibernate(), 180000); 
+        },
+
+        hibernate: function() {
+            State.isSleeping = true;
+            document.getElementById('sleepOverlay').style.display = 'flex';
+            if(State.shardPath) db.ref(`missions/${State.shardPath}`).off(); // Kill listener
+            document.getElementById('connBar').innerText = "SYSTEM HIBERNATED";
+            document.getElementById('connBar').style.background = "#500";
+        },
+
+        wakeUp: function() {
+            if(!State.isSleeping) return;
+            this.fakeLoading("RE-ESTABLISHING SHARD CONNECTION...", () => {
+                State.isSleeping = false;
+                document.getElementById('sleepOverlay').style.display = 'none';
+                document.getElementById('connBar').style.background = "#111";
+                if(State.shardPath) this.listenToShard();
+                this.resetIdle();
+            });
+        },
+
+        toggleRadar: function() {
+            this.fakeLoading("EXPANDING SHARD REACH...", () => {
+                if(!State.shardPath) return this.showAlert("ERROR", "Lokasi belum terkunci.");
+                
+                let parts = State.shardPath.split('/');
+                if(parts.length > 2 && !State.radarExpanded) {
+                    db.ref(`missions/${State.shardPath}`).off(); // Kill old listener
+                    parts.pop(); // Remove KECAMATAN, climb to KABUPATEN
+                    State.shardPath = parts.join('/');
+                    State.radarExpanded = true;
+                    
+                    document.getElementById('dispShard').innerText = parts[1] + " [WIDE]";
+                    document.getElementById('connBar').innerText = "CONNECTED: " + State.shardPath;
+                    this.listenToShard();
+                    this.showAlert("RADAR EXPANDED", "Jangkauan diperluas ke tingkat Kabupaten.");
+                } else {
+                    this.showAlert("LIMIT", "Radar sudah di tingkat maksimal atau belum mendeteksi lokasi dasar.");
+                }
+            });
+        },
+
+        toggleStealth: function() {
+            document.body.classList.toggle('stealth');
+            AudioSynth.play('action');
+        },
+
+        triggerSOS: function() {
+            AudioSynth.play('error');
+            let flash = 0;
+            let sosInterval = setInterval(() => {
+                document.body.style.backgroundColor = flash % 2 === 0 ? "#400" : "var(--bg-main)";
+                flash++;
+                if(flash > 5) {
+                    clearInterval(sosInterval);
+                    document.body.style.backgroundColor = "";
+                    this.showAlert("SOS SENT", "Sinyal darurat palsu berhasil dipancarkan.");
+                }
+            }, 300);
+        },
+
+        startGhostEcho: function() {
+            // Random ping every 30 to 60 minutes to simulate server activity
+            setTimeout(() => {
+                if(!State.isSleeping) AudioSynth.play('alert');
+                this.startGhostEcho();
+            }, Math.random() * 1800000 + 1800000); 
+        },
+
+        openProfile: function() {
+            document.getElementById('profileModal').style.display = 'flex';
+            document.getElementById('statEarn').innerText = `Rp ${State.earnings.toLocaleString('id-ID')}`;
+            document.getElementById('statFuel').innerText = `Rp ${State.fuelExpense.toLocaleString('id-ID')}`;
+        },
+
+        addFuel: function() {
+            const val = parseInt(document.getElementById('inpFuel').value);
+            if(val && val > 0) {
+                State.fuelExpense += val;
+                this.saveLocalData();
+                this.openProfile(); // Refresh View
+                document.getElementById('inpFuel').value = '';
+                AudioSynth.play('action');
+            }
+        },
+
+        // --- STORAGE LOGIC ---
         loadLocalData: function() {
             const today = new Date().toDateString();
-            const stored = JSON.parse(localStorage.getItem('adv_data'));
+            const stored = JSON.parse(localStorage.getItem('adv_data_v2'));
             
             if(stored) {
                 State.stamina = stored.stamina || 100;
-                if(stored.date === today) State.dailyMissions = stored.dailyCount || 0;
-                else State.dailyMissions = 0; // Reset new day
+                if(stored.date === today) {
+                    State.dailyMissions = stored.dailyCount || 0;
+                    State.earnings = stored.earnings || 0;
+                    State.fuelExpense = stored.fuelExpense || 0;
+                } else {
+                    State.dailyMissions = 0; State.earnings = 0; State.fuelExpense = 0;
+                }
             }
             document.getElementById('dispDaily').innerText = State.dailyMissions;
         },
 
         saveLocalData: function() {
-            localStorage.setItem('adv_data', JSON.stringify({
+            localStorage.setItem('adv_data_v2', JSON.stringify({
                 stamina: State.stamina,
                 dailyCount: State.dailyMissions,
+                earnings: State.earnings,
+                fuelExpense: State.fuelExpense,
                 date: new Date().toDateString()
             }));
             this.updateStaminaUI();
@@ -280,17 +458,16 @@
             document.getElementById('alTitle').innerText = title;
             document.getElementById('alMsg').innerText = msg;
             document.getElementById('alertOverlay').style.display = 'flex';
-            AudioSynth.play('error');
         },
 
-        // Haversine Distance (KM)
         calcDistance: function(lat1, lon1, lat2, lon2) {
             const R = 6371; const dLat = (lat2-lat1)*Math.PI/180; const dLon = (lon2-lon1)*Math.PI/180;
             const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         },
 
-                locateDevice: function() {
+        // --- FIREBASE LOCATION & MISSION LOGIC ---
+        locateDevice: function() {
             if(!navigator.geolocation) return this.showAlert("ERROR", "GPS Not Supported");
             
             navigator.geolocation.getCurrentPosition(async (pos) => {
@@ -298,32 +475,22 @@
                 State.myLon = pos.coords.longitude;
                 
                 try {
-                    // Paksa zoom lebih dalam agar kecamatan terdeteksi lebih akurat
                     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${State.myLat}&lon=${State.myLon}&zoom=18`);
                     const data = await res.json();
                     const addr = data.address;
                     
-                    // Normalisasi Nama Shard (Penting agar cocok dengan Firebase)
                     const prov = (addr.state || "X").toUpperCase().replace(/\s+/g, '-');
                     const kab = (addr.city || addr.county || addr.regency || "KUNINGAN").toUpperCase().replace(/\s+/g, '-');
-                    
-                    // Ambil kecamatan, jika tidak ada pakai 'UNKNOWN'
                     let kecRaw = addr.village || addr.suburb || addr.city_district || addr.district || "KUNINGAN";
                     let kec = "KEC-" + kecRaw.toUpperCase().replace(/\s+/g, '-');
                     
-                    // Gabungkan Path
                     State.shardPath = `${prov}/${kab}/${kec}`;
-                    
-                    // DEBUG: Tampilkan di konsol untuk memastikan path-nya benar
-                    console.log("Listening to Firebase Path:", State.shardPath);
                     
                     document.getElementById('dispShard').innerText = kecRaw.toUpperCase();
                     document.getElementById('connBar').innerText = "CONNECTED: " + State.shardPath;
                     
                     this.listenToShard();
                 } catch(e) {
-                    console.error("Geocoding Error:", e);
-                    // Fallback jika API Nominatim limit
                     State.shardPath = "JAWA-BARAT/KUNINGAN/KEC-KUNINGAN"; 
                     this.listenToShard();
                 }
@@ -333,18 +500,16 @@
             }, { enableHighAccuracy: true });
         },
 
-
         listenToShard: function() {
             const ref = db.ref(`missions/${State.shardPath}`);
             
-            // Listen real-time
             ref.on('value', (snapshot) => {
                 const list = document.getElementById('missionList');
                 let validMissions = [];
                 const now = Date.now();
 
                 if(!snapshot.exists()) {
-                    list.innerHTML = `<div id="empty-msg">TIDAK ADA MISI AKTIF DI AREA INI.</div>`;
+                    list.innerHTML = `<div id="empty-msg">TIDAK ADA MISI AKTIF DI AREA INI. <br><br><button onclick="App.toggleRadar()" style="background:var(--neon-cyan); color:#000; border:none; padding:10px; border-radius:4px; font-weight:bold; cursor:pointer;">PERLUAS JANGKAUAN</button></div>`;
                     document.getElementById('activeCount').innerText = "0 ACTIVE";
                     return;
                 }
@@ -353,17 +518,11 @@
                     const m = child.val();
                     const mId = child.key;
 
-                    // Filter Logic: Expiry (120s), Bids Limit (15), Status
-                    if(now > m.expires_at || (m.bids_count && m.bids_count >= 15) || m.status !== "open") {
-                        // Silent drop / self-cleanup could be added here
-                        return;
-                    }
+                    if(now > m.expires_at || (m.bids_count && m.bids_count >= 15) || m.status !== "open") return;
 
-                    // Calculate Distance
                     m.distance = this.calcDistance(State.myLat, State.myLon, m.lat, m.lon);
                     m.id = mId;
                     
-                    // Filter by Vehicle Type (if Adv is MOTOR, can't take MOBIL)
                     if(State.vehicle === "MOTOR" && m.category === "mobil") return;
 
                     validMissions.push(m);
@@ -376,38 +535,30 @@
                     return;
                 }
 
-                // Sort by Distance
                 validMissions.sort((a, b) => a.distance - b.distance);
-                list.innerHTML = ""; // Clear existing
+                list.innerHTML = ""; 
 
                 validMissions.forEach(m => this.renderMissionCard(m, list));
             });
-
-            // Cleanup loop strictly for UI (Interval)
-            setInterval(() => { this.listenToShard(); }, 15000); // Refresh view safely
         },
 
         renderMissionCard: function(m, container) {
             const hasApplied = m.bids && m.bids[State.advId];
             const distTxt = m.distance.toFixed(1);
             
-            // Logic Auto-Apply Feature
             const autoEnabled = document.getElementById('chkAutoContract').checked;
             if(!hasApplied && autoEnabled && m.distance <= 1.0 && State.stamina >= 20 && State.dailyMissions < State.maxDaily) {
-                console.log("AUTO-APPLY TRIGGERED FOR", m.id);
                 this.sendBid(m.id, m.reward);
-                return; // Prevent render since it will trigger state change
+                return; 
             }
 
-            // Flashing logic
             let isNew = false;
             if(!State.renderedMissions.has(m.id)) {
                 State.renderedMissions.add(m.id);
                 isNew = true;
-                if(!hasApplied) AudioSynth.play('alert');
+                if(!hasApplied && !State.isSleeping) AudioSynth.play('alert');
             }
 
-            // Create HTML Elements
             const card = document.createElement('div');
             card.className = `mission-card ${hasApplied ? 'applied' : ''} ${isNew ? 'flash' : ''}`;
             card.id = `m-${m.id}`;
@@ -453,53 +604,39 @@
 
         submitNego: function(mId, baseReward) {
             const val = parseInt(document.getElementById(`val-${mId}`).value);
-            if(!val || val < baseReward) {
-                return this.showAlert("INVALID", "Tawaran Nego tidak boleh lebih kecil dari harga dasar!");
-            }
-            if(val > baseReward * 2) {
-                return this.showAlert("GREEDY", "Tawaran tidak boleh melebihi 2x lipat harga dasar!");
-            }
+            if(!val || val < baseReward) return this.showAlert("INVALID", "Tawaran tidak boleh lebih kecil dari harga dasar!");
+            if(val > baseReward * 2) return this.showAlert("GREEDY", "Tawaran tidak boleh melebihi 2x lipat!");
             this.sendBid(mId, val);
         },
 
         sendBid: async function(mId, bidPrice) {
-            if(State.stamina < 20) return this.showAlert("FATIGUE", "Stamina Habis! Tunggu beberapa saat untuk memulihkan energi.");
-            if(State.dailyMissions >= State.maxDaily) return this.showAlert("LIMIT", "Batas harian (20 Misi) tercapai. Istirahatlah!");
+            if(State.stamina < 20) return this.showAlert("FATIGUE", "Stamina Habis! Tunggu pemulihan energi.");
+            if(State.dailyMissions >= State.maxDaily) return this.showAlert("LIMIT", "Batas harian (20 Misi) tercapai.");
 
-            AudioSynth.play('action');
+            // FAKE LATENCY INJECTION
+            this.fakeLoading("NEGOTIATING WITH SHARD NODE...", async () => {
+                AudioSynth.play('action');
+                const bidData = {
+                    nick: State.nick, offer_price: bidPrice,
+                    lat: State.myLat, lon: State.myLon,
+                    timestamp: Date.now(), completed_quests: State.dailyMissions
+                };
 
-            // Construct Bid Data
-            const bidData = {
-                nick: State.nick,
-                offer_price: bidPrice,
-                lat: State.myLat,
-                lon: State.myLon,
-                timestamp: Date.now(),
-                completed_quests: State.dailyMissions // Reputation points
-            };
+                try {
+                    const missionRef = db.ref(`missions/${State.shardPath}/${mId}`);
+                    await missionRef.child('bids_count').transaction((currentCount) => { return (currentCount || 0) + 1; });
+                    await missionRef.child('bids').child(State.advId).set(bidData);
 
-            try {
-                // Update Firebase: Add Bid and Increment Counter securely
-                const missionRef = db.ref(`missions/${State.shardPath}/${mId}`);
-                
-                // Transaction to prevent race conditions on bids_count
-                await missionRef.child('bids_count').transaction((currentCount) => {
-                    return (currentCount || 0) + 1;
-                });
+                    // Update State
+                    State.stamina -= 20;
+                    State.dailyMissions += 1;
+                    State.earnings += bidPrice; // Accumulate potential earnings locally
+                    this.saveLocalData();
 
-                await missionRef.child('bids').child(State.advId).set(bidData);
-
-                // Update Local State limits
-                State.stamina -= 20;
-                State.dailyMissions += 1;
-                this.saveLocalData();
-
-                // UI update is handled automatically by Firebase on('value') listener
-                // which will re-render the card with 'applied' class.
-
-            } catch (e) {
-                this.showAlert("ERROR", "Gagal mengirim penawaran. Misi mungkin sudah penuh.");
-            }
+                } catch (e) {
+                    this.showAlert("ERROR", "Gagal mengirim penawaran. Misi mungkin sudah penuh atau dienkripsi.");
+                }
+            });
         }
     };
 
