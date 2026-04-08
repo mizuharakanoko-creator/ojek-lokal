@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PICK ME | LOBBY</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; }
+        .applicant-card {
+            background: #111; border: 1px solid #333; padding: 15px;
+            margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .btn-select { background: #00ffff; color: #000; border: none; padding: 10px; font-weight: bold; cursor: pointer; }
+        .status-tag { color: #ff0055; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <h2>MISSION LOBBY</h2>
+    <p id="mInfo" class="status-tag">WAITING FOR ADVENTURERS...</p>
+    <hr border="1" color="#222">
+
+    <div id="applicantList">
+        </div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const mId = localStorage.getItem('active_mission_id');
+    const server = localStorage.getItem('active_mission_server');
+
+    if(!mId) window.location.href = "index.html";
+
+    function listenApplicants() {
+        db.ref(`missions/${server}/${mId}/applicants`).on('value', (snap) => {
+            const listDiv = document.getElementById('applicantList');
+            listDiv.innerHTML = "";
+
+            if(!snap.exists()) {
+                listDiv.innerHTML = "<p style='color:#444'>Belum ada pelamar...</p>";
+                return;
+            }
+
+            snap.forEach(child => {
+                const adv = child.val();
+                listDiv.innerHTML += `
+                    <div class="applicant-card">
+                        <div>
+                            <b style="color:#ff0055">${adv.nick}</b><br>
+                            <small>Rating: ⭐${adv.rating}</small>
+                        </div>
+                        <button class="btn-select" onclick="selectAdventurer('${adv.nick}')">CHOOSE</button>
+                    </div>
+                `;
+            });
+        });
+
+        // Pantau jika status berubah (berpindah ke briefing)
+        db.ref(`missions/${server}/${mId}/status`).on('value', snap => {
+            if(snap.val() === "briefing") {
+                window.location.href = "briefing.html";
+            }
+        });
+    }
+
+    async function selectAdventurer(nick) {
+        if(!confirm("Pilih " + nick + " untuk misi ini?")) return;
+        
+        await db.ref(`missions/${server}/${mId}`).update({
+            selected_adventurer: nick,
+            status: "briefing"
+        });
+    }
+
+    listenApplicants();
+</script>
+</body>
+</html>
