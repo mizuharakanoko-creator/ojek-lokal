@@ -100,48 +100,49 @@
     }
 
     async function submitFinalReport() {
-        if(currentRating === 0 || !targetAdv) return alert("Beri bintang dulu!");
+    if(currentRating === 0 || !targetAdv) return alert("Penilaian belum lengkap!");
 
-        const btn = document.getElementById('btnFinish');
-        btn.disabled = true;
+    const btn = document.getElementById('btnFinish');
+    btn.disabled = true;
+    btn.innerText = "SAVING TO GUILD...";
 
-        try {
-            const advRef = db.ref(`identity_adventurer/${server}/${targetAdv}`);
-            const snapshot = await advRef.once('value');
-            const advData = snapshot.val();
+    try {
+        const advRef = db.ref(`identity_adventurer/${server}/${targetAdv}`);
+        const snapshot = await advRef.once('value');
+        const advData = snapshot.val();
 
-            let rep = advData.stats.reputation || 0;
-            let lvl = advData.stats.level || 1;
+        let rep = advData.stats.reputation || 0;
+        let lvl = advData.stats.level || 1;
 
-            // Kalkulasi Reputasi
-            if(currentRating === 1) rep -= 50;
-            else if(currentRating === 2) rep -= 10;
-            else if(currentRating === 3) rep += 5;
-            else if(currentRating === 4) rep += 25;
-            else if(currentRating === 5) rep += 100;
+        // Logika Reputasi
+        if(currentRating === 1) rep -= 50;
+        else if(currentRating === 5) rep += 100;
+        else rep += (currentRating * 10);
 
-            // Update Database secara massal
-            const updates = {};
-            updates[`identity_adventurer/${server}/${targetAdv}/stats/reputation`] = rep;
-            updates[`identity_adventurer/${server}/${targetAdv}/stats/level`] = (rep >= lvl * 100) ? lvl + 1 : lvl;
-            
-            // PENTING: Reset status kerja agar bisa ambil misi lagi
-            updates[`identity_adventurer/${server}/${targetAdv}/stats/is_working`] = false;
-            
-            updates[`missions/${server}/${mId}/status`] = "archived";
-            updates[`missions/${server}/${mId}/final_rating`] = currentRating;
+        const updates = {};
+        updates[`identity_adventurer/${server}/${targetAdv}/stats/reputation`] = rep;
+        updates[`identity_adventurer/${server}/${targetAdv}/stats/is_working`] = false; // RESET STATUS KERJA
+        updates[`missions/${server}/${mId}/status`] = "archived";
+        
+        await db.ref().update(updates);
 
-            await db.ref().update(updates);
+        alert(`Misi Selesai!`);
+        localStorage.removeItem('active_mission_id');
 
-            alert("Mission Archive Success. Adventurer is now Free.");
-            localStorage.removeItem('active_mission_id');
+        // LOGIKA REDIRECT BERDASARKAN ROLE
+        if (session && session.nick === targetAdv) {
+            // Jika yang membuka adalah Adventurer
+            window.location.href = "dashboard.html";
+        } else {
+            // Jika yang membuka adalah Requester (Tidak ada session adventurer)
             window.location.href = "index.html";
-
-        } catch (e) {
-            console.error(e);
-            btn.disabled = false;
         }
+
+    } catch (e) {
+        console.error(e);
+        btn.disabled = false;
     }
+}
 </script>
 </body>
 </html>
