@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="id" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PICK ME | MISSION BOARD</title>
+    <title>PICK ME | ADVENTURER BOARD</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -12,6 +12,7 @@
         :root {
             --neon-pink: #ff0055;
             --neon-cyan: #00ffff;
+            --neon-gold: #ffcc00;
             --bg-main: #050505;
             --bg-card: #0a0a0a;
             --border-color: #222;
@@ -19,213 +20,473 @@
             --font-terminal: 'Courier New', Courier, monospace;
         }
 
+        * { user-select: none; box-sizing: border-box; }
         body { 
             background-color: var(--bg-main); color: var(--text-main); 
             margin: 0; font-family: 'Segoe UI', sans-serif; padding-bottom: 80px;
         }
 
+        /* Top Status Bar */
+        #connBar {
+            background: #111; color: var(--neon-cyan); text-align: center; 
+            font-family: var(--font-terminal); font-size: 10px; font-weight: bold; 
+            padding: 5px; border-bottom: 1px solid var(--border-color);
+        }
+
         header {
-            background: var(--bg-card); padding: 15px 20px;
+            background: var(--bg-card); padding: 15px;
             border-bottom: 1px solid var(--border-color);
-            display: flex; justify-content: space-between; align-items: center;
             position: sticky; top: 0; z-index: 100;
         }
 
-        .user-info { font-family: var(--font-terminal); font-size: 12px; }
-        .user-nick { color: var(--neon-pink); font-weight: bold; }
+        .user-info { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-terminal); font-size: 11px; }
+        .user-nick { color: var(--neon-pink); font-weight: bold; font-size: 14px; }
+        
+        /* Stamina Bar */
+        .stamina-container { width: 100%; background: #222; height: 8px; border-radius: 4px; margin-top: 10px; overflow: hidden; border: 1px solid #333; }
+        .stamina-fill { height: 100%; background: #00ff00; width: 100%; transition: 0.3s; }
+        .stamina-text { font-size: 9px; font-family: var(--font-terminal); color: #888; display: flex; justify-content: space-between; margin-top: 3px; }
+
+        /* Tools Panel (Auto-Apply & Filters) */
+        .tools-panel {
+            background: #111; padding: 10px 15px; border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .toggle-box { display: flex; align-items: center; gap: 8px; font-family: var(--font-terminal); font-size: 10px; color: var(--neon-gold); }
+        .toggle-box input { accent-color: var(--neon-gold); width: 14px; height: 14px; }
 
         .mission-container { padding: 15px; }
-        
-        /* Mission Card Styles */
+        .board-title { font-family: var(--font-terminal); font-size: 12px; color: #555; margin-bottom: 15px; border-left: 3px solid var(--neon-cyan); padding-left: 8px; }
+
+        /* Mission Card */
         .mission-card {
-            background: #0f0f0f; border: 1px solid var(--border-color);
-            border-radius: 8px; padding: 15px; margin-bottom: 15px;
-            position: relative; transition: 0.3s;
+            background: #0f0f0f; border: 1px solid #333;
+            border-radius: 6px; padding: 15px; margin-bottom: 15px;
+            position: relative; transition: all 0.3s ease;
         }
+        .mission-card.flash { animation: flashAnim 1s ease-out; }
+        @keyframes flashAnim { 0% { background: #fff; box-shadow: 0 0 20px #fff; } 100% { background: #0f0f0f; } }
 
-        /* State: Applied (Dimatikan) */
-        .mission-card.applied {
-            filter: grayscale(1) opacity(0.5);
-            pointer-events: none;
-            border-style: dashed;
-        }
-
-        .mission-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
-        .reward { color: #ffbb33; font-weight: bold; font-family: var(--font-terminal); }
-        .m-title { font-size: 16px; font-weight: bold; margin: 0; color: var(--neon-cyan); }
-        .m-desc { font-size: 13px; color: #aaa; margin: 5px 0; }
+        .mission-card.applied { filter: grayscale(0.8) opacity(0.6); pointer-events: none; border-style: dashed; border-color: var(--neon-cyan); }
         
-        .m-footer { 
-            margin-top: 10px; padding-top: 10px; border-top: 1px solid #222;
-            display: flex; justify-content: space-between; align-items: center;
-            font-size: 11px; font-family: var(--font-terminal);
-        }
+        .badge-urgent { background: #ff0000; color: #fff; font-size: 9px; padding: 2px 5px; border-radius: 3px; position: absolute; top: -8px; right: 10px; font-weight: bold; font-family: var(--font-terminal); }
+        .badge-nearby { background: #00ff00; color: #000; font-size: 9px; padding: 2px 5px; border-radius: 3px; position: absolute; top: -8px; right: 10px; font-weight: bold; font-family: var(--font-terminal); }
 
-        .btn-accept {
-            background: var(--neon-cyan); color: #000; border: none;
-            padding: 8px 15px; border-radius: 4px; font-weight: bold;
-            cursor: pointer; font-family: var(--font-terminal);
-        }
+        .m-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .m-cat { font-size: 10px; color: #aaa; font-family: var(--font-terminal); }
+        .m-reward { color: var(--neon-gold); font-weight: bold; font-family: var(--font-terminal); font-size: 14px; }
+        
+        .m-route { background: #000; border: 1px dashed #222; padding: 8px; border-radius: 4px; font-size: 11px; margin-bottom: 10px; }
+        .route-point { margin-bottom: 5px; color: #ccc; }
+        .route-point span { font-family: var(--font-terminal); }
+        .r-jemput { color: var(--neon-cyan); }
+        .r-tujuan { color: var(--neon-pink); }
+        .m-dist { font-size: 10px; color: #00ff00; font-family: var(--font-terminal); margin-top: 5px; border-top: 1px solid #222; padding-top: 5px; }
 
-        /* Notification Overlay */
-        #notification-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 1000;
-            display: none; flex-direction: column; justify-content: center;
-            align-items: center; text-align: center; padding: 20px;
-        }
-        .notif-box {
-            border: 2px solid var(--neon-pink); padding: 30px;
-            background: #000; box-shadow: 0 0 20px var(--neon-pink);
-        }
-        .btn-go {
-            margin-top: 20px; padding: 15px 30px; background: var(--neon-pink);
-            color: white; border: none; font-weight: bold; font-family: var(--font-terminal);
-            cursor: pointer; animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .m-desc { font-size: 12px; color: #888; line-height: 1.4; margin-bottom: 15px; }
 
-        #empty-msg { text-align: center; padding: 50px 20px; color: #444; font-family: var(--font-terminal); }
+        .m-actions { display: flex; gap: 10px; }
+        .btn-action {
+            flex: 1; padding: 10px; border: none; border-radius: 4px;
+            font-family: var(--font-terminal); font-weight: bold; font-size: 11px; cursor: pointer; transition: 0.2s;
+        }
+        .btn-direct { background: var(--neon-cyan); color: #000; }
+        .btn-nego { background: transparent; color: var(--neon-cyan); border: 1px solid var(--neon-cyan); }
+        .btn-action:active { transform: scale(0.95); }
+
+        /* Nego Input Container */
+        .nego-box { display: none; margin-top: 10px; display: flex; gap: 5px; }
+        .nego-input { flex: 1; background: #000; border: 1px solid var(--border-color); color: #fff; padding: 8px; border-radius: 4px; font-size: 12px; font-family: var(--font-terminal); }
+        .btn-submit-nego { background: var(--neon-pink); color: #fff; border: none; padding: 8px 15px; border-radius: 4px; font-family: var(--font-terminal); font-weight: bold; cursor: pointer; }
+
+        #empty-msg { text-align: center; padding: 40px 20px; color: #333; font-family: var(--font-terminal); font-size: 12px; }
 
         nav.bottom-nav {
             position: fixed; bottom: 0; width: 100%; height: 60px;
-            background: #000; border-top: 1px solid var(--border-color);
-            display: flex; justify-content: space-around; align-items: center;
+            background: #050505; border-top: 1px solid #222;
+            display: flex; justify-content: space-around; align-items: center; z-index: 1000;
         }
-        .nav-item { color: #555; font-size: 10px; text-align: center; text-decoration: none; }
-        .nav-item.active { color: var(--neon-pink); }
+        .nav-item { color: #555; font-size: 10px; text-align: center; text-decoration: none; font-family: var(--font-terminal); }
+        .nav-item.active { color: var(--neon-pink); font-weight: bold; }
+        .nav-icon { font-size: 20px; display: block; margin-bottom: 2px; }
+
+        /* Alert Box Overlay */
+        #alertOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 9999; display: none; justify-content: center; align-items: center; }
+        .alert-box { background: #111; border: 1px solid var(--neon-pink); padding: 20px; width: 80%; border-radius: 8px; text-align: center; font-family: var(--font-terminal); }
     </style>
 </head>
 <body>
 
-<div id="notification-overlay">
-    <div class="notif-box">
-        <h2 class="text-neon-pink" style="color:var(--neon-pink)">QUEST ACCEPTED!</h2>
-        <p id="notif-text">Requester telah memilih Anda untuk menjalankan misi.</p>
-        <button class="btn-go" onclick="goToBriefing()">BUKA KONTRAK & BRIEFING</button>
+<div id="alertOverlay">
+    <div class="alert-box">
+        <h3 style="color:var(--neon-pink); margin-top:0;" id="alTitle">WARNING</h3>
+        <p style="color:#aaa; font-size:12px;" id="alMsg">Message</p>
+        <button onclick="document.getElementById('alertOverlay').style.display='none'" style="margin-top:15px; background:var(--neon-pink); color:#fff; border:none; padding:10px 20px; border-radius:4px; font-weight:bold;">OK</button>
     </div>
 </div>
 
+<div id="connBar">SCANNING GPS & SECURING SHARD...</div>
+
 <header>
     <div class="user-info">
-        ADVENTURER: <span class="user-nick" id="displayNick">---</span><br>
-        SERVER: <span style="color:var(--neon-cyan)" id="displayServer">---</span>
+        <div>
+            ID: <span class="user-nick" id="dispNick">GUEST</span><br>
+            <span style="color:#888; font-size:10px;">VEHICLE: <span id="dispVeh" style="color:#fff;">---</span></span>
+        </div>
+        <div style="text-align: right;">
+            SHARD: <span style="color:var(--neon-cyan)" id="dispShard">---</span><br>
+            <span style="color:var(--neon-gold)">LIMIT: <span id="dispDaily">0</span>/20</span>
+        </div>
     </div>
-    <button onclick="logout()" style="background:none; border:1px solid #333; color:#888; font-size:10px; padding:5px;">LOGOUT</button>
+
+    <div class="stamina-container">
+        <div class="stamina-fill" id="staminaBar"></div>
+    </div>
+    <div class="stamina-text">
+        <span>STAMINA (REGEN)</span>
+        <span id="staminaVal">100%</span>
+    </div>
 </header>
 
+<div class="tools-panel">
+    <label class="toggle-box">
+        <input type="checkbox" id="chkAutoContract">
+        AUTO-CONTRACT (&lt; 1KM)
+    </label>
+    <span style="font-family: var(--font-terminal); font-size:10px; color:#555;" id="activeCount">0 ACTIVE</span>
+</div>
+
 <div class="mission-container">
-    <h3 style="font-family: var(--font-terminal); font-size: 14px; color: #555; margin-left: 5px;">AVAILABLE MISSIONS</h3>
+    <div class="board-title">RADAR: MISSIONS SORTED BY DISTANCE</div>
     <div id="missionList">
-        <div id="empty-msg">SCANNING FOR QUESTS...</div>
+        <div id="empty-msg">MENUNGGU SINYAL DARI SHARD...</div>
     </div>
 </div>
 
 <nav class="bottom-nav">
-    <a href="#" class="nav-item active">BOARD</a>
-    <a href="#" class="nav-item">MY QUEST</a>
-    <a href="#" class="nav-item">PROFILE</a>
+    <a href="#" class="nav-item active"><span class="nav-icon">📡</span>BOARD</a>
+    <a href="#" class="nav-item"><span class="nav-icon">📋</span>CONTRACTS</a>
+    <a href="#" class="nav-item"><span class="nav-icon">👤</span>PROFILE</a>
 </nav>
 
 <script>
-    const session = JSON.parse(localStorage.getItem('pickme_session'));
-    if(!session) { window.location.href = "login.html"; }
-    else {
-        document.getElementById('displayNick').innerText = session.nick;
-        document.getElementById('displayServer').innerText = session.server;
-    }
-
+    // --- FIREBASE CONFIG ---
     const firebaseConfig = {
         apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
         authDomain: "ojeklokal-42b84.firebaseapp.com",
         databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
         projectId: "ojeklokal-42b84"
     };
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    function loadMissions() {
-        const missionRef = db.ref(`missions/${session.server}`);
-
-        missionRef.on('value', (snapshot) => {
-            const missionListDiv = document.getElementById('missionList');
-            missionListDiv.innerHTML = "";
+    // --- AUDIO SYNTH (0KB) ---
+    const AudioSynth = {
+        ctx: new (window.AudioContext || window.webkitAudioContext)(),
+        play: function(type) {
+            if(this.ctx.state === 'suspended') this.ctx.resume();
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain); gain.connect(this.ctx.destination);
             
-            if(!snapshot.exists()) {
-                missionListDiv.innerHTML = '<div id="empty-msg">NO MISSIONS AVAILABLE.</div>';
-                return;
+            if(type === 'alert') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.15);
+            } else if(type === 'action') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.1);
+            } else if(type === 'error') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.2);
+            }
+        }
+    };
+
+    // --- STATE MANAGEMENT ---
+    const State = {
+        advId: "ADV-" + Math.floor(Math.random() * 9000 + 1000), // Mock ID
+        nick: "GHOST_RIDER",
+        vehicle: "MOTOR",
+        myLat: 0, myLon: 0,
+        shardPath: "",
+        stamina: 100,
+        dailyMissions: 0,
+        maxDaily: 20,
+        renderedMissions: new Set() // Track for Flash animation
+    };
+
+    // --- CORE LOGIC ---
+    const App = {
+        init: function() {
+            this.loadLocalData();
+            document.getElementById('dispNick').innerText = State.nick;
+            document.getElementById('dispVeh').innerText = State.vehicle;
+            
+            this.updateStaminaUI();
+            setInterval(() => this.regenStamina(), 10000); // +1 stamina every 10s
+
+            this.locateDevice();
+        },
+
+        loadLocalData: function() {
+            const today = new Date().toDateString();
+            const stored = JSON.parse(localStorage.getItem('adv_data'));
+            
+            if(stored) {
+                State.stamina = stored.stamina || 100;
+                if(stored.date === today) State.dailyMissions = stored.dailyCount || 0;
+                else State.dailyMissions = 0; // Reset new day
+            }
+            document.getElementById('dispDaily').innerText = State.dailyMissions;
+        },
+
+        saveLocalData: function() {
+            localStorage.setItem('adv_data', JSON.stringify({
+                stamina: State.stamina,
+                dailyCount: State.dailyMissions,
+                date: new Date().toDateString()
+            }));
+            this.updateStaminaUI();
+            document.getElementById('dispDaily').innerText = State.dailyMissions;
+        },
+
+        regenStamina: function() {
+            if(State.stamina < 100) {
+                State.stamina += 1;
+                this.saveLocalData();
+            }
+        },
+
+        updateStaminaUI: function() {
+            const bar = document.getElementById('staminaBar');
+            const txt = document.getElementById('staminaVal');
+            bar.style.width = State.stamina + "%";
+            txt.innerText = Math.floor(State.stamina) + "%";
+            
+            if(State.stamina < 20) bar.style.background = "var(--neon-pink)";
+            else if(State.stamina < 50) bar.style.background = "var(--neon-gold)";
+            else bar.style.background = "#00ff00";
+        },
+
+        showAlert: function(title, msg) {
+            document.getElementById('alTitle').innerText = title;
+            document.getElementById('alMsg').innerText = msg;
+            document.getElementById('alertOverlay').style.display = 'flex';
+            AudioSynth.play('error');
+        },
+
+        // Haversine Distance (KM)
+        calcDistance: function(lat1, lon1, lat2, lon2) {
+            const R = 6371; const dLat = (lat2-lat1)*Math.PI/180; const dLon = (lon2-lon1)*Math.PI/180;
+            const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        },
+
+        locateDevice: function() {
+            if(!navigator.geolocation) return this.showAlert("ERROR", "GPS Not Supported");
+            
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                State.myLat = pos.coords.latitude; State.myLon = pos.coords.longitude;
+                
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${State.myLat}&lon=${State.myLon}&zoom=14`);
+                    const data = await res.json();
+                    
+                    const prov = (data.address.state || "X").toUpperCase().replace(/[^A-Z]/g,'-');
+                    const kab = (data.address.city || data.address.county || "X").toUpperCase().replace(/[^A-Z]/g,'-');
+                    const kec = (data.address.city_district || data.address.suburb || "X").toUpperCase().replace(/[^A-Z]/g,'-');
+                    
+                    State.shardPath = `${prov}/${kab}/KEC-${kec}`;
+                    document.getElementById('dispShard').innerText = kec;
+                    document.getElementById('connBar').innerText = "CONNECTED TO SHARD: " + kec;
+                    
+                    this.listenToShard();
+                } catch(e) {
+                    State.shardPath = "GLOBAL/RAW/COORD";
+                    document.getElementById('dispShard').innerText = "RAW GPS";
+                    this.listenToShard();
+                }
+            }, () => {
+                this.showAlert("GPS FAILED", "Harap izinkan GPS.");
+                document.getElementById('connBar').innerText = "GPS OFFLINE";
+            });
+        },
+
+        listenToShard: function() {
+            const ref = db.ref(`missions/${State.shardPath}`);
+            
+            // Listen real-time
+            ref.on('value', (snapshot) => {
+                const list = document.getElementById('missionList');
+                let validMissions = [];
+                const now = Date.now();
+
+                if(!snapshot.exists()) {
+                    list.innerHTML = `<div id="empty-msg">TIDAK ADA MISI AKTIF DI AREA INI.</div>`;
+                    document.getElementById('activeCount').innerText = "0 ACTIVE";
+                    return;
+                }
+
+                snapshot.forEach(child => {
+                    const m = child.val();
+                    const mId = child.key;
+
+                    // Filter Logic: Expiry (120s), Bids Limit (15), Status
+                    if(now > m.expires_at || (m.bids_count && m.bids_count >= 15) || m.status !== "open") {
+                        // Silent drop / self-cleanup could be added here
+                        return;
+                    }
+
+                    // Calculate Distance
+                    m.distance = this.calcDistance(State.myLat, State.myLon, m.lat, m.lon);
+                    m.id = mId;
+                    
+                    // Filter by Vehicle Type (if Adv is MOTOR, can't take MOBIL)
+                    if(State.vehicle === "MOTOR" && m.category === "mobil") return;
+
+                    validMissions.push(m);
+                });
+
+                document.getElementById('activeCount').innerText = `${validMissions.length} ACTIVE`;
+
+                if(validMissions.length === 0) {
+                    list.innerHTML = `<div id="empty-msg">TIDAK ADA MISI SESUAI KRITERIA.</div>`;
+                    return;
+                }
+
+                // Sort by Distance
+                validMissions.sort((a, b) => a.distance - b.distance);
+                list.innerHTML = ""; // Clear existing
+
+                validMissions.forEach(m => this.renderMissionCard(m, list));
+            });
+
+            // Cleanup loop strictly for UI (Interval)
+            setInterval(() => { this.listenToShard(); }, 15000); // Refresh view safely
+        },
+
+        renderMissionCard: function(m, container) {
+            const hasApplied = m.bids && m.bids[State.advId];
+            const distTxt = m.distance.toFixed(1);
+            
+            // Logic Auto-Apply Feature
+            const autoEnabled = document.getElementById('chkAutoContract').checked;
+            if(!hasApplied && autoEnabled && m.distance <= 1.0 && State.stamina >= 20 && State.dailyMissions < State.maxDaily) {
+                console.log("AUTO-APPLY TRIGGERED FOR", m.id);
+                this.sendBid(m.id, m.reward);
+                return; // Prevent render since it will trigger state change
             }
 
-            snapshot.forEach((child) => {
-                const m = child.val();
-                const mId = child.key;
+            // Flashing logic
+            let isNew = false;
+            if(!State.renderedMissions.has(m.id)) {
+                State.renderedMissions.add(m.id);
+                isNew = true;
+                if(!hasApplied) AudioSynth.play('alert');
+            }
 
-                // Cek apakah user sudah melamar misi ini
-                const hasApplied = m.applicants && m.applicants[session.nick];
+            // Create HTML Elements
+            const card = document.createElement('div');
+            card.className = `mission-card ${hasApplied ? 'applied' : ''} ${isNew ? 'flash' : ''}`;
+            card.id = `m-${m.id}`;
+
+            const badge = m.is_urgent ? `<span class="badge-urgent">URGENT!</span>` : 
+                          (m.distance < 1.0 ? `<span class="badge-nearby">NEARBY (${distTxt} KM)</span>` : '');
+
+            card.innerHTML = `
+                ${badge}
+                <div class="m-header">
+                    <span class="m-cat">[ ${m.category.toUpperCase()} ]</span>
+                    <span class="m-reward">Rp ${m.reward.toLocaleString('id-ID')}</span>
+                </div>
                 
-                // Cek apakah user terpilih (Trigger Notif)
-                if(m.selected_adventurer === session.nick && m.status === "briefing") {
-                    showSelectionNotice(mId);
-                }
+                <div class="m-route">
+                    <div class="route-point"><span class="r-jemput">JEMPUT:</span> ${m.pickup_point}</div>
+                    <div class="route-point"><span class="r-tujuan">TUJUAN:</span> Lihat Detail Deskripsi</div>
+                    <div class="m-dist">EST Jarak ke Penumpang: ${distTxt} KM</div>
+                </div>
 
-                // Hanya tampilkan misi yang statusnya 'posted' (tersedia)
-                if(m.status === "posted") {
-                    const cardClass = hasApplied ? "mission-card applied" : "mission-card";
-                    const btnLabel = hasApplied ? "WAITING..." : "TAKE QUEST";
+                <div class="m-desc">"${m.description}"</div>
 
-                    const card = `
-                        <div class="${cardClass}" id="card-${mId}">
-                            <div class="mission-header">
-                                <p class="m-title">${m.title}</p>
-                                <span class="reward">Rp ${m.reward.toLocaleString()}</span>
-                            </div>
-                            <p class="m-desc">${m.description}</p>
-                            <div class="m-footer">
-                                <span>📍 ${m.pickup_point}</span>
-                                <button class="btn-accept" onclick="applyMission('${mId}')">${btnLabel}</button>
-                            </div>
-                        </div>
-                    `;
-                    missionListDiv.innerHTML += card;
-                }
-            });
-        });
-    }
+                ${!hasApplied ? `
+                <div class="m-actions">
+                    <button class="btn-action btn-direct" onclick="App.sendBid('${m.id}', ${m.reward})">AJUKAN DIRI</button>
+                    <button class="btn-action btn-nego" onclick="App.toggleNego('${m.id}')">TAWAR</button>
+                </div>
+                <div class="nego-box" id="nego-${m.id}" style="display:none;">
+                    <input type="number" id="val-${m.id}" class="nego-input" placeholder="Masukkan harga...">
+                    <button class="btn-submit-nego" onclick="App.submitNego('${m.id}', ${m.reward})">KIRIM NEGO</button>
+                </div>
+                ` : `<div style="text-align:center; color:var(--neon-cyan); font-family:var(--font-terminal); font-size:11px;">[ MENUNGGU RESPON REQUESTER ]</div>`}
+            `;
 
-    function applyMission(mId) {
-        if(!confirm("Ambil misi ini?")) return;
+            container.appendChild(card);
+        },
 
-        const applyData = {
-            nick: session.nick,
-            timestamp: Date.now(),
-            rating: 5.0
-        };
+        toggleNego: function(mId) {
+            AudioSynth.play('action');
+            const box = document.getElementById(`nego-${mId}`);
+            box.style.display = box.style.display === "none" ? "flex" : "none";
+        },
 
-        db.ref(`missions/${session.server}/${mId}/applicants/${session.nick}`).set(applyData)
-        .then(() => {
-            // Visual feedback instant
-            document.getElementById(`card-${mId}`).classList.add('applied');
-        })
-        .catch(e => alert(e.message));
-    }
+        submitNego: function(mId, baseReward) {
+            const val = parseInt(document.getElementById(`val-${mId}`).value);
+            if(!val || val < baseReward) {
+                return this.showAlert("INVALID", "Tawaran Nego tidak boleh lebih kecil dari harga dasar!");
+            }
+            if(val > baseReward * 2) {
+                return this.showAlert("GREEDY", "Tawaran tidak boleh melebihi 2x lipat harga dasar!");
+            }
+            this.sendBid(mId, val);
+        },
 
-    function showSelectionNotice(mId) {
-        localStorage.setItem('active_mission_id', mId);
-        localStorage.setItem('active_mission_server', session.server);
-        document.getElementById('notification-overlay').style.display = 'flex';
-    }
+        sendBid: async function(mId, bidPrice) {
+            if(State.stamina < 20) return this.showAlert("FATIGUE", "Stamina Habis! Tunggu beberapa saat untuk memulihkan energi.");
+            if(State.dailyMissions >= State.maxDaily) return this.showAlert("LIMIT", "Batas harian (20 Misi) tercapai. Istirahatlah!");
 
-    function goToBriefing() {
-        window.location.href = "briefing.html";
-    }
+            AudioSynth.play('action');
 
-    function logout() {
-        localStorage.clear();
-        window.location.href = "login.html";
-    }
+            // Construct Bid Data
+            const bidData = {
+                nick: State.nick,
+                offer_price: bidPrice,
+                lat: State.myLat,
+                lon: State.myLon,
+                timestamp: Date.now(),
+                completed_quests: State.dailyMissions // Reputation points
+            };
 
-    loadMissions();
+            try {
+                // Update Firebase: Add Bid and Increment Counter securely
+                const missionRef = db.ref(`missions/${State.shardPath}/${mId}`);
+                
+                // Transaction to prevent race conditions on bids_count
+                await missionRef.child('bids_count').transaction((currentCount) => {
+                    return (currentCount || 0) + 1;
+                });
+
+                await missionRef.child('bids').child(State.advId).set(bidData);
+
+                // Update Local State limits
+                State.stamina -= 20;
+                State.dailyMissions += 1;
+                this.saveLocalData();
+
+                // UI update is handled automatically by Firebase on('value') listener
+                // which will re-render the card with 'applied' class.
+
+            } catch (e) {
+                this.showAlert("ERROR", "Gagal mengirim penawaran. Misi mungkin sudah penuh.");
+            }
+        }
+    };
+
+    window.onload = () => App.init();
+
 </script>
-
 </body>
 </html>
