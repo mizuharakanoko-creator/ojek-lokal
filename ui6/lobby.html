@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#050505">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="google" content="notranslate">
+    
+    <title>LOBBY | PICK ME SYSTEM</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --neon-gold: #ffcc00;
+            --bg-dark: #050505;
+            --bg-card: #0f0f0f;
+            --border-ui: #1a1a1a;
+            --text-muted: #555;
+            --font-main: 'Inter', 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+            --safe-area-top: env(safe-area-inset-top);
+        }
+
+        /* RESET & NATIVE BEHAVIOR */
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            user-select: none; 
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        
+        body { 
+            background: var(--bg-dark); color: #fff; 
+            font-family: var(--font-main); margin: 0; padding: 0;
+            overscroll-behavior: none; overflow: hidden;
+            height: 100vh; width: 100vw;
+            display: flex; flex-direction: column;
+        }
+
+        ::-webkit-scrollbar { display: none; }
+
+        /* PROFESSIONAL ANIMATIONS */
+        @keyframes pulse-cyan { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+        @keyframes ripple { 0% { transform: scale(0); opacity: 0.8; } 100% { transform: scale(4); opacity: 0; } }
+        @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes scan-line { 0% { top: 0%; } 100% { top: 100%; } }
+
+        /* UI COMPONENTS: HEADER */
+        header {
+            padding: calc(var(--safe-area-top) + 20px) 20px 15px;
+            background: rgba(10, 10, 10, 0.95);
+            border-bottom: 1px solid var(--border-ui);
+            backdrop-filter: blur(10px);
+        }
+
+        .system-status {
+            display: flex; justify-content: space-between;
+            font-family: var(--font-mono); font-size: 9px;
+            color: var(--neon-cyan); letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .brand-area { display: flex; align-items: baseline; gap: 8px; }
+        .brand-area h2 { margin: 0; font-size: 22px; font-weight: 800; color: #fff; }
+        .brand-area .tag { font-size: 10px; color: var(--neon-pink); font-family: var(--font-mono); }
+
+        /* MISSION CARD */
+        .mission-panel {
+            margin: 15px 20px; padding: 15px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-ui);
+            border-radius: 12px;
+            position: relative;
+        }
+
+        .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .label { font-size: 9px; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 4px; display: block; }
+        .value { font-size: 13px; font-weight: 700; color: #eee; }
+        .value.gold { color: var(--neon-gold); }
+
+        /* RADAR SECTION */
+        .radar-box {
+            height: 120px; position: relative;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-bottom: 1px dashed var(--border-ui);
+        }
+
+        .radar-circle {
+            position: absolute; width: 40px; height: 40px;
+            border: 1px solid var(--neon-cyan); border-radius: 50%;
+            animation: ripple 3s linear infinite;
+        }
+        .radar-circle:nth-child(2) { animation-delay: 1s; }
+        .radar-circle:nth-child(3) { animation-delay: 2s; }
+
+        /* LIST AREA */
+        #applicantList { 
+            flex: 1; overflow-y: auto; padding: 10px 20px 120px;
+            scroll-behavior: smooth;
+        }
+
+        .card-adv {
+            background: #111; border-radius: 14px; padding: 16px;
+            margin-bottom: 12px; border: 1px solid #1a1a1a;
+            display: flex; justify-content: space-between; align-items: center;
+            animation: slide-up 0.4s ease-out;
+            position: relative;
+        }
+
+        .card-adv.featured { border-color: var(--neon-gold); }
+
+        .adv-profile { display: flex; flex-direction: column; gap: 4px; }
+        .adv-nick { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+        .badge-pro { 
+            background: var(--neon-gold); color: #000; font-size: 8px; 
+            padding: 2px 6px; border-radius: 4px; font-weight: 900;
+        }
+        
+        .adv-stat { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+        .adv-price { font-size: 15px; font-weight: 800; color: var(--neon-cyan); margin-top: 5px; }
+
+        .btn-hire {
+            background: #fff; color: #000; border: none;
+            padding: 12px 20px; border-radius: 8px;
+            font-weight: 800; font-size: 12px; transition: 0.2s;
+        }
+        .btn-hire:active { transform: scale(0.95); background: var(--neon-cyan); }
+
+        /* CUSTOM SNACKBAR (Professional Alert) */
+        #snackbar {
+            position: fixed; bottom: 100px; left: 20px; right: 20px;
+            background: #fff; color: #000; padding: 15px 20px;
+            border-radius: 12px; font-weight: 700; font-size: 13px;
+            display: none; align-items: center; justify-content: space-between;
+            z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        /* SYSTEM FOOTER */
+        footer {
+            position: fixed; bottom: 0; width: 100%;
+            background: linear-gradient(to top, #000 70%, transparent);
+            padding: 20px; z-index: 100;
+        }
+
+        .cash-info {
+            text-align: center; font-size: 10px; color: var(--text-muted);
+            margin-bottom: 15px; font-family: var(--font-mono);
+        }
+
+        .btn-abort {
+            width: 100%; background: #111; border: 1px solid #333;
+            color: #ff4444; padding: 14px; border-radius: 10px;
+            font-weight: 700; font-size: 12px; letter-spacing: 1px;
+        }
+
+        /* FULL SCREEN OVERLAY */
+        #loadingOverlay {
+            position: fixed; inset: 0; background: #000; z-index: 20000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+    <div id="loadingOverlay">
+        <div style="width: 40px; height: 40px; border: 2px solid #222; border-top-color: var(--neon-pink); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <p style="font-family: var(--font-mono); font-size: 10px; margin-top: 20px; color: #444;">INITIALIZING ENCRYPTION...</p>
+    </div>
+
+    <header>
+        <div class="system-status">
+            <span id="sysClock">00:00:00</span>
+            <span id="netStatus" style="animation: pulse-cyan 1s infinite;">● CONNECTED_ENCRYPTED</span>
+        </div>
+        <div class="brand-area">
+            <h2>LOBBY</h2>
+            <span class="tag">SECURE_CHANNEL</span>
+        </div>
+    </header>
+
+    <div class="mission-panel">
+        <div class="panel-grid">
+            <div>
+                <span class="label">MISSION_ID</span>
+                <span id="mIdDisplay" class="value">---</span>
+            </div>
+            <div style="text-align: right;">
+                <span class="label">CASH_REWARD</span>
+                <span id="priceDisplay" class="value gold">Rp 0</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="radar-box">
+        <div class="radar-circle"></div>
+        <div class="radar-circle"></div>
+        <div class="radar-circle"></div>
+        <div id="liveCount" style="font-family: var(--font-mono); font-size: 11px; z-index: 5; color: var(--neon-cyan);">PULSING RADAR...</div>
+    </div>
+
+    <div id="applicantList">
+        </div>
+
+    <div id="snackbar">
+        <span id="snackText">PESAN SISTEM</span>
+        <button onclick="document.getElementById('snackbar').style.display='none'" style="background:none; border:none; font-weight:900;">OK</button>
+    </div>
+
+    <footer>
+        <div class="cash-info">PENGGUNAAN TUNAI | HARGA TERKUNCI OLEH SISTEM</div>
+        <button class="btn-abort" onclick="Core.confirmAbort()">ABORT MISSION / BATALKAN</button>
+    </footer>
+
+<script>
+    // --- DATABASE CONFIGURATION ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // --- ENGINE CORE ---
+    const Core = {
+        mId: localStorage.getItem('active_mission_id'),
+        server: localStorage.getItem('active_mission_server'),
+        knownBids: new Set(),
+
+        init() {
+            if(!this.mId) { window.location.href = "index.html"; return; }
+            
+            this.setupUI();
+            this.maskNative();
+            this.listenMission();
+            this.listenBids();
+            
+            setTimeout(() => {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }, 1500);
+        },
+
+        setupUI() {
+            document.getElementById('mIdDisplay').innerText = this.mId.substring(0, 12) + "...";
+            setInterval(() => {
+                const now = new Date();
+                document.getElementById('sysClock').innerText = now.toLocaleTimeString('id-ID');
+            }, 1000);
+        },
+
+        maskNative() {
+            // Disable double-tap zoom & standard web gestures
+            document.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 1) e.preventDefault();
+            }, { passive: false });
+
+            // Simulation of Android "Toast"
+            window.showToast = (msg) => {
+                const s = document.getElementById('snackbar');
+                document.getElementById('snackText').innerText = msg;
+                s.style.display = 'flex';
+                if(navigator.vibrate) navigator.vibrate(50);
+                setTimeout(() => s.style.display = 'none', 4000);
+            };
+        },
+
+        listenMission() {
+            // Jalur Global Shard Sync
+            db.ref(`missions/${this.server}/${this.mId}`).on('value', snap => {
+                if(!snap.exists()) return;
+                const m = snap.val();
+                document.getElementById('priceDisplay').innerText = "Rp " + (m.reward || 0).toLocaleString('id-ID');
+                
+                if(m.status === "briefing") {
+                    window.location.href = "briefing.html";
+                }
+            });
+        },
+
+        listenBids() {
+            // MENGGUNAKAN FOLDER 'bids' SESUAI FIREBASE USER
+            db.ref(`missions/${this.server}/${this.mId}/bids`).on('value', snap => {
+                const list = document.getElementById('applicantList');
+                const countText = document.getElementById('liveCount');
+                
+                if(!snap.exists()) {
+                    list.innerHTML = `<div style="text-align:center; color:#333; margin-top:40px; font-family:var(--font-mono); font-size:11px;">MENCARI ADVENTURER...</div>`;
+                    countText.innerText = "NO SIGNAL DETECTED";
+                    return;
+                }
+
+                let html = "";
+                let count = 0;
+
+                snap.forEach(child => {
+                    const advId = child.key;
+                    const b = child.val();
+                    count++;
+
+                    // Pro Level Badge Logic
+                    const isPro = (b.completed_quests || 0) >= 3;
+                    const price = b.offer_price || 0;
+
+                    html += `
+                        <div class="card-adv ${isPro ? 'featured' : ''}">
+                            <div class="adv-profile">
+                                <div class="adv-nick">
+                                    ${b.nick || 'AGENT'} 
+                                    ${isPro ? '<span class="badge-pro">PRO</span>' : ''}
+                                </div>
+                                <div class="adv-stat">EXP: ${b.completed_quests || 0} QUESTS | ⭐ 5.0</div>
+                                <div class="adv-price">Rp ${price.toLocaleString('id-ID')}</div>
+                            </div>
+                            <button class="btn-hire" onclick="Core.hire('${advId}', '${b.nick}')">HIRE</button>
+                        </div>
+                    `;
+
+                    // Sound & Vibe for New Bids
+                    if(!this.knownBids.has(advId)) {
+                        this.knownBids.add(advId);
+                        this.playBeep();
+                    }
+                });
+
+                list.innerHTML = html;
+                countText.innerText = count + " ADVENTURERS IN RANGE";
+            });
+        },
+
+        async hire(advId, nick) {
+            if(!confirm(`Konfirmasi kontrak dengan ${nick}?`)) return;
+            
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'flex';
+            document.querySelector('#loadingOverlay p').innerText = "LOCKING CONTRACT...";
+
+            try {
+                // Transactional Update untuk mencegah Double-Hire
+                const ref = db.ref(`missions/${this.server}/${this.mId}`);
+                await ref.transaction((current) => {
+                    if (current && current.status === "open") {
+                        current.selected_adventurer = nick;
+                        current.selected_adv_id = advId;
+                        current.status = "briefing";
+                        return current;
+                    }
+                    return; 
+                });
+            } catch (e) {
+                overlay.style.display = 'none';
+                showToast("SYNC ERROR: CONTRACT FAILED");
+            }
+        },
+
+        async confirmAbort() {
+            if(!confirm("TERMINATE MISSION? Semua data di radar akan dihapus permanen.")) return;
+            
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'flex';
+            document.querySelector('#loadingOverlay p').innerText = "WIPING DATA FROM SERVER...";
+
+            try {
+                // TOTAL WIPE: Hapus misi permanen
+                await db.ref(`missions/${this.server}/${this.mId}`).remove();
+                localStorage.removeItem('active_mission_id');
+                window.location.href = "index.html";
+            } catch (e) {
+                overlay.style.display = 'none';
+                showToast("ABORT FAILED: SERVER REJECTED");
+            }
+        },
+
+        playBeep() {
+            try {
+                const actx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = actx.createOscillator();
+                const g = actx.createGain();
+                osc.connect(g); g.connect(actx.destination);
+                osc.frequency.value = 800; g.gain.value = 0.1;
+                osc.start(); osc.stop(actx.currentTime + 0.1);
+                if(navigator.vibrate) navigator.vibrate([40, 30, 40]);
+            } catch(e){}
+        }
+    };
+
+    window.onload = () => Core.init();
+
+    // Anti-Crash for Browser Refresh
+    window.addEventListener('online', () => showToast("SIGNAL RECOVERED"));
+    window.addEventListener('offline', () => showToast("SIGNAL LOST: CHECK CONNECTION"));
+
+</script>
+</body>
+</html>
