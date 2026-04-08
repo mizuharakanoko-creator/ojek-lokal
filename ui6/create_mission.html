@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CREATE MISSION | PICK ME GUILD</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-blue: #00d9ff;
+            --neon-gold: #ffcc00;
+            --bg-dark: #0a0a0a;
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        body {
+            margin: 0; padding: 20px;
+            background: #000;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .header { text-align: center; margin-bottom: 30px; }
+        .title { color: var(--neon-gold); font-size: 18px; letter-spacing: 3px; font-weight: bold; }
+
+        .form-card {
+            background: var(--glass);
+            border: 1px solid #222;
+            padding: 20px;
+            border-radius: 12px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        label { display: block; font-size: 10px; color: var(--neon-blue); margin: 15px 0 5px; text-transform: uppercase; }
+        
+        input, textarea, select {
+            width: 100%; background: #111; border: 1px solid #333; color: #fff; 
+            padding: 12px; border-radius: 8px; font-family: monospace; box-sizing: border-box;
+            outline: none;
+        }
+
+        textarea { height: 100px; resize: none; }
+
+        .btn-publish {
+            width: 100%; padding: 15px; margin-top: 30px; border-radius: 8px;
+            font-weight: bold; cursor: pointer; transition: 0.3s;
+            border: 1px solid var(--neon-gold); text-transform: uppercase;
+            background: rgba(255, 204, 0, 0.1); color: var(--neon-gold);
+        }
+
+        .btn-publish:hover { background: var(--neon-gold); color: #000; box-shadow: 0 0 20px rgba(255, 204, 0, 0.4); }
+
+        .back-link { display: block; text-align: center; margin-top: 20px; font-size: 10px; color: #555; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="title">/// FORGE NEW MISSION ///</div>
+        <p style="font-size: 10px; color: #444;">ISI DETAIL KONTRAK UNTUK DIPUBLIKASIKAN KE BOARD</p>
+    </div>
+
+    <div class="form-card">
+        <label>JUDUL MISI (QUEST TITLE)</label>
+        <input type="text" id="mTitle" placeholder="Contoh: Kirim Dokumen Cepat...">
+
+        <label>DESKRIPSI TUGAS (INSTRUCTIONS)</label>
+        <textarea id="mDesc" placeholder="Jelaskan detail tugas secara mendalam..."></textarea>
+
+        <label>HADIAH (BASE REWARD - STONE)</label>
+        <input type="number" id="mReward" placeholder="Jumlah Stone...">
+
+        <label>KLASIFIKASI (RANK REQUIRED)</label>
+        <select id="mRank">
+            <option value="F">RANK F (Entry Level)</option>
+            <option value="E">RANK E</option>
+            <option value="D">RANK D</option>
+            <option value="C">RANK C</option>
+        </select>
+
+        <button class="btn-publish" onclick="publishMission()">PUBLIKASIKAN MISI</button>
+    </div>
+
+    <a href="index.html" class="back-link">[ KEMBALI KE GATEWAY ]</a>
+
+    <script>
+        // --- 1. CONFIG FIREBASE (Sama dengan index.html) ---
+        const firebaseConfig = {
+            apiKey: "ISI_API_KEY_KAMU",
+            authDomain: "ISI_DOMAIN_KAMU",
+            databaseURL: "ISI_DATABASE_URL_KAMU",
+            projectId: "ISI_PROJECT_ID_KAMU",
+            storageBucket: "...",
+            messagingSenderId: "...",
+            appId: "..."
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Ambil data user dari session
+        const session = JSON.parse(localStorage.getItem('pickme_user'));
+        if(!session || session.role !== 'requester') {
+            alert("Akses Ditolak! Anda bukan Requester.");
+            window.location.href = "index.html";
+        }
+
+        function publishMission() {
+            const title = document.getElementById('mTitle').value;
+            const desc = document.getElementById('mDesc').value;
+            const reward = document.getElementById('mReward').value;
+            const rank = document.getElementById('mRank').value;
+
+            if(!title || !desc || !reward) return alert("Semua kolom wajib diisi!");
+
+            const mId = "MSN-" + Date.now();
+
+            const missionData = {
+                id: mId,
+                requesterId: session.id,
+                requesterName: session.name,
+                shard: session.shard,
+                title: title,
+                desc: desc,
+                reward: reward,
+                requiredRank: rank,
+                status: "OPEN", // Mencari pelamar
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            };
+
+            // Simpan ke Cloud
+            db.ref('missions/' + mId).set(missionData).then(() => {
+                alert("Misi Berhasil Dipublikasikan!");
+                // Direct ke halaman pemilihan Adventurer
+                window.location.href = "chosen_adventurer.html?id=" + mId;
+            }).catch(err => {
+                alert("Gagal memposting misi: " + err.message);
+            });
+        }
+    </script>
+</body>
+</html>
