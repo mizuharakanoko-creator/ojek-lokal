@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#050505">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="google" content="notranslate">
+    
+    <title>LOBBY | PICK ME SYSTEM</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --neon-gold: #ffcc00;
+            --bg-dark: #050505;
+            --bg-card: #0f0f0f;
+            --border-ui: #1a1a1a;
+            --text-muted: #555;
+            --font-main: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --safe-area-top: env(safe-area-inset-top);
+        }
+
+        /* RESET & NATIVE BEHAVIOR */
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            user-select: none; 
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            outline: none;
+        }
+        
+        body { 
+            background: var(--bg-dark); color: #fff; 
+            font-family: var(--font-main); margin: 0; padding: 0;
+            overscroll-behavior: none; overflow: hidden;
+            height: 100vh; width: 100vw;
+            display: flex; flex-direction: column;
+        }
+
+        ::-webkit-scrollbar { display: none; }
+
+        /* PROFESSIONAL ANIMATIONS */
+        @keyframes pulse-cyan { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+        @keyframes ripple { 0% { transform: scale(0); opacity: 0.8; } 100% { transform: scale(4); opacity: 0; } }
+        @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes fade-in-out { 0% { opacity: 0; transform: translateY(5px); } 10% { opacity: 1; transform: translateY(0); } 90% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-5px); } }
+
+        /* UI COMPONENTS: HEADER */
+        header {
+            padding: calc(var(--safe-area-top) + 20px) 20px 15px;
+            background: rgba(10, 10, 10, 0.95);
+            border-bottom: 1px solid var(--border-ui);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        .system-status {
+            display: flex; justify-content: space-between;
+            font-family: var(--font-mono); font-size: 9px;
+            color: var(--neon-cyan); letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .brand-area { display: flex; align-items: baseline; gap: 8px; }
+        .brand-area h2 { margin: 0; font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+        .brand-area .tag { font-size: 10px; color: var(--neon-pink); font-family: var(--font-mono); font-weight: 700; }
+
+        /* EDUKASI PANEL (SYSTEM DIRECTIVE) */
+        .edu-panel {
+            background: #0a0a0a; border-bottom: 1px solid #1a1a1a;
+            padding: 10px 20px; display: flex; gap: 10px; align-items: center;
+        }
+        .edu-badge { background: var(--neon-gold); color: #000; font-family: var(--font-mono); font-size: 8px; padding: 3px 6px; font-weight: 800; border-radius: 3px; }
+        .edu-text { font-family: var(--font-mono); font-size: 9px; color: #aaa; flex: 1; min-height: 24px; display: flex; align-items: center; line-height: 1.4; }
+
+        /* MISSION CARD */
+        .mission-panel {
+            margin: 15px 20px 10px; padding: 15px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-ui);
+            border-radius: 12px;
+            position: relative;
+        }
+
+        .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .label { font-size: 9px; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 4px; display: block; font-weight: 700; }
+        .value { font-size: 13px; font-weight: 800; color: #eee; font-family: var(--font-mono); }
+        .value.gold { color: var(--neon-gold); }
+
+        /* RADAR SECTION */
+        .radar-box {
+            height: 100px; position: relative;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-bottom: 1px dashed var(--border-ui); margin-bottom: 10px;
+        }
+
+        .radar-circle {
+            position: absolute; width: 30px; height: 30px;
+            border: 1px solid var(--neon-cyan); border-radius: 50%;
+            animation: ripple 3s linear infinite;
+        }
+        .radar-circle:nth-child(2) { animation-delay: 1s; }
+        .radar-circle:nth-child(3) { animation-delay: 2s; }
+
+        /* LIST AREA */
+        #applicantList { 
+            flex: 1; overflow-y: auto; padding: 0 20px 120px;
+            scroll-behavior: smooth;
+        }
+
+        .card-adv {
+            background: #111; border-radius: 12px; padding: 16px;
+            margin-bottom: 12px; border: 1px solid #1a1a1a;
+            display: flex; justify-content: space-between; align-items: center;
+            animation: slide-up 0.4s ease-out;
+            position: relative;
+        }
+
+        .card-adv.featured { border-color: var(--neon-gold); background: #151510; }
+
+        .adv-profile { display: flex; flex-direction: column; gap: 4px; }
+        .adv-nick { font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); }
+        .badge-pro { 
+            background: var(--neon-gold); color: #000; font-size: 8px; 
+            padding: 2px 6px; border-radius: 4px; font-weight: 800; font-family: var(--font-main);
+        }
+        
+        .adv-stat { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+        .adv-price { font-size: 15px; font-weight: 800; color: var(--neon-cyan); margin-top: 5px; font-family: var(--font-mono); }
+
+        .btn-hire {
+            background: #fff; color: #000; border: none; font-family: var(--font-mono);
+            padding: 12px 18px; border-radius: 8px; letter-spacing: 1px;
+            font-weight: 800; font-size: 11px; transition: 0.2s; cursor: pointer;
+        }
+        .btn-hire:active { transform: scale(0.95); background: var(--neon-cyan); }
+
+        /* CUSTOM SNACKBAR */
+        #snackbar {
+            position: fixed; bottom: 100px; left: 20px; right: 20px;
+            background: #fff; color: #000; padding: 15px 20px;
+            border-radius: 12px; font-weight: 700; font-size: 13px; font-family: var(--font-mono);
+            display: none; align-items: center; justify-content: space-between;
+            z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        /* SYSTEM FOOTER */
+        footer {
+            position: fixed; bottom: 0; width: 100%;
+            background: linear-gradient(to top, #000 70%, transparent);
+            padding: 20px; z-index: 100;
+        }
+
+        .cash-info {
+            text-align: center; font-size: 9px; color: var(--text-muted);
+            margin-bottom: 12px; font-family: var(--font-mono);
+            letter-spacing: 0.5px;
+        }
+
+        .btn-abort {
+            width: 100%; background: #111; border: 1px solid #333; font-family: var(--font-mono);
+            color: #ff4444; padding: 14px; border-radius: 10px;
+            font-weight: 800; font-size: 12px; letter-spacing: 1px;
+            cursor: pointer;
+        }
+        .btn-abort:active { background: #330000; border-color: #ff0000; }
+
+        /* FULL SCREEN OVERLAY */
+        #loadingOverlay {
+            position: fixed; inset: 0; background: #000; z-index: 20000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+    <div id="loadingOverlay">
+        <div style="width: 40px; height: 40px; border: 2px solid #222; border-top-color: var(--neon-pink); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <p id="overlayText" style="font-family: var(--font-mono); font-size: 10px; margin-top: 20px; color: #444; letter-spacing: 1px;">INITIALIZING ENCRYPTION...</p>
+    </div>
+
+    <header>
+        <div class="system-status">
+            <span id="sysClock">00:00:00</span>
+            <span id="netStatus" style="animation: pulse-cyan 1s infinite;">● SECURE_LINK</span>
+        </div>
+        <div class="brand-area">
+            <h2>LOBBY</h2>
+            <span class="tag">TERMINAL_SYNC</span>
+        </div>
+    </header>
+
+    <div class="edu-panel">
+        <div class="edu-badge">TIPS</div>
+        <div class="edu-text" id="eduText">Memuat instruksi sistem...</div>
+    </div>
+
+    <div class="mission-panel">
+        <div class="panel-grid">
+            <div>
+                <span class="label">MISSION_ID</span>
+                <span id="mIdDisplay" class="value">---</span>
+            </div>
+            <div style="text-align: right;">
+                <span class="label">CASH_REWARD</span>
+                <span id="priceDisplay" class="value gold">Rp 0</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="radar-box">
+        <div class="radar-circle"></div>
+        <div class="radar-circle"></div>
+        <div class="radar-circle"></div>
+        <div id="liveCount" style="font-family: var(--font-mono); font-size: 10px; z-index: 5; color: var(--neon-cyan); letter-spacing: 1px; font-weight: 700;">PULSING TERMINAL...</div>
+    </div>
+
+    <div id="applicantList">
+    </div>
+
+    <div id="snackbar">
+        <span id="snackText">PESAN SISTEM</span>
+        <button onclick="document.getElementById('snackbar').style.display='none'" style="background:none; border:none; font-weight:900; font-family:var(--font-mono); cursor:pointer;">OK</button>
+    </div>
+
+    <footer>
+        <div class="cash-info">PENGGUNAAN TUNAI | HARGA TERKUNCI SAAT DEAL</div>
+        <button class="btn-abort" onclick="Core.confirmAbort()">ABORT MISSION / BATALKAN</button>
+    </footer>
+
+<script>
+    // --- DATABASE CONFIGURATION ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // --- EDUKASI SYSTEM ---
+    const EduSystem = {
+        tips: [
+            "Harga yang telah disepakati ('Hire') tidak dapat diubah lagi. Pastikan sesuai.",
+            "Aplikasi hanya papan buletin/fasilitator. Segala risiko di lapangan adalah tanggung jawab personal.",
+            "Prioritaskan Adventurer dengan Badge [PRO] atau EXP Quest tinggi untuk keamanan ekstra.",
+            "Saat masuk ruang Briefing, ikuti instruksi Asisten Virtual sebelum menyerahkan barang/berangkat.",
+            "Negosiasi harga otomatis dibatalkan jika Anda menekan tombol ABORT."
+        ],
+        index: 0,
+        start() {
+            const el = document.getElementById('eduText');
+            this.rotate(el);
+            setInterval(() => this.rotate(el), 7000); // Ganti tips setiap 7 detik
+        },
+        rotate(el) {
+            el.style.animation = 'none';
+            void el.offsetWidth; // Trigger reflow
+            el.innerText = this.tips[this.index];
+            el.style.animation = 'fade-in-out 7s infinite';
+            this.index = (this.index + 1) % this.tips.length;
+        }
+    };
+
+    // --- ENGINE CORE ---
+    const Core = {
+        mId: localStorage.getItem('active_mission_id'),
+        server: localStorage.getItem('active_mission_server'),
+        knownBids: new Set(),
+
+        init() {
+            if(!this.mId || !this.server) { 
+                window.location.href = "index.html"; 
+                return; 
+            }
+            
+            this.setupUI();
+            this.maskNative();
+            this.listenMission();
+            this.listenTerminalBids();
+            EduSystem.start(); // Jalankan sistem edukasi
+            
+            setTimeout(() => {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }, 1500);
+        },
+
+        setupUI() {
+            document.getElementById('mIdDisplay').innerText = this.mId.substring(0, 10).toUpperCase() + "...";
+            setInterval(() => {
+                const now = new Date();
+                document.getElementById('sysClock').innerText = now.toLocaleTimeString('id-ID');
+            }, 1000);
+        },
+
+        maskNative() {
+            document.addEventListener('touchstart', (e) => {
+                if (e.touches.length > 1) e.preventDefault();
+            }, { passive: false });
+
+            window.showToast = (msg) => {
+                const s = document.getElementById('snackbar');
+                document.getElementById('snackText').innerText = msg;
+                s.style.display = 'flex';
+                if(navigator.vibrate) navigator.vibrate(50);
+                setTimeout(() => s.style.display = 'none', 4000);
+            };
+        },
+
+        listenMission() {
+            db.ref(`missions/${this.server}/${this.mId}`).on('value', snap => {
+                if(!snap.exists()) return;
+                const m = snap.val();
+                
+                document.getElementById('priceDisplay').innerText = "Rp " + (m.reward || 0).toLocaleString('id-ID');
+                
+                // MENGIRIM PARAMETER ROLE KE BRIEFING
+                if(m.status === "briefing") {
+                    window.location.href = `briefing.html?mId=${this.mId}&role=requester`;
+                }
+            });
+        },
+
+        listenTerminalBids() {
+            db.ref(`active_bids/${this.mId}`).on('value', snap => {
+                const list = document.getElementById('applicantList');
+                const countText = document.getElementById('liveCount');
+                
+                if(!snap.exists()) {
+                    list.innerHTML = `<div style="text-align:center; color:#444; margin-top:50px; font-family:var(--font-mono); font-size:10px; letter-spacing:1px;">MENCARI ADVENTURER...</div>`;
+                    countText.innerText = "NO SIGNAL DETECTED";
+                    return;
+                }
+
+                let html = "";
+                let count = 0;
+
+                snap.forEach(child => {
+                    const advId = child.key;
+                    const b = child.val();
+                    count++;
+
+                    const isPro = (b.completed_quests || 0) >= 3;
+                    const price = b.offer_price || 0;
+
+                    html += `
+                        <div class="card-adv ${isPro ? 'featured' : ''}">
+                            <div class="adv-profile">
+                                <div class="adv-nick">
+                                    ${b.nick || 'AGENT'} 
+                                    ${isPro ? '<span class="badge-pro">PRO</span>' : ''}
+                                </div>
+                                <div class="adv-stat">EXP: ${b.completed_quests || 0} QUESTS | ⭐ 5.0</div>
+                                <div class="adv-price">Rp ${price.toLocaleString('id-ID')}</div>
+                            </div>
+                            <button class="btn-hire" onclick="Core.hire('${advId}', '${b.nick}')">HIRE</button>
+                        </div>
+                    `;
+
+                    if(!this.knownBids.has(advId)) {
+                        this.knownBids.add(advId);
+                        this.playBeep();
+                    }
+                });
+
+                list.innerHTML = html;
+                countText.innerText = count + " ADVENTURERS DETECTED";
+            });
+        },
+
+        async hire(advId, nick) {
+            if(!confirm(`Kunci kontrak dengan ${nick}?\nSesuai sistem, harga tidak dapat diubah setelah ini.`)) return;
+            
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'flex';
+            document.getElementById('overlayText').innerText = "LOCKING CONTRACT & SENDING SIGNAL...";
+
+            try {
+                // UPDATE KEDUA FOLDER AGAR SINKRON
+                // 1. Update status Adventurer di active_bids agar HP Adventurer bunyi
+                await db.ref(`active_bids/${this.mId}/${advId}`).update({ status: "selected" });
+                
+                // 2. Update status misi utama
+                await db.ref(`missions/${this.server}/${this.mId}`).update({
+                    selected_adventurer: nick,
+                    selected_adv_id: advId,
+                    status: "briefing" // Memicu perpindahan halaman di listenMission()
+                });
+                
+            } catch (e) {
+                overlay.style.display = 'none';
+                showToast("SYNC ERROR: KONTRAK GAGAL DIKUNCI");
+            }
+        },
+
+        async confirmAbort() {
+            if(!confirm("HENTIKAN MISI?\nSemua penawaran akan ditolak dan data ditarik mundur dari jaringan.")) return;
+            
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'flex';
+            document.getElementById('overlayText').innerText = "WIPING DATA FROM SERVER...";
+
+            try {
+                // DOUBLE WIPE: Membersihkan misi dan semua lamaran yang tertinggal
+                const wipeMission = db.ref(`missions/${this.server}/${this.mId}`).remove();
+                const wipeTerminal = db.ref(`active_bids/${this.mId}`).remove();
+                
+                await Promise.all([wipeMission, wipeTerminal]);
+
+                localStorage.removeItem('active_mission_id');
+                window.location.href = "index.html"; 
+            } catch (e) {
+                overlay.style.display = 'none';
+                showToast("ABORT FAILED: SERVER REJECTED");
+            }
+        },
+
+        playBeep() {
+            try {
+                const actx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = actx.createOscillator();
+                const g = actx.createGain();
+                osc.connect(g); g.connect(actx.destination);
+                osc.frequency.value = 800; g.gain.value = 0.1;
+                osc.start(); osc.stop(actx.currentTime + 0.1);
+                
+                if(navigator.vibrate) navigator.vibrate([40, 30, 40]);
+            } catch(e){}
+        }
+    };
+
+    window.onload = () => Core.init();
+    window.addEventListener('online', () => showToast("SYSTEM: SIGNAL RECOVERED"));
+    window.addEventListener('offline', () => showToast("WARNING: SIGNAL LOST"));
+
+</script>
+</body>
+</html>
