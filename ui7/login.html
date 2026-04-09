@@ -1,160 +1,57 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PICK ME | TERMINAL ACCESS</title>
-    
+    <title>PICK ME | LOGIN</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
     <style>
-        :root {
-            --neon-pink: #ff0055;
-            --neon-cyan: #00ffff;
-            --bg-main: #050505;
-            --bg-card: #0a0a0a;
-            --border-color: #222;
-            --text-main: #fff;
-            --font-terminal: 'Courier New', Courier, monospace;
-        }
-
-        body { 
-            background-color: var(--bg-main); 
-            color: var(--text-main); 
-            margin: 0; 
-            font-family: 'Segoe UI', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-
-        .login-box {
-            width: 90%;
-            max-width: 400px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            text-align: center;
-        }
-
-        .input-group { margin-bottom: 20px; text-align: left; }
-        label { display: block; font-family: var(--font-terminal); font-size: 11px; color: #888; margin-bottom: 8px; }
-        
-        .input-field {
-            width: 100%; background: #111; border: 1px solid var(--border-color);
-            color: #fff; padding: 12px; border-radius: 4px; font-size: 16px;
-            box-sizing: border-box;
-        }
-        .input-field:focus { border-color: var(--neon-pink); outline: none; }
-
-        .btn-login {
-            width: 100%; padding: 15px; background: var(--neon-pink);
-            color: #fff; border: none; border-radius: 4px; cursor: pointer;
-            font-family: var(--font-terminal); font-weight: bold; letter-spacing: 2px;
-            margin-top: 10px;
-        }
-
-        .btn-login:disabled { background: #444; cursor: not-allowed; }
-
-        .glitch-text {
-            font-size: 24px; font-weight: 900; letter-spacing: 5px; margin-bottom: 5px;
-            color: var(--neon-pink); text-shadow: 2px 2px var(--neon-cyan);
-        }
+        body { background: #050505; color: white; text-align: center; padding-top: 50px; font-family: sans-serif; }
+        .login-box { width: 300px; margin: auto; background: #111; padding: 30px; border: 1px solid #222; }
+        input { width: 100%; padding: 10px; margin: 10px 0; background: #000; border: 1px solid #333; color: white; }
+        button { width: 100%; padding: 10px; background: #00ffff; color: #000; font-weight: bold; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
-
-<div class="login-box">
-    <div class="glitch-text">ACCESS</div>
-    <p style="font-size: 10px; color: var(--neon-cyan); margin-bottom: 30px; font-family: var(--font-terminal);">ENTER ADVENTURER CREDENTIALS</p>
-
-    <div class="input-group">
-        <label>CODENAME / NICKNAME</label>
-        <input type="text" id="loginNick" class="input-field" placeholder="your_nick" autocomplete="off">
+    <div class="login-box">
+        <h2 style="color:#ff0055">LOGIN TERMINAL</h2>
+        <input type="text" id="logNick" placeholder="Nickname">
+        <input type="password" id="logPass" placeholder="Password">
+        <button onclick="login()">ENTER SYSTEM</button>
+        <br><br>
+        <a href="register.html" style="color:#888; font-size:12px">Banyak pendaftar? Klik Registrasi</a>
     </div>
 
-    <div class="input-group">
-        <label>ENCRYPTION KEY (PASSWORD)</label>
-        <input type="password" id="loginPass" class="input-field" placeholder="••••••••">
-    </div>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
-    <button class="btn-login" id="btnLogin" onclick="attemptLogin()">AUTHORIZE LOGIN</button>
-    
-    <p style="margin-top: 25px; font-size: 11px; color: #555;">
-        Not registered? <a href="index.html" style="color: var(--neon-cyan); text-decoration: none;">Apply to Guild</a>
-    </p>
-</div>
+        async function login() {
+            const nick = document.getElementById('logNick').value;
+            const pass = document.getElementById('logPass').value;
 
-<script>
-    // 1. CONFIG FIREBASE
-    const firebaseConfig = {
-        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
-        authDomain: "ojeklokal-42b84.firebaseapp.com",
-        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "ojeklokal-42b84"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    async function attemptLogin() {
-        const btn = document.getElementById('btnLogin');
-        const nick = document.getElementById('loginNick').value.toLowerCase().trim();
-        const pass = document.getElementById('loginPass').value;
-
-        if(!nick || !pass) return alert("Fill all fields!");
-
-        btn.innerText = "AUTHENTICATING...";
-        btn.disabled = true;
-
-        try {
-            // STEP 1: Cari Shard/Server Adventurer di Gateway
-            const lookupSnap = await db.ref(`gateway/adventurers_lookup/${nick}`).once('value');
+            const snap = await db.ref(`users_registry/${nick}`).get();
             
-            if(!lookupSnap.exists()) {
-                throw new Error("Codename not found in Guild records!");
-            }
-
-            const serverId = lookupSnap.val().server;
-
-            // STEP 2: Ambil Data Full dari Shard Tersebut
-            const userSnap = await db.ref(`identity_adventurer/${serverId}/${nick}`).once('value');
-            const userData = userSnap.val();
-
-            // STEP 3: Verifikasi Password
-            if(userData.security.password === pass) {
-                // Berhasil Login!
-                // Simpan Sesi di Browser (Sangat dasar, hanya untuk demo)
-                const sessionData = {
-                    nick: nick,
-                    server: serverId,
-                    name: userData.profile.name,
-                    status: userData.stats.status,
-                    loginTime: Date.now()
-                };
-                localStorage.setItem('pickme_session', JSON.stringify(sessionData));
-
-                alert("ACCESS GRANTED! Welcome back, " + nick);
-                window.location.href = "dashboard.html";
+            if(snap.exists() && snap.val().password === pass) {
+                const userData = snap.val();
+                userData.nick = nick; // Tambahkan nick ke objek session
+                
+                // Simpan session ke LocalStorage
+                localStorage.setItem('pickme_session', JSON.stringify(userData));
+                
+                alert("Login Sukses! Mengarahkan ke Shard...");
+                
+                // DISINI LOGIKA ROUTER NANTI:
+                // Sementera kita lempar ke dashboard standar, 
+                // tapi kedepannya akan ke dashboard_[shard_id].html
+                window.location.href = "router.html"; 
             } else {
-                throw new Error("Invalid Encryption Key (Password)!");
+                alert("Akun tidak ditemukan atau password salah!");
             }
-
-        } catch (e) {
-            alert(e.message);
-            btn.innerText = "AUTHORIZE LOGIN";
-            btn.disabled = false;
         }
-    }
-
-    // Biarkan user menekan "Enter" untuk login
-    document.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') attemptLogin();
-    });
-</script>
-
+    </script>
 </body>
 </html>
