@@ -1,15 +1,33 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
+    <meta charset="UTF-8">
     <title>ADMIN | GUILD VERIFICATION</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; padding: 20px; }
+        h2 { color: #00ffff; border-bottom: 2px solid #222; padding-bottom: 10px; }
+        .row { 
+            background: #111; border: 1px solid #333; padding: 15px; 
+            margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .info b { color: #ff0055; }
+        .info i { color: #888; font-size: 12px; }
+        button { 
+            background: #00ff00; color: #000; border: none; padding: 10px 20px; 
+            font-weight: bold; cursor: pointer; border-radius: 4px;
+        }
+        button:hover { background: #00cc00; }
+    </style>
 </head>
-<body style="background:#111; color:white; font-family:monospace; padding:20px;">
-    <h2>LIST PENDAFTAR PENDING</h2>
-    <div id="pendingList"></div>
+<body>
+
+    <h2>PENDING APPROVAL LIST</h2>
+    <div id="pendingList">Memuat antrean pendaftaran...</div>
 
     <script>
+        // CONFIG MASTER (Pastikan ini mengarah ke Firebase Utama Anda)
         const firebaseConfig = {
             apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
             databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -17,34 +35,69 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
+        // 1. Monitor data pendaftaran_pending secara real-time
         db.ref('pendaftaran_pending').on('value', snap => {
-            const div = document.getElementById('pendingList');
-            div.innerHTML = "";
+            const listDiv = document.getElementById('pendingList');
+            listDiv.innerHTML = "";
+
+            if(!snap.exists()) {
+                listDiv.innerHTML = "<p style='color:#444'>Tidak ada pendaftar baru.</p>";
+                return;
+            }
+
             snap.forEach(child => {
                 const u = child.val();
-                div.innerHTML += `
-                    <div style="border:1px solid #333; padding:10px; margin-bottom:5px; display:flex; justify-content:space-between;">
-                        <span>${u.nick} -> ${u.shard_id}</span>
-                        <button onclick="verifyUser('${u.nick}')">APPROVE</button>
+                listDiv.innerHTML += `
+                    <div class="row">
+                        <div class="info">
+                            <b>${u.nick.toUpperCase()}</b><br>
+                            <i>Shard: ${u.shard_id}</i>
+                        </div>
+                        <button onclick="verifyUser('${u.nick}')">APPROVE ADVENTURER</button>
                     </div>
                 `;
             });
         });
 
+        // 2. LOGIKA VERIFIKASI (Yang Anda tanyakan)
         async function verifyUser(nick) {
-            const snap = await db.ref(`pendaftaran_pending/${nick}`).get();
+            if(!confirm("Terima " + nick + " sebagai Adventurer resmi?")) return;
+
+            const pendingRef = db.ref(`pendaftaran_pending/${nick}`);
+            const snap = await pendingRef.get();
+            
+            if(!snap.exists()) return alert("Data sudah tidak ada atau sudah di-approve!");
+            
             const data = snap.val();
+            const shardId = data.shard_id;
 
-            // Pindahkan ke Registry Utama (Router akan membaca ini)
-            await db.ref(`users_registry/${nick}`).set({
-                password: data.password,
-                shard_id: data.shard_id,
-                role: "adventurer"
-            });
+            try {
+                // PROSES A: Buat entri di Registry Utama (Data Login Global)
+                await db.ref(`users_registry/${nick}`).set({
+                    password: data.password,
+                    shard_id: shardId,
+                    role: "adventurer",
+                    status: "active"
+                });
 
-            // Hapus dari daftar tunggu
-            await db.ref(`pendaftaran_pending/${nick}`).remove();
-            alert(nick + " AKTIF!");
+                // PROSES B: Buat Profil Permanen Wilayah (Data Statistik Kerja)
+                const shardTablePath = `adventurer-${shardId.toLowerCase()}`;
+                await db.ref(`${shardTablePath}/${nick}`).set({
+                    nick: nick,
+                    rating: 5.0,
+                    level: 1,
+                    exp: 0,
+                    vitality: 100,
+                    joined_at: Date.now()
+                });
+
+                // PROSES C: Hapus dari antrean pendaftaran_pending
+                await pendingRef.remove();
+
+                alert(`BERHASIL!\n${nick} sekarang aktif di wilayah ${shardId}.`);
+            } catch (e) {
+                alert("Gagal melakukan verifikasi: " + e.message);
+            }
         }
     </script>
 </body>
