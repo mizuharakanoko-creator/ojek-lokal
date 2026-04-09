@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#050505">
+    <title>PICK ME | GUILD RECEPTION</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --neon-warn: #ffcc00;
+            --neon-alert: #ff3333;
+            --bg-main: #050505;
+            --bg-card: #0a0a0a;
+            --border-color: #222;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+
+        /* Anti-Select & Iron Cage Setup */
+        * { user-select: none; -webkit-user-select: none; box-sizing: border-box; outline: none; margin: 0; padding: 0; }
+        
+        body { 
+            background-color: var(--bg-main); color: #fff; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            overflow: hidden; /* No Scroll UI */
+            height: 100vh; width: 100vw; display: flex; flex-direction: column;
+        }
+
+        /* CRT Scanline Overlay */
+        body::after {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+
+        /* Top Bar Monitors */
+        .sys-monitor {
+            display: flex; justify-content: space-between; padding: 5px 10px;
+            background: #000; border-bottom: 1px solid var(--border-color);
+            font-family: var(--font-terminal); font-size: 9px; color: var(--neon-cyan);
+            z-index: 10; position: relative;
+        }
+
+        /* Main Container */
+        .container {
+            flex: 1; overflow-y: auto; padding: 15px; position: relative; z-index: 10;
+            max-width: 500px; margin: 0 auto; width: 100%;
+            padding-bottom: 80px;
+        }
+
+        .header { text-align: center; margin-bottom: 15px; position: relative; border-bottom: 1px solid var(--neon-cyan); padding-bottom: 10px; }
+        .header h1 { font-family: var(--font-terminal); font-size: 16px; color: #fff; letter-spacing: 2px; }
+        .shift-badge { position: absolute; top: 0; right: 0; font-size: 9px; border: 1px solid var(--neon-pink); padding: 2px 5px; color: var(--neon-pink); }
+
+        /* Receptionist Chat UI */
+        .chat-container {
+            background: #111; border: 1px solid #333; border-radius: 6px;
+            padding: 10px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px;
+        }
+        
+        .msg-box { display: flex; gap: 10px; opacity: 0; transition: opacity 0.3s ease; }
+        .msg-box.visible { opacity: 1; }
+        .avatar {
+            width: 35px; height: 35px; min-width: 35px; border: 1px solid;
+            display: flex; justify-content: center; align-items: center;
+            font-family: var(--font-terminal); font-size: 10px; font-weight: bold; background: #000;
+        }
+        .avatar.friendly { border-color: var(--neon-cyan); color: var(--neon-cyan); }
+        .avatar.tactical { border-color: var(--neon-pink); color: var(--neon-pink); }
+        .msg-content { background: #000; border: 1px solid #222; padding: 8px; border-radius: 4px; font-size: 12px; flex: 1; color: #ccc; font-family: var(--font-terminal); line-height: 1.4; }
+        .msg-name { font-size: 9px; font-weight: bold; margin-bottom: 4px; }
+        .msg-name.friendly { color: var(--neon-cyan); }
+        .msg-name.tactical { color: var(--neon-pink); }
+
+        /* Mission Details Box */
+        .data-card {
+            background: var(--bg-card); border: 1px dashed #444;
+            padding: 15px; border-radius: 4px; margin-bottom: 15px;
+        }
+        .data-row { margin-bottom: 10px; }
+        .data-label { font-family: var(--font-terminal); font-size: 10px; color: #666; display: block; }
+        .data-val { font-size: 14px; font-weight: bold; color: #fff; display: block; margin-top: 2px; }
+        .data-val.reward { color: var(--neon-warn); font-size: 18px; font-family: var(--font-terminal); }
+        
+        .crypto-text { font-family: var(--font-terminal); color: var(--neon-cyan); }
+
+        /* Legal Disclaimer Box */
+        .legal-box {
+            background: rgba(255, 0, 85, 0.05); border-left: 3px solid var(--neon-pink);
+            padding: 12px; margin-bottom: 20px; font-size: 10px; color: #aaa;
+            font-family: var(--font-terminal); line-height: 1.5;
+            text-align: justify;
+        }
+
+        /* Action Buttons Area */
+        .action-area { text-align: center; }
+        .btn-action {
+            width: 100%; padding: 15px; border: none; font-weight: 900; cursor: pointer;
+            font-family: var(--font-terminal); font-size: 14px; border-radius: 4px;
+            transition: 0.2s; margin-bottom: 10px;
+        }
+        .btn-accept { background: var(--neon-cyan); color: #000; box-shadow: 0 0 10px rgba(0, 255, 255, 0.2); }
+        .btn-accept:active { transform: scale(0.98); background: #00cccc; }
+        .btn-abort { background: transparent; border: 1px solid var(--neon-alert); color: var(--neon-alert); }
+        .btn-abort:active { background: var(--neon-alert); color: #fff; }
+
+        .status-badge { font-family: var(--font-terminal); font-size: 11px; padding: 15px; border: 1px dashed #444; color: #888; animation: pulse 2s infinite; }
+
+        /* Full Screen Glitch Overlay for Abort */
+        #glitchOverlay {
+            position: fixed; inset: 0; background: #000; z-index: 99999;
+            display: none; justify-content: center; align-items: center; flex-direction: column;
+        }
+        .glitch-text { font-family: var(--font-terminal); color: var(--neon-alert); font-size: 24px; font-weight: bold; animation: glitch 0.2s infinite; }
+
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="sys-monitor">
+    <span id="pingMonitor">PING: 0ms</span>
+    <span id="timeMonitor">00:00:00</span>
+    <span id="battMonitor">BATT: --%</span>
+</div>
+
+<div class="container">
+    <div class="header">
+        <h1>GUILD RECEPTION</h1>
+        <div class="shift-badge" id="shiftBadge">SHIFT: DETECTING...</div>
+    </div>
+
+    <div class="chat-container" id="chatArea">
+        </div>
+
+    <div class="data-card">
+        <div class="data-row">
+            <span class="data-label">REQUESTER ID</span>
+            <span class="data-val" id="dReq">LOADING...</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">REWARD OFFER</span>
+            <span class="data-val reward" id="dReward">Rp 0</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">COORDINATE LATCH (PICKUP)</span>
+            <span class="data-val crypto-text" id="dPickup">DECRYPTING_HASH...</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">MISSION DIRECTIVE</span>
+            <span class="data-val" id="dDesc" style="font-size: 13px; font-weight: normal;">...</span>
+        </div>
+    </div>
+
+    <div class="legal-box">
+        <strong>PROTOKOL HUBUNGAN MANDIRI:</strong><br>
+        Aplikasi Pick Me hanyalah media papan informasi digital. Segala bentuk kesepakatan, transaksi, dan tindakan yang terjadi di lapangan adalah hasil kesepakatan sukarela antara Requester dan Adventurer tanpa paksaan sistem. Kami tidak bertanggung jawab atas segala konsekuensi operasional.
+    </div>
+
+    <div class="action-area" id="actionCenter">
+        <div class="status-badge">MENUNGGU SINKRONISASI SERVER...</div>
+    </div>
+</div>
+
+<div id="glitchOverlay">
+    <div class="glitch-text">MISSION ABORTED</div>
+    <div style="color:#aaa; font-family:var(--font-terminal); font-size:12px; margin-top:10px;">SEVERING CONNECTION...</div>
+</div>
+
+<script>
+// --- ANTI-BACK (IRON CAGE PROTOCOL) ---
+history.pushState(null, null, location.href);
+window.onpopstate = function () {
+    history.go(1);
+};
+
+// --- FIREBASE CONFIG ---
+const firebaseConfig = {
+    apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+    authDomain: "ojeklokal-42b84.firebaseapp.com",
+    databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "ojeklokal-42b84"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// --- SYSTEM PARAMS & ROLE DETECTION ---
+const urlParams = new URLSearchParams(window.location.search);
+const mId = urlParams.get('mId');
+const role = urlParams.get('role'); // 'requester' or 'adventurer'
+// Membaca path dari URL (Adventurer) atau dari LocalStorage (Requester)
+const mPath = urlParams.get('path') || localStorage.getItem('active_mission_shard');
+
+// --- RECEPTIONIST SHIFT LOGIC ---
+const currentHour = new Date().getHours();
+const isDayShift = currentHour >= 6 && currentHour < 18;
+
+const staff1 = isDayShift ? { name: "ARIA", type: "friendly", short: "AR" } : { name: "TESSIA", type: "friendly", short: "TS" };
+const staff2 = isDayShift ? { name: "AMY", type: "tactical", short: "AM" } : { name: "SERIS", type: "tactical", short: "SR" };
+
+document.getElementById('shiftBadge').innerText = isDayShift ? "SHIFT: DAY (06-18)" : "SHIFT: NIGHT (18-06)";
+
+// --- AUDIO ZERO-ENGINE ---
+const AudioEngine = {
+    ctx: new (window.AudioContext || window.webkitAudioContext)(),
+    play: function(type) {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        
+        if(type === 'type') {
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(800 + Math.random()*200, this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+            osc.start(); osc.stop(this.ctx.currentTime + 0.02);
+        } else if (type === 'alert') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+            osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+        } else if (type === 'success') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+            osc.start(); osc.stop(this.ctx.currentTime + 0.15);
+        }
+    }
+};
+
+// --- HAPTIC ENGINE ---
+function vibrate(pattern) {
+    if ("vibrate" in navigator) navigator.vibrate(pattern);
+}
+
+// --- SYSTEM MONITORS (20+ FEATURES) ---
+function startMonitors() {
+    setInterval(() => {
+        const now = new Date();
+        document.getElementById('timeMonitor').innerText = now.toLocaleTimeString('id-ID');
+        document.getElementById('pingMonitor').innerText = `PING: ${Math.floor(Math.random() * 30 + 10)}ms`;
+    }, 1000);
+
+    if (navigator.getBattery) {
+        navigator.getBattery().then(batt => {
+            const updateBatt = () => document.getElementById('battMonitor').innerText = `BATT: ${Math.floor(batt.level * 100)}%`;
+            updateBatt();
+            batt.addEventListener('levelchange', updateBatt);
+        });
+    }
+}
+
+// --- VISUAL TEXT EFFECTS ---
+async function typewriterEffect(elementId, text, speed = 30) {
+    const el = document.getElementById(elementId);
+    el.innerHTML = "";
+    for(let i = 0; i < text.length; i++) {
+        el.innerHTML += text.charAt(i);
+        if(i % 3 === 0) { AudioEngine.play('type'); vibrate([10]); }
+        await new Promise(r => setTimeout(r, speed));
+    }
+}
+
+async function decryptText(elementId, finalText) {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*";
+    const el = document.getElementById(elementId);
+    let iterations = 0;
+    const interval = setInterval(() => {
+        el.innerText = finalText.split('').map((c, i) => {
+            if(i < iterations) return finalText[i];
+            return chars[Math.floor(Math.random() * chars.length)];
+        }).join('');
+        if(iterations >= finalText.length) {
+            clearInterval(interval);
+            el.classList.remove('crypto-text');
+        }
+        iterations += 1/3;
+    }, 30);
+}
+
+// --- CHAT INJECTION SYSTEM ---
+let chatCount = 0;
+async function injectChat(staff, message) {
+    const chatArea = document.getElementById('chatArea');
+    const msgId = "msgText_" + chatCount++;
+    
+    const html = `
+        <div class="msg-box" id="box_${msgId}">
+            <div class="avatar ${staff.type}">[${staff.short}]</div>
+            <div class="msg-content">
+                <div class="msg-name ${staff.type}">${staff.name}</div>
+                <div id="${msgId}"></div>
+            </div>
+        </div>
+    `;
+    chatArea.innerHTML += html;
+    
+    // Animate Box Fade In
+    setTimeout(() => { document.getElementById(`box_${msgId}`).classList.add('visible'); }, 50);
+    
+    // Animate Typing
+    await typewriterEffect(msgId, message, 20);
+}
+
+// --- CORE LOGIC ---
+function init() {
+    startMonitors();
+
+    if(!mId || !mPath || !role) {
+        triggerAbortSequence("INVALID ACCESS CREDENTIALS. BOUNCING...", "index.html");
+        return;
+    }
+
+    const missionRef = db.ref(`missions/${mPath}/${mId}`);
+    
+    missionRef.on('value', (snap) => {
+        const m = snap.val();
+
+        // 1. Mission Not Found or Aborted
+        if(!m || m.status === 'aborted') {
+            triggerAbortSequence("KONTRAK DIBATALKAN ATAU TIDAK DITEMUKAN", role === 'adventurer' ? "dashboard.html" : "index.html");
+            return;
+        }
+
+        // 2. Data Decryption Simulation (First load only)
+        if(document.getElementById('dReq').innerText === "LOADING...") {
+            document.getElementById('dReq').innerText = m.requester_name;
+            document.getElementById('dReward').innerText = `Rp ${m.reward.toLocaleString('id-ID')}`;
+            document.getElementById('dDesc').innerText = m.description;
+            decryptText('dPickup', m.pickup_point);
+            
+            // Trigger AI Welcomes
+            setTimeout(() => injectChat(staff1, role === 'adventurer' ? `Info misi telah saya dekripsi. Silakan tinjau koordinat jemput, Adventurer.` : `Data Anda telah tayang di jaringan. Menunggu Adventurer menyetujui.`), 500);
+            setTimeout(() => injectChat(staff2, `Perhatian. Baca Protokol Hubungan Mandiri di layar utama. Sistem tidak mentoleransi pelanggaran.`), 3500);
+        }
+
+        // 3. UI Update based on Status
+        renderActionArea(m);
+
+        // 4. Redirect if Mission Progresses
+        if(m.status === 'on_progress') {
+            AudioEngine.play('success');
+            window.location.href = `mission_active.html?mId=${mId}&role=${role}&path=${mPath}`;
+        }
+    });
+}
+
+// --- ACTION BUTTONS CONTROLLER ---
+function renderActionArea(m) {
+    const area = document.getElementById('actionCenter');
+
+    if(role === 'requester') {
+        area.innerHTML = `
+            <div class="status-badge" style="margin-bottom:15px; color:var(--neon-cyan); border-color:var(--neon-cyan);">
+                ADVENTURER SEDANG MEMBACA KONTRAK...
+            </div>
+            <button class="btn-action btn-abort" onclick="abortMission()">[ TERMINATE REQUEST ]</button>
+        `;
+    } else if (role === 'adventurer') {
+        area.innerHTML = `
+            <button class="btn-action btn-accept" onclick="acceptMission()">SAYA SETUJU & AMBIL MISI</button>
+        `;
+    }
+}
+
+// --- DATABASE TRANSACTIONS ---
+async function acceptMission() {
+    AudioEngine.play('click');
+    vibrate([50, 50, 100]);
+    if(!confirm("Anda yakin menyetujui misi ini? Anda harus bertanggung jawab menyelesaikannya.")) return;
+
+    try {
+        document.getElementById('actionCenter').innerHTML = "<div class='status-badge'>MENYEGEL KONTRAK...</div>";
+        await db.ref(`missions/${mPath}/${mId}`).update({
+            status: "on_progress",
+            accepted_at: Date.now()
+        });
+    } catch (e) {
+        alert("Gagal mengunci kontrak. Sinyal terputus.");
+        init(); // reload ui
+    }
+}
+
+async function abortMission() {
+    AudioEngine.play('alert');
+    vibrate([100, 100, 200]);
+    if(!confirm("Peringatan: Hapus permintaan dari jaringan Guild? Tindakan ini tidak dapat dibatalkan.")) return;
+
+    try {
+        // Hapus dari DB, otomatis men-trigger listener .on('value') di HP Adventurer
+        await db.ref(`missions/${mPath}/${mId}`).update({ status: 'aborted' });
+        // Biarkan triggerAbortSequence dipanggil dari listener onValue
+    } catch(e) {
+        alert("Gagal membatalkan misi.");
+    }
+}
+
+function triggerAbortSequence(msg, targetPage) {
+    document.getElementById('glitchOverlay').style.display = "flex";
+    AudioEngine.play('alert');
+    vibrate([300]);
+    setTimeout(() => { window.location.href = targetPage; }, 2500);
+}
+
+// Start sequence when page loaded
+window.onload = () => {
+    // Required to unlock AudioContext on some browsers
+    document.body.addEventListener('click', () => { if(AudioEngine.ctx.state === 'suspended') AudioEngine.ctx.resume(); }, {once:true});
+    init();
+};
+</script>
+</body>
+</html>
