@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <title>ADMIN | VERIFY USER</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        body { background: #000; color: #fff; padding: 20px; font-family: monospace; }
+        .row { border-bottom: 1px solid #222; padding: 10px; display: flex; justify-content: space-between; }
+        button { background: #00ff00; border: none; padding: 5px 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>PENDING APPROVAL</h2>
+    <div id="listPending"></div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        db.ref('pendaftaran_pending').on('value', snap => {
+            const list = document.getElementById('listPending');
+            list.innerHTML = "";
+            snap.forEach(child => {
+                const u = child.val();
+                list.innerHTML += `
+                    <div class="row">
+                        <span>${u.nick} [${u.shard_id}]</span>
+                        <button onclick="approve('${u.nick}')">TERIMA</button>
+                    </div>
+                `;
+            });
+        });
+
+        async function approve(nick) {
+            const snap = await db.ref(`pendaftaran_pending/${nick}`).get();
+            const data = snap.val();
+
+            // 1. Masukkan ke Registry Utama
+            await db.ref(`users_registry/${nick}`).set({
+                password: data.password,
+                shard_id: data.shard_id,
+                role: "adventurer"
+            });
+
+            // 2. Hapus dari Pending
+            await db.ref(`pendaftaran_pending/${nick}`).remove();
+            alert(nick + " Berhasil diverifikasi!");
+        }
+    </script>
+</body>
+</html>
