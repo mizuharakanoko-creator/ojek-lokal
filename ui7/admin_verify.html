@@ -1,18 +1,13 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
-    <title>ADMIN | VERIFY USER</title>
+    <title>ADMIN | GUILD VERIFICATION</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    <style>
-        body { background: #000; color: #fff; padding: 20px; font-family: monospace; }
-        .row { border-bottom: 1px solid #222; padding: 10px; display: flex; justify-content: space-between; }
-        button { background: #00ff00; border: none; padding: 5px 10px; cursor: pointer; }
-    </style>
 </head>
-<body>
-    <h2>PENDING APPROVAL</h2>
-    <div id="listPending"></div>
+<body style="background:#111; color:white; font-family:monospace; padding:20px;">
+    <h2>LIST PENDAFTAR PENDING</h2>
+    <div id="pendingList"></div>
 
     <script>
         const firebaseConfig = {
@@ -23,33 +18,33 @@
         const db = firebase.database();
 
         db.ref('pendaftaran_pending').on('value', snap => {
-            const list = document.getElementById('listPending');
-            list.innerHTML = "";
+            const div = document.getElementById('pendingList');
+            div.innerHTML = "";
             snap.forEach(child => {
                 const u = child.val();
-                list.innerHTML += `
-                    <div class="row">
-                        <span>${u.nick} [${u.shard_id}]</span>
-                        <button onclick="approve('${u.nick}')">TERIMA</button>
+                div.innerHTML += `
+                    <div style="border:1px solid #333; padding:10px; margin-bottom:5px; display:flex; justify-content:space-between;">
+                        <span>${u.nick} -> ${u.shard_id}</span>
+                        <button onclick="verifyUser('${u.nick}')">APPROVE</button>
                     </div>
                 `;
             });
         });
 
-        async function approve(nick) {
+        async function verifyUser(nick) {
             const snap = await db.ref(`pendaftaran_pending/${nick}`).get();
             const data = snap.val();
 
-            // 1. Masukkan ke Registry Utama
+            // Pindahkan ke Registry Utama (Router akan membaca ini)
             await db.ref(`users_registry/${nick}`).set({
                 password: data.password,
                 shard_id: data.shard_id,
                 role: "adventurer"
             });
 
-            // 2. Hapus dari Pending
+            // Hapus dari daftar tunggu
             await db.ref(`pendaftaran_pending/${nick}`).remove();
-            alert(nick + " Berhasil diverifikasi!");
+            alert(nick + " AKTIF!");
         }
     </script>
 </body>
