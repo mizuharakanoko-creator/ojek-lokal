@@ -5,10 +5,10 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
-        body { background: #050505; color: white; text-align: center; padding-top: 50px; font-family: sans-serif; }
+        body { background: #050505; color: white; text-align: center; padding-top: 100px; font-family: sans-serif; }
         .login-box { width: 300px; margin: auto; background: #111; padding: 30px; border: 1px solid #222; }
-        input { width: 100%; padding: 10px; margin: 10px 0; background: #000; border: 1px solid #333; color: white; }
-        button { width: 100%; padding: 10px; background: #00ffff; color: #000; font-weight: bold; border: none; cursor: pointer; }
+        input { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #333; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #00ffff; color: #000; font-weight: bold; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -16,9 +16,8 @@
         <h2 style="color:#ff0055">LOGIN TERMINAL</h2>
         <input type="text" id="logNick" placeholder="Nickname">
         <input type="password" id="logPass" placeholder="Password">
-        <button onclick="login()">ENTER SYSTEM</button>
-        <br><br>
-        <a href="register.html" style="color:#888; font-size:12px">Banyak pendaftar? Klik Registrasi</a>
+        <button onclick="login()">MASUK</button>
+        <p style="font-size: 12px;"><a href="register.html" style="color: #555;">Daftar Akun Baru</a></p>
     </div>
 
     <script>
@@ -30,27 +29,35 @@
         const db = firebase.database();
 
         async function login() {
-            const nick = document.getElementById('logNick').value;
+            const nick = document.getElementById('logNick').value.trim().toLowerCase();
             const pass = document.getElementById('logPass').value;
 
-            const snap = await db.ref(`users_registry/${nick}`).get();
-            
-            if(snap.exists() && snap.val().password === pass) {
-                const userData = snap.val();
-                userData.nick = nick; // Tambahkan nick ke objek session
-                
-                // Simpan session ke LocalStorage
-                localStorage.setItem('pickme_session', JSON.stringify(userData));
-                
-                alert("Login Sukses! Mengarahkan ke Shard...");
-                
-                // DISINI LOGIKA ROUTER NANTI:
-                // Sementera kita lempar ke dashboard standar, 
-                // tapi kedepannya akan ke dashboard_[shard_id].html
-                window.location.href = "router.html"; 
-            } else {
-                alert("Akun tidak ditemukan atau password salah!");
+            // 1. Cek di Registry Utama (User Aktif)
+            const regSnap = await db.ref(`users_registry/${nick}`).get();
+            if(regSnap.exists()) {
+                if(regSnap.val().password === pass) {
+                    const userData = regSnap.val();
+                    userData.nick = nick;
+                    localStorage.setItem('pickme_session', JSON.stringify(userData));
+                    window.location.href = "router.html";
+                    return;
+                } else {
+                    return alert("Password salah!");
+                }
             }
+
+            // 2. Cek di Pending (User Belum di-Approve)
+            const pendingSnap = await db.ref(`pendaftaran_pending/${nick}`).get();
+            if(pendingSnap.exists()) {
+                if(pendingSnap.val().password === pass) {
+                    window.location.href = "waiting_room.html";
+                } else {
+                    alert("Password salah!");
+                }
+                return;
+            }
+
+            alert("Akun tidak ditemukan. Silakan daftar terlebih dahulu.");
         }
     </script>
 </body>
