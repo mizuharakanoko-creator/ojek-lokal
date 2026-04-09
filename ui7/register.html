@@ -2,57 +2,64 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JOIN GUILD | ADVENTURER REGISTER</title>
+    <title>JOIN GUILD | REGISTER</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; }
-        .box { max-width: 400px; margin: auto; background: #111; padding: 20px; border: 1px solid #222; }
+        body { background: #050505; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .box { width: 350px; background: #111; padding: 30px; border: 1px solid #222; border-radius: 8px; }
         input, select, button { width: 100%; padding: 12px; margin: 10px 0; box-sizing: border-box; background: #000; color: #fff; border: 1px solid #333; }
-        button { background: #ff0055; font-weight: bold; border: none; cursor: pointer; }
-        label { font-size: 12px; color: #888; }
+        button { background: #ff0055; font-weight: bold; border: none; cursor: pointer; transition: 0.3s; }
+        button:disabled { background: #444; }
+        label { font-size: 11px; color: #888; text-transform: uppercase; }
     </style>
 </head>
 <body>
     <div class="box">
-        <h2 style="color:#00ffff">REGISTRASI ADVENTURER</h2>
-        <label>NICKNAME</label>
-        <input type="text" id="regNick" placeholder="Ex: Astra">
+        <h2 style="color:#00ffff; margin-top: 0;">ADVENTURER REGISTER</h2>
+        <label>Nickname</label>
+        <input type="text" id="regNick" placeholder="Contoh: Astra">
         
-        <label>PASSWORD</label>
+        <label>Password</label>
         <input type="password" id="regPass" placeholder="******">
 
-        <label>WILAYAH TUGAS (SHARD)</label>
+        <label>Wilayah Tugas</label>
         <select id="regShard">
-            <option value="IDN-JABAR-KNG-JALAKSANA">JALAKSANA (KUNINGAN)</option>
-            <option value="IDN-JABAR-KNG-KRAMATMULYA">KRAMATMULYA (KUNINGAN)</option>
+            <option value="IDN-JABAR-KNG-JALAKSANA">JALAKSANA</option>
+            <option value="IDN-JABAR-KNG-KRAMATMULYA">KRAMATMULYA</option>
         </select>
 
-        <button onclick="register()">AJUKAN PENDAFTARAN</button>
-        <p style="font-size:10px; text-align:center">Status: <span id="statusText">Menunggu Input</span></p>
+        <button id="btnReg" onclick="register()">KIRIM PERMOHONAN</button>
     </div>
 
     <script>
-        // FIREBASE MASTER CONFIG (Tempat Buku Telepon/Registry)
         const firebaseConfig = {
             apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
-            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "ojeklokal-42b84"
+            databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app"
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
         async function register() {
-            const nick = document.getElementById('regNick').value;
+            const nick = document.getElementById('regNick').value.trim().toLowerCase();
             const pass = document.getElementById('regPass').value;
             const shard = document.getElementById('regShard').value;
+            const btn = document.getElementById('btnReg');
 
-            if(!nick || !pass) return alert("Isi semua data!");
+            if(!nick || !pass) return alert("Data tidak lengkap!");
 
-            document.getElementById('statusText').innerText = "Mengirim Data...";
+            btn.disabled = true;
 
-            // Simpan ke tabel 'pendaftaran_pending'
+            // CEK APAKAH NICK SUDAH TERDAFTAR (DI REGISTRY ATAU PENDING)
+            const checkReg = await db.ref(`users_registry/${nick}`).get();
+            const checkPending = await db.ref(`pendaftaran_pending/${nick}`).get();
+
+            if(checkReg.exists() || checkPending.exists()) {
+                alert("Nickname ini sudah digunakan atau sedang dalam tinjauan!");
+                btn.disabled = false;
+                return;
+            }
+
             await db.ref(`pendaftaran_pending/${nick}`).set({
                 nick: nick,
                 password: pass,
@@ -61,7 +68,7 @@
                 created_at: Date.now()
             });
 
-            alert("Pendaftaran diajukan! Hubungi Admin untuk verifikasi.");
+            alert("Pendaftaran berhasil! Silakan tunggu verifikasi admin.");
             window.location.href = "login.html";
         }
     </script>
