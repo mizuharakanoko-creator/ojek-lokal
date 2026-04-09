@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#020813">
+    <title>COMMAND LOBBY - MISSION MAKER</title>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --cmd-blue: #0a192f;
+            --cmd-cyan: #64ffda;
+            --cmd-gold: #ffd700;
+            --cmd-red: #ff3366;
+            --bg-main: #020813;
+            --panel-bg: #0b1120;
+            --text-main: #e6f1ff;
+            --text-muted: #8892b0;
+            --font-term: 'Courier New', Courier, monospace;
+            --font-ui: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --glass-border: rgba(100, 255, 218, 0.2);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; user-select: none; -webkit-touch-callout: none; }
+
+        body {
+            background-color: var(--bg-main); color: var(--text-main);
+            font-family: var(--font-ui); padding-bottom: 80px;
+            background-image: 
+                radial-gradient(circle at 50% 0%, rgba(10, 25, 47, 1) 0%, transparent 50%),
+                linear-gradient(rgba(100,255,218,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(100,255,218,0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 20px 20px, 20px 20px;
+        }
+
+        input, textarea, select { user-select: auto; font-family: var(--font-term); }
+        input:focus, textarea:focus, select:focus { border-color: var(--cmd-cyan) !important; box-shadow: 0 0 10px rgba(100,255,218,0.2); }
+
+        /* STATUS BAR HEADER */
+        header {
+            background: rgba(2, 8, 19, 0.9); backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--glass-border); padding: 15px;
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        .sys-info { display: flex; justify-content: space-between; font-family: var(--font-term); font-size: 11px; }
+        .sys-id { color: var(--cmd-cyan); font-size: 14px; font-weight: bold; }
+        .shard-display { text-align: right; color: var(--text-muted); }
+        #dispShard { color: var(--cmd-gold); font-weight: bold; display: block; margin-top: 4px;}
+
+        /* MAIN CONTAINER */
+        .container { padding: 15px; }
+
+        .section-title {
+            font-family: var(--font-term); font-size: 13px; color: var(--cmd-cyan);
+            margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px dashed var(--glass-border);
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        /* CREATOR FORM PANEL */
+        #creatorPanel {
+            background: var(--panel-bg); border: 1px solid var(--glass-border);
+            border-radius: 8px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            transition: all 0.3s ease;
+        }
+
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; font-family: var(--font-term); font-size: 11px; color: var(--text-muted); margin-bottom: 6px; font-weight: bold; }
+        .form-control {
+            width: 100%; background: #050a15; border: 1px solid #1f2d40; color: #fff;
+            padding: 12px; border-radius: 4px; font-size: 13px; transition: 0.2s;
+        }
+        textarea.form-control { resize: vertical; min-height: 60px; }
+        
+        .flex-row { display: flex; gap: 10px; }
+        .flex-row .input-group { flex: 1; }
+
+        .btn-action {
+            width: 100%; padding: 14px; background: rgba(100, 255, 218, 0.1);
+            color: var(--cmd-cyan); border: 1px solid var(--cmd-cyan);
+            border-radius: 4px; font-family: var(--font-term); font-weight: 900;
+            font-size: 14px; cursor: pointer; letter-spacing: 1px; transition: all 0.2s;
+        }
+        .btn-action:active { background: var(--cmd-cyan); color: #000; transform: scale(0.98); }
+        .btn-danger { background: rgba(255, 51, 102, 0.1); color: var(--cmd-red); border-color: var(--cmd-red); }
+        .btn-danger:active { background: var(--cmd-red); color: #fff; }
+
+        /* ACTIVE MONITOR PANEL (Hidden by default) */
+        #monitorPanel { display: none; }
+        .radar-box { background: rgba(0,0,0,0.4); border: 1px solid var(--cmd-cyan); border-radius: 8px; padding: 15px; margin-bottom: 20px; position: relative; overflow: hidden; }
+        .radar-box::before {
+            content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(100,255,218,0.1), transparent);
+            animation: radarScan 3s linear infinite;
+        }
+        @keyframes radarScan { 100% { left: 200%; } }
+
+        .m-detail { font-size: 12px; line-height: 1.6; color: var(--text-muted); font-family: var(--font-term); }
+        .m-detail span.hl { color: var(--text-main); font-weight: bold; }
+
+        /* BID CARDS */
+        .bid-card {
+            background: var(--panel-bg); border-left: 3px solid var(--cmd-gold);
+            padding: 12px; margin-bottom: 10px; border-radius: 0 6px 6px 0;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .bid-info { font-family: var(--font-term); }
+        .bid-nick { font-size: 14px; color: var(--cmd-gold); font-weight: bold; }
+        .bid-stats { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+        .bid-price { font-size: 16px; color: var(--cmd-cyan); font-weight: bold; margin-bottom: 5px; text-align: right; }
+        
+        .btn-accept {
+            background: var(--cmd-cyan); color: #000; border: none; padding: 8px 15px;
+            font-family: var(--font-term); font-weight: bold; border-radius: 3px;
+            cursor: pointer; font-size: 11px;
+        }
+
+        /* OVERLAYS & ALERTS */
+        #loadingOverlay { position: fixed; inset: 0; background: rgba(2, 8, 19, 0.95); z-index: 9999; display: none; justify-content: center; align-items: center; flex-direction: column; font-family: var(--font-term); }
+        .spinner { border: 3px dashed var(--cmd-cyan); width: 40px; height: 40px; border-radius: 50%; animation: spin 1.5s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--cmd-cyan); color: #000; padding: 10px 20px; border-radius: 20px; font-family: var(--font-term); font-size: 12px; font-weight: bold; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 1000; }
+    </style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+    <div class="spinner"></div>
+    <div id="loadText" style="color:var(--cmd-cyan); font-weight:bold; letter-spacing:2px; text-align:center;">INITIALIZING LOBBY...</div>
+</div>
+
+<div id="toast">SYSTEM NOTIFICATION</div>
+
+<header>
+    <div class="sys-info">
+        <div>
+            REQUESTER ID<br>
+            <span class="sys-id" id="dispReqId">REQ-0000</span>
+        </div>
+        <div class="shard-display">
+            BROADCAST SHARD<br>
+            <span id="dispShard">AWAITING GPS...</span>
+        </div>
+    </div>
+</header>
+
+<div class="container">
+    <div id="creatorPanel">
+        <div class="section-title">MISSION DEPLOYMENT PROTOCOL</div>
+        
+        <div class="flex-row">
+            <div class="input-group">
+                <label>KATEGORI KENDARAAN</label>
+                <select id="inpCat" class="form-control">
+                    <option value="motor">MOTOR (Lightweight)</option>
+                    <option value="mobil">MOBIL (Heavyweight)</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>REWARD DASAR (Rp)</label>
+                <input type="number" id="inpReward" class="form-control" placeholder="Min. 10000" value="15000">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label>TITIK PENJEMPUTAN (Detail)</label>
+            <input type="text" id="inpPickup" class="form-control" placeholder="Contoh: Depan Indomaret Alun-alun...">
+        </div>
+
+        <div class="input-group">
+            <label>INSTRUKSI SPESIFIK / TUJUAN</label>
+            <textarea id="inpDesc" class="form-control" placeholder="Deskripsikan barang atau tujuan pengantaran..."></textarea>
+        </div>
+
+        <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
+            <input type="checkbox" id="inpUrgent" style="accent-color: var(--cmd-red); width: 18px; height: 18px;">
+            <label style="margin: 0; color: var(--cmd-red);">TANDAI SEBAGAI URGENT (Prioritas Merah)</label>
+        </div>
+
+        <button class="btn-action" onclick="App.createMission()">DEPLOY MISSION TO SHARD</button>
+    </div>
+
+    <div id="monitorPanel">
+        <div class="radar-box">
+            <div class="section-title" style="color:var(--text-main); border-color:#333;">RADAR MONITORING : ACTIVE</div>
+            <div class="m-detail">
+                ID: <span class="hl" id="monId">---</span><br>
+                TITIK: <span class="hl" id="monPickup">---</span><br>
+                REWARD: <span class="hl" style="color:var(--cmd-gold);" id="monReward">---</span><br>
+                STATUS: <span class="hl" style="color:var(--cmd-cyan);">MEMANCARKAN SINYAL...</span>
+            </div>
+            <button class="btn-action btn-danger" style="padding: 8px; font-size:11px; margin-top:15px;" onclick="App.cancelMission()">ABORT MISSION</button>
+        </div>
+
+        <div class="section-title">INCOMING ADVENTURER SIGNALS</div>
+        <div id="bidsList">
+            <div style="text-align:center; padding:20px; color:var(--text-muted); font-family:var(--font-term); font-size:12px;">MENUNGGU KONEKSI ADVENTURER...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- FIREBASE CONFIG (Sync dengan Adventurer) ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // --- GLOBAL STATE ---
+    const State = {
+        reqId: "REQ-" + Math.floor(Math.random() * 90000 + 10000),
+        lat: 0, lon: 0,
+        shardPath: "",
+        activeMissionId: null,
+        bidsRef: null
+    };
+
+    // --- MAIN APPLICATION LOGIC ---
+    const App = {
+        init: function() {
+            document.getElementById('dispReqId').innerText = State.reqId;
+            this.checkExistingMission();
+            this.locateDevice();
+        },
+
+        showToast: function(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.background = isError ? "var(--cmd-red)" : "var(--cmd-cyan)";
+            toast.style.color = isError ? "#fff" : "#000";
+            toast.style.opacity = 1;
+            setTimeout(() => toast.style.opacity = 0, 3000);
+        },
+
+        loading: function(show, text="PROCESSING...") {
+            document.getElementById('loadText').innerText = text;
+            document.getElementById('loadingOverlay').style.display = show ? "flex" : "none";
+        },
+
+        // --- GEOFENCING / SHARD MAPPING ---
+        locateDevice: function() {
+            if(!navigator.geolocation) return this.showToast("GPS Tidak Mendukung", true);
+            
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                State.lat = pos.coords.latitude; 
+                State.lon = pos.coords.longitude;
+                
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${State.lat}&lon=${State.lon}&zoom=18`);
+                    const data = await res.json();
+                    const addr = data.address;
+                    
+                    const prov = (addr.state || "JAWA-BARAT").toUpperCase().replace(/\s+/g, '-');
+                    const kab = (addr.city || addr.county || addr.regency || "KUNINGAN").toUpperCase().replace(/\s+/g, '-');
+                    const kecRaw = addr.village || addr.suburb || addr.city_district || addr.district || "KUNINGAN";
+                    const kec = "KEC-" + kecRaw.toUpperCase().replace(/\s+/g, '-');
+                    
+                    State.shardPath = `${prov}/${kab}/${kec}`;
+                    document.getElementById('dispShard').innerText = kecRaw.toUpperCase();
+                } catch(e) {
+                    State.shardPath = "JAWA-BARAT/KUNINGAN/KEC-KUNINGAN"; // Fallback
+                    document.getElementById('dispShard').innerText = "KUNINGAN (FALLBACK)";
+                }
+            }, () => {
+                this.showToast("Gagal mengunci GPS. Gunakan setting manual.", true);
+                State.shardPath = "JAWA-BARAT/KUNINGAN/KEC-KUNINGAN";
+                document.getElementById('dispShard').innerText = "GPS OFFLINE";
+            }, { enableHighAccuracy: true });
+        },
+
+        // --- MISSION DEPLOYMENT ---
+        createMission: async function() {
+            if(State.activeMissionId) return this.showToast("Anda sudah memiliki misi aktif!", true);
+            if(!State.shardPath) return this.showToast("Menunggu kalibrasi Shard (GPS)...", true);
+
+            const cat = document.getElementById('inpCat').value;
+            const reward = parseInt(document.getElementById('inpReward').value);
+            const pickup = document.getElementById('inpPickup').value.trim();
+            const desc = document.getElementById('inpDesc').value.trim();
+            const isUrgent = document.getElementById('inpUrgent').checked;
+
+            if(reward < 5000) return this.showToast("Budget terlalu rendah (Min. 5000)", true);
+            if(!pickup || !desc) return this.showToast("Data penjemputan/deskripsi belum lengkap!", true);
+
+            this.loading(true, "ENCRYPTING MISSION DATA...");
+
+            const mId = "M-" + Date.now().toString(36).toUpperCase() + Math.floor(Math.random()*1000);
+            
+            const missionData = {
+                requester_id: State.reqId,
+                category: cat,
+                reward: reward,
+                pickup_point: pickup,
+                description: desc,
+                lat: State.lat,
+                lon: State.lon,
+                is_urgent: isUrgent,
+                bids_count: 0,
+                status: "open",
+                created_at: Date.now(),
+                expires_at: Date.now() + (3600000 * 2) // Expired dalam 2 Jam
+            };
+
+            try {
+                await db.ref(`missions/${State.shardPath}/${mId}`).set(missionData);
+                
+                // Simpan ID lokal agar tidak hilang saat reload
+                localStorage.setItem('active_req_mission', JSON.stringify({id: mId, path: State.shardPath, reward: reward, pickup: pickup}));
+                
+                State.activeMissionId = mId;
+                this.switchPanel(true, missionData, mId);
+                this.monitorBids(mId);
+                this.loading(false);
+                this.showToast("MISSION DEPLOYED TO RADAR");
+
+            } catch(e) {
+                this.loading(false);
+                this.showToast("Gagal mengirim ke Firebase", true);
+            }
+        },
+
+        // --- PANEL MANAGEMENT ---
+        checkExistingMission: function() {
+            const saved = localStorage.getItem('active_req_mission');
+            if(saved) {
+                const data = JSON.parse(saved);
+                State.activeMissionId = data.id;
+                State.shardPath = data.path; // Lock shard path
+                this.switchPanel(true, data, data.id);
+                this.monitorBids(data.id);
+            }
+        },
+
+        switchPanel: function(isMonitoring, data = null, mId = null) {
+            if(isMonitoring) {
+                document.getElementById('creatorPanel').style.display = 'none';
+                document.getElementById('monitorPanel').style.display = 'block';
+                document.getElementById('monId').innerText = mId;
+                document.getElementById('monPickup').innerText = data.pickup || data.pickup_point;
+                document.getElementById('monReward').innerText = `Rp ${(data.reward).toLocaleString('id-ID')}`;
+            } else {
+                document.getElementById('creatorPanel').style.display = 'block';
+                document.getElementById('monitorPanel').style.display = 'none';
+            }
+        },
+
+        // --- BID MONITORING (REAL-TIME) ---
+        monitorBids: function(mId) {
+            State.bidsRef = db.ref(`active_bids/${mId}`);
+            const listContainer = document.getElementById('bidsList');
+
+            State.bidsRef.on('value', (snapshot) => {
+                if(!snapshot.exists()) {
+                    listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted); font-family:var(--font-term); font-size:12px;">MENUNGGU KONEKSI ADVENTURER...</div>`;
+                    return;
+                }
+
+                let html = "";
+                snapshot.forEach(child => {
+                    const advId = child.key;
+                    const b = child.val();
+                    
+                    if(b.status === "waiting") {
+                        html += `
+                        <div class="bid-card">
+                            <div class="bid-info">
+                                <div class="bid-nick">${b.nick} <span style="font-size:9px; color:#888;">[${advId}]</span></div>
+                                <div class="bid-stats">Quests Selesai: ${b.completed_quests || 0}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div class="bid-price">Rp ${b.offer_price.toLocaleString('id-ID')}</div>
+                                <button class="btn-accept" onclick="App.acceptBid('${advId}', '${b.nick}', ${b.offer_price})">TERIMA</button>
+                            </div>
+                        </div>`;
+                    }
+                });
+
+                if(html === "") html = `<div style="text-align:center; padding:20px; color:var(--text-muted); font-family:var(--font-term); font-size:12px;">PENGAJUAN SEDANG DIPROSES...</div>`;
+                listContainer.innerHTML = html;
+            });
+        },
+
+        // --- SELECTION LOGIC (TABEL KONTRAK BARU) ---
+        acceptBid: async function(advId, advNick, finalPrice) {
+            if(!confirm(`Terima tawaran dari ${advNick} seharga Rp ${finalPrice.toLocaleString('id-ID')}?`)) return;
+
+            const mId = State.activeMissionId;
+            const fullPath = `${State.shardPath}/${mId}`;
+            
+            this.loading(true, "ESTABLISHING SECURE CONTRACT...");
+
+            try {
+                // 1. Matikan Listener agar UI tidak kedip
+                State.bidsRef.off();
+
+                // 2. Buat Data di Tabel "contracts" Baru (Sesuai Permintaan Restrukturisasi)
+                const contractData = {
+                    mission_id: mId,
+                    requester_id: State.reqId,
+                    adventurer_id: advId,
+                    adventurer_nick: advNick,
+                    final_price: finalPrice,
+                    status: "briefing",
+                    established_at: Date.now()
+                };
+                await db.ref(`contracts/${mId}`).set(contractData);
+
+                // 3. Hapus Misi dari Radar agar tidak ada lagi yang menawar
+                await db.ref(`missions/${fullPath}`).remove();
+
+                // 4. Update status ke "selected" untuk men-trigger WATCHDOG di sisi Adventurer
+                await db.ref(`active_bids/${mId}/${advId}`).update({ status: "selected" });
+
+                // 5. Cleanup Lokal dan Warp Requester
+                localStorage.removeItem('active_req_mission');
+                
+                setTimeout(() => {
+                    window.location.href = `briefing.html?mId=${mId}&role=requester`;
+                }, 1000);
+
+            } catch(e) {
+                this.loading(false);
+                this.showToast("Gagal memproses kontrak. Terjadi bentrok jaringan.", true);
+                this.monitorBids(mId); // Nyalakan ulang listener jika gagal
+            }
+        },
+
+        // --- ABORT MISSION ---
+        cancelMission: async function() {
+            if(!confirm("Yakin ingin membatalkan misi ini?")) return;
+            
+            this.loading(true, "ABORTING...");
+            const mId = State.activeMissionId;
+            
+            try {
+                if(State.bidsRef) State.bidsRef.off();
+                await db.ref(`missions/${State.shardPath}/${mId}`).remove();
+                await db.ref(`active_bids/${mId}`).remove(); // Bersihkan juga data bid
+                
+                localStorage.removeItem('active_req_mission');
+                State.activeMissionId = null;
+                
+                this.switchPanel(false);
+                this.loading(false);
+                this.showToast("Misi berhasil dibatalkan.");
+                
+            } catch(e) {
+                this.loading(false);
+                this.showToast("Gagal membatalkan. Hubungi admin.", true);
+            }
+        }
+    };
+
+    window.onload = () => App.init();
+</script>
+
+</body>
+</html>
