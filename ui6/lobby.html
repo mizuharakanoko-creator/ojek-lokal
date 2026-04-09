@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#050505">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="google" content="notranslate">
+    
+    <title>LOBBY | CONTRACT TERMINAL</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: #ff0055;
+            --neon-cyan: #00ffff;
+            --neon-gold: #ffcc00;
+            --bg-dark: #050505;
+            --bg-card: #0f0f0f;
+            --border-ui: #1a1a1a;
+            --text-muted: #555;
+            --font-main: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --safe-area-top: env(safe-area-inset-top);
+        }
+
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            user-select: none; 
+            touch-action: manipulation;
+        }
+        
+        body { 
+            background: var(--bg-dark); color: #fff; 
+            font-family: var(--font-main); margin: 0; padding: 0;
+            overscroll-behavior: none; overflow: hidden;
+            height: 100vh; width: 100vw;
+            display: flex; flex-direction: column;
+        }
+
+        @keyframes pulse-cyan { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes ripple { 0% { transform: scale(0); opacity: 0.8; } 100% { transform: scale(4); opacity: 0; } }
+
+        header {
+            padding: calc(var(--safe-area-top) + 20px) 20px 15px;
+            background: rgba(10, 10, 10, 0.95);
+            border-bottom: 1px solid var(--border-ui);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        .system-status {
+            display: flex; justify-content: space-between;
+            font-family: var(--font-mono); font-size: 9px;
+            color: var(--neon-cyan); letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .brand-area { display: flex; align-items: baseline; gap: 8px; }
+        .brand-area h2 { margin: 0; font-size: 22px; font-weight: 800; color: #fff; }
+        .brand-area .tag { font-size: 10px; color: var(--neon-pink); font-family: var(--font-mono); font-weight: 700; }
+
+        .mission-panel {
+            margin: 15px 20px 10px; padding: 15px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-ui);
+            border-radius: 12px;
+        }
+
+        .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .label { font-size: 9px; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 4px; display: block; font-weight: 700; }
+        .value { font-size: 13px; font-weight: 800; color: #eee; font-family: var(--font-mono); }
+        .value.status-waiting { color: var(--neon-gold); font-size: 10px; animation: pulse-cyan 2s infinite; }
+
+        #applicantList { flex: 1; overflow-y: auto; padding: 0 20px 120px; }
+
+        .card-adv {
+            background: #111; border-radius: 12px; padding: 16px;
+            margin-bottom: 12px; border: 1px solid #1a1a1a;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .adv-nick { font-size: 16px; font-weight: 800; font-family: var(--font-mono); display: flex; align-items: center; gap: 6px; }
+        .badge-pro { background: var(--neon-gold); color: #000; font-size: 8px; padding: 2px 6px; border-radius: 4px; font-weight: 800; }
+        .adv-stat { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+        .adv-price { font-size: 15px; font-weight: 800; color: var(--neon-cyan); margin-top: 5px; font-family: var(--font-mono); }
+
+        .btn-hire {
+            background: #fff; color: #000; border: none; font-family: var(--font-mono);
+            padding: 12px 18px; border-radius: 8px; font-weight: 800; font-size: 11px;
+        }
+        .btn-hire:disabled { background: #333; color: #666; }
+
+        footer {
+            position: fixed; bottom: 0; width: 100%;
+            background: linear-gradient(to top, #000 70%, transparent);
+            padding: 20px; z-index: 100;
+        }
+
+        .btn-abort {
+            width: 100%; background: #111; border: 1px solid #333; font-family: var(--font-mono);
+            color: #ff4444; padding: 14px; border-radius: 10px; font-weight: 800;
+        }
+
+        #loadingOverlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 20000;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        #snackbar {
+            position: fixed; bottom: 100px; left: 20px; right: 20px;
+            background: #fff; color: #000; padding: 15px; border-radius: 12px;
+            display: none; z-index: 10000; font-family: var(--font-mono); font-size: 12px;
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+    <div id="loadingOverlay">
+        <div style="width: 40px; height: 40px; border: 3px solid #222; border-top-color: var(--neon-cyan); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <p id="overlayText" style="font-family: var(--font-mono); font-size: 10px; margin-top: 20px; color: var(--neon-cyan); letter-spacing: 2px;">SECURE SYNC...</p>
+    </div>
+
+    <header>
+        <div class="system-status">
+            <span id="sysClock">00:00:00</span>
+            <span>● LOBBY_ACTIVE</span>
+        </div>
+        <div class="brand-area">
+            <h2>LOBBY</h2>
+            <span class="tag">VER-2.0</span>
+        </div>
+    </header>
+
+    <div class="mission-panel">
+        <div class="panel-grid">
+            <div>
+                <span class="label">MISSION_ID</span>
+                <span id="mIdDisplay" class="value">---</span>
+            </div>
+            <div style="text-align: right;">
+                <span class="label">FINAL_REWARD</span>
+                <span id="priceDisplay" class="value status-waiting">WAITING_FOR_DEAL</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="applicantList"></div>
+
+    <div id="snackbar">
+        <span id="snackText">SYSTEM MESSAGE</span>
+    </div>
+
+    <footer>
+        <button class="btn-abort" onclick="Core.confirmAbort()">ABORT / BATALKAN MISI</button>
+    </footer>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const Core = {
+        mId: localStorage.getItem('active_mission_id'),
+        server: localStorage.getItem('active_mission_server'),
+        isProcessing: false,
+
+        init() {
+            if(!this.mId || !this.server) { window.location.href = "index.html"; return; }
+            this.setupUI();
+            this.listenTerminalBids();
+            this.listenMissionStatus();
+            
+            // Masking native scroll
+            document.addEventListener('touchstart', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+        },
+
+        setupUI() {
+            document.getElementById('mIdDisplay').innerText = this.mId.substring(0, 12).toUpperCase();
+            setInterval(() => {
+                document.getElementById('sysClock').innerText = new Date().toLocaleTimeString('id-ID');
+            }, 1000);
+        },
+
+        listenMissionStatus() {
+            // Memantau jika tiba-tiba misi dihapus atau dibatalkan dari sisi lain
+            db.ref(`missions/${this.server}/${this.mId}`).on('value', snap => {
+                if(!snap.exists() && !this.isProcessing) {
+                    window.location.href = "index.html";
+                }
+            });
+        },
+
+        listenTerminalBids() {
+            db.ref(`active_bids/${this.mId}`).on('value', snap => {
+                const list = document.getElementById('applicantList');
+                if(!snap.exists()) {
+                    list.innerHTML = `<div style="text-align:center; color:#333; margin-top:60px; font-family:var(--font-mono); font-size:10px;">SCANNING FOR ADVENTURERS...</div>`;
+                    return;
+                }
+
+                let html = "";
+                snap.forEach(child => {
+                    const advId = child.key;
+                    const b = child.val();
+                    const isPro = (b.completed_quests || 0) >= 5;
+
+                    html += `
+                        <div class="card-adv">
+                            <div class="adv-profile">
+                                <div class="adv-nick">${b.nick || 'AGENT'} ${isPro ? '<span class="badge-pro">PRO</span>' : ''}</div>
+                                <div class="adv-stat">DIST: ${b.distance || '---'} | ETA: ${b.eta || '---'}</div>
+                                <div class="adv-price">Rp ${(b.offer_price || 0).toLocaleString('id-ID')}</div>
+                            </div>
+                            <button class="btn-hire" id="btn-${advId}" onclick="Core.hire('${advId}', '${b.nick}')">HIRE</button>
+                        </div>
+                    `;
+                });
+                list.innerHTML = html;
+            });
+        },
+
+        async hire(advId, nick) {
+            if(this.isProcessing) return;
+            if(!confirm(`Kunci kontrak dengan ${nick}?`)) return;
+
+            this.isProcessing = true;
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'flex';
+            document.getElementById('overlayText').innerText = "GENERATING SMART CONTRACT...";
+
+            try {
+                // 1. Ambil data mentah dari Shard & Bid
+                const [mSnap, bSnap] = await Promise.all([
+                    db.ref(`missions/${this.server}/${this.mId}`).once('value'),
+                    db.ref(`active_bids/${this.mId}/${advId}`).once('value')
+                ]);
+
+                const m = mSnap.val();
+                const b = bSnap.val();
+
+                if(!m || !b) throw new Error("DATA_MISSING");
+
+                // 2. BUAT TABEL KONTRAK (The Bridge)
+                const contractId = this.mId; // mId sebagai kunci unik kontrak
+                const contractData = {
+                    cId: contractId,
+                    mId: this.mId,
+                    requester_id: m.requester_id,
+                    adventurer_id: advId,
+                    adventurer_nick: nick,
+                    
+                    // Lokasi & Detail
+                    origin_name: m.origin_name || "Lokasi Jemput",
+                    destination_name: m.destination_name || "Lokasi Tujuan",
+                    coords: m.coords || null,
+                    type: m.type || "MISSION",
+                    
+                    // Hasil Nego
+                    final_reward: b.offer_price,
+                    eta_arrival: b.eta,
+                    
+                    status: "briefing",
+                    created_at: firebase.database.ServerValue.TIMESTAMP
+                };
+
+                // 3. Simpan ke Global Active Contracts
+                await db.ref(`active_contracts/${contractId}`).set(contractData);
+
+                // 4. Update status untuk mentrigger perpindahan halaman
+                await Promise.all([
+                    // Update Shard (Biaya tambahan sedikit tapi data konsisten)
+                    db.ref(`missions/${this.server}/${this.mId}`).update({ 
+                        status: "briefing",
+                        selected_adv: advId 
+                    }),
+                    // Update Bid agar HP Adventurer "Warp"
+                    db.ref(`active_bids/${this.mId}/${advId}`).update({ status: "selected" })
+                ]);
+
+                document.getElementById('overlayText').innerText = "CONTRACT LOCKED. WARPING...";
+                
+                setTimeout(() => {
+                    window.location.href = `briefing.html?cId=${contractId}&role=requester`;
+                }, 800);
+
+            } catch (e) {
+                console.error(e);
+                this.isProcessing = false;
+                overlay.style.display = 'none';
+                alert("Gagal mengunci kontrak. Coba lagi.");
+            }
+        },
+
+        async confirmAbort() {
+            if(!confirm("ABORT MISSION?\nSemua data kontrak dan radar akan dihapus.")) return;
+            
+            this.isProcessing = true;
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'flex';
+            document.getElementById('overlayText').innerText = "WIPING SERVER DATA...";
+
+            try {
+                // Hapus di 3 tempat sekaligus
+                await Promise.all([
+                    db.ref(`missions/${this.server}/${this.mId}`).remove(),
+                    db.ref(`active_bids/${this.mId}`).remove(),
+                    db.ref(`active_contracts/${this.mId}`).remove()
+                ]);
+
+                localStorage.removeItem('active_mission_id');
+                window.location.href = "index.html";
+            } catch (e) {
+                this.isProcessing = false;
+                overlay.style.display = 'none';
+                alert("Gagal menghapus misi.");
+            }
+        }
+    };
+
+    window.onload = () => Core.init();
+</script>
+</body>
+</html>
