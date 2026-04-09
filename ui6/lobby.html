@@ -35,6 +35,7 @@
             user-select: none; 
             -webkit-user-select: none;
             touch-action: manipulation;
+            outline: none;
         }
         
         body { 
@@ -51,7 +52,7 @@
         @keyframes pulse-cyan { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
         @keyframes ripple { 0% { transform: scale(0); opacity: 0.8; } 100% { transform: scale(4); opacity: 0; } }
         @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes scan-line { 0% { top: 0%; } 100% { top: 100%; } }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
 
         /* UI COMPONENTS: HEADER */
         header {
@@ -59,6 +60,7 @@
             background: rgba(10, 10, 10, 0.95);
             border-bottom: 1px solid var(--border-ui);
             backdrop-filter: blur(10px);
+            z-index: 100;
         }
 
         .system-status {
@@ -130,7 +132,7 @@
         .btn-hire {
             background: #fff; color: #000; border: none;
             padding: 12px 20px; border-radius: 8px;
-            font-weight: 800; font-size: 12px; transition: 0.2s;
+            font-weight: 800; font-size: 12px; transition: 0.2s; cursor: pointer;
         }
         .btn-hire:active { transform: scale(0.95); background: var(--neon-cyan); }
 
@@ -153,13 +155,16 @@
         .cash-info {
             text-align: center; font-size: 10px; color: var(--text-muted);
             margin-bottom: 15px; font-family: var(--font-mono);
+            letter-spacing: 0.5px;
         }
 
         .btn-abort {
             width: 100%; background: #111; border: 1px solid #333;
             color: #ff4444; padding: 14px; border-radius: 10px;
             font-weight: 700; font-size: 12px; letter-spacing: 1px;
+            cursor: pointer;
         }
+        .btn-abort:active { background: #330000; border-color: #ff0000; }
 
         /* FULL SCREEN OVERLAY */
         #loadingOverlay {
@@ -172,17 +177,17 @@
 
     <div id="loadingOverlay">
         <div style="width: 40px; height: 40px; border: 2px solid #222; border-top-color: var(--neon-pink); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-        <p style="font-family: var(--font-mono); font-size: 10px; margin-top: 20px; color: #444;">INITIALIZING ENCRYPTION...</p>
+        <p id="overlayText" style="font-family: var(--font-mono); font-size: 10px; margin-top: 20px; color: #444; letter-spacing: 1px;">INITIALIZING ENCRYPTION...</p>
     </div>
 
     <header>
         <div class="system-status">
             <span id="sysClock">00:00:00</span>
-            <span id="netStatus" style="animation: pulse-cyan 1s infinite;">● CONNECTED_ENCRYPTED</span>
+            <span id="netStatus" style="animation: pulse-cyan 1s infinite;">● SECURE_LINK</span>
         </div>
         <div class="brand-area">
             <h2>LOBBY</h2>
-            <span class="tag">SECURE_CHANNEL</span>
+            <span class="tag">TERMINAL_SYNC</span>
         </div>
     </header>
 
@@ -203,7 +208,7 @@
         <div class="radar-circle"></div>
         <div class="radar-circle"></div>
         <div class="radar-circle"></div>
-        <div id="liveCount" style="font-family: var(--font-mono); font-size: 11px; z-index: 5; color: var(--neon-cyan);">PULSING RADAR...</div>
+        <div id="liveCount" style="font-family: var(--font-mono); font-size: 11px; z-index: 5; color: var(--neon-cyan);">PULSING TERMINAL...</div>
     </div>
 
     <div id="applicantList">
@@ -211,7 +216,7 @@
 
     <div id="snackbar">
         <span id="snackText">PESAN SISTEM</span>
-        <button onclick="document.getElementById('snackbar').style.display='none'" style="background:none; border:none; font-weight:900;">OK</button>
+        <button onclick="document.getElementById('snackbar').style.display='none'" style="background:none; border:none; font-weight:900; cursor:pointer;">OK</button>
     </div>
 
     <footer>
@@ -227,22 +232,25 @@
         databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
         projectId: "ojeklokal-42b84"
     };
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     // --- ENGINE CORE ---
     const Core = {
         mId: localStorage.getItem('active_mission_id'),
-        server: localStorage.getItem('active_mission_server'),
+        server: localStorage.getItem('active_mission_server'), // Masih disimpan untuk update status misi utama
         knownBids: new Set(),
 
         init() {
-            if(!this.mId) { window.location.href = "index.html"; return; }
+            if(!this.mId || !this.server) { 
+                window.location.href = "index.html"; 
+                return; 
+            }
             
             this.setupUI();
             this.maskNative();
             this.listenMission();
-            this.listenBids();
+            this.listenTerminalBids(); // FUNGSI BARU UNTUK TERMINAL
             
             setTimeout(() => {
                 document.getElementById('loadingOverlay').style.display = 'none';
@@ -250,7 +258,10 @@
         },
 
         setupUI() {
-            document.getElementById('mIdDisplay').innerText = this.mId.substring(0, 12) + "...";
+            // Mask ID agar terlihat elegan
+            document.getElementById('mIdDisplay').innerText = this.mId.substring(0, 10).toUpperCase() + "...";
+            
+            // Jam sistem real-time
             setInterval(() => {
                 const now = new Date();
                 document.getElementById('sysClock').innerText = now.toLocaleTimeString('id-ID');
@@ -258,12 +269,12 @@
         },
 
         maskNative() {
-            // Disable double-tap zoom & standard web gestures
+            // Mematikan gestur browser standar
             document.addEventListener('touchstart', (e) => {
                 if (e.touches.length > 1) e.preventDefault();
             }, { passive: false });
 
-            // Simulation of Android "Toast"
+            // Snackbar Android-style
             window.showToast = (msg) => {
                 const s = document.getElementById('snackbar');
                 document.getElementById('snackText').innerText = msg;
@@ -274,21 +285,23 @@
         },
 
         listenMission() {
-            // Jalur Global Shard Sync
+            // Memantau misi utama untuk update reward dan perubahan status (Deal)
             db.ref(`missions/${this.server}/${this.mId}`).on('value', snap => {
                 if(!snap.exists()) return;
                 const m = snap.val();
+                
                 document.getElementById('priceDisplay').innerText = "Rp " + (m.reward || 0).toLocaleString('id-ID');
                 
+                // Jika sukses dikunci, pindah ke halaman briefing
                 if(m.status === "briefing") {
                     window.location.href = "briefing.html";
                 }
             });
         },
 
-        listenBids() {
-            // MENGGUNAKAN FOLDER 'bids' SESUAI FIREBASE USER
-            db.ref(`missions/${this.server}/${this.mId}/bids`).on('value', snap => {
+        listenTerminalBids() {
+            // TITIK PERUBAHAN UTAMA: Memantau dari folder active_bids, bukan lagi dari dalam Shard Kecamatan
+            db.ref(`active_bids/${this.mId}`).on('value', snap => {
                 const list = document.getElementById('applicantList');
                 const countText = document.getElementById('liveCount');
                 
@@ -306,7 +319,7 @@
                     const b = child.val();
                     count++;
 
-                    // Pro Level Badge Logic
+                    // Logika Lencana Profesional (Berdasarkan jumlah misi selesai)
                     const isPro = (b.completed_quests || 0) >= 3;
                     const price = b.offer_price || 0;
 
@@ -324,7 +337,7 @@
                         </div>
                     `;
 
-                    // Sound & Vibe for New Bids
+                    // Pemicu Suara & Getaran untuk lamaran baru yang masuk
                     if(!this.knownBids.has(advId)) {
                         this.knownBids.add(advId);
                         this.playBeep();
@@ -332,47 +345,52 @@
                 });
 
                 list.innerHTML = html;
-                countText.innerText = count + " ADVENTURERS IN RANGE";
+                countText.innerText = count + " ADVENTURERS DETECTED";
             });
         },
 
         async hire(advId, nick) {
-            if(!confirm(`Konfirmasi kontrak dengan ${nick}?`)) return;
+            // Dialog Box Kustom bisa ditambahkan di sini, sementara kita gunakan bawaan yang di-mask
+            if(!confirm(`Kunci kontrak dengan ${nick}? Harga tidak dapat diubah setelah ini.`)) return;
             
             const overlay = document.getElementById('loadingOverlay');
             overlay.style.display = 'flex';
-            document.querySelector('#loadingOverlay p').innerText = "LOCKING CONTRACT...";
+            document.getElementById('overlayText').innerText = "LOCKING CONTRACT...";
 
             try {
-                // Transactional Update untuk mencegah Double-Hire
+                // Kunci di folder misi utama menggunakan transaction untuk mencegah Double-Pick
                 const ref = db.ref(`missions/${this.server}/${this.mId}`);
                 await ref.transaction((current) => {
                     if (current && current.status === "open") {
                         current.selected_adventurer = nick;
                         current.selected_adv_id = advId;
-                        current.status = "briefing";
+                        current.status = "briefing"; // Mengubah status akan mentrigger redirect di listenMission()
                         return current;
                     }
-                    return; 
+                    return; // Batalkan transaksi jika misi sudah diambil atau error
                 });
             } catch (e) {
                 overlay.style.display = 'none';
-                showToast("SYNC ERROR: CONTRACT FAILED");
+                showToast("SYNC ERROR: KONTRAK GAGAL DIKUNCI");
             }
         },
 
         async confirmAbort() {
-            if(!confirm("TERMINATE MISSION? Semua data di radar akan dihapus permanen.")) return;
+            if(!confirm("HENTIKAN MISI? Semua data di jaringan akan ditarik mundur.")) return;
             
             const overlay = document.getElementById('loadingOverlay');
             overlay.style.display = 'flex';
-            document.querySelector('#loadingOverlay p').innerText = "WIPING DATA FROM SERVER...";
+            document.getElementById('overlayText').innerText = "WIPING DATA FROM SERVER...";
 
             try {
-                // TOTAL WIPE: Hapus misi permanen
-                await db.ref(`missions/${this.server}/${this.mId}`).remove();
+                // DOUBLE WIPE: Menghapus misi utama dan membersihkan folder terminal
+                const wipeMission = db.ref(`missions/${this.server}/${this.mId}`).remove();
+                const wipeTerminal = db.ref(`active_bids/${this.mId}`).remove();
+                
+                await Promise.all([wipeMission, wipeTerminal]);
+
                 localStorage.removeItem('active_mission_id');
-                window.location.href = "index.html";
+                window.location.href = "index.html"; // Redirect kembali ke map/dashboard
             } catch (e) {
                 overlay.style.display = 'none';
                 showToast("ABORT FAILED: SERVER REJECTED");
@@ -387,16 +405,21 @@
                 osc.connect(g); g.connect(actx.destination);
                 osc.frequency.value = 800; g.gain.value = 0.1;
                 osc.start(); osc.stop(actx.currentTime + 0.1);
+                
+                // Haptic feedback khas Android jika device mendukung
                 if(navigator.vibrate) navigator.vibrate([40, 30, 40]);
-            } catch(e){}
+            } catch(e){
+                // Ignore jika browser memblokir audio web (Autoplay Policy)
+            }
         }
     };
 
+    // Inisialisasi utama
     window.onload = () => Core.init();
 
-    // Anti-Crash for Browser Refresh
-    window.addEventListener('online', () => showToast("SIGNAL RECOVERED"));
-    window.addEventListener('offline', () => showToast("SIGNAL LOST: CHECK CONNECTION"));
+    // Pencegahan Crash & Alert Jaringan (Native feel)
+    window.addEventListener('online', () => showToast("SYSTEM: SIGNAL RECOVERED"));
+    window.addEventListener('offline', () => showToast("WARNING: SIGNAL LOST"));
 
 </script>
 </body>
