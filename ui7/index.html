@@ -1,12 +1,9 @@
 <!DOCTYPE html>
-<html lang="id" data-theme="dark">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#050505">
-    <title>PICK ME | REQUESTER TERMINAL</title>
-    
-    <link rel="manifest" href="data:application/manifest+json,{&quot;name&quot;:&quot;Pick Me Terminal&quot;,&quot;short_name&quot;:&quot;PickMe&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;#050505&quot;,&quot;theme_color&quot;:&quot;#050505&quot;}">
+    <title>PICK ME | CREATE MISSION</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -15,7 +12,6 @@
         :root {
             --neon-pink: #ff0055;
             --neon-cyan: #00ffff;
-            --neon-warn: #ffcc00;
             --bg-main: #050505;
             --bg-card: #0a0a0a;
             --border-color: #222;
@@ -23,530 +19,134 @@
             --font-terminal: 'Courier New', Courier, monospace;
         }
 
-        /* Anti-Select & Global Styles */
-        * { user-select: none; -webkit-user-select: none; box-sizing: border-box; }
         body { 
             background-color: var(--bg-main); color: var(--text-main); 
             margin: 0; font-family: 'Segoe UI', sans-serif; padding: 20px;
-            padding-top: 40px; /* Space for connection bar */
-            overflow-x: hidden;
         }
 
-        /* Connection Monitor */
-        #connBar {
-            position: fixed; top: 0; left: 0; width: 100%; height: 25px;
-            background: #00ff00; color: #000; text-align: center; font-family: var(--font-terminal);
-            font-size: 10px; font-weight: bold; line-height: 25px; z-index: 9999;
-            transition: 0.3s;
-        }
-        .offline { background: var(--neon-pink) !important; color: #fff !important; }
-
-        .header { text-align: center; margin-bottom: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
         .card { 
             background: var(--bg-card); border: 1px solid var(--border-color); 
-            padding: 15px; border-radius: 8px; max-width: 500px; margin: 0 auto;
-            margin-bottom: 20px;
+            padding: 20px; border-radius: 8px; max-width: 500px; margin: 0 auto;
         }
 
-        /* Category Grid (Hybrid from Code 2) */
-        .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 15px; }
-        .cat-box { 
-            background: #111; border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 5px; 
-            text-align: center; cursor: pointer; transition: 0.2s;
-        }
-        .cat-box.active { 
-            background: rgba(0, 255, 255, 0.1); border-color: var(--neon-cyan); 
-            box-shadow: 0 0 8px rgba(0, 255, 255, 0.2); 
-        }
-        .cat-box.disabled { opacity: 0.3; filter: grayscale(100%); pointer-events: none; }
-        .cat-icon { font-size: 20px; margin-bottom: 5px; }
-        .cat-name { font-size: 9px; font-weight: bold; font-family: var(--font-terminal); color: #aaa; }
-        .cat-box.active .cat-name { color: var(--neon-cyan); }
-
-        /* Form Elements */
         .input-group { margin-bottom: 15px; }
         label { display: block; font-family: var(--font-terminal); font-size: 11px; color: #888; margin-bottom: 5px; }
         
-        .input-field, select {
+        .input-field {
             width: 100%; background: #111; border: 1px solid var(--border-color);
-            color: #fff; padding: 12px; border-radius: 4px; font-size: 14px; outline: none;
-            transition: 0.3s;
+            color: #fff; padding: 12px; border-radius: 4px; font-size: 14px; box-sizing: border-box;
         }
-        .input-field:focus, select:focus { border-color: var(--neon-cyan); }
-        .input-field::placeholder { color: #555; }
-
-        /* Location Tabs */
-        .tab-bar { display: flex; gap: 5px; margin-bottom: 10px; background: #111; padding: 4px; border-radius: 4px; border: 1px solid var(--border-color); }
-        .tab-btn { flex: 1; text-align: center; padding: 8px; font-size: 10px; color: #888; border-radius: 3px; cursor: pointer; font-family: var(--font-terminal); }
-        .tab-btn.active { background: #222; color: var(--neon-cyan); font-weight: bold; }
-
-        .location-tag { font-size: 10px; color: var(--neon-cyan); margin-top: 5px; font-family: var(--font-terminal); display: block; }
-        .loader { font-size: 10px; color: var(--neon-pink); animation: blink 1s infinite; font-family: var(--font-terminal); margin-bottom: 10px; }
-        @keyframes blink { 50% { opacity: 0.3; } }
-
-        /* Chained Dropdown Container */
-        .chained-selects { display: none; gap: 8px; flex-direction: column; }
-        .chained-selects.active { display: flex; }
-
-        /* Checkbox Override */
-        .override-box { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; }
-        .override-box input { width: 16px; height: 16px; accent-color: var(--neon-cyan); }
-        .override-box span { font-size: 10px; font-family: var(--font-terminal); color: var(--neon-warn); }
+        .input-field:focus { border-color: var(--neon-cyan); outline: none; }
 
         .btn-post {
-            width: 100%; padding: 16px; background: var(--neon-cyan);
+            width: 100%; padding: 15px; background: var(--neon-cyan);
             color: #000; border: none; border-radius: 4px; cursor: pointer;
-            font-family: var(--font-terminal); font-weight: bold; font-size: 14px;
-            letter-spacing: 1px; transition: 0.2s;
+            font-family: var(--font-terminal); font-weight: bold; margin-top: 10px;
         }
-        .btn-post:disabled { background: #333; color: #666; cursor: not-allowed; }
-        .btn-post:active { transform: scale(0.98); }
 
-        #customAlert { position: fixed; inset:0; background:rgba(0,0,0,0.9); z-index:10000; display:none; justify-content:center; align-items:center; }
-        .alert-box { background: #050505; border: 1px solid var(--neon-pink); padding: 20px; border-radius: 8px; text-align: center; width: 85%; font-family: var(--font-terminal); }
+        .nav-link {
+            display: block; text-align: center; margin-top: 20px;
+            font-size: 12px; color: var(--neon-pink); text-decoration: none;
+            font-family: var(--font-terminal);
+        }
     </style>
 </head>
 <body>
 
-<div id="connBar">STATUS: SECURE CONNECTION ESTABLISHED</div>
-
 <div class="header">
-    <h1 style="color: var(--neon-pink); letter-spacing: 5px; margin: 0; font-size: 24px;">PICK ME</h1>
-    <p style="font-size: 10px; color: var(--neon-cyan); font-family: var(--font-terminal); margin-top: 5px;">V3.0: HYBRID MICRO-SHARDING</p>
-</div>
-
-<div class="card" style="padding: 10px;">
-    <div class="cat-grid" id="categoryGrid">
-        <div class="cat-box active" data-cat="motor" data-min="8000" onclick="Terminal.selectCat(this)">
-            <div class="cat-icon">🏍️</div><div class="cat-name">MOTOR</div>
-        </div>
-        <div class="cat-box" data-cat="mobil" data-min="15000" onclick="Terminal.selectCat(this)">
-            <div class="cat-icon">🚗</div><div class="cat-name">MOBIL</div>
-        </div>
-        <div class="cat-box" data-cat="barang" data-min="10000" onclick="Terminal.selectCat(this)">
-            <div class="cat-icon">📦</div><div class="cat-name">BARANG</div>
-        </div>
-        <div class="cat-box disabled">
-            <div class="cat-icon">⏳</div><div class="cat-name">LOCKED</div>
-        </div>
-    </div>
+    <h1 style="color: var(--neon-pink); letter-spacing: 5px; margin: 0;">PICK ME</h1>
+    <p style="font-size: 10px; color: var(--neon-cyan); font-family: var(--font-terminal);">REQUESTER TERMINAL: POST A QUEST</p>
 </div>
 
 <div class="card">
-    <div id="locStatus" class="loader">INITIALIZING GPS SCAN...</div>
-    
-    <div class="tab-bar">
-        <div class="tab-btn active" id="tabAuto" onclick="Terminal.switchLocMode('auto')">AUTO TARGET (GPS)</div>
-        <div class="tab-btn" id="tabManual" onclick="Terminal.switchLocMode('manual')">MANUAL OVERRIDE</div>
-    </div>
-
-    <div id="viewAuto" class="input-group">
-        <label>TITIK JEMPUT (SHARD TERKUNCI)</label>
-        <input type="text" id="mPickup" class="input-field" readonly style="background: #000; color: var(--neon-cyan); border-color: #444;">
-        <span id="geoDetail" class="location-tag">Menunggu Satelit...</span>
-    </div>
-
-    <div id="viewManual" class="input-group chained-selects">
-        <label style="color: var(--neon-warn);">REMOTE ORDER TARGETING</label>
-        <select id="selProv" class="input-field" onchange="LocationEngine.loadKab()"><option value="">-- PROVINSI --</option></select>
-        <select id="selKab" class="input-field" onchange="LocationEngine.loadKec()" disabled><option value="">-- KABUPATEN --</option></select>
-        <select id="selKec" class="input-field" onchange="LocationEngine.loadDesa()" disabled><option value="">-- KECAMATAN --</option></select>
-        <select id="selDesa" class="input-field" onchange="LocationEngine.finalizeManual()" disabled><option value="">-- DESA / KELURAHAN --</option></select>
-        <textarea id="manualDetail" class="input-field" style="height: 50px; display:none;" placeholder="Detail patokan (opsional)"></textarea>
+    <div class="input-group">
+        <label>YOUR NAME (REQUESTER)</label>
+        <input type="text" id="reqName" class="input-field" placeholder="Ex: Merchant Joe">
     </div>
 
     <div class="input-group">
-        <label>NAMA REQUESTER</label>
-        <input type="text" id="reqName" class="input-field" placeholder="Nama Samaran / Asli">
+        <label>QUEST TITLE</label>
+        <input type="text" id="mTitle" class="input-field" placeholder="Ex: Antar Paket Ramuan">
     </div>
 
     <div class="input-group">
-        <label>DETAIL TUGAS / TUJUAN</label>
-        <textarea id="mDesc" class="input-field" style="height: 60px;" placeholder="Cth: Antar ke Pasar Baru, bawa helm 2"></textarea>
+        <label>MISSION DESCRIPTION</label>
+        <textarea id="mDesc" class="input-field" style="height: 80px;" placeholder="Detail tugas..."></textarea>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+        <div class="input-group" style="flex: 1;">
+            <label>REWARD (RP)</label>
+            <input type="number" id="mReward" class="input-field" placeholder="50000">
+        </div>
+        <div class="input-group" style="flex: 1;">
+            <label>SERVER AREA</label>
+            <select id="mServer" class="input-field">
+                <option value="KNG-01">KNG-01 (KUNINGAN)</option>
+                <option value="CRB-01">CRB-01 (CIREBON)</option>
+            </select>
+        </div>
     </div>
 
     <div class="input-group">
-        <label>REWARD (MIN: <span id="lblMinReward">Rp 8.000</span>)</label>
-        <input type="number" id="mReward" class="input-field" placeholder="Nominal Rp (Tanpa Titik)" oninput="Terminal.checkReward()">
+        <label>PICKUP POINT</label>
+        <input type="text" id="mPickup" class="input-field" placeholder="Lokasi Jemput">
     </div>
 
-    <label class="override-box">
-        <input type="checkbox" id="chkUrgent">
-        <span>URGENT PRIORITY (Penting & Mendesak)</span>
-    </label>
-
-    <button class="btn-post" id="btnPost" onclick="Terminal.submitMission()" disabled>MENUNGGU KOORDINAT...</button>
+    <button class="btn-post" id="btnPost" onclick="postMission()">BROADCAST MISSION</button>
 </div>
 
-<div id="customAlert">
-    <div class="alert-box">
-        <h3 style="color:var(--neon-pink); margin-top:0;" id="alertTitle">SYSTEM ERROR</h3>
-        <p style="color:#aaa; font-size:12px; margin-bottom:20px;" id="alertMsg">Message</p>
-        <button onclick="document.getElementById('customAlert').style.display='none'" style="padding:10px 20px; background:transparent; border:1px solid var(--neon-cyan); color:var(--neon-cyan); font-family:var(--font-terminal); font-weight:bold; cursor:pointer;">[ ACKNOWLEDGE ]</button>
-    </div>
-</div>
+<a href="login.html" class="nav-link">SWITCH TO ADVENTURER LOGIN</a>
 
 <script>
-// --- ANTI-TAMPER & PWA CLOAKING ---
-document.addEventListener('contextmenu', event => event.preventDefault());
-document.addEventListener('keydown', (e) => {
-    if(e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) { e.preventDefault(); }
-});
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-// --- FIREBASE CONFIG (Sesuai Patokan) ---
-const firebaseConfig = {
-    apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
-    authDomain: "ojeklokal-42b84.firebaseapp.com",
-    databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "ojeklokal-42b84"
-};
-if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
-const db = firebase.database();
-
-// --- SYSTEM STATE ---
-const State = {
-    userLat: 0, userLon: 0,
-    shardPath: "", // Ex: JAWA-BARAT/KUNINGAN/KEC-CIGUGUR
-    pickupText: "",
-    locMode: "auto",
-    selectedCat: "motor",
-    minReward: 8000,
-    deviceId: "",
-    isBanned: false
-};
-
-// --- CORE UTILITIES ---
-const Utils = {
-    showAlert: (title, msg) => {
-        document.getElementById('alertTitle').innerText = title;
-        document.getElementById('alertMsg').innerText = msg;
-        document.getElementById('customAlert').style.display = 'flex';
-        AudioSynth.play('error');
-        if("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
-    },
-    slugify: (text) => text.toString().toUpperCase().trim().replace(/[^A-Z0-9-]/g, '-').replace(/-+/g, '-'),
-    generateFingerprint: () => {
-        const str = navigator.userAgent + screen.width + screen.height + navigator.hardwareConcurrency;
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return "DEV-" + Math.abs(hash).toString(16).toUpperCase();
-    }
-};
-
-// --- AUDIO SYNTHESIZER (0KB SOUND) ---
-const AudioSynth = {
-    ctx: new (window.AudioContext || window.webkitAudioContext)(),
-    play: function(type) {
-        if(this.ctx.state === 'suspended') this.ctx.resume();
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        
-        if(type === 'click') {
-            osc.type = 'sine'; osc.frequency.setValueAtTime(800, this.ctx.currentTime);
-            gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-            osc.start(); osc.stop(this.ctx.currentTime + 0.05);
-        } else if (type === 'success') {
-            osc.type = 'square'; osc.frequency.setValueAtTime(600, this.ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-            osc.start(); osc.stop(this.ctx.currentTime + 0.15);
-        } else if (type === 'error') {
-            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, this.ctx.currentTime);
-            gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-            osc.start(); osc.stop(this.ctx.currentTime + 0.2);
-        }
-    }
-};
-
-// --- LOCATION ENGINE (NOMINATIM & MOCK DROPDOWN) ---
-const LocationEngine = {
-    // Mock Data untuk Terminal (Bisa diganti fetch JSON eksternal nanti)
-    mockDB: {
-        "JAWA-BARAT": {
-            "KUNINGAN": {
-                "KEC-CIGUGUR": ["CIGUGUR", "SUKAMULYA", "CIRENDANG"],
-                "KEC-KUNINGAN": ["KUNINGAN", "AWIRARANGAN", "PURWAWINANGUN"]
-            },
-            "CIREBON": {
-                "KEC-KEDAWUNG": ["KEDAWUNG", "TUK", "KALIWADAS"]
-            }
-        }
-    },
-    initGPS: function() {
-        if (!navigator.geolocation) return Utils.showAlert("GPS ERROR", "Perangkat tidak mendukung Geolocation.");
-        
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            State.userLat = pos.coords.latitude;
-            State.userLon = pos.coords.longitude;
-            
-            try {
-                // Nominatim Reverse Geocoding
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${State.userLat}&lon=${State.userLon}&zoom=14`);
-                const data = await res.json();
-                
-                // Parsing Data (Handling varibel dinamis dari OSM)
-                const prov = Utils.slugify(data.address.state || "UNKNOWN-PROV");
-                const kab = Utils.slugify(data.address.city || data.address.county || "UNKNOWN-KAB");
-                const kec = Utils.slugify(data.address.city_district || data.address.suburb || data.address.town || "UNKNOWN-KEC");
-                const desa = Utils.slugify(data.address.village || data.address.neighbourhood || "");
-
-                // Setup Shard Path
-                State.shardPath = `${prov}/${kab}/KEC-${kec}`;
-                State.pickupText = `${desa ? desa+', ' : ''}${data.address.city_district || data.address.suburb || kec}`;
-                
-                document.getElementById('mPickup').value = State.pickupText;
-                document.getElementById('geoDetail').innerText = `COORD: ${State.userLat.toFixed(5)}, ${State.userLon.toFixed(5)} | SHARD: ${State.shardPath}`;
-                
-                const ls = document.getElementById('locStatus');
-                ls.innerText = "[ SHARD TERKUNCI ]";
-                ls.style.color = "var(--neon-cyan)";
-                ls.style.animation = "none";
-
-                Terminal.enablePostBtn();
-                AudioSynth.play('success');
-
-            } catch (e) {
-                document.getElementById('locStatus').innerText = "[ API LIMIT / ERROR ] MENGGUNAKAN RAW COORD";
-                State.shardPath = "GLOBAL/RAW/COORD";
-                State.pickupText = "GPS Kordinat Mentah";
-                Terminal.enablePostBtn();
-            }
-        }, (err) => {
-            Utils.showAlert("GPS DIBLOKIR", "Harap izinkan akses lokasi, atau gunakan mode Manual Override.");
-            document.getElementById('locStatus').innerText = "[ OFFLINE ] GPS DENIED";
-        });
-    },
-
-    // --- LOGICA DROPDOWN MANUAL ---
-    initManual: function() {
-        const selProv = document.getElementById('selProv');
-        selProv.innerHTML = '<option value="">-- PROVINSI --</option>';
-        Object.keys(this.mockDB).forEach(p => {
-            selProv.innerHTML += `<option value="${p}">${p.replace('-',' ')}</option>`;
-        });
-    },
-    loadKab: function() {
-        const prov = document.getElementById('selProv').value;
-        const selKab = document.getElementById('selKab');
-        selKab.innerHTML = '<option value="">-- KABUPATEN --</option>';
-        if(prov) {
-            Object.keys(this.mockDB[prov]).forEach(k => {
-                selKab.innerHTML += `<option value="${k}">${k}</option>`;
-            });
-            selKab.disabled = false;
-        } else { selKab.disabled = true; document.getElementById('selKec').disabled = true; }
-    },
-    loadKec: function() {
-        const prov = document.getElementById('selProv').value;
-        const kab = document.getElementById('selKab').value;
-        const selKec = document.getElementById('selKec');
-        selKec.innerHTML = '<option value="">-- KECAMATAN --</option>';
-        if(kab) {
-            Object.keys(this.mockDB[prov][kab]).forEach(kec => {
-                selKec.innerHTML += `<option value="${kec}">${kec.replace('KEC-','')}</option>`;
-            });
-            selKec.disabled = false;
-        }
-    },
-    loadDesa: function() {
-        const p = document.getElementById('selProv').value;
-        const kb = document.getElementById('selKab').value;
-        const kc = document.getElementById('selKec').value;
-        const selDesa = document.getElementById('selDesa');
-        selDesa.innerHTML = '<option value="">-- DESA --</option>';
-        if(kc) {
-            this.mockDB[p][kb][kc].forEach(d => {
-                selDesa.innerHTML += `<option value="${d}">${d}</option>`;
-            });
-            selDesa.disabled = false;
-        }
-    },
-    finalizeManual: function() {
-        const p = document.getElementById('selProv').value;
-        const kb = document.getElementById('selKab').value;
-        const kc = document.getElementById('selKec').value;
-        const d = document.getElementById('selDesa').value;
-        
-        if(d) {
-            State.shardPath = `${p}/${kb}/${kc}`;
-            State.pickupText = d;
-            document.getElementById('manualDetail').style.display = "block";
-            Terminal.enablePostBtn();
-        }
-    }
-};
-
-// --- TERMINAL LOGIC CONTROLLER ---
-const Terminal = {
-    init: function() {
-        State.deviceId = Utils.generateFingerprint();
-        
-        // Cek nama di localstorage agar cepat
-        const savedName = localStorage.getItem('pm_req_name');
-        if(savedName) document.getElementById('reqName').value = savedName;
-
-        LocationEngine.initGPS();
-        LocationEngine.initManual();
-
-        // Connection Monitor Listener
-        window.addEventListener('online', () => this.updateConn(true));
-        window.addEventListener('offline', () => this.updateConn(false));
-        this.updateConn(navigator.onLine);
-    },
-
-    updateConn: function(isOnline) {
-        const bar = document.getElementById('connBar');
-        if(isOnline) {
-            bar.innerText = "STATUS: SECURE CONNECTION ESTABLISHED";
-            bar.className = "";
-        } else {
-            bar.innerText = "STATUS: CONNECTION LOST - RECONNECTING...";
-            bar.className = "offline";
-        }
-    },
-
-    selectCat: function(el) {
-        AudioSynth.play('click');
-        document.querySelectorAll('.cat-box').forEach(b => b.classList.remove('active'));
-        el.classList.add('active');
-        
-        State.selectedCat = el.getAttribute('data-cat');
-        State.minReward = parseInt(el.getAttribute('data-min'));
-        
-        document.getElementById('lblMinReward').innerText = `Rp ${State.minReward.toLocaleString('id-ID')}`;
-        this.checkReward();
-    },
-
-    switchLocMode: function(mode) {
-        AudioSynth.play('click');
-        State.locMode = mode;
-        document.getElementById('tabAuto').classList.remove('active');
-        document.getElementById('tabManual').classList.remove('active');
-        document.getElementById('viewAuto').style.display = 'none';
-        document.getElementById('viewManual').classList.remove('active');
-        
-        if(mode === 'auto') {
-            document.getElementById('tabAuto').classList.add('active');
-            document.getElementById('viewAuto').style.display = 'block';
-            if(State.shardPath !== "") this.enablePostBtn();
-        } else {
-            document.getElementById('tabManual').classList.add('active');
-            document.getElementById('viewManual').classList.add('active');
-            document.getElementById('btnPost').disabled = true; // Wait for manual finalize
-        }
-    },
-
-    checkReward: function() {
-        const inp = document.getElementById('mReward').value;
+    async function postMission() {
         const btn = document.getElementById('btnPost');
-        if(inp && parseInt(inp) >= State.minReward) {
-            if(State.shardPath !== "") this.enablePostBtn();
-        } else {
-            btn.disabled = true;
-            btn.innerText = "REWARD TERLALU RENDAH";
-        }
-    },
-
-    enablePostBtn: function() {
-        const btn = document.getElementById('btnPost');
-        const inp = document.getElementById('mReward').value;
-        if(inp && parseInt(inp) >= State.minReward) {
-            btn.disabled = false;
-            btn.innerText = "BROADCAST TO TERMINAL";
-        } else {
-            btn.innerText = "LENGKAPI DATA";
-        }
-    },
-
-    submitMission: async function() {
-        if(!navigator.onLine) return Utils.showAlert("OFFLINE", "Tidak ada koneksi internet. Misi ditunda.");
+        const server = document.getElementById('mServer').value;
         
-        const btn = document.getElementById('btnPost');
-        const reqName = document.getElementById('reqName').value || "Anonim";
-        const mDesc = document.getElementById('mDesc').value;
-        const mReward = parseInt(document.getElementById('mReward').value);
-        const isUrgent = document.getElementById('chkUrgent').checked;
-
-        if(!mDesc) return Utils.showAlert("WARNING", "Detail tugas tidak boleh kosong.");
-
-        btn.innerText = "ENCRYPTING DATA...";
-        btn.disabled = true;
-        AudioSynth.play('click');
-
-        // Logic "Buta Alamat / Manual Detail"
-        let finalPickup = State.pickupText;
-        if(State.locMode === 'manual') {
-            const extra = document.getElementById('manualDetail').value;
-            if(extra) finalPickup += ` (${extra})`;
-        }
-
-        // --- PREPARE DATA ---
-        const now = Date.now();
         const missionData = {
-            requester_name: reqName,
-            category: State.selectedCat,
-            description: mDesc,
-            reward: mReward,
-            pickup_point: finalPickup,
-            lat: State.userLat,
-            lon: State.userLon,
-            is_urgent: isUrgent,
-            status: "open",
-            bids_count: 0,
-            created_at: now,
-            expires_at: now + 120000, // 120 Detik Expiry
-            device_id: State.deviceId
+            requester_name: document.getElementById('reqName').value,
+            title: document.getElementById('mTitle').value,
+            description: document.getElementById('mDesc').value,
+            reward: parseInt(document.getElementById('mReward').value),
+            pickup_point: document.getElementById('mPickup').value,
+            status: "posted",
+            created_at: Date.now(),
+            applicants: {}
         };
 
+        if(!missionData.title || !missionData.reward) return alert("Lengkapi data misi!");
+
+        btn.innerText = "BROADCASTING...";
+        btn.disabled = true;
+
         try {
-            // Shadow Banned Logic (Simulasi)
-            if(State.isBanned) {
-                setTimeout(() => { this.redirectSuccess("BANNED-DUMMY-ID"); }, 2000);
-                return;
-            }
+            // Generate ID Unik untuk Misi
+            const newMissionRef = db.ref(`missions/${server}`).push();
+            const mId = newMissionRef.key;
 
-            // --- FIREBASE INJECTION TO MICRO-SHARD ---
-            const dbRef = db.ref(`missions/${State.shardPath}`).push();
-            const mId = dbRef.key;
+            await newMissionRef.set(missionData);
 
-            await dbRef.set(missionData);
-
-            // Signal Notif Hemat Kuota (Opsional, tulis di root shard)
-            db.ref(`signal/${State.shardPath}`).set(now);
-
-            // Simpan nama agar user tidak perlu ketik ulang besok
-            localStorage.setItem('pm_req_name', reqName);
+            alert("Misi Berhasil di-Broadcast!");
+            // Simpan ID misi di session agar bisa masuk ke Lobby
+            localStorage.setItem('active_mission_id', mId);
+            localStorage.setItem('active_mission_server', server);
             
-            if("vibrate" in navigator) navigator.vibrate([200]);
-            AudioSynth.play('success');
-
-            this.redirectSuccess(mId);
-
+            window.location.href = "lobby.html";
         } catch (e) {
-            Utils.showAlert("SERVER REJECTED", e.message);
+            alert(e.message);
             btn.disabled = false;
-            btn.innerText = "COBA LAGI";
         }
-    },
-
-    redirectSuccess: function(mId) {
-        localStorage.setItem('active_mission_id', mId);
-        localStorage.setItem('active_mission_shard', State.shardPath);
-        
-        // Strict redirection rule based on baseline Code 1
-        window.location.href = "lobby.html";
     }
-};
-
-// Start Engine
-window.onload = () => Terminal.init();
-
 </script>
 </body>
 </html>
