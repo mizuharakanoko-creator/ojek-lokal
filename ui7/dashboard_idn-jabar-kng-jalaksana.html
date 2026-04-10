@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADVENTURER DASHBOARD | GUILD TERMINAL</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="shard-config.js"></script>
+    <style>
+        :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; --card: #111; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; }
+        
+        /* Stats Bar */
+        .stats-bar { 
+            background: #111; padding: 15px; display: flex; justify-content: space-around; 
+            border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 10;
+        }
+        .stat-item { text-align: center; }
+        .stat-item small { display: block; font-size: 10px; color: #888; text-transform: uppercase; }
+        .stat-item b { color: var(--neon); font-size: 16px; }
+
+        /* Mission List */
+        .feed { padding: 20px; max-width: 500px; margin: auto; }
+        .mission-card { 
+            background: var(--card); border: 1px solid #222; border-radius: 12px; 
+            padding: 15px; margin-bottom: 15px; transition: 0.3s;
+        }
+        .mission-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .badge { font-size: 9px; padding: 3px 8px; border-radius: 4px; background: #222; color: var(--neon); }
+        .fare-tag { color: #ffbb33; font-weight: bold; }
+
+        /* Modal Invitation */
+        #inviteModal { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.9); z-index: 100; justify-content: center; align-items: center;
+        }
+        .modal-box { 
+            background: #111; border: 2px solid var(--neon); padding: 30px; 
+            border-radius: 15px; text-align: center; width: 80%; max-width: 350px;
+        }
+        .timer-ring { font-size: 30px; color: var(--pink); font-weight: bold; margin: 15px 0; }
+        .btn-accept { background: var(--neon); color: #000; border: none; padding: 12px 30px; font-weight: bold; cursor: pointer; border-radius: 5px; }
+        .btn-reject { background: none; border: 1px solid #444; color: #666; padding: 8px 15px; margin-top: 15px; cursor: pointer; font-size: 11px; }
+
+        /* Bidding Controls */
+        .bid-input { margin-top: 10px; display: flex; gap: 5px; }
+        .bid-input input { flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 8px; border-radius: 4px; }
+        .btn-bid { background: var(--pink); border: none; color: white; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div class="stats-bar">
+        <div class="stat-item"><small>Nick</small><b id="st-nick">-</b></div>
+        <div class="stat-item"><small>Stamina</small><b id="st-vit">100</b></div>
+        <div class="stat-item"><small>Rank</small><b id="st-rank">E</b></div>
+    </div>
+
+    <div class="feed">
+        <h4 style="color: var(--pink); font-size: 12px; letter-spacing: 1px;">AVAILABLE MISSIONS</h4>
+        <div id="missionList">Memuat papan misi...</div>
+    </div>
+
+    <div id="inviteModal">
+        <div class="modal-box">
+            <h3 style="color: var(--neon); margin: 0;">MISSION INCOMING!</h3>
+            <p id="invMsg" style="font-size: 13px; color: #aaa; margin: 10px 0;">Seseorang menugaskan Anda.</p>
+            <div style="font-size: 18px; color: #ffbb33; font-weight: bold;" id="invPrice">Rp 0</div>
+            <div class="timer-ring" id="invTimer">30</div>
+            <button class="btn-accept" onclick="acceptMission()">ACCEPT (Terima)</button><br>
+            <button class="btn-reject" onclick="rejectMission()">Reject (Tolak - Sanksi Stamina)</button>
+        </div>
+    </div>
+
+<script>
+    // 1. SESSION & CONFIG
+    const session = JSON.parse(localStorage.getItem('pickme_session'));
+    if(!session) window.location.href = "login.html";
+
+    document.getElementById('st-nick').innerText = session.nick.toUpperCase();
+    const myShard = session.shard_id;
+    const config = SHARD_MASTER[myShard];
+    if (!firebase.apps.length) firebase.initializeApp(config);
+    const db = firebase.database();
+
+    let currentInv = null;
+    let inviteCounter = 30;
+    let invInterval;
+
+    // 2. LOAD VITALITY & STATS
+    db.ref(`adventurer-${myShard.toLowerCase()}/${session.nick}`).on('value', snap => {
+        if(snap.exists()){
+            document.getElementById('st-vit').innerText = snap.val().vitality;
+            document.getElementById('st-rank').innerText = "Lv." + snap.val().level;
+        }
+    });
+
+    // 3. MONITOR MISSIONS (SHARD FEED)
+    db.ref(`missions/${myShard}`).orderByChild('status').equalTo('posted').on('value', snap => {
+        const list = document.getElementById('missionList');
+        list.innerHTML = "";
+        if(!snap.exists()) {
+            list.innerHTML = "<p style='color:#333'>Tidak ada misi di wilayah Anda.</p>";
+            return;
+        }
+        snap.forEach(child => {
+            const m = child.val();
+            list.innerHTML += `
+                <div class="mission-card">
+                    <div class="mission-header">
+                        <span class="badge">${m.category}</span>
+                        <span class="fare-tag">Rp ${m.fare.toLocaleString()}</span>
+                    </div>
+                    <div style="font-size:14px; font-weight:bold;">${m.start} → ${m.destination}</div>
+                    <div style="font-size:11px; color:#666; margin-top:5px;">Req: ${m.requester} (${m.type})</div>
+                    <div class="bid-input">
+                        <input type="number" id="price-${child.key}" placeholder="Nego Harga (Bids)">
+                        <button class="btn-bid" onclick="placeBid('${child.key}')">BID</button>
+                    </div>
+                </div>
+            `;
+        });
+    });
+
+    // 4. LOGIKA BIDDING (Nego Upah)
+    async function placeBid(mId) {
+        const priceInput = document.getElementById(`price-${mId}`);
+        const bidPrice = parseInt(priceInput.value);
+        if(!bidPrice) return alert("Masukkan harga nego!");
+
+        const vitRef = db.ref(`adventurer-${myShard.toLowerCase()}/${session.nick}/vitality`);
+        const vitSnap = await vitRef.get();
+        if(vitSnap.val() < 5) return alert("Stamina tidak cukup untuk melamar!");
+
+        try {
+            // Potong Stamina (Stamina cost for bid: 5)
+            await vitRef.set(vitSnap.val() - 5);
+            
+            // Masukkan data Bid ke Shard
+            await db.ref(`missions/${myShard}/${mId}/bids/${session.nick}`).set({
+                price: bidPrice,
+                timestamp: Date.now(),
+                rating: 5.0
+            });
+
+            alert("Bid Terkirim! Stamina -5");
+            priceInput.disabled = true;
+        } catch (e) { alert("Error: " + e.message); }
+    }
+
+    // 5. INVITATION LISTENER (Telinga Undangan)
+    db.ref(`invitations/${session.nick}`).on('value', snap => {
+        if(snap.exists()) {
+            currentInv = snap.val();
+            showInvitation();
+        }
+    });
+
+    function showInvitation() {
+        const modal = document.getElementById('inviteModal');
+        document.getElementById('invPrice').innerText = "Rp " + currentInv.price.toLocaleString();
+        modal.style.display = 'flex';
+        
+        inviteCounter = 30;
+        clearInterval(invInterval);
+        invInterval = setInterval(() => {
+            inviteCounter--;
+            document.getElementById('invTimer').innerText = inviteCounter;
+            if(inviteCounter <= 0) {
+                clearInterval(invInterval);
+                rejectMission(true); // Auto-reject jika waktu habis
+            }
+        }, 1000);
+    }
+
+    async function acceptMission() {
+        clearInterval(invInterval);
+        try {
+            // Update Status di Shard Misi agar Requester tahu
+            await db.ref(`missions/${myShard}/${currentInv.mission_id}`).update({
+                status: "contracted"
+            });
+            // Hapus undangan
+            await db.ref(`invitations/${session.nick}`).remove();
+            
+            localStorage.setItem('on_mission_id', currentInv.mission_id);
+            window.location.href = "briefing.html";
+        } catch (e) { console.log(e); }
+    }
+
+    async function rejectMission(isAuto = false) {
+        clearInterval(invInterval);
+        const modal = document.getElementById('inviteModal');
+        modal.style.display = 'none';
+
+        // Sanksi Stamina karena menolak/abaikan (Sanksi: 10)
+        const vitRef = db.ref(`adventurer-${myShard.toLowerCase()}/${session.nick}/vitality`);
+        const vitSnap = await vitRef.get();
+        await vitRef.set(Math.max(0, vitSnap.val() - 10));
+
+        await db.ref(`invitations/${session.nick}`).remove();
+        alert(isAuto ? "Waktu habis. Stamina berkurang." : "Undangan ditolak. Stamina berkurang.");
+    }
+</script>
+</body>
+</html>
