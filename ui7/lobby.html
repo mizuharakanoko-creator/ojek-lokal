@@ -3,85 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PICK ME | LOBBY</title>
+    <title>MISSION LOBBY | WAITING FOR BIDS</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="shard-config.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; }
-        .applicant-card {
-            background: #111; border: 1px solid #333; padding: 15px;
-            margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+        :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; --gold: #ffbb33; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
+        .container { max-width: 500px; margin: auto; }
+        
+        /* Header Info */
+        .mission-status { background: #111; padding: 20px; border-radius: 12px; border: 1px solid #222; text-align: center; margin-bottom: 25px; }
+        .radar { width: 60px; height: 60px; border: 2px solid var(--neon); border-radius: 50%; margin: 0 auto 15px; position: relative; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { transform: scale(0.9); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(0.9); opacity: 0.5; } }
+        
+        h2 { color: var(--neon); margin: 10px 0; font-size: 18px; }
+        .timer { font-family: monospace; color: var(--pink); font-size: 20px; font-weight: bold; }
+
+        /* Bids List */
+        .bid-card { 
+            background: #151515; border: 1px solid #333; padding: 15px; border-radius: 10px; 
+            margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
+            animation: slideIn 0.3s ease-out;
         }
-        .btn-select { background: #00ffff; color: #000; border: none; padding: 10px; font-weight: bold; cursor: pointer; }
-        .status-tag { color: #ff0055; font-family: monospace; font-size: 12px; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .bid-info b { display: block; color: var(--gold); font-size: 16px; }
+        .bid-info span { font-size: 11px; color: #888; }
+        .bid-price { text-align: right; }
+        .bid-price .amt { display: block; font-weight: bold; color: #fff; font-size: 16px; }
+        
+        .btn-hire { 
+            background: var(--neon); color: #000; border: none; padding: 8px 15px; 
+            border-radius: 5px; font-weight: bold; cursor: pointer; margin-left: 10px;
+        }
+        .btn-hire:hover { background: #fff; }
+
+        /* No Bids Message */
+        #emptyState { text-align: center; color: #444; margin-top: 50px; font-style: italic; }
     </style>
 </head>
 <body>
 
-    <h2>MISSION LOBBY</h2>
-    <p id="mInfo" class="status-tag">WAITING FOR ADVENTURERS...</p>
-    <hr border="1" color="#222">
+<div class="container">
+    <div class="mission-status">
+        <div class="radar"></div>
+        <h2>Broadcasting Mission...</h2>
+        <p id="missionTitle" style="font-size: 14px; color: #aaa; margin: 5px 0;">Menunggu Adventurer merespon...</p>
+        <div class="timer" id="expireTimer">10:00</div>
+        <p style="font-size: 10px; color: #555;">Masa berlaku misi (Expired Time)</p>
+    </div>
 
-    <div id="applicantList">
-        </div>
+    <div id="bidContainer">
+        <label style="color: var(--pink); font-size: 11px; font-weight: bold; text-transform: uppercase;">
+            Incoming Bids (Maksimal 10 Pelamar)
+        </label>
+        <div id="emptyState">Belum ada penawaran masuk...</div>
+        <div id="listBids" style="margin-top: 15px;"></div>
+    </div>
+
+    <button onclick="abortMission()" style="width:100%; background:none; border:1px solid #333; color:#555; padding:10px; margin-top:30px; cursor:pointer;">
+        Abort Mission (Batalkan Misi)
+    </button>
+</div>
 
 <script>
-    const firebaseConfig = {
-        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
-        authDomain: "ojeklokal-42b84.firebaseapp.com",
-        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "ojeklokal-42b84"
-    };
-    firebase.initializeApp(firebaseConfig);
+    // 1. DATA RECOVERY DARI LOCALSTORAGE
+    const missionId = localStorage.getItem('active_mission_id');
+    const shardId = localStorage.getItem('active_shard');
+    
+    if (!missionId || !shardId) {
+        alert("Sesi misi tidak ditemukan!");
+        window.location.href = "index.html";
+    }
+
+    // 2. FIREBASE INITIALIZATION
+    const config = SHARD_MASTER[shardId];
+    if (!firebase.apps.length) firebase.initializeApp(config);
     const db = firebase.database();
 
-    const mId = localStorage.getItem('active_mission_id');
-    const server = localStorage.getItem('active_mission_server');
+    // 3. TIMER EXPIRED (10 Menit)
+    let timeLeft = 600;
+    const timerEl = document.getElementById('expireTimer');
+    const countdown = setInterval(() => {
+        let mins = Math.floor(timeLeft / 60);
+        let secs = timeLeft % 60;
+        timerEl.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        if (timeLeft <= 0) {
+            clearInterval(countdown);
+            alert("Misi Kadaluwarsa!");
+            abortMission();
+        }
+        timeLeft--;
+    }, 1000);
 
-    if(!mId) window.location.href = "index.html";
+    // 4. MONITOR BIDS (REAL-TIME)
+    const bidsRef = db.ref(`missions/${shardId}/${missionId}/bids`);
+    bidsRef.limitToFirst(10).on('value', snap => {
+        const listDiv = document.getElementById('listBids');
+        const emptyState = document.getElementById('emptyState');
+        listDiv.innerHTML = "";
 
-    function listenApplicants() {
-        db.ref(`missions/${server}/${mId}/applicants`).on('value', (snap) => {
-            const listDiv = document.getElementById('applicantList');
-            listDiv.innerHTML = "";
+        if (!snap.exists()) {
+            emptyState.style.display = "block";
+            return;
+        }
 
-            if(!snap.exists()) {
-                listDiv.innerHTML = "<p style='color:#444'>Belum ada pelamar...</p>";
-                return;
-            }
-
-            snap.forEach(child => {
-                const adv = child.val();
-                listDiv.innerHTML += `
-                    <div class="applicant-card">
-                        <div>
-                            <b style="color:#ff0055">${adv.nick}</b><br>
-                            <small>Rating: ⭐${adv.rating}</small>
-                        </div>
-                        <button class="btn-select" onclick="selectAdventurer('${adv.nick}')">CHOOSE</button>
+        emptyState.style.display = "none";
+        snap.forEach(child => {
+            const bid = child.val();
+            const advId = child.key; // ID Adventurer
+            
+            listDiv.innerHTML += `
+                <div class="bid-card">
+                    <div class="bid-info">
+                        <b>${advId.toUpperCase()}</b>
+                        <span>Rating: ⭐ ${bid.rating || '5.0'}</span>
                     </div>
-                `;
+                    <div class="bid-price">
+                        <span class="amt">Rp ${bid.price.toLocaleString()}</span>
+                        <button class="btn-hire" onclick="hireAdventurer('${advId}', ${bid.price})">HIRE (Tugaskan)</button>
+                    </div>
+                </div>
+            `;
+        });
+    });
+
+    // 5. LOGIKA HIRE (PROSES UNDANGAN)
+    async function hireAdventurer(advId, dealPrice) {
+        if (!confirm(`Tugaskan ${advId} dengan upah Rp ${dealPrice.toLocaleString()}?`)) return;
+
+        try {
+            // A. Update Status Misi di Shard agar tidak bisa di-bid lagi oleh orang lain
+            await db.ref(`missions/${shardId}/${missionId}`).update({
+                status: "hiring",
+                selected_adventurer: advId,
+                deal_price: dealPrice
             });
-        });
 
-        // Pantau jika status berubah (berpindah ke briefing)
-        db.ref(`missions/${server}/${mId}/status`).on('value', snap => {
-            if(snap.val() === "briefing") {
-                window.location.href = "briefing.html";
-            }
-        });
+            // B. Kirim Undangan Langsung ke ID Adventurer (Direct Invitation)
+            // Kita letakkan di node 'invitations' pada Shard yang sama
+            await db.ref(`invitations/${advId}`).set({
+                mission_id: missionId,
+                shard_id: shardId,
+                requester_id: "REQ_" + missionId.substring(0, 5), // Dummy ID jika stranger
+                price: dealPrice,
+                timestamp: Date.now(),
+                expires_at: Date.now() + 30000 // Cooldown 30 detik
+            });
+
+            alert("Undangan telah dikirim! Menunggu konfirmasi Adventurer...");
+            
+            // C. Pantau status misi, jika diterima (status berubah jadi 'contracted'), pindah ke briefing
+            db.ref(`missions/${shardId}/${missionId}/status`).on('value', statusSnap => {
+                if (statusSnap.val() === "contracted") {
+                    window.location.href = "briefing.html";
+                }
+            });
+
+        } catch (e) {
+            alert("Gagal melakukan Hire: " + e.message);
+        }
     }
 
-    async function selectAdventurer(nick) {
-        if(!confirm("Pilih " + nick + " untuk misi ini?")) return;
+    // 6. LOGIKA BATALKAN (CLEANUP)
+    async function abortMission() {
+        if (!confirm("Hancurkan data misi ini?")) return;
         
-        await db.ref(`missions/${server}/${mId}`).update({
-            selected_adventurer: nick,
-            status: "briefing"
-        });
+        clearInterval(countdown);
+        try {
+            await db.ref(`missions/${shardId}/${missionId}`).remove();
+            localStorage.removeItem('active_mission_id');
+            alert("Misi telah dihapus.");
+            window.location.href = "index.html";
+        } catch (e) {
+            console.log(e);
+        }
     }
-
-    listenApplicants();
 </script>
 </body>
 </html>
