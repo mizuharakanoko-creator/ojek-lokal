@@ -12,44 +12,56 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; }
+        :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; --card: #111; }
         body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
+        /* Header Stats */
+        .mission-header { background: #111; padding: 10px 20px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
+        .m-id { font-family: monospace; font-size: 10px; color: #555; }
+
         /* Peta Area */
-        #map { height: 40%; width: 100%; border-bottom: 2px solid #222; background: #111; }
+        #map { height: 35%; width: 100%; border-bottom: 2px solid #222; background: #000; }
 
         /* Chat Area */
-        #chatBox { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #0a0a0a; }
-        .msg { max-width: 80%; padding: 10px 15px; border-radius: 15px; font-size: 14px; line-height: 1.4; position: relative; }
+        #chatBox { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #080808; }
+        .msg { max-width: 80%; padding: 10px 15px; border-radius: 15px; font-size: 13px; line-height: 1.4; position: relative; word-wrap: break-word; }
         .msg.me { align-self: flex-end; background: var(--neon); color: #000; border-bottom-right-radius: 2px; }
         .msg.them { align-self: flex-start; background: #222; color: #fff; border-bottom-left-radius: 2px; }
-        .msg small { display: block; font-size: 9px; opacity: 0.7; margin-top: 5px; }
+        .msg small { display: block; font-size: 8px; opacity: 0.6; margin-top: 4px; text-transform: uppercase; }
 
         /* Controls Area */
-        .controls { background: #111; padding: 10px; border-top: 1px solid #222; }
-        .input-row { display: flex; gap: 8px; margin-bottom: 10px; }
-        .input-row input { flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 25px; outline: none; }
+        .controls { background: #111; padding: 15px; border-top: 1px solid #222; box-shadow: 0 -5px 15px rgba(0,0,0,0.5); }
+        .input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+        .input-row input { flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 12px 18px; border-radius: 25px; outline: none; font-size: 14px; }
+        .btn-send { background: var(--neon); border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
         
         .action-row { display: flex; gap: 8px; }
-        .btn-action { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .btn-action { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: 0.2s; text-transform: uppercase; }
         
         .btn-gmaps { background: #4285F4; color: white; }
         .btn-wa { background: #25D366; color: white; }
-        .btn-finish { background: var(--pink); color: white; }
+        .btn-finish { background: var(--pink); color: white; box-shadow: 0 0 10px rgba(255,0,85,0.3); }
+        .btn-finish:hover { background: #fff; color: #000; }
     </style>
 </head>
 <body>
 
+    <div class="mission-header">
+        <div>
+            <span style="color:var(--neon); font-weight:bold; font-size:12px;">● MISSION ACTIVE</span>
+            <div class="m-id" id="displayCId">CONTRACT: ...</div>
+        </div>
+        <div id="roleTag" style="font-size:10px; padding:3px 8px; border:1px solid #444; border-radius:4px; color:#888;">ROLE</div>
+    </div>
+
     <div id="map"></div>
 
-    <div id="chatBox">
-        <p style="text-align:center; color:#444; font-size:10px;">Enkripsi P2P Aktif - Selamat Bertugas</p>
-    </div>
+    <div id="chatBox"></div>
 
     <div class="controls">
         <div class="input-row">
-            <input type="text" id="chatInput" placeholder="Kirim pesan ke rekan...">
-            <button onclick="sendChat()" style="background:var(--neon); border:none; padding:10px 18px; border-radius:50%; cursor:pointer;">➔</button>
+            <input type="text" id="chatInput" placeholder="Ketik pesan pesan...">
+            <button class="btn-send" onclick="sendChat()">➔</button>
         </div>
         
         <div class="action-row" id="roleActions">
@@ -57,10 +69,15 @@
     </div>
 
 <script>
-    // 1. DATA RECOVERY
+    // 1. DATA RECOVERY & FIREBASE INIT
     const session = JSON.parse(localStorage.getItem('pickme_session'));
     const cId = localStorage.getItem('active_contract_id') || localStorage.getItem('on_contract_id');
     const sId = localStorage.getItem('active_shard');
+
+    if (!cId || !sId) {
+        alert("Session Expired!");
+        window.location.href = "index.html";
+    }
 
     const config = SHARD_MASTER[sId];
     if (!firebase.apps.length) firebase.initializeApp(config);
@@ -70,33 +87,34 @@
     let myNick = session ? session.nick : "Requester";
     let map, marker;
 
-    // 2. INIT MAPS (Leaflet)
+    document.getElementById('displayCId').innerText = "ID: " + cId;
+    document.getElementById('roleTag').innerText = myRole.toUpperCase();
+
+    // 2. INIT MAPS (Leaflet - Bandung Default)
     function initMap() {
-        map = L.map('map').setView([-6.9147, 107.6098], 15); // Default Bandung
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
-        marker = L.marker([-6.9147, 107.6098]).addTo(map).bindPopup("Adventurer Location");
+        map = L.map('map', { zoomControl: false }).setView([-6.9147, 107.6098], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        marker = L.marker([-6.9147, 107.6098]).addTo(map).bindPopup("Adventurer");
     }
     initMap();
 
     // 3. TRACKING LOGIC
     if (myRole === "adventurer") {
-        // Jika Adventurer: Kirim Lokasi tiap 5 detik
+        // GPS TRACKER (Adventurer Side)
         navigator.geolocation.watchPosition(pos => {
             const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             db.ref(`contracts/${cId}/live_location`).set(coords);
             marker.setLatLng([coords.lat, coords.lng]);
             map.panTo([coords.lat, coords.lng]);
-        }, err => console.error(err), { enableHighAccuracy: true });
+        }, err => console.error("GPS Error:", err), { enableHighAccuracy: true });
 
-        // Tampilkan Tombol Khusus Adventurer
+        // ACTION BUTTONS ADVENTURER
         document.getElementById('roleActions').innerHTML = `
-            <button class="btn-action btn-gmaps" onclick="openGmaps()">🧭 GOOGLE MAPS</button>
-            <button class="btn-action btn-finish" onclick="finishMission()">SELESAI MISI</button>
+            <button class="btn-action btn-gmaps" onclick="openGmaps()">🧭 OPEN GMAPS</button>
+            <button class="btn-action btn-finish" onclick="finishMission()">FINISH MISSION</button>
         `;
     } else {
-        // Jika Requester: Pantau Lokasi Adventurer
+        // GPS MONITOR (Requester Side)
         db.ref(`contracts/${cId}/live_location`).on('value', snap => {
             if (snap.exists()) {
                 const loc = snap.val();
@@ -105,10 +123,10 @@
             }
         });
 
-        // Tampilkan Tombol Khusus Requester
+        // ACTION BUTTONS REQUESTER
         document.getElementById('roleActions').innerHTML = `
             <button class="btn-action btn-wa" onclick="openWA()">💬 WHATSAPP</button>
-            <button class="btn-action" style="background:#333; color:#aaa;">MENUNGGU SELESAI...</button>
+            <button class="btn-action" style="background:#222; color:#555; cursor:default;">WAITING FOR FINISH...</button>
         `;
     }
 
@@ -139,35 +157,60 @@
         chatBox.scrollTop = chatBox.scrollHeight;
     });
 
-    // 5. EXTERNAL REDIRECTS
+    // 5. REDIRECTS
     function openGmaps() {
-        // Membuka peta ke koordinat saat ini untuk navigasi
         const lat = marker.getLatLng().lat;
         const lng = marker.getLatLng().lng;
         window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
     }
 
     function openWA() {
-        // WhatsApp dummy, idealnya ambil nomor dari database profile
-        const phone = "628123456789"; 
-        window.open(`https://wa.me/${phone}?text=Halo, saya Requester misi Anda.`, '_blank');
+        const dummyPhone = "628123456789"; // Idealnya tarik dari db adventurer
+        window.open(`https://wa.me/${dummyPhone}?text=Halo, saya Requester misi Anda.`, '_blank');
     }
 
+    // 6. FINISH & CLEANUP (THE CORE LOGIC)
     async function finishMission() {
-        if (!confirm("Konfirmasi bahwa misi telah selesai dikerjakan?")) return;
-        await db.ref(`contracts/${cId}`).update({ status: "completed" });
-        alert("Misi Selesai! Menunggu Verifikasi Pembayaran.");
-        window.location.href = "index.html"; // Atau ke halaman feedback
+        if (!confirm("Konfirmasi Selesai? Data misi & kontrak akan dihapus dari sistem.")) return;
+
+        try {
+            // A. Ambil snapshot data terakhir untuk Rating
+            const contractSnap = await db.ref(`contracts/${cId}`).get();
+            const cData = contractSnap.val();
+
+            // B. PROSES PENGHAPUSAN (CLEANUP)
+            // 1. Hapus Misi dari Shard
+            await db.ref(`missions/${sId}/${cData.mission_id}`).remove();
+            
+            // 2. Hapus Undangan Adventurer
+            await db.ref(`invitations/${cData.adventurer_id}`).remove();
+
+            // 3. Simpan data sementara ke LocalStorage untuk halaman Rating
+            localStorage.setItem('last_mission_summary', JSON.stringify({
+                adv: cData.adventurer_id,
+                price: cData.final_price,
+                shard: sId
+            }));
+
+            // 4. Update status ke 'completed' (memicu redirect Requester)
+            await db.ref(`contracts/${cId}`).update({ status: "completed" });
+            
+            // 5. Beri jeda 1 detik lalu hapus kontrak utama
+            setTimeout(async () => {
+                await db.ref(`contracts/${cId}`).remove();
+                window.location.href = "rating.html";
+            }, 1500);
+
+        } catch (e) { alert("Error Cleanup: " + e.message); }
     }
 
-    // Jika misi ditandai selesai oleh Adventurer, Requester juga pindah
+    // LISTENER UNTUK REQUESTER
     db.ref(`contracts/${cId}/status`).on('value', snap => {
         if (snap.val() === "completed" && myRole === "requester") {
-            alert("Adventurer telah menyelesaikan misi!");
-            window.location.href = "index.html";
+            alert("Misi telah diselesaikan oleh Adventurer!");
+            window.location.href = "rating.html";
         }
     });
-
 </script>
 </body>
 </html>
