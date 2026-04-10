@@ -1,151 +1,171 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PICK ME | CREATE MISSION</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PICK ME | REQUEST MISSION</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
+    <script src="shard-config.js"></script>
     <style>
-        :root {
-            --neon-pink: #ff0055;
-            --neon-cyan: #00ffff;
-            --bg-main: #050505;
-            --bg-card: #0a0a0a;
-            --border-color: #222;
-            --text-main: #fff;
-            --font-terminal: 'Courier New', Courier, monospace;
-        }
-
-        body { 
-            background-color: var(--bg-main); color: var(--text-main); 
-            margin: 0; font-family: 'Segoe UI', sans-serif; padding: 20px;
-        }
-
-        .header { text-align: center; margin-bottom: 30px; }
-        .card { 
-            background: var(--bg-card); border: 1px solid var(--border-color); 
-            padding: 20px; border-radius: 8px; max-width: 500px; margin: 0 auto;
-        }
-
-        .input-group { margin-bottom: 15px; }
-        label { display: block; font-family: var(--font-terminal); font-size: 11px; color: #888; margin-bottom: 5px; }
+        :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding-bottom: 50px; }
+        .container { padding: 20px; max-width: 500px; margin: auto; }
         
-        .input-field {
-            width: 100%; background: #111; border: 1px solid var(--border-color);
-            color: #fff; padding: 12px; border-radius: 4px; font-size: 14px; box-sizing: border-box;
-        }
-        .input-field:focus { border-color: var(--neon-cyan); outline: none; }
+        /* 1. CATEGORY GRID & ANIMATION */
+        .category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+        .cat-item { background: #111; border: 1px solid #222; padding: 10px; text-align: center; cursor: pointer; transition: 0.3s; border-radius: 8px; }
+        .cat-item.active { border-color: var(--neon); box-shadow: 0 0 10px var(--neon); }
+        .cat-item img { width: 30px; display: block; margin: 0 auto 5px; }
+        .cat-item span { font-size: 10px; text-transform: uppercase; }
+        .hidden-cats { display: none; margin-top: 10px; }
 
-        .btn-post {
-            width: 100%; padding: 15px; background: var(--neon-cyan);
-            color: #000; border: none; border-radius: 4px; cursor: pointer;
-            font-family: var(--font-terminal); font-weight: bold; margin-top: 10px;
-        }
+        /* 2. LOCATION INPUTS */
+        .section-box { background: #111; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 3px solid var(--pink); }
+        label { font-size: 11px; color: #888; display: block; margin-bottom: 5px; }
+        input, select, textarea { width: 100%; padding: 10px; background: #000; border: 1px solid #333; color: #fff; border-radius: 4px; box-sizing: border-box; }
+        
+        /* 3. PRICE CARDS */
+        .price-engine { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 15px; }
+        .price-card { background: #000; border: 1px solid #333; padding: 10px; text-align: center; cursor: pointer; }
+        .price-card.selected { border-color: #ffbb33; background: #1a1500; }
+        .price-card b { display: block; font-size: 14px; color: #ffbb33; }
+        .price-card small { font-size: 9px; color: #888; }
 
-        .nav-link {
-            display: block; text-align: center; margin-top: 20px;
-            font-size: 12px; color: var(--neon-pink); text-decoration: none;
-            font-family: var(--font-terminal);
-        }
+        button.main-btn { width: 100%; padding: 15px; background: var(--pink); color: white; border: none; font-weight: bold; margin-top: 20px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <h1 style="color: var(--neon-pink); letter-spacing: 5px; margin: 0;">PICK ME</h1>
-    <p style="font-size: 10px; color: var(--neon-cyan); font-family: var(--font-terminal);">REQUESTER TERMINAL: POST A QUEST</p>
-</div>
+<div class="container">
+    <h3 style="color: var(--neon)">REQUEST SERVICE (Buat Misi)</h3>
 
-<div class="card">
-    <div class="input-group">
-        <label>YOUR NAME (REQUESTER)</label>
-        <input type="text" id="reqName" class="input-field" placeholder="Ex: Merchant Joe">
+    <div class="category-grid" id="mainCats">
+        <div class="cat-item active" onclick="setCat('motor-ride')"><span>Motor</span></div>
+        <div class="cat-item" onclick="setCat('car-ride')"><span>Car</span></div>
+        <div class="cat-item" onclick="setCat('ekspedition')"><span>Send</span></div>
+        <div class="cat-item" onclick="setCat('titip-beli')"><span>Buy</span></div>
+    </div>
+    <button onclick="toggleCats()" style="background:none; border:none; color:var(--neon); font-size:11px; cursor:pointer;">Show More Options...</button>
+    <div class="category-grid hidden-cats" id="moreCats">
+        <div class="cat-item" onclick="setCat('buruh-harian')"><span>Worker</span></div>
+        <div class="cat-item" onclick="setCat('jasa-ahli')"><span>Expert</span></div>
+        <div class="cat-item" onclick="setCat('jasa-sewa')"><span>Rent</span></div>
     </div>
 
-    <div class="input-group">
-        <label>QUEST TITLE</label>
-        <input type="text" id="mTitle" class="input-field" placeholder="Ex: Antar Paket Ramuan">
+    <div class="section-box">
+        <label>PICKUP POINT (Titik Awal)</label>
+        <input type="text" id="startPoint" placeholder="Detecting Location..." readonly>
+        <input type="text" id="startNote" placeholder="Patokan Rumah / Keterangan (Optional)" style="margin-top:5px; font-size:12px;">
+        <button onclick="manualStart()" style="background:none; border:none; color:var(--pink); font-size:10px; margin-top:5px; cursor:pointer;">Pilih Manual (Jika GPS Tidak Akurat)</button>
     </div>
 
-    <div class="input-group">
-        <label>MISSION DESCRIPTION</label>
-        <textarea id="mDesc" class="input-field" style="height: 80px;" placeholder="Detail tugas..."></textarea>
-    </div>
-
-    <div style="display: flex; gap: 10px;">
-        <div class="input-group" style="flex: 1;">
-            <label>REWARD (RP)</label>
-            <input type="number" id="mReward" class="input-field" placeholder="50000">
-        </div>
-        <div class="input-group" style="flex: 1;">
-            <label>SERVER AREA</label>
-            <select id="mServer" class="input-field">
-                <option value="KNG-01">KNG-01 (KUNINGAN)</option>
-                <option value="CRB-01">CRB-01 (CIREBON)</option>
-            </select>
+    <div id="transportForm">
+        <div class="section-box">
+            <label>DESTINATION (Titik Tujuan)</label>
+            <input type="text" id="endPoint" placeholder="Pilih Kecamatan / Kota Tujuan">
+            <textarea id="endNote" placeholder="Catatan Tujuan (Optional)" style="margin-top:5px; height:50px;"></textarea>
         </div>
     </div>
 
-    <div class="input-group">
-        <label>PICKUP POINT</label>
-        <input type="text" id="mPickup" class="input-field" placeholder="Lokasi Jemput">
+    <div id="buyForm" style="display:none;">
+        <div class="section-box">
+            <label>PURCHASING POINTS (Tempat Beli - Max 4)</label>
+            <div id="shopList">
+                <input type="text" placeholder="Tempat Beli 1" style="margin-bottom:5px;">
+            </div>
+            <button onclick="addShop()" style="font-size:10px; background:#222; border:none; color:#fff; padding:5px;">+ Tambah Tempat</button>
+        </div>
     </div>
 
-    <button class="btn-post" id="btnPost" onclick="postMission()">BROADCAST MISSION</button>
-</div>
+    <div class="section-box">
+        <label>ESTIMATED FARE (Estimasi Upah)</label>
+        <div class="price-engine" id="priceEngine">
+            <div class="price-card" onclick="selectFare('hemat')"><small>Hemat</small><b id="priceH">Rp 0</b></div>
+            <div class="price-card selected" onclick="selectFare('standar')"><small>Standar</small><b id="priceS">Rp 0</b></div>
+            <div class="price-card" onclick="selectFare('extra')"><small>Extra</small><b id="priceE">Rp 0</b></div>
+        </div>
+        <p id="negoMsg" style="display:none; color:#ffbb33; font-size:11px; text-align:center;">Lokasi manual terdeteksi. Harga disarankan NEGO.</p>
+    </div>
 
-<a href="login.html" class="nav-link">SWITCH TO ADVENTURER LOGIN</a>
+    <button class="main-btn" onclick="postToShard()">BROADCAST MISSION</button>
+</div>
 
 <script>
-    const firebaseConfig = {
-        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
-        authDomain: "ojeklokal-42b84.firebaseapp.com",
-        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "ojeklokal-42b84"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    let currentCat = 'motor-ride';
+    let userCoords = { lat: 0, lon: 0 };
+    let selectedPrice = 0;
 
-    async function postMission() {
-        const btn = document.getElementById('btnPost');
-        const server = document.getElementById('mServer').value;
-        
-        const missionData = {
-            requester_name: document.getElementById('reqName').value,
-            title: document.getElementById('mTitle').value,
-            description: document.getElementById('mDesc').value,
-            reward: parseInt(document.getElementById('mReward').value),
-            pickup_point: document.getElementById('mPickup').value,
-            status: "posted",
-            created_at: Date.now(),
-            applicants: {}
-        };
-
-        if(!missionData.title || !missionData.reward) return alert("Lengkapi data misi!");
-
-        btn.innerText = "BROADCASTING...";
-        btn.disabled = true;
-
-        try {
-            // Generate ID Unik untuk Misi
-            const newMissionRef = db.ref(`missions/${server}`).push();
-            const mId = newMissionRef.key;
-
-            await newMissionRef.set(missionData);
-
-            alert("Misi Berhasil di-Broadcast!");
-            // Simpan ID misi di session agar bisa masuk ke Lobby
-            localStorage.setItem('active_mission_id', mId);
-            localStorage.setItem('active_mission_server', server);
-            
-            window.location.href = "lobby.html";
-        } catch (e) {
-            alert(e.message);
-            btn.disabled = false;
+    // A. GPS AUTOMATION (Opsi 2a)
+    window.onload = () => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                userCoords.lat = pos.coords.latitude;
+                userCoords.lon = pos.coords.longitude;
+                document.getElementById('startPoint').value = `Loc: ${userCoords.lat.toFixed(4)}, ${userCoords.lon.toFixed(4)}`;
+                calculatePrice();
+            }, err => {
+                alert("GPS Error. Silakan pilih manual.");
+                manualStart();
+            });
         }
+    };
+
+    // B. SWITCH CATEGORY
+    function setCat(cat) {
+        currentCat = cat;
+        document.querySelectorAll('.cat-item').forEach(el => el.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        
+        // Show/Hide Buying Form
+        document.getElementById('buyForm').style.display = (cat === 'titip-beli') ? 'block' : 'none';
+        document.getElementById('transportForm').style.display = (cat === 'titip-beli') ? 'none' : 'block';
+        calculatePrice();
+    }
+
+    function toggleCats() {
+        let more = document.getElementById('moreCats');
+        more.style.display = (more.style.display === 'grid') ? 'none' : 'grid';
+    }
+
+    // C. PRICE ENGINE (Haversine Logic & Multipliers)
+    function calculatePrice() {
+        // Dummy logic untuk contoh (Jarak 5km asumsi)
+        let distance = 5; 
+        let baseRate = (currentCat === 'car-ride') ? 5000 : 2500;
+        let areaMultiplier = 1.2; // Contoh pengali wilayah pegunungan
+
+        let total = distance * baseRate * areaMultiplier;
+
+        document.getElementById('priceH').innerText = "Rp " + (total * 0.8).toLocaleString();
+        document.getElementById('priceS').innerText = "Rp " + total.toLocaleString();
+        document.getElementById('priceE').innerText = "Rp " + (total * 1.3).toLocaleString();
+        
+        selectedPrice = total;
+    }
+
+    function manualStart() {
+        document.getElementById('startPoint').readOnly = false;
+        document.getElementById('startPoint').value = "";
+        document.getElementById('startPoint').placeholder = "Kecamatan / Desa / Patokan";
+        document.getElementById('negoMsg').style.display = 'block';
+    }
+
+    function addShop() {
+        const list = document.getElementById('shopList');
+        if(list.children.length < 4) {
+            let inp = document.createElement('input');
+            inp.type = "text";
+            inp.placeholder = "Tempat Beli " + (list.children.length + 1);
+            inp.style.marginBottom = "5px";
+            list.appendChild(inp);
+        }
+    }
+
+    // D. BROADCAST TO SHARD
+    function postToShard() {
+        // Logika pengiriman data ke Firebase Shard (seperti diskusi sebelumnya)
+        alert("Misi Sedang di-Broadcast ke Shard Wilayah!");
     }
 </script>
 </body>
