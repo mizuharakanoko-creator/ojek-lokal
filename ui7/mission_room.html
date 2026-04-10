@@ -2,58 +2,172 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MISSION ACTIVE | COMMAND CENTER</title>
+    
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="shard-config.js"></script>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <style>
         :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; }
-        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        #map { height: 35%; width: 100%; border-bottom: 2px solid #222; }
-        #chatBox { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; background: #080808; }
-        .msg { max-width: 75%; padding: 10px; border-radius: 12px; font-size: 13px; }
-        .msg.me { align-self: flex-end; background: var(--neon); color: #000; }
-        .msg.them { align-self: flex-start; background: #222; color: #fff; }
-        .controls { background: #111; padding: 15px; border-top: 1px solid #222; }
-        .input-row { display: flex; gap: 8px; margin-bottom: 10px; }
-        .input-row input { flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 20px; outline: none; }
-        .action-row { display: flex; gap: 8px; }
-        .btn { flex: 1; padding: 15px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; color: white; text-transform: uppercase; }
+        
+        * { box-sizing: border-box; }
+        
+        body { 
+            background: var(--bg); 
+            color: white; 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            overflow: hidden; 
+        }
+
+        /* Header Area */
+        .mission-header {
+            padding: 10px 15px;
+            background: #111;
+            border-bottom: 1px solid #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Map Section */
+        #map { 
+            height: 35%; 
+            width: 100%; 
+            border-bottom: 2px solid #222; 
+            background: #000;
+        }
+
+        /* Chat Section */
+        #chatBox { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 15px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px; 
+            background: #080808;
+            padding-bottom: 20px;
+        }
+        
+        .msg { 
+            max-width: 80%; 
+            padding: 10px 14px; 
+            border-radius: 18px; 
+            font-size: 14px; 
+            line-height: 1.4;
+        }
+        .msg.me { align-self: flex-end; background: var(--neon); color: #000; border-bottom-right-radius: 2px; }
+        .msg.them { align-self: flex-start; background: #222; color: #fff; border-bottom-left-radius: 2px; }
+        .msg small { display: block; font-size: 9px; opacity: 0.6; margin-bottom: 4px; }
+
+        /* Controls Section (Pusat Kendali) */
+        .controls { 
+            background: #111; 
+            border-top: 1px solid #222;
+            padding: 15px;
+            /* Jarak aman bawah untuk navigasi HP (Android/iOS) */
+            padding-bottom: calc(30px + env(safe-area-inset-bottom, 20px));
+            box-shadow: 0 -10px 20px rgba(0,0,0,0.5);
+        }
+
+        .input-row { 
+            display: flex; 
+            gap: 10px; 
+            margin-bottom: 15px; 
+        }
+        
+        .input-row input { 
+            flex: 1; 
+            background: #000; 
+            border: 1px solid #333; 
+            color: #fff; 
+            padding: 12px 18px; 
+            border-radius: 25px; 
+            outline: none;
+            font-size: 14px;
+        }
+
+        .btn-send {
+            background: var(--neon);
+            border: none;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .action-row { 
+            display: flex; 
+            gap: 10px; 
+        }
+
+        .btn { 
+            flex: 1; 
+            padding: 16px; 
+            border: none; 
+            border-radius: 12px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            font-size: 13px; 
+            color: white; 
+            text-transform: uppercase;
+            transition: 0.2s;
+        }
+        
+        .btn:active { transform: scale(0.95); opacity: 0.8; }
+
         .btn-gmaps { background: #4285F4; }
-        .btn-finish { background: var(--pink); box-shadow: 0 0 10px rgba(255,0,85,0.4); }
         .btn-wa { background: #25D366; }
-        .btn-cancel { background: #444; }
-        #debugInfo { font-size: 9px; color: #444; text-align: center; margin-bottom: 5px; }
+        .btn-finish { background: var(--pink); box-shadow: 0 0 15px rgba(255,0,85,0.3); }
+        .btn-cancel { background: #333; border: 1px solid #444; }
+
+        #roleLabel { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
     </style>
 </head>
 <body>
 
+    <div class="mission-header">
+        <div id="roleLabel">Verifying Role...</div>
+        <div style="font-size: 12px; color: var(--neon); font-weight: bold;">LIVE TRACKING</div>
+    </div>
+
     <div id="map"></div>
-    <div id="chatBox"></div>
+
+    <div id="chatBox">
+        <p style="text-align:center; color:#333; font-size:10px;">Chat secured with P2P encryption</p>
+    </div>
 
     <div class="controls">
-        <div id="debugInfo">Initializing system...</div>
         <div class="input-row">
-            <input type="text" id="chatInput" placeholder="Kirim pesan...">
-            <button onclick="sendChat()" style="background:var(--neon); border:none; width:40px; height:40px; border-radius:50%; cursor:pointer;">➔</button>
+            <input type="text" id="chatInput" placeholder="Ketik pesan di sini...">
+            <button class="btn-send" onclick="sendChat()">➔</button>
         </div>
+        
         <div class="action-row" id="roleActions">
-            <p style="color:gray; font-size:10px; width:100%; text-align:center;">Memverifikasi Role...</p>
-        </div>
+            </div>
     </div>
 
 <script>
-    // 1. DATA RECOVERY
+    // 1. SESSION & DB INIT
     const session = JSON.parse(localStorage.getItem('pickme_session'));
     const cId = localStorage.getItem('active_contract_id') || localStorage.getItem('on_contract_id');
     const sId = localStorage.getItem('active_shard');
-    const debugEl = document.getElementById('debugInfo');
 
     if (!cId || !sId) {
-        alert("Sesi Error: ID Kontrak atau Shard tidak ditemukan!");
+        alert("Mission Session Missing!");
         window.location.href = "index.html";
     }
 
@@ -61,47 +175,50 @@
     if (!firebase.apps.length) firebase.initializeApp(config);
     const db = firebase.database();
 
+    let myRole = ""; 
+    let myNick = session ? session.nick : "Requester";
     let map, marker;
 
-    // 2. INIT MAPS
+    // 2. MAP SETUP
     map = L.map('map', { zoomControl: false }).setView([-6.9147, 107.6098], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     marker = L.marker([-6.9147, 107.6098]).addTo(map);
 
-    // 3. LOGIKA ROLE & TOMBOL (DIPERKETAT)
-    async function setupInterface() {
+    // 3. ROLE IDENTIFICATION & BUTTONS
+    async function initInterface() {
         const snap = await db.ref(`contracts/${cId}`).get();
-        if (!snap.exists()) {
-            debugEl.innerText = "Kontrak tidak ditemukan di database!";
-            return;
-        }
-
+        if (!snap.exists()) return alert("Contract Data Not Found!");
+        
         const contract = snap.val();
         const actionsRow = document.getElementById('roleActions');
-        
-        // Cek apakah saya Adventurer yang terdaftar di kontrak ini?
-        const isAdventurer = (session && session.nick === contract.adventurer_id);
-        
-        if (isAdventurer) {
-            debugEl.innerText = "MODE: ADVENTURER (" + session.nick + ")";
+        const roleLabel = document.getElementById('roleLabel');
+
+        // Penentuan Role Berdasarkan ID Kontrak
+        if (session && session.nick === contract.adventurer_id) {
+            myRole = "adventurer";
+            roleLabel.innerText = "Role: Adventurer (" + myNick + ")";
             actionsRow.innerHTML = `
-                <button class="btn btn-gmaps" onclick="openGmaps()">🧭 GMAPS</button>
-                <button class="btn btn-finish" onclick="finishMission()">SELESAI MISI</button>
+                <button class="btn btn-gmaps" onclick="openGmaps()">🧭 G-Maps</button>
+                <button class="btn btn-finish" onclick="finishMission()">Selesai Misi</button>
             `;
-            // GPS Tracker
+            
+            // Start Tracking
             navigator.geolocation.watchPosition(pos => {
                 const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                 db.ref(`contracts/${cId}/live_location`).set(loc);
                 marker.setLatLng([loc.lat, loc.lng]);
                 map.panTo([loc.lat, loc.lng]);
-            });
+            }, null, { enableHighAccuracy: true });
+
         } else {
-            debugEl.innerText = "MODE: REQUESTER (Monitoring Mode)";
+            myRole = "requester";
+            roleLabel.innerText = "Role: Requester";
             actionsRow.innerHTML = `
-                <button class="btn btn-wa" onclick="openWA()">💬 WHATSAPP</button>
-                <button class="btn btn-cancel" onclick="cancelMission()">BATALKAN</button>
+                <button class="btn btn-wa" onclick="openWA()">💬 WhatsApp</button>
+                <button class="btn btn-cancel" onclick="cancelMission()">Batalkan</button>
             `;
-            // Monitor Lokasi
+
+            // Monitor Location
             db.ref(`contracts/${cId}/live_location`).on('value', s => {
                 if(s.exists()) {
                     marker.setLatLng([s.val().lat, s.val().lng]);
@@ -111,51 +228,55 @@
         }
     }
 
-    setupInterface();
+    initInterface();
 
-    // 4. CHAT LOGIC
+    // 4. CHAT SYSTEM
     function sendChat() {
         const input = document.getElementById('chatInput');
         if(!input.value.trim()) return;
-        const sender = session ? session.nick : "Requester";
-        db.ref(`contracts/${cId}/chats`).push({ sender: sender, text: input.value });
+        db.ref(`contracts/${cId}/chats`).push({
+            sender: myNick,
+            text: input.value,
+            time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+        });
         input.value = "";
     }
 
     db.ref(`contracts/${cId}/chats`).on('child_added', snap => {
         const m = snap.val();
-        const isMe = (session && m.sender === session.nick) || (!session && m.sender === "Requester");
-        document.getElementById('chatBox').innerHTML += `
+        const isMe = m.sender === myNick;
+        const chatBox = document.getElementById('chatBox');
+        chatBox.innerHTML += `
             <div class="msg ${isMe ? 'me' : 'them'}">
-                <small style="display:block; font-size:8px; margin-bottom:3px;">${m.sender}</small>
+                <small>${m.sender}</small>
                 ${m.text}
-            </div>`;
-        document.getElementById('chatBox').scrollTop = 9999;
+            </div>
+        `;
+        chatBox.scrollTop = chatBox.scrollHeight;
     });
 
     // 5. ACTION FUNCTIONS
     function openGmaps() {
-        const lat = marker.getLatLng().lat;
-        const lng = marker.getLatLng().lng;
-        window.open(`https://www.google.com/maps?q=${lat},${lng}`);
+        const pos = marker.getLatLng();
+        window.open(`https://www.google.com/maps/search/?api=1&query=${pos.lat},${pos.lng}`);
     }
 
     function openWA() {
-        window.open('https://wa.me/628123456789'); // Nomor bisa diambil dari db jika perlu
+        window.open('https://wa.me/628123456789'); 
     }
 
     async function finishMission() {
-        if(!confirm("Misi selesai? Data kontrak akan dihapus.")) return;
-        
+        if(!confirm("Yakin misi sudah selesai? Data akan dihapus.")) return;
         const snap = await db.ref(`contracts/${cId}`).get();
         const d = snap.val();
-        
-        // Simpan data untuk rating sebelum dihapus
+
+        // 1. Simpan data target rating untuk saya (Adventurer menilai Requester)
         localStorage.setItem('rating_target', JSON.stringify({ target: "Requester", role: "adventurer" }));
-        
-        // Update status agar requester terlempar ke rating
+
+        // 2. Set Status Completed (Memicu redirect di sisi Requester)
         await db.ref(`contracts/${cId}`).update({ status: "completed" });
-        
+
+        // 3. Jeda untuk sinkronisasi sebelum hapus
         setTimeout(async () => {
             await db.ref(`missions/${sId}/${d.mission_id}`).remove();
             await db.ref(`contracts/${cId}`).remove();
@@ -168,16 +289,17 @@
         await db.ref(`contracts/${cId}`).update({ status: "cancelled" });
     }
 
-    // 6. REDIRECT LISTENER
+    // 6. SYNC REDIRECT
     db.ref(`contracts/${cId}/status`).on('value', async snap => {
         const status = snap.val();
-        if(status === "completed" && !session) { // Jika saya requester
-            const c = await db.ref(`contracts/${cId}`).get();
-            localStorage.setItem('rating_target', JSON.stringify({ target: c.val().adventurer_id, role: "requester" }));
+        if(status === "completed" && myRole === "requester") {
+            const cSnap = await db.ref(`contracts/${cId}`).get();
+            const cData = cSnap.val();
+            localStorage.setItem('rating_target', JSON.stringify({ target: cData.adventurer_id, role: "requester" }));
             window.location.href = "rating.html";
         }
         if(status === "cancelled") {
-            alert("Misi Dibatalkan.");
+            alert("Misi dibatalkan.");
             window.location.href = "index.html";
         }
     });
