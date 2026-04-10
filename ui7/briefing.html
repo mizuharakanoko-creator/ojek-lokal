@@ -3,132 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MISSION BRIEFING | SYNC CENTER</title>
+    <title>MISSION BRIEFING | CONTRACT SIGNING</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="shard-config.js"></script>
     <style>
         :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; --gold: #ffbb33; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
-        .container { max-width: 450px; margin: auto; text-align: center; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .briefing-card { background: #111; border: 1px solid #222; border-radius: 20px; padding: 30px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
         
-        /* Briefing Card */
-        .card { background: #111; border: 1px solid #222; border-radius: 20px; padding: 30px; position: relative; overflow: hidden; }
-        .card::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, var(--neon), var(--pink)); }
-        
-        .role-badge { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 20px; letter-spacing: 1px; }
-        .role-req { background: rgba(255, 0, 85, 0.2); color: var(--pink); border: 1px solid var(--pink); }
-        .role-adv { background: rgba(0, 255, 255, 0.2); color: var(--neon); border: 1px solid var(--neon); }
+        .badge { display: inline-block; padding: 6px 12px; border-radius: 5px; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 15px; }
+        .role-adv { background: rgba(0, 255, 255, 0.1); color: var(--neon); border: 1px solid var(--neon); }
+        .role-req { background: rgba(255, 0, 85, 0.1); color: var(--pink); border: 1px solid var(--pink); }
 
-        .contract-id { font-family: monospace; color: #555; font-size: 11px; margin-bottom: 30px; display: block; }
-        
-        /* Status List */
-        .sync-list { text-align: left; margin: 20px 0; }
-        .sync-item { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 14px; color: #aaa; }
-        .sync-item.done { color: #fff; }
-        .sync-item.done i { color: #00ff00; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: #333; }
-        .dot.active { background: #00ff00; box-shadow: 0 0 10px #00ff00; }
+        .contract-info { background: #000; padding: 15px; border-radius: 10px; margin: 20px 0; border: 1px dashed #333; }
+        .label { display: block; font-size: 10px; color: #555; text-transform: uppercase; margin-bottom: 5px; }
+        .val { font-family: monospace; color: var(--gold); font-size: 14px; }
 
-        .btn-ready { 
+        .status-area { margin-top: 25px; min-height: 60px; }
+        .waiting-msg { color: #666; font-style: italic; font-size: 13px; animation: blink 1.5s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .btn-sign { 
             width: 100%; padding: 18px; background: var(--neon); color: #000; border: none; 
-            border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; 
-            display: none; margin-top: 20px; box-shadow: 0 5px 15px rgba(0,255,255,0.2);
+            border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px; 
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); transition: 0.3s;
         }
+        .btn-sign:hover { transform: scale(1.02); background: #fff; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="card">
-        <div id="roleBadge" class="role-badge">Validating Role...</div>
-        <span class="contract-id" id="displayCId">CONTRACT_ID: -</span>
+<div class="briefing-card">
+    <div id="roleDisplay" class="badge">Identifying...</div>
+    <h2 style="margin: 0; font-size: 22px;">Mission Briefing</h2>
+    <p style="font-size: 11px; color: #444; margin-top: 5px;" id="cIdDisplay">CONTRACT ID: -</p>
 
-        <h2 id="greetMsg" style="margin: 0; font-size: 20px;">Menunggu Sinkronisasi</h2>
-        <p style="font-size: 12px; color: #666; margin-top: 8px;">Memastikan kedua belah pihak masuk ke ruang briefing yang sama.</p>
+    <div class="contract-info">
+        <span class="label">Adventurer Target</span>
+        <span class="val" id="advNick">...</span>
+        <hr style="border: 0; border-top: 1px solid #111; margin: 10px 0;">
+        <span class="label">Deal Price</span>
+        <span class="val" id="finalPrice">Calculating...</span>
+    </div>
 
-        <div class="sync-list">
-            <div class="sync-item"><div class="dot active"></div> Connection Established</div>
-            <div class="sync-item"><div class="dot active"></div> Mission ID Verified</div>
-            <div class="sync-item" id="advCheck"><div class="dot"></div> Adventurer Ready</div>
-            <div class="sync-item" id="reqCheck"><div class="dot"></div> Requester Ready</div>
-        </div>
-
-        <button id="btnStart" class="btn-ready" onclick="startExecution()">GO TO EXECUTION ROOM</button>
+    <div class="status-area" id="actionArea">
+        <div class="waiting-msg">Menghubungkan ke server...</div>
     </div>
 </div>
 
 <script>
     // 1. DATA RECOVERY
-    const session = JSON.parse(localStorage.getItem('pickme_session')); // Cek login
+    const session = JSON.parse(localStorage.getItem('pickme_session'));
     const cId = localStorage.getItem('active_contract_id') || localStorage.getItem('on_contract_id');
     const sId = localStorage.getItem('active_shard');
 
     if (!cId || !sId) {
-        alert("Contract Session Missing!");
+        alert("Sesi Kontrak Hilang!");
         window.location.href = "index.html";
     }
 
-    // 2. IDENTIFIKASI ROLE
-    // Jika tidak ada session (nick), berarti dia adalah Requester (Stranger/Citizen)
-    // Jika ada session dan dia pelamar di kontrak tersebut, berarti dia Adventurer
-    let myRole = session ? "adventurer" : "requester";
-    let myNick = session ? session.nick : "Requester";
-
-    const badge = document.getElementById('roleBadge');
-    badge.innerText = myRole;
-    badge.className = "role-badge " + (myRole === "adventurer" ? "role-adv" : "role-req");
-    document.getElementById('displayCId').innerText = "CONTRACT: " + cId;
-    document.getElementById('greetMsg').innerText = "Hello, " + myNick;
-
-    // 3. FIREBASE INIT
+    // 2. FIREBASE INIT
     const config = SHARD_MASTER[sId];
     if (!firebase.apps.length) firebase.initializeApp(config);
     const db = firebase.database();
 
-    // 4. SYNC LOGIC
-    const contractRef = db.ref(`contracts/${cId}`);
+    // 3. LOGIKA MONITORING KONTRAK
+    db.ref(`contracts/${cId}`).on('value', snap => {
+        if (!snap.exists()) {
+            alert("Kontrak telah dibatalkan.");
+            window.location.href = "index.html";
+            return;
+        }
 
-    // Tandai bahwa saya sudah masuk (Ready)
-    if(myRole === "adventurer") {
-        contractRef.update({ adv_ready: true });
-    } else {
-        contractRef.update({ req_ready: true });
-    }
-
-    // 5. MONITOR KEDUA BELAH PIHAK
-    contractRef.on('value', snap => {
-        if(!snap.exists()) return;
         const data = snap.val();
+        
+        // Tampilkan Detail Kontrak
+        document.getElementById('cIdDisplay').innerText = "CONTRACT: " + cId;
+        document.getElementById('advNick').innerText = data.adventurer_id.toUpperCase();
+        document.getElementById('finalPrice').innerText = "Rp " + data.final_price.toLocaleString();
 
-        // Update UI Checklist
-        if(data.adv_ready) {
-            document.getElementById('advCheck').querySelector('.dot').className = "dot active";
-            document.getElementById('advCheck').style.color = "#fff";
-        }
-        if(data.req_ready) {
-            document.getElementById('reqCheck').querySelector('.dot').className = "dot active";
-            document.getElementById('reqCheck').style.color = "#fff";
+        // CEK ROLE SECARA AKURAT
+        const isAdventurer = (session && session.nick === data.adventurer_id);
+        const actionArea = document.getElementById('actionArea');
+        const roleDisplay = document.getElementById('roleDisplay');
+
+        // Jika Status berubah menjadi 'executing', lempar ke halaman misi (Redirect Otomatis)
+        if (data.status === "executing") {
+            window.location.href = "mission_room.html";
+            return;
         }
 
-        // Jika keduanya ready, munculkan tombol Start
-        if(data.adv_ready && data.req_ready) {
-            document.getElementById('btnStart').style.display = "block";
-            document.getElementById('greetMsg').innerText = "All Set! Ready?";
+        if (isAdventurer) {
+            // ROLE ADVENTURER: Tampilkan tombol Tanda Tangan
+            roleDisplay.innerText = "YOUR ROLE: ADVENTURER";
+            roleDisplay.className = "badge role-adv";
+            actionArea.innerHTML = `
+                <button class="btn-sign" onclick="signContract()">TANDA TANGANI KONTRAK</button>
+                <p style="font-size: 10px; color: #555; margin-top: 10px;">Dengan menekan ini, Anda memulai misi secara resmi.</p>
+            `;
+        } else {
+            // ROLE REQUESTER: Diam saja & Menonton
+            roleDisplay.innerText = "YOUR ROLE: REQUESTER";
+            roleDisplay.className = "badge role-req";
+            actionArea.innerHTML = `
+                <div class="waiting-msg">Menunggu Adventurer tanda tangan...</div>
+                <p style="font-size: 10px; color: #555; margin-top: 10px;">Sistem akan otomatis memulai misi setelah disetujui pelaksana.</p>
+            `;
         }
     });
 
-    async function startExecution() {
-        // Update status kontrak menjadi 'executing'
-        await contractRef.update({ status: "executing" });
-        window.location.href = "mission_room.html";
-    }
+    // 4. FUNGSI TANDA TANGAN (KHUSUS ADVENTURER)
+    async function signContract() {
+        try {
+            // Update status kontrak menjadi 'executing'
+            // Ini akan memicu listener di atas pada browser Requester juga
+            await db.ref(`contracts/${cId}`).update({
+                status: "executing",
+                signed_at: Date.now()
+            });
 
-    // Otomatis hapus status ready jika tab ditutup (Clean up)
-    window.onbeforeunload = function() {
-        if(myRole === "adventurer") contractRef.update({ adv_ready: false });
-        else contractRef.update({ req_ready: false });
-    };
+            // Juga update status misi di Shard agar tidak 'hiring' lagi
+            const mId = localStorage.getItem('on_mission_id') || localStorage.getItem('active_mission_id');
+            await db.ref(`missions/${sId}/${mId}`).update({
+                status: "executing"
+            });
+
+        } catch (e) {
+            alert("Gagal menandatangani: " + e.message);
+        }
+    }
 </script>
 </body>
 </html>
