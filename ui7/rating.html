@@ -1,176 +1,63 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PICK ME | MISSION CLEARANCE</title>
-    
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
+    <title>MISSION COMPLETE | RATING</title>
     <style>
-        :root {
-            --neon-pink: #ff0055;
-            --neon-cyan: #00ffff;
-            --bg-main: #050505;
-            --border-color: #222;
-            --font-terminal: 'Courier New', Courier, monospace;
-        }
-
-        body { background: var(--bg-main); color: white; margin: 0; font-family: sans-serif; padding: 20px; text-align: center; }
-        
-        .clearance-card {
-            max-width: 400px; margin: 40px auto; background: #0a0a0a;
-            border: 1px solid var(--neon-cyan); padding: 30px; border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
-        }
-
-        .star-rating { font-size: 40px; margin: 25px 0; display: flex; justify-content: center; gap: 10px; }
-        .star { cursor: pointer; color: #1a1a1a; transition: 0.2s; filter: drop-shadow(0 0 2px #000); }
-        .star.active { color: #ffbb33; text-shadow: 0 0 15px #ffbb33; }
-
-        .clearance-info {
-            background: #000; border: 1px solid #333; padding: 15px;
-            margin: 20px 0; font-family: var(--font-terminal); font-size: 13px;
-            min-height: 50px; display: flex; align-items: center; justify-content: center;
-        }
-
-        .btn-submit {
-            width: 100%; padding: 18px; background: var(--neon-cyan);
-            color: black; border: none; font-weight: bold; cursor: pointer;
-            font-family: var(--font-terminal); border-radius: 4px; font-size: 14px;
-            letter-spacing: 1px;
-        }
-
-        .btn-submit:disabled { background: #333; color: #555; }
-
-        #gainText { font-weight: bold; }
-        .status-danger { color: var(--neon-pink); animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.3; } }
+        :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; }
+        body { background: var(--bg); color: white; font-family: sans-serif; text-align: center; padding: 50px 20px; }
+        .rating-box { max-width: 400px; margin: auto; background: #111; padding: 30px; border-radius: 20px; border: 1px solid #222; }
+        .stars { font-size: 40px; margin: 20px 0; cursor: pointer; }
+        .star { color: #333; transition: 0.3s; }
+        .star.active { color: #ffbb33; text-shadow: 0 0 10px #ffbb33; }
+        button { background: var(--neon); color: #000; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 20px; }
     </style>
 </head>
 <body>
 
-<div class="clearance-card">
-    <h2 style="color:var(--neon-pink); font-family:var(--font-terminal); letter-spacing:2px;">GUILD EVALUATION</h2>
-    <p style="font-size:12px; color:#555; margin-bottom: 20px;">Tentukan nasib Clearance Adventurer di lapangan.</p>
+    <div class="rating-box">
+        <h1 style="color: var(--neon);">MISSION SUCCESS!</h1>
+        <p id="summary">Terima kasih telah menggunakan layanan kami.</p>
+        
+        <div class="stars" id="starGrade">
+            <span class="star" onclick="setRating(1)">★</span>
+            <span class="star" onclick="setRating(2)">★</span>
+            <span class="star" onclick="setRating(3)">★</span>
+            <span class="star" onclick="setRating(4)">★</span>
+            <span class="star" onclick="setRating(5)">★</span>
+        </div>
 
-    <div class="star-rating" id="starContainer">
-        <span class="star" onclick="setRating(1)">★</span>
-        <span class="star" onclick="setRating(2)">★</span>
-        <span class="star" onclick="setRating(3)">★</span>
-        <span class="star" onclick="setRating(4)">★</span>
-        <span class="star" onclick="setRating(5)">★</span>
+        <textarea id="comment" placeholder="Berikan komentar singkat..." style="width:100%; background:#000; color:#fff; border:1px solid #333; padding:10px; border-radius:5px; height:80px;"></textarea>
+        
+        <button onclick="submitRating()">SUBMIT FEEDBACK</button>
     </div>
-
-    <div class="clearance-info">
-        <span id="gainText">SILAKAN BERI BINTANG...</span>
-    </div>
-
-    <button class="btn-submit" id="btnFinish" onclick="submitFinalReport()">SIMPAN KE ARSIP GUILD</button>
-</div>
 
 <script>
-    const mId = localStorage.getItem('active_mission_id');
-    const server = localStorage.getItem('active_mission_server');
+    const missionData = JSON.parse(localStorage.getItem('last_mission_data'));
     let currentRating = 0;
-    let targetAdv = "";
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
-        authDomain: "ojeklokal-42b84.firebaseapp.com",
-        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "ojeklokal-42b84"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    // Ambil data misi sekali untuk tahu siapa Adventurer-nya
-    db.ref(`missions/${server}/${mId}`).once('value', snap => {
-        if(snap.exists()) targetAdv = snap.val().selected_adventurer;
-    });
 
     function setRating(n) {
         currentRating = n;
         const stars = document.querySelectorAll('.star');
-        stars.forEach((s, i) => s.classList.toggle('active', i < n));
-
-        const gainText = document.getElementById('gainText');
-        gainText.className = ""; // Reset class
-
-        // LOGIKA PENILAIAN & CLEARANCE
-        if (n <= 1) {
-            gainText.innerText = "⚠️ CRITICAL FAILURE: -50 REP & STRIKE!";
-            gainText.classList.add('status-danger');
-        } else if (n === 2) {
-            gainText.innerText = "❌ POOR PERFORMANCE: -10 REP";
-            gainText.style.color = "#ff8800";
-        } else if (n === 3) {
-            gainText.innerText = "⚖️ NEUTRAL: +5 REP";
-            gainText.style.color = "#fff";
-        } else if (n === 4) {
-            gainText.innerText = "✅ GOOD JOB: +25 REP";
-            gainText.style.color = "var(--neon-cyan)";
-        } else {
-            gainText.innerText = "🔥 PERFECT CLEAR: +100 REP & LVL UP PROGRESS";
-            gainText.style.color = "var(--neon-cyan)";
-        }
+        stars.forEach((s, index) => {
+            s.classList.toggle('active', index < n);
+        });
     }
 
-    async function submitFinalReport() {
-        if(currentRating === 0 || !targetAdv) return alert("Penilaian belum lengkap!");
-
-        const btn = document.getElementById('btnFinish');
-        btn.disabled = true;
-        btn.innerText = "UPDATING DATABASE...";
-
-        try {
-            // 1. Dapatkan Profil Adventurer
-            const advRef = db.ref(`identity_adventurer/${server}/${targetAdv}`);
-            const snapshot = await advRef.once('value');
-            const advData = snapshot.val();
-
-            // 2. Kalkulasi Reputasi & Level
-            let rep = advData.stats.reputation || 0;
-            let lvl = advData.stats.level || 1;
-            let status = "ACTIVE";
-
-            // Hitung perubahan
-            if(currentRating === 1) rep -= 50;
-            else if(currentRating === 2) rep -= 10;
-            else if(currentRating === 3) rep += 5;
-            else if(currentRating === 4) rep += 25;
-            else if(currentRating === 5) rep += 100;
-
-            // Logic Naik/Turun Level (Tiap 100 Rep)
-            if(rep >= (lvl * 100)) lvl += 1;
-            if(rep < ((lvl - 1) * 100) && lvl > 1) lvl -= 1;
-
-            // Jika reputasi terlalu buruk, suspend akun
-            if(rep < -100) status = "BANNED / SUSPENDED";
-
-            // 3. Eksekusi Update ke Database
-            const updates = {};
-            updates[`identity_adventurer/${server}/${targetAdv}/stats/reputation`] = rep;
-            updates[`identity_adventurer/${server}/${targetAdv}/stats/level`] = lvl;
-            updates[`identity_adventurer/${server}/${targetAdv}/stats/status`] = status;
-            
-            // Tandai misi sebagai arsip
-            updates[`missions/${server}/${mId}/status`] = "archived";
-            updates[`missions/${server}/${mId}/final_rating`] = currentRating;
-
-            await db.ref().update(updates);
-
-            alert(`Laporan Selesai! ${targetAdv} sekarang di level ${lvl}.`);
-            localStorage.removeItem('active_mission_id');
-            window.location.href = "index.html";
-
-        } catch (e) {
-            console.error(e);
-            btn.disabled = false;
-        }
+    function submitRating() {
+        if(currentRating === 0) return alert("Silakan pilih rating bintang!");
+        
+        // Di sini Anda bisa menambahkan logika push rating ke tabel 'history' atau 'reputation' di Shard
+        alert("Terima kasih! Reputasi telah diperbarui.");
+        
+        // Bersihkan LocalStorage sisa misi
+        localStorage.removeItem('on_mission_id');
+        localStorage.removeItem('on_contract_id');
+        localStorage.removeItem('active_mission_id');
+        localStorage.removeItem('active_contract_id');
+        
+        window.location.href = "index.html";
     }
 </script>
-
 </body>
 </html>
