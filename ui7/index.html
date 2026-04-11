@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RELEASE MISSION | DATA PUSAT</title>
+    <title>RELEASE MISSION | ULTRA ACCURACY</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -12,183 +12,200 @@
     <script src="shard-router.js"></script>
 
     <style>
-        :root { --neon: #00ffff; --bg: #050505; --card: #0f0f0f; }
-        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        :root { --neon: #00ffff; --bg: #050505; --card: #111; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; }
         body { background: var(--bg); color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         
-        .card { background: var(--card); border: 1px solid #222; padding: 25px; border-radius: 20px; width: 100%; max-width: 400px; box-shadow: 0 15px 35px rgba(0,0,0,0.8); }
-        .logo { font-weight: bold; font-size: 22px; color: var(--neon); text-align: center; margin-bottom: 25px; letter-spacing: 2px; text-transform: uppercase; }
+        .card { background: var(--card); border: 1px solid #222; padding: 25px; border-radius: 20px; width: 100%; max-width: 400px; box-shadow: 0 20px 50px rgba(0,0,0,0.9); }
+        .header { text-align: center; margin-bottom: 25px; }
+        .header h1 { font-size: 20px; margin: 0; color: var(--neon); letter-spacing: 3px; text-transform: uppercase; }
         
-        /* Status Box */
-        .status-box { background: #000; padding: 15px; border-radius: 12px; border: 1px solid #333; margin-bottom: 20px; }
-        .acc-badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; }
-        .wait { background: #440; color: #ff0; border: 1px solid #aa0; }
-        .ready { background: #044; color: #0ff; border: 1px solid #0aa; }
+        /* Status GPS */
+        .gps-box { background: #000; padding: 15px; border-radius: 12px; border: 1px solid #333; margin-bottom: 20px; position: relative; overflow: hidden; }
+        .acc-indicator { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: bold; margin-bottom: 10px; }
+        .searching { background: #550; color: #ff0; animation: blink 1s infinite; }
+        .locked { background: #055; color: #0ff; }
         
-        .addr-text { font-size: 13px; line-height: 1.6; color: #eee; }
-        .addr-text b { color: var(--neon); }
+        .loc-details { font-size: 13px; line-height: 1.5; }
+        .loc-details b { color: var(--neon); }
+        
+        /* Form Inputs */
+        .field { margin-bottom: 15px; }
+        label { display: block; font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 6px; font-weight: bold; }
+        input, select { width: 100%; background: #1a1a1a; border: 1px solid #333; color: white; padding: 14px; border-radius: 10px; outline: none; transition: 0.3s; }
+        input:focus { border-color: var(--neon); background: #222; }
 
-        /* Form */
-        .input-group { margin-bottom: 15px; }
-        label { display: block; font-size: 10px; color: #555; text-transform: uppercase; margin-bottom: 6px; font-weight: bold; letter-spacing: 1px; }
-        input, select { width: 100%; background: #151515; border: 1px solid #252525; color: white; padding: 14px; border-radius: 10px; outline: none; font-size: 14px; }
-        input:focus { border-color: var(--neon); }
-
-        .btn-post { 
+        .btn-main { 
             width: 100%; padding: 18px; background: var(--neon); color: black; border: none; 
             border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.3s; 
-            text-transform: uppercase; margin-top: 10px; font-size: 14px;
+            text-transform: uppercase; font-size: 14px; margin-top: 10px;
         }
-        .btn-post:disabled { background: #222; color: #444; cursor: not-allowed; box-shadow: none; }
+        .btn-main:disabled { background: #222; color: #444; cursor: not-allowed; }
         
-        #footer-note { font-size: 9px; color: #333; margin-top: 15px; text-align: center; }
+        @keyframes blink { 50% { opacity: 0.6; } }
+        #debug { font-size: 9px; color: #333; text-align: center; margin-top: 15px; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <div class="logo">Release Mission</div>
-
-        <div class="status-box">
-            <div id="statusBadge" class="acc-badge wait">📡 Mengunci Satelit...</div>
-            <div id="locationInfo" class="addr-text">Harap tunggu, sistem sedang mencocokkan koordinat Anda dengan Data Pusat Wilayah.</div>
+        <div class="header">
+            <h1>Release Mission</h1>
         </div>
 
-        <div class="input-group">
-            <label>Kategori Kendaraan</label>
+        <div class="gps-box">
+            <div id="accLabel" class="acc-indicator searching">📡 MENGUNCI SATELIT...</div>
+            <div id="addrDisplay" class="loc-details">Mendapatkan koordinat hardware GPS...</div>
+        </div>
+
+        <div class="field">
+            <label>Kategori</label>
             <select id="mCat">
                 <option value="MOTOR">MOTOR (RODA 2)</option>
                 <option value="CAR">MOBIL (RODA 4)</option>
             </select>
         </div>
 
-        <div class="input-group">
-            <label>Judul Misi / Pesanan</label>
-            <input type="text" id="mTitle" placeholder="Contoh: Titip Seblak Padarek">
+        <div class="field">
+            <label>Apa yang ingin dipesan?</label>
+            <input type="text" id="mTitle" placeholder="Contoh: Titip Seblak di Padarek">
         </div>
 
-        <div class="input-group">
-            <label>Hadiah (Bounty Rp)</label>
-            <input type="number" id="mPrice" placeholder="Contoh: 15000">
+        <div class="field">
+            <label>Bounty / Hadiah (Rp)</label>
+            <input type="number" id="mPrice" placeholder="Rp">
         </div>
 
-        <button class="btn-post" id="btnAction" onclick="postMission()" disabled>Menunggu Akurasi < 20m</button>
+        <button class="btn-main" id="btnRelease" onclick="publishMission()" disabled>MENUNGGU SINYAL AKURAT</button>
         
-        <div id="footer-note">Sistem Geofencing Aktif: Data Administratif Terkunci</div>
+        <div id="debug">System: GPS High Accuracy Mode (Target < 20m)</div>
     </div>
 
 <script>
-    // Inisialisasi Firebase
+    // 1. Inisialisasi Firebase
     if (!firebase.apps.length) {
         firebase.initializeApp(TERMINAL_MASTER["PENGATURAN_PUSAT"]);
     }
     const db = firebase.database();
 
-    let sessionLoc = { lat: 0, lng: 0, kab: "KUNINGAN", kec: "", desa: "", zona: "", isValid: false };
+    let finalLoc = { lat: 0, lng: 0, kab: "KUNINGAN", kec: "", desa: "", zona: "", ready: false };
 
-    // Konfigurasi GPS
-    const watchOptions = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+    // 2. Konfigurasi GPS Akurasi Tinggi
+    const geoOptions = {
+        enableHighAccuracy: true, 
+        timeout: 30000,           
+        maximumAge: 0             
     };
 
-    function initAutoDetection() {
-        const badge = document.getElementById('statusBadge');
-        const info = document.getElementById('locationInfo');
-        const btn = document.getElementById('btnAction');
+    function initGPS() {
+        const label = document.getElementById('accLabel');
+        const display = document.getElementById('addrDisplay');
+        const btn = document.getElementById('btnRelease');
 
-        navigator.geolocation.watchPosition((pos) => {
+        navigator.geolocation.watchPosition(async (pos) => {
             const acc = pos.coords.accuracy;
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
 
-            // 1. Validasi Akurasi 20 Meter
+            // Kunci di 20 meter sesuai permintaan Anda
             if (acc > 20) {
-                badge.className = "acc-badge wait";
-                badge.innerText = `📡 Akurasi: ${Math.round(acc)}m (Lemah)`;
-                info.innerText = "Sinyal kurang presisi. Pastikan Anda berada di area terbuka agar lokasi desa tidak tertukar.";
+                label.className = "acc-indicator searching";
+                label.innerText = `📡 SINYAL: ${Math.round(acc)}m (LEMAH)`;
+                display.innerText = "Mencari titik lebih presisi. Harap jangan bergerak atau cari tempat terbuka.";
                 btn.disabled = true;
-                sessionLoc.isValid = false;
+                finalLoc.ready = false;
                 return;
             }
 
-            // 2. Ambil Data dari Data Pusat (shard-router.js)
-            const mapping = getInternalLocation(lat, lng);
+            try {
+                // 3. Ambil Nama Tempat dari Satelit (Reverse Geocoding)
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+                const data = await response.json();
+                const addr = data.address;
 
-            sessionLoc.lat = lat;
-            sessionLoc.lng = lng;
-            sessionLoc.kec = mapping.kec;
-            sessionLoc.desa = mapping.desa;
-            sessionLoc.zona = mapping.zona;
-            sessionLoc.isValid = true;
+                // Data mentah dari satelit
+                const rawKec = addr.district || addr.suburb || addr.town || addr.city_district || "KUNINGAN";
+                const rawDesa = addr.village || addr.neighbourhood || addr.suburb || "DESA";
 
-            // 3. Update UI UI
-            badge.className = "acc-badge ready";
-            badge.innerText = `✅ Terkunci: ${Math.round(acc)}m`;
-            
-            info.innerHTML = `
-                <b>WILAYAH:</b> KUNINGAN (ZONA ${sessionLoc.zona})<br>
-                <b>AREA:</b> KEC. ${sessionLoc.kec} - ${sessionLoc.desa}<br>
-                <small style="color:#0f0">Lokasi sinkron dengan Database Pusat.</small>
-            `;
+                // 4. Verifikasi & Sinkronisasi dengan shard-router.js
+                const verified = getVerifiedLocation("KUNINGAN", rawKec, rawDesa);
 
-            btn.disabled = false;
-            btn.innerText = "RELEASE MISSION";
+                finalLoc.lat = lat;
+                finalLoc.lng = lng;
+                finalLoc.kec = verified.kec;
+                finalLoc.desa = verified.desa;
+                finalLoc.zona = verified.zona;
+                finalLoc.ready = true;
+
+                // Update UI
+                label.className = "acc-indicator locked";
+                label.innerText = `✅ TERKUNCI: ${Math.round(acc)}m`;
+                display.innerHTML = `
+                    <b>ZONA:</b> ${finalLoc.zona}<br>
+                    <b>AREA:</b> KEC. ${finalLoc.kec} - ${finalLoc.desa}<br>
+                    <small style="color:#0f0">Lokasi sinkron dengan Data Pusat.</small>
+                `;
+
+                btn.disabled = false;
+                btn.innerText = "RELEASE MISSION";
+
+            } catch (e) {
+                display.innerText = "Koneksi internet tidak stabil untuk sinkronisasi alamat.";
+            }
 
         }, (err) => {
-            badge.innerText = "❌ GPS ERROR";
-            info.innerText = "Gagal mengakses GPS. Periksa izin lokasi di browser Anda.";
-        }, watchOptions);
+            label.innerText = "❌ GPS ERROR";
+            display.innerText = "Harap aktifkan GPS High Accuracy dan izinkan lokasi di browser.";
+        }, geoOptions);
     }
 
-    async function postMission() {
-        if (!sessionLoc.isValid) return;
+    async function publishMission() {
+        if (!finalLoc.ready) return;
 
         const title = document.getElementById('mTitle').value;
         const price = document.getElementById('mPrice').value;
         const cat = document.getElementById('mCat').value;
-        const btn = document.getElementById('btnAction');
+        const btn = document.getElementById('btnRelease');
 
-        if (!title || !price) return alert("Lengkapi data misi dan hadiah!");
+        if (!title || !price) return alert("Mohon lengkapi judul misi dan hadiah!");
 
         btn.disabled = true;
-        btn.innerText = "UPDATING DATABASE...";
+        btn.innerText = "MENGIRIM...";
 
-        // Penamaan Tabel Panjang Sesuai Permintaan
-        const tableName = `${cat}-${sessionLoc.kab}-${sessionLoc.zona}-${sessionLoc.kec}-${sessionLoc.desa}`;
+        // Penamaan Tabel Panjang Sesuai Format Anda
+        const tableName = `${cat}-${finalLoc.kab}-${finalLoc.zona}-${finalLoc.kec}-${finalLoc.desa}`;
         const missionId = `STR-${Date.now()}`;
 
         try {
-            const fullPath = `${tableName}/${missionId}`;
+            const path = `${tableName}/${missionId}`;
             
-            // Simpan ke Tabel Wilayah
-            await db.ref(fullPath).set({
+            // Simpan ke Tabel Spesifik
+            await db.ref(path).set({
                 id: missionId,
                 title: title,
                 price: price,
                 status: "open",
                 created_at: Date.now(),
-                coords: { lat: sessionLoc.lat, lng: sessionLoc.lng }
+                coords: { lat: finalLoc.lat, lng: finalLoc.lng }
             });
 
-            // Simpan ke Index Global
-            await db.ref(`terminal_misi/${sessionLoc.kab}/${missionId}`).set({
+            // Simpan ke Indeks Global
+            await db.ref(`terminal_misi/${finalLoc.kab}/${missionId}`).set({
                 id: missionId,
                 tabel: tableName
             });
 
-            localStorage.setItem('active_mission_path', fullPath);
+            localStorage.setItem('active_mission_path', path);
             window.location.href = "mission_waiting.html";
 
         } catch (e) {
-            alert("Firebase Error: " + e.message);
+            alert("Gagal: " + e.message);
             btn.disabled = false;
         }
     }
 
-    // Jalankan deteksi saat masuk
-    initAutoDetection();
+    // Jalankan deteksi otomatis
+    initGPS();
 </script>
 </body>
 </html>
