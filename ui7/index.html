@@ -3,181 +3,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SOVEREIGN GUILD | PICK ME</title>
+    <title>SOVEREIGN GUILD | AUTO-ROUTER</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="shard-config.js"></script>
     <style>
-        :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; --card: #111; }
+        :root { --neon: #00ffff; --bg: #050505; --card: #111; }
         * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background: var(--bg); color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-
-        .logo { font-weight: bold; font-size: 28px; letter-spacing: 5px; color: var(--neon); margin-top: 20px; text-shadow: 0 0 15px var(--neon); }
+        .logo { font-weight: bold; font-size: 24px; color: var(--neon); margin: 20px 0; text-shadow: 0 0 10px var(--neon); }
         
-        /* Role Selection Overlay */
         #roleOverlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-        .role-card { background: var(--card); border: 1px solid #222; width: 100%; max-width: 320px; padding: 20px; border-radius: 20px; margin-bottom: 12px; cursor: pointer; transition: 0.3s; }
-        .role-card:hover { border-color: var(--neon); transform: scale(1.02); }
-        .role-card h3 { margin: 0; color: var(--neon); font-size: 16px; }
-        .role-card p { font-size: 11px; color: #666; margin: 5px 0 0; }
-
-        /* Form Area */
-        #mainUI { width: 100%; max-width: 400px; display: none; margin-top: 30px; }
-        .input-group { margin-bottom: 15px; }
-        label { display: block; font-size: 10px; color: #555; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
-        input, textarea, select { width: 100%; background: #111; border: 1px solid #222; color: white; padding: 14px; border-radius: 12px; outline: none; font-size: 14px; }
-        input:focus { border-color: var(--neon); }
-
-        .btn-post { width: 100%; padding: 18px; background: var(--neon); border: none; border-radius: 12px; font-weight: bold; cursor: pointer; margin-top: 10px; box-shadow: 0 5px 15px rgba(0,255,255,0.2); }
+        .role-card { background: var(--card); border: 1px solid #222; width: 100%; max-width: 320px; padding: 20px; border-radius: 15px; margin-bottom: 12px; cursor: pointer; }
         
-        .status-bar { background: #1a1a1a; padding: 8px 15px; border-radius: 20px; font-size: 11px; color: #aaa; margin-bottom: 20px; border: 1px solid #333; }
-        .tag-res { color: var(--neon); font-weight: bold; }
+        #mainUI { width: 100%; max-width: 400px; display: none; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-size: 10px; color: #555; text-transform: uppercase; margin-bottom: 5px; }
+        input, textarea, select { width: 100%; background: #111; border: 1px solid #222; color: white; padding: 14px; border-radius: 10px; outline: none; }
+        
+        .loc-box { background: #1a1a1a; padding: 12px; border-radius: 10px; border: 1px dashed #333; font-size: 12px; margin-bottom: 15px; color: #888; }
+        .btn-post { width: 100%; padding: 18px; background: var(--neon); border: none; border-radius: 12px; font-weight: bold; cursor: pointer; color: #000; }
+        .loading-dots:after { content: ' .'; animation: dots 1s steps(5, end) infinite; }
+        @keyframes dots { 0%, 20% { color: rgba(0,0,0,0); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0); } 40% { color: var(--neon); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0); } 60% { text-shadow: .25em 0 0 var(--neon), .5em 0 0 rgba(0,0,0,0); } 80%, 100% { text-shadow: .25em 0 0 var(--neon), .5em 0 0 var(--neon); } }
     </style>
 </head>
 <body>
 
     <div id="roleOverlay">
-        <div class="logo">PICK ME</div>
-        <p style="color: #444; margin-bottom: 30px; font-size: 12px;">Choose your identity to continue</p>
-
-        <div class="role-card" onclick="selectRole('stranger')">
-            <h3>STRANGER</h3>
-            <p>Posting tanpa akun. Identitas Anonim [STR].</p>
-        </div>
-
-        <div class="role-card" onclick="selectRole('citizen')">
-            <h3>CITIZEN</h3>
-            <p>Gunakan reputasi akun Anda [CTZ].</p>
-        </div>
-
-        <div class="role-card" style="border-color: #333;" onclick="location.href='dashboard.html'">
-            <h3 style="color: #666;">ADVENTURER</h3>
-            <p>Masuk ke Guild Board untuk mencari misi.</p>
-        </div>
+        <div class="logo">IDENTITY CHECK</div>
+        <div class="role-card" onclick="selectRole('stranger')"><h3>STRANGER</h3><p>Fast mission, no login [STR]</p></div>
+        <div class="role-card" onclick="selectRole('citizen')"><h3>CITIZEN</h3><p>Registered account [CTZ]</p></div>
     </div>
 
     <div id="mainUI">
-        <div class="logo" style="font-size: 20px; margin-bottom: 10px;">POST MISSION</div>
-        <div class="status-bar">Identity: <span id="userName" class="tag-res">...</span></div>
+        <div class="logo">RELEASE MISSION</div>
+        
+        <div class="loc-box" id="locStatus">Mendeteksi Lokasi...</div>
 
         <div class="input-group">
-            <label>Kategori Layanan</label>
+            <label>Kategori</label>
             <select id="mCat">
-                <option value="MOTOR">MOTOR (Antar Jemput / Kurir)</option>
-                <option value="CAR">CAR (Antar Jemput Mobil)</option>
-                <option value="FOOD">FOOD (Belanja Makanan)</option>
-                <option value="SHOP">SHOP (Belanja Barang)</option>
+                <option value="MOTOR">MOTOR</option>
+                <option value="CAR">CAR</option>
             </select>
         </div>
 
         <div class="input-group">
-            <label>Apa yang perlu dikerjakan?</label>
-            <input type="text" id="mTitle" placeholder="Misal: Jemput di Terminal">
+            <label>Judul Misi</label>
+            <input type="text" id="mTitle" placeholder="Apa yang Anda butuhkan?">
         </div>
 
         <div class="input-group">
-            <label>Detail / Catatan</label>
-            <textarea id="mDesc" placeholder="Jelaskan instruksi lengkap..."></textarea>
-        </div>
-
-        <div class="input-group">
-            <label>Kota / Wilayah</label>
-            <select id="mCity">
-                <option value="KUNINGAN">KUNINGAN</option>
-                <option value="CIREBON">CIREBON</option>
-            </select>
-        </div>
-
-        <div class="input-group">
-            <label>Area Khusus (Jalur Hemat)</label>
-            <select id="mArea">
-                <option value="UTARA-JALAKSANA">JALAKSANA (UTARA)</option>
-                <option value="SELATAN-DARMA">DARMA (SELATAN)</option>
-                <option value="KOTA-KUNINGAN">KUNINGAN (KOTA)</option>
-            </select>
-        </div>
-
-        <div class="input-group">
-            <label>Bounty (Hadiah Rp)</label>
+            <label>Bounty (Rp)</label>
             <input type="number" id="mPrice" placeholder="Rp. 0">
         </div>
 
-        <button class="btn-post" onclick="postMission()">RELEASE MISSION</button>
-        <button onclick="location.reload()" style="background:none; border:none; color:#444; width:100%; margin-top:20px; font-size:11px;">Change Role</button>
+        <button class="btn-post" id="btnRelease" onclick="postMission()">RELEASE MISSION</button>
     </div>
 
 <script>
     let userData = { nick: "Guest", type: "stranger", prefix: "STR" };
+    let currentPos = { lat: 0, lng: 0, kab: "", kec: "", desa: "" };
 
-    function selectRole(role) {
-        const session = JSON.parse(localStorage.getItem('pickme_session'));
-        if (role === 'citizen') {
-            if (!session) { alert("Login Required!"); window.location.href="login.html"; return; }
-            userData = { nick: session.nick, type: "citizen", prefix: "CTZ" };
-        } else {
-            userData = { nick: "Guest" + Math.floor(Math.random()*99), type: "stranger", prefix: "STR" };
+    // 1. DETEKSI LOKASI OTOMATIS (ROUTER)
+    function autoDetectLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                currentPos.lat = pos.coords.latitude;
+                currentPos.lng = pos.coords.longitude;
+
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentPos.lat}&lon=${currentPos.lng}`);
+                    const data = await res.json();
+                    const addr = data.address;
+                    
+                    // Routing Logic berdasarkan data dari OpenStreetMap
+                    currentPos.kab = (addr.city || addr.regency || "UNKNOWN").toUpperCase().replace("KABUPATEN ", "");
+                    currentPos.kec = (addr.suburb || addr.district || addr.village || "UNKNOWN").toUpperCase();
+                    currentPos.desa = (addr.village || addr.neighbourhood || "UNKNOWN").toUpperCase();
+
+                    document.getElementById('locStatus').innerHTML = `
+                        📍 <span style="color:var(--neon)">${currentPos.kab}</span><br>
+                        🏘️ ${currentPos.kec} - ${currentPos.desa}
+                    `;
+                } catch (e) {
+                    document.getElementById('locStatus').innerText = "Gagal memetakan lokasi secara detail.";
+                }
+            });
         }
-
-        document.getElementById('userName').innerText = `${userData.nick} [${userData.prefix}]`;
-        document.getElementById('roleOverlay').style.display = "none";
-        document.getElementById('mainUI').style.display = "block";
     }
 
+    function selectRole(role) {
+        if (role === 'citizen') {
+            const session = JSON.parse(localStorage.getItem('pickme_session'));
+            if (!session) return alert("Silakan login dulu!");
+            userData = { nick: session.nick, type: "citizen", prefix: "CTZ" };
+        }
+        document.getElementById('roleOverlay').style.display = "none";
+        document.getElementById('mainUI').style.display = "block";
+        autoDetectLocation();
+    }
+
+    // 2. LOGIKA POSTING DENGAN ROUTER SHARD & TABEL
     async function postMission() {
         const title = document.getElementById('mTitle').value;
         const price = document.getElementById('mPrice').value;
         const cat = document.getElementById('mCat').value;
-        const city = document.getElementById('mCity').value;
-        const area = document.getElementById('mArea').value; // Contoh: UTARA-JALAKSANA
+        const btn = document.getElementById('btnRelease');
 
-        if (!title || !price) return alert("Please fill title & price!");
+        if (!title || !price || !currentPos.kab) return alert("Lengkapi data dan tunggu lokasi!");
 
-        // 1. Tentukan Shard Regional (Bisa otomatis berdasarkan kota)
-        const targetShard = "S1"; 
-        const shardConfig = SHARD_MASTER[targetShard];
-        const shardDb = firebase.initializeApp(shardConfig, "REGIONAL").database();
+        btn.disabled = true;
+        btn.innerText = "ROUTING DATA...";
 
-        // 2. Hubungkan ke Terminal (Pusat Indexing)
-        const terminalConfig = SHARD_MASTER["TERMINAL"];
-        const terminalDb = firebase.initializeApp(terminalConfig, "TERMINAL").database();
-
+        // Penentuan Shard & Path (Router)
+        const targetShard = (currentPos.kab === "KUNINGAN") ? "S1" : "S2"; 
         const missionId = `${userData.prefix}-${Date.now()}`;
         
-        // PATHING STRATEGY (Hemat Kuota)
-        // Struktur: Kategori/Kota/Area/MissionID
-        const fullPath = `${cat}/${city}/${area}/${missionId}`;
-
-        const missionData = {
-            id: missionId,
-            title: title,
-            desc: document.getElementById('mDesc').value,
-            price: price,
-            requester: userData.nick,
-            type: userData.type,
-            status: "open",
-            created_at: Date.now()
-        };
+        // Struktur Tabel Terpisah sesuai keinginan Anda:
+        // Tabel Utama di Shard: [KATEGORI]/[KABUPATEN]/[KECAMATAN]/[ID]
+        const pathMisi = `${cat}/${currentPos.kab}/${currentPos.kec}/${missionId}`;
 
         try {
-            // A. Simpan Data Full ke Regional Shard (Beban Berat)
-            await shardDb.ref(`active_missions/${fullPath}`).set(missionData);
+            // A. Regional Shard Connection
+            const shardConfig = SHARD_MASTER[targetShard];
+            const shardApp = firebase.initializeApp(shardConfig, "REGIONAL");
+            const shardDb = shardApp.database();
 
-            // B. Simpan Index ke Terminal (Beban Ringan untuk Search)
-            await terminalDb.ref(`mission_index/${city}/${area}/${missionId}`).set({
+            // B. Terminal Indexing (Agar Adventurer mudah search)
+            const termConfig = SHARD_MASTER["TERMINAL"];
+            const termApp = firebase.initializeApp(termConfig, "TERMINAL");
+            const termDb = termApp.database();
+
+            const payload = {
                 id: missionId,
                 title: title,
                 price: price,
+                requester: userData.nick,
+                loc: { lat: currentPos.lat, lng: currentPos.lng, area: currentPos.kec },
+                status: "open",
                 shard: targetShard,
+                path: pathMisi
+            };
+
+            // Simpan di Tabel Kategori Shard
+            await shardDb.ref(`active_missions/${pathMisi}`).set(payload);
+
+            // Simpan di Terminal Pusat (Router Search)
+            await termDb.ref(`terminal_index/${currentPos.kab}/${currentPos.kec}/${missionId}`).set({
+                id: missionId,
+                title: title,
                 cat: cat,
-                path: fullPath
+                shard: targetShard,
+                path: pathMisi
             });
 
-            localStorage.setItem('active_mission_path', fullPath);
+            localStorage.setItem('active_mission_path', pathMisi);
             localStorage.setItem('active_shard', targetShard);
-            
-            alert("Mission Synchronized to Terminal!");
+
+            alert("Misi berhasil dilepas ke router " + currentPos.kec);
             window.location.href = "mission_waiting.html";
-        } catch (e) { alert("Error: " + e.message); }
+
+        } catch (e) {
+            alert("Error: " + e.message);
+            btn.disabled = false;
+            btn.innerText = "RELEASE MISSION";
+        }
     }
 </script>
 </body>
