@@ -1,73 +1,73 @@
 /**
- * DATA PUSAT WILAYAH KUNINGAN
- * Menentukan Desa, Kecamatan, dan Zona berdasarkan Koordinat murni.
- * Hal ini mencegah error data dari internet yang sering tertukar wilayahnya.
+ * DATA PUSAT WILAYAH & ZONA
+ * Gunakan file ini untuk mengunci agar Desa tertentu tidak pindah Kecamatan/Zona
  */
-
-const DATA_TITIK_PUSAT = [
-    // --- KECAMATAN KUNINGAN (PUSAT) ---
-    { desa: "KEDUNGARUM", kec: "KUNINGAN", zona: "PUSAT", lat: -6.9744, lng: 108.5028 },
-    { desa: "PADAREK", kec: "KUNINGAN", zona: "PUSAT", lat: -6.9801, lng: 108.5105 },
-    { desa: "PURWANEGARA", kec: "KUNINGAN", zona: "PUSAT", lat: -6.9850, lng: 108.4900 },
-    { desa: "KUNINGAN", kec: "KUNINGAN", zona: "PUSAT", lat: -6.9765, lng: 108.4831 },
-    { desa: "CIGINTUNG", kec: "KUNINGAN", zona: "PUSAT", lat: -6.9650, lng: 108.4950 },
-
-    // --- KECAMATAN JALAKSANA (UTARA) ---
-    { desa: "JALAKSANA", kec: "JALAKSANA", zona: "UTARA", lat: -6.9152, lng: 108.4892 },
-    { desa: "SADAMANTRA", kec: "JALAKSANA", zona: "UTARA", lat: -6.9100, lng: 108.4950 },
-    { desa: "MANISLOR", kec: "JALAKSANA", zona: "UTARA", lat: -6.9050, lng: 108.4800 },
-
-    // --- KECAMATAN KRAMATMULYA (UTARA) ---
-    { desa: "KRAMATMULYA", kec: "KRAMATMULYA", zona: "UTARA", lat: -6.9422, lng: 108.4915 },
-    { desa: "KALAPAGUNUNG", kec: "KRAMATMULYA", zona: "UTARA", lat: -6.9350, lng: 108.4850 },
-    { desa: "CILIKU", kec: "KRAMATMULYA", zona: "UTARA", lat: -6.9480, lng: 108.5000 }
-];
+const MASTER_ROUTER = {
+    "KUNINGAN": {
+        "KUNINGAN": {
+            zona: "PUSAT",
+            desa: ["KEDUNGARUM", "PADAREK", "KUNINGAN", "PURWANEGARA", "CIGINTUNG", "CIRENDANG", "KASTURI"]
+        },
+        "JALAKSANA": {
+            zona: "UTARA",
+            desa: ["JALAKSANA", "SADAMANTRA", "MANISLOR", "SIDAMULYA", "SINDANGSARI"]
+        },
+        "KRAMATMULYA": {
+            zona: "UTARA",
+            desa: ["KRAMATMULYA", "KALAPAGUNUNG", "CILIKU", "BOJONG", "PAJABAMBAN"]
+        },
+        "CILIMUS": {
+            zona: "UTARA",
+            desa: ["CILIMUS", "BANDORASA KULON", "BANDORASA WETAN", "LINGGARIJATI"]
+        },
+        "DARMA": {
+            zona: "SELATAN",
+            desa: ["DARMA", "BAKASARI", "CIPASUNG", "PANINGGARAN"]
+        }
+    }
+};
 
 /**
- * Fungsi Canggih untuk Menentukan Lokasi Berdasarkan Jarak Terdekat (Haversine)
+ * Fungsi Sinkronisasi: Memastikan nama Desa & Kecamatan Sesuai Data Pusat
  */
-function getInternalLocation(userLat, userLng) {
-    let terdekat = null;
-    let jarakMin = Infinity;
+function getVerifiedLocation(kabGPS, kecGPS, desaGPS) {
+    // Normalisasi teks
+    const kab = kabGPS.toUpperCase().replace("KABUPATEN ", "").trim();
+    const kec = kecGPS.toUpperCase().trim();
+    const desa = desaGPS.toUpperCase().trim();
 
-    DATA_TITIK_PUSAT.forEach(titik => {
-        // Menghitung selisih jarak (Pythagoras sederhana untuk akurasi lokal)
-        const d = Math.sqrt(
-            Math.pow(userLat - titik.lat, 2) + Math.pow(userLng - titik.lng, 2)
-        );
+    // 1. Cek apakah Kabupaten ada di Master
+    if (MASTER_ROUTER[kab]) {
+        const daftarKecamatan = MASTER_ROUTER[kab];
 
-        if (d < jarakMin) {
-            jarakMin = d;
-            terdekat = titik;
+        // 2. Cari apakah Desa tersebut terdaftar di salah satu kecamatan kita
+        for (const [namaKec, data] of Object.entries(daftarKecamatan)) {
+            if (data.desa.includes(desa)) {
+                return {
+                    kab: kab,
+                    kec: namaKec, // Kunci ke kecamatan yang benar (contoh: Kedungarum -> Kuningan)
+                    desa: desa,
+                    zona: data.zona
+                };
+            }
         }
-    });
 
-    // Batas toleransi jarak (Sekitar 2-3 KM dari titik pusat desa)
-    // Jika user berada di luar jangkauan titik yang didaftarkan
-    if (jarakMin > 0.025) {
-        return {
-            desa: "AREA-LUAR",
-            kec: "KUNINGAN",
-            zona: "PUSAT",
-            status: "EXTERNAL"
-        };
+        // 3. Jika desa tidak ketemu tapi Kecamatannya ada
+        if (daftarKecamatan[kec]) {
+            return {
+                kab: kab,
+                kec: kec,
+                desa: desa,
+                zona: daftarKecamatan[kec].zona
+            };
+        }
     }
 
-    return terdekat;
-}
-
-/**
- * Fungsi cadangan untuk manual router (jika dibutuhkan)
- */
-function getZonaByKecamatan(kec) {
-    const mapping = {
-        "KUNINGAN": "PUSAT",
-        "JALAKSANA": "UTARA",
-        "KRAMATMULYA": "UTARA",
-        "CILIMUS": "UTARA",
-        "DARMA": "SELATAN",
-        "KADUGEDE": "SELATAN",
-        "LURAGUNG": "TIMUR"
+    // 4. ANOMALI HANDLER: Jika benar-benar tidak terdaftar
+    return {
+        kab: kab || "KUNINGAN",
+        kec: kec || "AREA-LUAR",
+        desa: desa || "UNKNOWN",
+        zona: "LUAR" // Masukkan ke Zona khusus agar tidak campur
     };
-    return mapping[kec.toUpperCase()] || "PUSAT";
 }
