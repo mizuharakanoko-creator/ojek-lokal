@@ -1,21 +1,21 @@
-// File: shard-router.js
+// Menghubungkan Kecamatan ke Key yang ada di shard-config.js
 const SHARD_ROUTER = {
     "KUNINGAN": {
-        "JALAKSANA": "S1",
-        "KRAMATMULYA": "S1",
-        "KEDUNGARUM": "S1",
-        "DARMA": "S2",
-        "KADUGEDE": "S2"
-    },
-    "CIREBON": {
-        "SUMBER": "S3"
+        "JALAKSANA": "IDN-JABAR-KNG-JALAKSANA",
+        "KRAMATMULYA": "IDN-JABAR-KNG-KRAMATMULYA",
+        "KEDUNGARUM": "IDN-JABAR-KNG-KRAMATMULYA" 
     }
 };
 
 function getShardID(kab, kec) {
     try {
-        return SHARD_ROUTER[kab][kec] || "S1"; // Default ke S1 jika tidak ditemukan
+        // Jika kec ditemukan di kab tersebut, ambil kodenya
+        if (SHARD_ROUTER[kab] && SHARD_ROUTER[kab][kec]) {
+            return SHARD_ROUTER[kab][kec];
+        }
+        // Default jika tidak terdaftar (Pastikan key ini ada di shard-config.js)
+        return "IDN-JABAR-KNG-JALAKSANA"; 
     } catch (e) {
-        return "S1";
+        return "IDN-JABAR-KNG-JALAKSANA";
     }
 }
