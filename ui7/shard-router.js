@@ -1,21 +1,19 @@
-// Menghubungkan Kecamatan ke Key yang ada di shard-config.js
-const SHARD_ROUTER = {
+// File: shard-router.js
+const AREA_ROUTER = {
     "KUNINGAN": {
-        "JALAKSANA": "IDN-JABAR-KNG-JALAKSANA",
-        "KRAMATMULYA": "IDN-JABAR-KNG-KRAMATMULYA",
-        "KEDUNGARUM": "IDN-JABAR-KNG-KRAMATMULYA" 
+        "JALAKSANA": "UTARA",
+        "KRAMATMULYA": "UTARA",
+        "KEDUNGARUM": "UTARA",
+        "PADAREK": "UTARA",
+        "DARMA": "SELATAN",
+        "KADUGEDE": "SELATAN"
     }
 };
 
-function getShardID(kab, kec) {
+function getAreaZone(kab, kec) {
     try {
-        // Jika kec ditemukan di kab tersebut, ambil kodenya
-        if (SHARD_ROUTER[kab] && SHARD_ROUTER[kab][kec]) {
-            return SHARD_ROUTER[kab][kec];
-        }
-        // Default jika tidak terdaftar (Pastikan key ini ada di shard-config.js)
-        return "IDN-JABAR-KNG-JALAKSANA"; 
+        return AREA_ROUTER[kab][kec] || "UMUM"; 
     } catch (e) {
-        return "IDN-JABAR-KNG-JALAKSANA";
+        return "UMUM";
     }
 }
