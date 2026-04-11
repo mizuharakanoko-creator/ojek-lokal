@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SOVEREIGN GUILD | PICK ME</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="shard-config.js"></script>
+    <style>
+        :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; --card: #111; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: var(--bg); color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+
+        .logo { font-weight: bold; font-size: 28px; letter-spacing: 5px; color: var(--neon); margin-bottom: 5px; text-shadow: 0 0 15px var(--neon); }
+        .sub-logo { font-size: 10px; color: #555; margin-bottom: 40px; text-transform: uppercase; }
+
+        /* Role Selection Overlay */
+        #roleOverlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; transition: 0.5s; }
+        .role-card { background: var(--card); border: 1px solid #222; width: 100%; max-width: 320px; padding: 25px; border-radius: 20px; margin-bottom: 15px; cursor: pointer; transition: 0.3s; position: relative; overflow: hidden; }
+        .role-card:hover { border-color: var(--neon); transform: translateY(-5px); }
+        .role-card h3 { margin: 0; color: var(--neon); font-size: 18px; }
+        .role-card p { font-size: 12px; color: #777; margin: 10px 0 0; }
+        .badge { position: absolute; top: 10px; right: 10px; font-size: 9px; padding: 3px 8px; border-radius: 5px; background: #222; color: #aaa; }
+
+        /* Mission Form */
+        #missionForm { width: 100%; max-width: 400px; display: none; }
+        .input-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; font-size: 11px; color: #555; text-transform: uppercase; margin-bottom: 8px; font-weight: bold; }
+        input, textarea, select { width: 100%; background: #111; border: 1px solid #222; color: white; padding: 15px; border-radius: 12px; outline: none; }
+        input:focus { border-color: var(--neon); }
+
+        .btn-post { width: 100%; padding: 18px; background: var(--neon); border: none; border-radius: 12px; font-weight: bold; color: black; cursor: pointer; margin-top: 20px; box-shadow: 0 0 20px rgba(0,255,255,0.2); }
+        
+        #userDisplay { margin-bottom: 20px; padding: 10px 20px; background: #1a1a1a; border-radius: 30px; font-size: 12px; color: var(--neon); border: 1px solid #333; }
+    </style>
+</head>
+<body>
+
+    <div id="roleOverlay">
+        <div class="logo">PICK ME</div>
+        <p style="color: #444; margin-bottom: 30px;">Identify yourself, Requester.</p>
+
+        <div class="role-card" onclick="selectRole('stranger')">
+            <span class="badge">NO LOGIN</span>
+            <h3>STRANGER</h3>
+            <p>Butuh bantuan cepat tanpa buat akun. Identitas Anda akan muncul sebagai Anonim.</p>
+        </div>
+
+        <div class="role-card" onclick="selectRole('citizen')">
+            <span class="badge">REPUTATION+</span>
+            <h3>CITIZEN</h3>
+            <p>Gunakan akun untuk membangun reputasi dan fitur chat yang lebih lengkap.</p>
+        </div>
+
+        <div class="role-card" style="border-color: var(--pink);" onclick="location.href='dashboard.html'">
+            <span class="badge" style="background: var(--pink); color: white;">PRO</span>
+            <h3 style="color: var(--pink);">ADVENTURER</h3>
+            <p>Saya di sini untuk mencari uang dan menyelesaikan misi orang lain.</p>
+        </div>
+    </div>
+
+    <div class="logo">PICK ME</div>
+    <div class="sub-logo">Mission Posting Board</div>
+    
+    <div id="userDisplay">Posting as: <span id="userName">Stranger</span></div>
+
+    <div id="missionForm">
+        <div class="input-group">
+            <label>Apa yang Anda butuhkan?</label>
+            <input type="text" id="mTitle" placeholder="Contoh: Belanja Indomaret, Antar Paket...">
+        </div>
+
+        <div class="input-group">
+            <label>Detail Instruksi</label>
+            <textarea id="mDesc" placeholder="Jelaskan detail pekerjaan Anda..."></textarea>
+        </div>
+
+        <div class="input-group">
+            <label>Bounty (Hadiah)</label>
+            <input type="number" id="mPrice" placeholder="Rp. 0">
+        </div>
+
+        <div class="input-group">
+            <label>Shard Area</label>
+            <select id="mShard">
+                <option value="S1">Kuningan - West Java</option>
+                <option value="S2">Jakarta - Pusat</option>
+                <option value="S3">Bandung - Kota</option>
+            </select>
+        </div>
+
+        <button class="btn-post" onclick="postMission()">POST MISSION</button>
+        <button onclick="location.reload()" style="background:none; border:none; color:#444; width:100%; margin-top:15px; font-size:12px;">Ganti Peran</button>
+    </div>
+
+<script>
+    let currentRole = "";
+    let posterData = { nick: "Stranger", type: "stranger" };
+
+    // 1. FUNGSI PILIH PERAN
+    function selectRole(role) {
+        currentRole = role;
+        const session = JSON.parse(localStorage.getItem('pickme_session'));
+
+        if (role === 'citizen') {
+            if (!session) {
+                alert("Silakan Login terlebih dahulu untuk menjadi Citizen!");
+                window.location.href = "login.html"; // Pastikan Anda punya login.html
+                return;
+            }
+            posterData = { nick: session.nick, type: "citizen" };
+        } else {
+            const randomId = Math.floor(Math.random() * 9999);
+            posterData = { nick: "Stranger#" + randomId, type: "stranger" };
+        }
+
+        document.getElementById('userName').innerText = posterData.nick + " (" + posterData.type.toUpperCase() + ")";
+        document.getElementById('roleOverlay').style.opacity = "0";
+        setTimeout(() => {
+            document.getElementById('roleOverlay').style.display = "none";
+            document.getElementById('missionForm').style.display = "block";
+        }, 500);
+    }
+
+    // 2. FUNGSI POST MISI
+    async function postMission() {
+        const title = document.getElementById('mTitle').value;
+        const desc = document.getElementById('mDesc').value;
+        const price = document.getElementById('mPrice').value;
+        const shard = document.getElementById('mShard').value;
+
+        if (!title || !price) return alert("Isi judul dan harga!");
+
+        const config = SHARD_MASTER[shard];
+        if (!firebase.apps.length) firebase.initializeApp(config);
+        const db = firebase.database();
+
+        const mId = "M-" + Date.now();
+        
+        const missionObj = {
+            id: mId,
+            title: title,
+            description: desc,
+            price: price,
+            requester_nick: posterData.nick,
+            requester_type: posterData.type, // 'stranger' atau 'citizen'
+            status: "open",
+            created_at: Date.now()
+        };
+
+        try {
+            await db.ref(`missions/${shard}/${mId}`).set(missionObj);
+            
+            // Simpan identitas requester di localStorage agar halaman misi tahu siapa dia
+            localStorage.setItem('active_mission_id', mId);
+            localStorage.setItem('active_shard', shard);
+            
+            alert("Misi Berhasil Diposting! Menunggu Adventurer...");
+            window.location.href = "mission_waiting.html"; // Halaman tunggu bid
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    }
+</script>
+</body>
+</html>
