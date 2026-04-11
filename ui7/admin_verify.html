@@ -2,32 +2,49 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ADMIN | GUILD VERIFICATION</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: monospace; padding: 20px; }
-        h2 { color: #00ffff; border-bottom: 2px solid #222; padding-bottom: 10px; }
+        body { background: #050505; color: white; font-family: 'Courier New', monospace; padding: 20px; }
+        h2 { color: #00ffff; border-bottom: 2px solid #222; padding-bottom: 15px; letter-spacing: 2px; }
+        
         .row { 
-            background: #111; border: 1px solid #333; padding: 15px; 
-            margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;
+            background: #111; border: 1px solid #333; padding: 20px; 
+            margin-bottom: 12px; display: flex; justify-content: space-between; 
+            align-items: center; border-radius: 8px;
+            transition: 0.3s;
         }
-        .info b { color: #ff0055; }
-        .info i { color: #888; font-size: 12px; }
-        button { 
-            background: #00ff00; color: #000; border: none; padding: 10px 20px; 
-            font-weight: bold; cursor: pointer; border-radius: 4px;
+        .row:hover { border-color: #00ffff; background: #151515; }
+
+        .info b { color: #ff0055; font-size: 18px; display: block; margin-bottom: 5px; }
+        .info i { color: #888; font-size: 12px; font-style: normal; display: block; }
+        .badge-cat { 
+            display: inline-block; padding: 2px 8px; border-radius: 4px; 
+            font-size: 10px; font-weight: bold; margin-top: 5px;
+            background: #00ffff22; color: #00ffff; border: 1px solid #00ffff;
         }
-        button:hover { background: #00cc00; }
+
+        .btn-approve { 
+            background: #00ff00; color: #000; border: none; padding: 12px 25px; 
+            font-weight: bold; cursor: pointer; border-radius: 6px;
+            text-transform: uppercase;
+        }
+        .btn-approve:hover { background: #00cc00; transform: scale(1.05); }
+        .btn-approve:active { transform: scale(0.95); }
+
+        #pendingList { margin-top: 20px; }
+        .empty-state { color: #444; text-align: center; margin-top: 50px; font-size: 14px; }
     </style>
 </head>
 <body>
 
     <h2>PENDING APPROVAL LIST</h2>
-    <div id="pendingList">Memuat antrean pendaftaran...</div>
+    <div id="pendingList">Menganalisis data pendaftar...</div>
 
     <script>
-        // CONFIG MASTER (Pastikan ini mengarah ke Firebase Utama Anda)
+        // CONFIG MASTER
         const firebaseConfig = {
             apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
             databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -41,35 +58,40 @@
             listDiv.innerHTML = "";
 
             if(!snap.exists()) {
-                listDiv.innerHTML = "<p style='color:#444'>Tidak ada pendaftar baru.</p>";
+                listDiv.innerHTML = "<div class="empty-state">-- TIDAK ADA PENDAFTAR BARU DALAM ANTREAN --</div>";
                 return;
             }
 
             snap.forEach(child => {
                 const u = child.val();
+                // Menampilkan kategori (Motor/Car) agar admin tahu
+                const cat = u.category || "NOT SET"; 
+                
                 listDiv.innerHTML += `
                     <div class="row">
                         <div class="info">
-                            <b>${u.nick.toUpperCase()}</b><br>
-                            <i>Shard: ${u.shard_id}</i>
+                            <b>${u.nick.toUpperCase()}</b>
+                            <i>SHARD: ${u.shard_id}</i>
+                            <span class="badge-cat">${cat}</span>
                         </div>
-                        <button onclick="verifyUser('${u.nick}')">APPROVE ADVENTURER</button>
+                        <button class="btn-approve" onclick="verifyUser('${u.nick}')">APPROVE</button>
                     </div>
                 `;
             });
         });
 
-        // 2. LOGIKA VERIFIKASI (Yang Anda tanyakan)
+        // 2. LOGIKA VERIFIKASI (FIXED: Mempertahankan Kategori)
         async function verifyUser(nick) {
-            if(!confirm("Terima " + nick + " sebagai Adventurer resmi?")) return;
+            if(!confirm("Terima " + nick.toUpperCase() + " sebagai Adventurer resmi?")) return;
 
             const pendingRef = db.ref(`pendaftaran_pending/${nick}`);
             const snap = await pendingRef.get();
             
-            if(!snap.exists()) return alert("Data sudah tidak ada atau sudah di-approve!");
+            if(!snap.exists()) return alert("Error: Data pendaftaran tidak ditemukan!");
             
             const data = snap.val();
             const shardId = data.shard_id;
+            const category = data.category || "MOTOR"; // Ambil kategori dari pendaftaran
 
             try {
                 // PROSES A: Buat entri di Registry Utama (Data Login Global)
@@ -80,10 +102,11 @@
                     status: "active"
                 });
 
-                // PROSES B: Buat Profil Permanen Wilayah (Data Statistik Kerja)
+                // PROSES B: Buat Profil Permanen Wilayah (Statistik & Kategori)
                 const shardTablePath = `adventurer-${shardId.toLowerCase()}`;
                 await db.ref(`${shardTablePath}/${nick}`).set({
                     nick: nick,
+                    category: category, // KATEGORI SEKARANG DISIMPAN PERMANEN
                     rating: 5.0,
                     level: 1,
                     exp: 0,
@@ -95,9 +118,9 @@
                 // PROSES C: Hapus dari antrean pendaftaran_pending
                 await pendingRef.remove();
 
-                alert(`BERHASIL!\n${nick} sekarang aktif di wilayah ${shardId}.`);
+                alert(`SUCCESS!\nAdventurer ${nick.toUpperCase()} telah diaktifkan di kategori ${category}.`);
             } catch (e) {
-                alert("Gagal melakukan verifikasi: " + e.message);
+                alert("Critical Error: " + e.message);
             }
         }
     </script>
