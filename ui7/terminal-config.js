@@ -1,4 +1,4 @@
-// File: terminal-config.js
+// Nama variabel: TERMINAL_MASTER
 const TERMINAL_MASTER = {
     "PENGATURAN_PUSAT": {
         apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
