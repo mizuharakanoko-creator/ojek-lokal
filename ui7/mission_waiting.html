@@ -3,39 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WAITING...</title>
+    <title>WAITING FOR ADVENTURER</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    <script src="shard-config.js"></script>
+    
+    <script src="terminal-config.js"></script>
+
+    <style>
+        :root { --neon: #00ffff; --bg: #050505; }
+        body { 
+            background: var(--bg); 
+            color: white; 
+            font-family: 'Segoe UI', sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            margin: 0; 
+            overflow: hidden;
+        }
+        .radar {
+            width: 150px;
+            height: 150px;
+            border: 2px solid #111;
+            border-radius: 50%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+        }
+        .radar::after {
+            content: '';
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid var(--neon);
+            position: absolute;
+            animation: pulse 2s linear infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        .status-text {
+            color: var(--neon);
+            letter-spacing: 3px;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        #info {
+            font-size: 10px;
+            color: #444;
+            margin-top: 15px;
+            max-width: 80%;
+            text-align: center;
+        }
+    </style>
 </head>
-<body style="background:#000; color:#0ff; text-align:center; padding-top:100px;">
-    <h2>MENUNGGU ADVENTURER...</h2>
-    <div id="status">Menghubungkan ke Shard...</div>
+<body>
+
+    <div class="radar">
+        <div style="width: 10px; height: 10px; background: var(--neon); border-radius: 50%; box-shadow: 0 0 15px var(--neon);"></div>
+    </div>
+
+    <div class="status-text">Broadcasting Mission...</div>
+    <div id="info">Menghubungkan ke tabel sistem...</div>
 
 <script>
-    const path = localStorage.getItem('active_mission_path');
-    const shardID = localStorage.getItem('active_shard');
+    // 1. Ambil data path dari LocalStorage yang dikirim index.html
+    const missionPath = localStorage.getItem('active_mission_path');
 
-    if (!path || !shardID) {
-        alert("Data misi tidak ditemukan!");
+    if (!missionPath) {
+        alert("Data misi tidak ditemukan! Kembali ke menu utama.");
         window.location.href = "index.html";
     }
 
-    try {
-        const shardApp = !firebase.apps.find(a => a.name === "REGIONAL") 
-            ? firebase.initializeApp(SHARD_MASTER[shardID], "REGIONAL") 
-            : firebase.app("REGIONAL");
+    // 2. Inisialisasi Firebase menggunakan satu database utama
+    if (!firebase.apps.length) {
+        firebase.initializeApp(TERMINAL_MASTER["PENGATURAN_PUSAT"]);
+    }
+    const db = firebase.database();
 
-        shardApp.database().ref(`active_missions/${path}`).on('value', snap => {
-            const data = snap.val();
-            if (data && data.adventurer_id) {
-                alert("Misi diambil oleh Adventurer!");
+    document.getElementById('info').innerText = `LISTENING ON: ${missionPath}`;
+
+    // 3. Pantau perubahan pada data misi tersebut secara Real-time
+    const missionRef = db.ref(missionPath);
+
+    missionRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+
+        if (data) {
+            // Jika ada adventurer_id yang mengisi misi ini
+            if (data.adventurer_id || data.status === "taken") {
+                console.log("Misi diambil oleh:", data.adventurer_id);
+                
+                // Simpan ID Kontrak untuk digunakan di halaman room
+                localStorage.setItem('active_adventurer', data.adventurer_id);
+                
+                // Matikan listener agar tidak boros baterai/data
+                missionRef.off();
+
+                // Pindah ke room chat/aktif
+                alert("Adventurer Terdeteksi! Membuka Kontrak...");
                 window.location.href = "mission_room.html";
             }
-        });
-    } catch (e) {
-        document.getElementById('status').innerText = "Error: " + e.message;
-    }
+        } else {
+            // Jika data hilang (mungkin dihapus/expire)
+            document.getElementById('info').innerText = "Data misi tidak ditemukan di server.";
+        }
+    });
+
+    // Tambahan: Logika timeout jika 1 jam tidak ada yang ambil (Opsional)
+    setTimeout(() => {
+        // missionRef.off();
+        // alert("Waktu tunggu habis. Silakan coba rilis ulang.");
+    }, 3600000); 
+
 </script>
 </body>
 </html>
