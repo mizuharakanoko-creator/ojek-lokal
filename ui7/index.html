@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RELEASE MISSION | OJEK LOKAL</title>
+    <title>SOVEREIGN GUILD | AUTO ROUTER</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     
@@ -11,71 +11,80 @@
     <script src="shard-router.js"></script>
 
     <style>
-        :root { --neon: #00ffff; --bg: #050505; --card: #111; }
-        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-        body { background: var(--bg); color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        .logo { font-weight: bold; font-size: 22px; color: var(--neon); margin: 20px 0; letter-spacing: 2px; text-shadow: 0 0 10px var(--neon); }
-        #mainUI { width: 100%; max-width: 400px; }
-        .loc-box { background: #1a1a1a; padding: 15px; border-radius: 12px; border: 1px dashed #333; font-size: 11px; margin-bottom: 20px; line-height: 1.5; color: #aaa; }
-        .input-group { margin-bottom: 15px; }
-        label { display: block; font-size: 10px; color: #555; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
-        input, textarea, select { width: 100%; background: #111; border: 1px solid #222; color: white; padding: 14px; border-radius: 10px; outline: none; }
-        .btn-post { width: 100%; padding: 18px; background: var(--neon); border: none; border-radius: 12px; font-weight: bold; cursor: pointer; color: #000; text-transform: uppercase; }
+        :root { --neon: #00ffff; --bg: #050505; }
+        body { background: var(--bg); color: white; font-family: sans-serif; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .logo { font-weight: bold; color: var(--neon); text-shadow: 0 0 10px var(--neon); margin: 20px 0; }
+        .loc-box { background: #111; border: 1px dashed #333; padding: 15px; border-radius: 10px; width: 100%; max-width: 400px; font-size: 12px; margin-bottom: 20px; }
+        .input-group { width: 100%; max-width: 400px; margin-bottom: 15px; }
+        input, select { width: 100%; padding: 12px; background: #000; border: 1px solid #222; color: white; border-radius: 8px; }
+        .btn { width: 100%; max-width: 400px; padding: 15px; background: var(--neon); color: #000; border: none; font-weight: bold; border-radius: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div id="mainUI">
-        <div class="logo">RELEASE MISSION</div>
-        <div class="loc-box" id="locStatus">📡 Mendeteksi Lokasi...</div>
+    <h2 class="logo">RELEASE MISSION</h2>
 
-        <div class="input-group">
-            <label>Kategori</label>
-            <select id="mCat">
-                <option value="MOTOR">MOTOR</option>
-                <option value="CAR">CAR</option>
-            </select>
-        </div>
+    <div class="loc-box" id="locDisplay">📡 Mencari Titik Koordinat...</div>
 
-        <div class="input-group">
-            <label>Judul Misi</label>
-            <input type="text" id="mTitle" placeholder="Titip apa?">
-        </div>
-
-        <div class="input-group">
-            <label>Harga (Bounty)</label>
-            <input type="number" id="mPrice" placeholder="Rp 0">
-        </div>
-
-        <button class="btn-post" id="btnRelease" onclick="postMission()">RELEASE MISSION</button>
+    <div class="input-group">
+        <select id="mCat">
+            <option value="MOTOR">🏍️ MOTOR</option>
+            <option value="CAR">🚗 MOBIL</option>
+        </select>
     </div>
 
+    <div class="input-group">
+        <input type="text" id="mTitle" placeholder="Judul Misi (Contoh: Titip Seblak)">
+    </div>
+
+    <div class="input-group">
+        <input type="number" id="mPrice" placeholder="Bounty (Hadiah Rp)">
+    </div>
+
+    <button class="btn" id="btnRelease" onclick="postMission()">RELEASE MISSION</button>
+
 <script>
-    // Inisialisasi Firebase langsung dari terminal-config (Satu Database Utama)
+    // Inisialisasi Firebase
     if (!firebase.apps.length) {
         firebase.initializeApp(TERMINAL_MASTER["PENGATURAN_PUSAT"]);
     }
     const db = firebase.database();
 
-    let currentPos = { lat: 0, lng: 0, kab: "", kec: "", desa: "" };
+    let locData = { kab: "", kec: "", desa: "", zona: "" };
 
-    // Mendeteksi Lokasi Otomatis
-    function detectLocation() {
+    // AUTO DETECT GPS & ADDRESS
+    function initGPS() {
+        if (!navigator.geolocation) return alert("GPS Tidak Didukung!");
+
         navigator.geolocation.getCurrentPosition(async (pos) => {
-            currentPos.lat = pos.coords.latitude;
-            currentPos.lng = pos.coords.longitude;
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentPos.lat}&lon=${currentPos.lng}`);
-                const data = await res.json();
-                const addr = data.address;
-                
-                // Normalisasi Data
-                currentPos.kab = (addr.city || addr.regency || "KUNINGAN").toUpperCase().replace("KABUPATEN ", "").trim();
-                currentPos.kec = (addr.district || addr.suburb || "JALAKSANA").toUpperCase().trim();
-                currentPos.desa = (addr.village || addr.neighbourhood || "PADAREK").toUpperCase().trim();
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
 
-                document.getElementById('locStatus').innerHTML = `📍 ${currentPos.kab} <br> 🏘️ ${currentPos.kec} - ${currentPos.desa}`;
-            } catch (e) { console.error("Geocoding Error"); }
+            try {
+                // Mengambil data alamat dari koordinat (OpenStreetMap API)
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+                const data = await response.json();
+                const addr = data.address;
+
+                // Ekstraksi Data Alamat
+                locData.kab = (addr.city || addr.regency || "KUNINGAN").toUpperCase().replace("KABUPATEN ", "");
+                locData.kec = (addr.district || addr.suburb || addr.town || addr.city_district || "KRAMATMULYA").toUpperCase();
+                locData.desa = (addr.village || addr.neighbourhood || addr.suburb || "DESA").toUpperCase();
+                
+                // Tentukan Zona Otomatis dari shard-router.js
+                locData.zona = getZonaWilayah(locData.kab, locData.kec);
+
+                document.getElementById('locDisplay').innerHTML = `
+                    📍 <b>KAB:</b> ${locData.kab}<br>
+                    🧭 <b>ZONA:</b> ${locData.zona}<br>
+                    🏘️ <b>KEC:</b> ${locData.kec}<br>
+                    🏠 <b>DESA:</b> ${locData.desa}
+                `;
+            } catch (e) {
+                document.getElementById('locDisplay').innerText = "❌ Gagal memetakan alamat.";
+            }
+        }, () => {
+            alert("Harap aktifkan Lokasi/GPS Anda!");
         });
     }
 
@@ -85,49 +94,45 @@
         const cat = document.getElementById('mCat').value;
         const btn = document.getElementById('btnRelease');
 
-        if (!title || !price || !currentPos.kab) return alert("Tunggu lokasi terdeteksi!");
+        if (!title || !price || !locData.kab) return alert("Data lokasi belum siap!");
 
         btn.disabled = true;
-        btn.innerText = "UPDATING TABLES...";
+        btn.innerText = "UPDATING DATABASE...";
 
-        // Logika Penamaan Tabel Baru (Sesuai Permintaan)
-        const areaZone = getAreaZone(currentPos.kab, currentPos.kec);
-        
-        // Contoh Tabel: MOTOR-KUNINGAN-UTARA-JALAKSANA-PADAREK
-        const tableName = `${cat}-${currentPos.kab}-${areaZone}-${currentPos.kec}-${currentPos.desa}`;
+        // PEMBUATAN NAMA TABEL SESUAI PERMINTAAN:
+        // format: KATEGORI-KABUPATEN-ZONA-KECAMATAN-DESA
+        const tableName = `${cat}-${locData.kab}-${locData.zona}-${locData.kec}-${locData.desa}`;
         const missionId = `STR-${Date.now()}`;
 
-        const payload = {
-            id: missionId,
-            title: title,
-            price: price,
-            status: "open",
-            created_at: Date.now(),
-            full_path: tableName
-        };
-
         try {
-            // Simpan ke "Tabel" Spesifik
-            await db.ref(`${tableName}/${missionId}`).set(payload);
-
-            // Simpan juga ke index global (Opsional, agar Adventurer bisa scan semua misi)
-            await db.ref(`terminal_misi/${currentPos.kab}/${missionId}`).set({
+            // Simpan ke "Tabel" spesifik
+            await db.ref(`${tableName}/${missionId}`).set({
                 id: missionId,
-                table: tableName,
-                cat: cat
+                title: title,
+                price: price,
+                status: "open",
+                created_at: Date.now(),
+                path: tableName
+            });
+
+            // Simpan ke terminal_misi untuk tracking global
+            await db.ref(`terminal_misi/${locData.kab}/${missionId}`).set({
+                id: missionId,
+                tabel: tableName,
+                status: "open"
             });
 
             localStorage.setItem('active_mission_path', `${tableName}/${missionId}`);
-            alert("Misi Berhasil Dilepas ke Tabel: " + tableName);
+            alert("Misi Berhasil Dirilis!");
             window.location.href = "mission_waiting.html";
-
         } catch (e) {
             alert("Error: " + e.message);
             btn.disabled = false;
         }
     }
 
-    detectLocation();
+    // Jalankan GPS saat halaman dibuka
+    initGPS();
 </script>
 </body>
 </html>
