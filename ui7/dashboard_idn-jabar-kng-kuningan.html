@@ -3,198 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ADVENTURER DASHBOARD | AREA LOCK</title>
+    <title>ADVENTURER DASHBOARD | SYNC FIX</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     
-    <script src="shard-config.js"></script>
+    <script src="terminal-config.js"></script>
     <script src="shard-router.js"></script>
 
     <style>
         :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; --card: #111; }
         body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding-bottom: 30px; }
         
-        /* Stats & Header */
         .stats-bar { background: #111; padding: 15px; display: flex; justify-content: space-around; border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 100; }
         .stat-item { text-align: center; }
         .stat-item small { display: block; font-size: 9px; color: #888; text-transform: uppercase; }
         .stat-item b { color: var(--neon); font-size: 15px; }
 
-        /* Radar Controls */
         .radar-panel { background: #000; margin: 15px; padding: 15px; border-radius: 12px; border: 1px solid #333; }
-        .radar-panel label { font-size: 10px; color: var(--pink); font-weight: bold; display: block; margin-bottom: 8px; }
+        .radar-panel label { font-size: 10px; color: var(--neon); font-weight: bold; display: block; margin-bottom: 8px; }
         select { width: 100%; background: #151515; color: white; border: 1px solid #444; padding: 12px; border-radius: 8px; font-weight: bold; outline: none; }
         
-        /* Mission Display */
         .feed { padding: 0 15px; max-width: 500px; margin: auto; }
-        .mission-card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 15px; position: relative; }
-        .badge-desa { font-size: 9px; padding: 4px 8px; border-radius: 4px; background: rgba(0,255,255,0.1); color: var(--neon); border: 1px solid var(--neon); font-weight: bold; }
-        .fare-tag { color: #ffbb33; font-weight: bold; font-size: 15px; }
+        .mission-card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 15px; position: relative; border-left: 4px solid var(--neon); }
+        .badge-desa { font-size: 9px; padding: 4px 8px; border-radius: 4px; background: rgba(0,255,255,0.1); color: var(--neon); border: 1px solid var(--neon); font-weight: bold; text-transform: uppercase; }
+        .fare-tag { color: #ffbb33; font-weight: bold; font-size: 16px; float: right; }
         
-        .bid-section { margin-top: 15px; display: flex; gap: 8px; padding-top: 15px; border-top: 1px dashed #333; }
+        .bid-section { margin-top: 15px; display: flex; gap: 8px; padding-top: 15px; border-top: 1px dashed #333; clear: both; }
         .bid-section input { flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 8px; outline: none; }
         .btn-bid { background: var(--pink); border: none; color: white; padding: 0 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-        /* Warning Overlay */
         #warningOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 999; justify-content: center; align-items: center; text-align: center; padding: 20px; }
-        .warning-box { border: 2px solid var(--pink); padding: 30px; border-radius: 20px; }
-        .warning-box h2 { color: var(--pink); margin: 0; }
     </style>
 </head>
 <body>
 
     <div id="warningOverlay">
-        <div class="warning-box">
-            <h2>OUT OF BOUNDS!</h2>
-            <p id="warnText">Area ini bukan wilayah tugas Anda.</p>
-            <button onclick="location.reload()" style="background:white; color:black; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">RECALIBRATE</button>
+        <div style="border: 2px solid var(--pink); padding: 30px; border-radius: 20px;">
+            <h2 style="color:var(--pink)">WILAYAH TERKUNCI</h2>
+            <p id="warnText">Area tugas tidak cocok.</p>
+            <button onclick="location.reload()" style="padding:10px 20px; border-radius:5px; font-weight:bold;">RE-SYNC</button>
         </div>
     </div>
 
     <div class="stats-bar">
         <div class="stat-item"><small>Adventurer</small><b id="st-nick">-</b></div>
         <div class="stat-item"><small>Stamina</small><b id="st-vit">-</b></div>
-        <div class="stat-item"><small>Area Tugas</small><b id="st-area">-</b></div>
+        <div class="stat-item"><small>Area</small><b id="st-area">-</b></div>
     </div>
 
     <div class="radar-panel">
-        <label>JANGKAUAN RADAR (KEC. <span id="curKec"></span>)</label>
-        <select id="radarType" onchange="startRegionalRadar()">
-            <option value="KECAMATAN">📡 1 KECAMATAN (LUAS)</option>
-            <option value="DESA">📍 HANYA DESA INI (DEKAT)</option>
+        <label>RADAR KECAMATAN: <span id="curKec" style="color:var(--pink)"></span></label>
+        <select id="radarType" onchange="runRadar()">
+            <option value="KEC">📡 LIHAT SEMUA DESA (KECAMATAN)</option>
+            <option value="DESA">📍 FOKUS 1 DESA (POSISI SEKARANG)</option>
         </select>
     </div>
 
-    <div class="feed">
-        <div id="missionList">Mencari misi di area tugas...</div>
+    <div class="feed" id="missionList">
+        <p style="color:#444; text-align:center; margin-top:50px;">Memulai Radar Wilayah...</p>
     </div>
 
 <script>
-    const session = JSON.parse(localStorage.getItem('pickme_session'));
-    if(!session) window.location.href = "login.html";
-
-    // 1. AREA LOCK DATA
-    // Kita ambil data dari login: Di mana dia terdaftar?
-    const dutyArea = {
-        kab: session.kab || "KUNINGAN",
-        kec: session.kec || "KUNINGAN",
-        zona: session.zona || "PUSAT",
-        cat: session.category || "MOTOR"
-    };
-
-    // Data lokasi real-time dari GPS (Simulasi/Input awal)
-    let currentDesa = "KEDUNGARUM"; 
+    // 1. Ambil Sesi & Aturan Tugas
+    const session = JSON.parse(localStorage.getItem('pickme_session')) || { nick: "Guest", shard_id: "KUNINGAN", kec: "KUNINGAN", category: "MOTOR" };
+    
+    // Data Lokasi Simulasi (Nanti ganti dengan GPS Real-time)
+    let gpsKec = "KUNINGAN"; 
+    let gpsDesa = "KEDUNGARUM";
 
     document.getElementById('st-nick').innerText = session.nick;
-    document.getElementById('st-area').innerText = dutyArea.kec;
-    document.getElementById('curKec').innerText = dutyArea.kec;
+    document.getElementById('st-area').innerText = session.kec;
+    document.getElementById('curKec').innerText = session.kec;
 
-    // 2. FIREBASE INIT
-    if (!firebase.apps.length) firebase.initializeApp(SHARD_MASTER[session.shard_id]);
+    // 2. Firebase
+    if (!firebase.apps.length) {
+        firebase.initializeApp(TERMINAL_MASTER["PENGATURAN_PUSAT"]);
+    }
     const db = firebase.database();
 
-    // 3. VITALITY LISTENER
-    db.ref(`adventurer-${session.shard_id.toLowerCase()}/${session.nick}/vitality`).on('value', s => {
-        document.getElementById('st-vit').innerText = s.val() || 0;
-    });
-
-    // 4. VERIFIKASI AREA (Peringatan Jika Salah Area)
-    function verifyAreaLock(lat, lng) {
-        // Logika ini dipicu saat GPS aktif
-        // Jika GPS menunjukkan dia di JALAKSANA tapi dutyArea.kec adalah KUNINGAN:
-        const detectedKec = "KUNINGAN"; // Hasil dari reverse geocoding GPS
-        
-        if (detectedKec !== dutyArea.kec) {
+    // 3. Area Lock: Mencegah Pelari Jalaksana Intip Misi Kuningan
+    function checkAreaValid() {
+        if (gpsKec.toUpperCase() !== session.kec.toUpperCase()) {
             document.getElementById('warningOverlay').style.display = 'flex';
-            document.getElementById('warnText').innerText = `Anda bertugas di ${dutyArea.kec}, tapi terdeteksi di ${detectedKec}. Misi tidak ditampilkan.`;
+            document.getElementById('warnText').innerText = `Anda terdaftar di ${session.kec}, tapi berada di ${gpsKec}.`;
             return false;
         }
         return true;
     }
 
-    // 5. RADAR LOGIC (PILIHAN DEKAT/LUAS)
-    let radarListener = null;
-
-    function startRegionalRadar() {
-        if (radarListener) radarListener.off(); // Bersihkan listener lama
+    // 4. Radar Utama (Deep Scan Folder)
+    function runRadar() {
+        if (!checkAreaValid()) return;
         
-        const type = document.getElementById('radarType').value;
+        const mode = document.getElementById('radarType').value;
         const list = document.getElementById('missionList');
-        list.innerHTML = "Memindai radar...";
+        list.innerHTML = "<p style='color:#555; text-align:center;'>Memindai Shard Desa...</p>";
 
-        // Path Dasar: MOTOR-KUNINGAN-PUSAT-KUNINGAN
-        const basePath = `${dutyArea.cat}-${dutyArea.kab}-${dutyArea.zona}-${dutyArea.kec}`;
-        
-        let targetRef;
-        if (type === "DESA") {
-            // Hanya folder Desa tertentu (Misal: KEDUNGARUM)
-            targetRef = db.ref(`${basePath}/${currentDesa}`);
-        } else {
-            // Seluruh folder Kecamatan
-            targetRef = db.ref(basePath);
-        }
+        // Jalur: MOTOR-KUNINGAN-PUSAT-KUNINGAN
+        // Pastikan ini SAMA PERSIS dengan path di index.html (pengirim misi)
+        const pathKec = `${session.category}-KUNINGAN-PUSAT-${session.kec}`;
 
-        radarListener = targetRef;
-        radarListener.on('value', snap => {
+        db.ref(pathKec).on('value', snap => {
             list.innerHTML = "";
-            if(!snap.exists()) {
-                list.innerHTML = "<p style='color:#333; text-align:center;'>Tidak ada misi aktif di jangkauan radar.</p>";
+            if (!snap.exists()) {
+                list.innerHTML = `<p style='color:#333; text-align:center; margin-top:50px;'>Tidak ada misi di ${session.kec}.</p>`;
                 return;
             }
 
-            // Deep Scan Logic
-            if (type === "DESA") {
-                renderSingleMissions(snap, list, `${basePath}/${currentDesa}`);
-            } else {
-                snap.forEach(desaSnap => {
-                    renderSingleMissions(desaSnap, list, `${basePath}/${desaSnap.key}`);
+            // Loop Masuk ke Folder Desa
+            snap.forEach(desaSnap => {
+                const namaDesa = desaSnap.key;
+                
+                // Jika Mode DESA Aktif, filter hanya desa posisi kita
+                if (mode === "DESA" && namaDesa !== gpsDesa.toUpperCase()) return;
+
+                // Ambil Data Misi di dalam Desa
+                desaSnap.forEach(mSnap => {
+                    const m = mSnap.val();
+                    if (m.status === "open" && m.id) {
+                        renderCard(m, namaDesa, `${pathKec}/${namaDesa}/${mSnap.key}`);
+                    }
                 });
+            });
+
+            if (list.innerHTML === "") {
+                list.innerHTML = "<p style='color:#333; text-align:center;'>Misi di area ini sedang kosong.</p>";
             }
         });
     }
 
-    function renderSingleMissions(snap, container, fullPath) {
-        snap.forEach(mSnap => {
-            const m = mSnap.val();
-            if (m.status === "open" && m.id) {
-                container.innerHTML += `
-                    <div class="mission-card">
-                        <div class="mission-header">
-                            <span class="badge-desa">${snap.key}</span>
-                            <span class="fare-tag">Rp ${parseInt(m.price).toLocaleString()}</span>
-                        </div>
-                        <div style="font-size:16px; font-weight:bold; color:var(--neon);">${m.title}</div>
-                        <div style="font-size:10px; color:#555; margin-top:5px;">ID: ${m.id}</div>
-                        <div class="bid-section">
-                            <input type="number" id="p-${m.id}" placeholder="Tawar...">
-                            <button class="btn-bid" onclick="placeBid('${m.id}', '${fullPath}')">BID</button>
-                        </div>
-                    </div>
-                `;
-            }
-        });
+    function renderCard(m, desa, fullPath) {
+        const list = document.getElementById('missionList');
+        list.innerHTML += `
+            <div class="mission-card">
+                <span class="fare-tag">Rp ${parseInt(m.price).toLocaleString()}</span>
+                <span class="badge-desa">${desa}</span>
+                <div style="font-size:18px; font-weight:bold; color:var(--neon); margin-top:10px;">${m.title}</div>
+                <div style="font-size:10px; color:#555; margin:5px 0;">ID: ${m.id}</div>
+                <div class="bid-section">
+                    <input type="number" id="p-${m.id}" placeholder="Tawaran Anda...">
+                    <button class="btn-bid" onclick="sendBid('${m.id}', '${fullPath}')">BID</button>
+                </div>
+            </div>
+        `;
     }
 
-    async function placeBid(id, path) {
-        const p = document.getElementById(`p-${id}`).value;
-        if(!p) return alert("Isi tawaran!");
+    async function sendBid(id, path) {
+        const bidPrice = document.getElementById(`p-${id}`).value;
+        if (!bidPrice) return alert("Isi harga!");
         
         try {
-            // Simpan ke path spesifik yang ditemukan radar
-            await db.ref(`${path}/${id}/bids/${session.nick}`).set({
-                price: p,
+            // Kirim bid langsung ke path misi di dalam desa
+            await db.ref(`${path}/bids/${session.nick}`).set({
+                price: bidPrice,
                 adventurer: session.nick,
                 timestamp: Date.now()
             });
-            alert("Tawaran terkirim!");
+            alert("Bid Berhasil!");
         } catch(e) { alert(e.message); }
     }
 
-    // Jalankan Verifikasi Awal
-    if (verifyAreaLock()) {
-        startRegionalRadar();
-    }
+    // Jalankan awal
+    runRadar();
 </script>
 </body>
 </html>
