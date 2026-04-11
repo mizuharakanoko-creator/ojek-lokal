@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ADVENTURER DASHBOARD | REGIONAL FEED</title>
+    <title>ADVENTURER DASHBOARD | AREA LOCK</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -13,209 +13,187 @@
 
     <style>
         :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; --card: #111; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding-bottom: 50px; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding-bottom: 30px; }
         
-        /* Stats Bar */
-        .stats-bar { 
-            background: #111; padding: 15px; display: flex; justify-content: space-around; 
-            border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 10;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-        }
+        /* Stats & Header */
+        .stats-bar { background: #111; padding: 15px; display: flex; justify-content: space-around; border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 100; }
         .stat-item { text-align: center; }
-        .stat-item small { display: block; font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-        .stat-item b { color: var(--neon); font-size: 16px; text-shadow: 0 0 5px var(--neon); }
+        .stat-item small { display: block; font-size: 9px; color: #888; text-transform: uppercase; }
+        .stat-item b { color: var(--neon); font-size: 15px; }
 
-        /* Mission List */
-        .feed { padding: 20px; max-width: 500px; margin: auto; }
-        .region-header { 
-            color: var(--pink); font-size: 10px; letter-spacing: 2px; 
-            text-transform: uppercase; margin-bottom: 20px; border-left: 3px solid var(--pink);
-            padding-left: 10px;
-        }
-
-        .mission-card { 
-            background: var(--card); border: 1px solid #222; border-radius: 15px; 
-            padding: 18px; margin-bottom: 15px; position: relative; overflow: hidden;
-        }
-        .mission-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        /* Radar Controls */
+        .radar-panel { background: #000; margin: 15px; padding: 15px; border-radius: 12px; border: 1px solid #333; }
+        .radar-panel label { font-size: 10px; color: var(--pink); font-weight: bold; display: block; margin-bottom: 8px; }
+        select { width: 100%; background: #151515; color: white; border: 1px solid #444; padding: 12px; border-radius: 8px; font-weight: bold; outline: none; }
         
-        .badge-desa { font-size: 9px; padding: 4px 10px; border-radius: 5px; background: #00ffff22; color: var(--neon); border: 1px solid var(--neon); text-transform: uppercase; font-weight: bold; }
-        .fare-tag { color: #ffbb33; font-weight: bold; font-size: 14px; }
+        /* Mission Display */
+        .feed { padding: 0 15px; max-width: 500px; margin: auto; }
+        .mission-card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 15px; position: relative; }
+        .badge-desa { font-size: 9px; padding: 4px 8px; border-radius: 4px; background: rgba(0,255,255,0.1); color: var(--neon); border: 1px solid var(--neon); font-weight: bold; }
+        .fare-tag { color: #ffbb33; font-weight: bold; font-size: 15px; }
+        
+        .bid-section { margin-top: 15px; display: flex; gap: 8px; padding-top: 15px; border-top: 1px dashed #333; }
+        .bid-section input { flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 8px; outline: none; }
+        .btn-bid { background: var(--pink); border: none; color: white; padding: 0 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-        /* Bidding */
-        .bid-section { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #333; display: flex; gap: 8px; }
-        .bid-section input { flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 8px; font-size: 14px; outline: none; }
-        .bid-section input:focus { border-color: var(--neon); }
-        .btn-bid { background: var(--pink); border: none; color: white; padding: 0 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .btn-bid:disabled { background: #333; color: #666; }
-
-        /* Modal Invite (Sama seperti sebelumnya) */
-        #inviteModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; justify-content: center; align-items: center; }
-        .modal-box { background: #000; border: 2px solid var(--neon); padding: 30px; border-radius: 20px; text-align: center; width: 85%; max-width: 350px; }
-        .timer { font-size: 40px; color: var(--pink); font-weight: bold; margin: 15px 0; }
-        .btn-accept { background: var(--neon); color: #000; border: none; padding: 15px; font-weight: bold; border-radius: 10px; width: 100%; font-size: 16px; cursor: pointer; }
+        /* Warning Overlay */
+        #warningOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 999; justify-content: center; align-items: center; text-align: center; padding: 20px; }
+        .warning-box { border: 2px solid var(--pink); padding: 30px; border-radius: 20px; }
+        .warning-box h2 { color: var(--pink); margin: 0; }
     </style>
 </head>
 <body>
 
+    <div id="warningOverlay">
+        <div class="warning-box">
+            <h2>OUT OF BOUNDS!</h2>
+            <p id="warnText">Area ini bukan wilayah tugas Anda.</p>
+            <button onclick="location.reload()" style="background:white; color:black; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">RECALIBRATE</button>
+        </div>
+    </div>
+
     <div class="stats-bar">
         <div class="stat-item"><small>Adventurer</small><b id="st-nick">-</b></div>
         <div class="stat-item"><small>Stamina</small><b id="st-vit">-</b></div>
-        <div class="stat-item"><small>Region</small><b id="st-region">-</b></div>
+        <div class="stat-item"><small>Area Tugas</small><b id="st-area">-</b></div>
+    </div>
+
+    <div class="radar-panel">
+        <label>JANGKAUAN RADAR (KEC. <span id="curKec"></span>)</label>
+        <select id="radarType" onchange="startRegionalRadar()">
+            <option value="KECAMATAN">📡 1 KECAMATAN (LUAS)</option>
+            <option value="DESA">📍 HANYA DESA INI (DEKAT)</option>
+        </select>
     </div>
 
     <div class="feed">
-        <div class="region-header" id="regionLabel">Syncing Region...</div>
-        <div id="missionList">
-            <p style="color:#444; text-align:center;">Mencari Misi di Shard Wilayah...</p>
-        </div>
-    </div>
-
-    <div id="inviteModal">
-        <div class="modal-box">
-            <h2 style="color: var(--neon); margin: 0; font-size: 18px;">KONTRAK MASUK!</h2>
-            <div id="invPrice" style="font-size: 30px; color: #ffbb33; font-weight: bold; margin: 15px 0;">Rp 0</div>
-            <div class="timer" id="invTimer">30</div>
-            <button class="btn-accept" onclick="acceptMission()">TERIMA KONTRAK</button>
-            <p style="font-size: 10px; color: #444; margin-top: 15px;">Abaikan jika ingin menolak (Sanksi Stamina)</p>
-        </div>
+        <div id="missionList">Mencari misi di area tugas...</div>
     </div>
 
 <script>
-    // 1. DATA SESI & WILAYAH
     const session = JSON.parse(localStorage.getItem('pickme_session'));
     if(!session) window.location.href = "login.html";
 
-    // Set Data Awal
-    const myNick = session.nick;
-    const myShard = session.shard_id; // Misal: KUNINGAN
-    const myCategory = session.category || "MOTOR"; // Diambil dari profil
-    
-    // Tentukan Filter Area (Bisa diatur manual/otomatis dari login)
-    const filterKab = "KUNINGAN";
-    const filterKec = "KUNINGAN"; // Dashboard ini khusus Kecamatan Kuningan
-    const filterZona = "PUSAT";
+    // 1. AREA LOCK DATA
+    // Kita ambil data dari login: Di mana dia terdaftar?
+    const dutyArea = {
+        kab: session.kab || "KUNINGAN",
+        kec: session.kec || "KUNINGAN",
+        zona: session.zona || "PUSAT",
+        cat: session.category || "MOTOR"
+    };
 
-    document.getElementById('st-nick').innerText = myNick.toUpperCase();
-    document.getElementById('st-region').innerText = filterKec;
-    document.getElementById('regionLabel').innerText = `QUEST BOARD: ${filterKab} - ${filterKec}`;
+    // Data lokasi real-time dari GPS (Simulasi/Input awal)
+    let currentDesa = "KEDUNGARUM"; 
+
+    document.getElementById('st-nick').innerText = session.nick;
+    document.getElementById('st-area').innerText = dutyArea.kec;
+    document.getElementById('curKec').innerText = dutyArea.kec;
 
     // 2. FIREBASE INIT
-    const config = SHARD_MASTER[myShard];
-    if (!firebase.apps.length) firebase.initializeApp(config);
+    if (!firebase.apps.length) firebase.initializeApp(SHARD_MASTER[session.shard_id]);
     const db = firebase.database();
 
-    // 3. LISTEN STATS (Stamina & Level)
-    db.ref(`adventurer-${myShard.toLowerCase()}/${myNick}`).on('value', snap => {
-        if(snap.exists()){
-            const d = snap.val();
-            document.getElementById('st-vit').innerText = d.vitality;
-        }
+    // 3. VITALITY LISTENER
+    db.ref(`adventurer-${session.shard_id.toLowerCase()}/${session.nick}/vitality`).on('value', s => {
+        document.getElementById('st-vit').innerText = s.val() || 0;
     });
 
-    // 4. MISSION FEED (Sesuai Struktur Tabel Baru)
-    // Path: MOTOR-KUNINGAN-PUSAT-KUNINGAN
-    const regionalPath = `${myCategory}-${filterKab}-${filterZona}-${filterKec}`;
-
-    db.ref(regionalPath).on('value', snap => {
-        const list = document.getElementById('missionList');
-        list.innerHTML = "";
+    // 4. VERIFIKASI AREA (Peringatan Jika Salah Area)
+    function verifyAreaLock(lat, lng) {
+        // Logika ini dipicu saat GPS aktif
+        // Jika GPS menunjukkan dia di JALAKSANA tapi dutyArea.kec adalah KUNINGAN:
+        const detectedKec = "KUNINGAN"; // Hasil dari reverse geocoding GPS
         
-        if(!snap.exists()) {
-            list.innerHTML = "<p style='color:#333; text-align:center; margin-top:40px;'>Belum ada misi tersedia di kecamatan ini.</p>";
-            return;
+        if (detectedKec !== dutyArea.kec) {
+            document.getElementById('warningOverlay').style.display = 'flex';
+            document.getElementById('warnText').innerText = `Anda bertugas di ${dutyArea.kec}, tapi terdeteksi di ${detectedKec}. Misi tidak ditampilkan.`;
+            return false;
+        }
+        return true;
+    }
+
+    // 5. RADAR LOGIC (PILIHAN DEKAT/LUAS)
+    let radarListener = null;
+
+    function startRegionalRadar() {
+        if (radarListener) radarListener.off(); // Bersihkan listener lama
+        
+        const type = document.getElementById('radarType').value;
+        const list = document.getElementById('missionList');
+        list.innerHTML = "Memindai radar...";
+
+        // Path Dasar: MOTOR-KUNINGAN-PUSAT-KUNINGAN
+        const basePath = `${dutyArea.cat}-${dutyArea.kab}-${dutyArea.zona}-${dutyArea.kec}`;
+        
+        let targetRef;
+        if (type === "DESA") {
+            // Hanya folder Desa tertentu (Misal: KEDUNGARUM)
+            targetRef = db.ref(`${basePath}/${currentDesa}`);
+        } else {
+            // Seluruh folder Kecamatan
+            targetRef = db.ref(basePath);
         }
 
-        // Loop 1: Folder Desa (Kedungarum, Padarek, dll)
-        snap.forEach(desaSnap => {
-            const namaDesa = desaSnap.key;
+        radarListener = targetRef;
+        radarListener.on('value', snap => {
+            list.innerHTML = "";
+            if(!snap.exists()) {
+                list.innerHTML = "<p style='color:#333; text-align:center;'>Tidak ada misi aktif di jangkauan radar.</p>";
+                return;
+            }
 
-            // Loop 2: Daftar Misi di dalam Desa
-            desaSnap.forEach(missionSnap => {
-                const m = missionSnap.val();
-                
-                if(m.status === "open") {
-                    const fullPath = `${regionalPath}/${namaDesa}/${missionSnap.key}`;
-                    
-                    list.innerHTML += `
-                        <div class="mission-card">
-                            <div class="mission-header">
-                                <span class="badge-desa">${namaDesa}</span>
-                                <span class="fare-tag">Rp ${parseInt(m.price).toLocaleString()}</span>
-                            </div>
-                            <div style="font-size:16px; font-weight:bold; color:var(--neon);">${m.title}</div>
-                            <div style="font-size:10px; color:#555; margin-top:5px;">ID: ${missionSnap.key}</div>
-                            
-                            <div class="bid-section">
-                                <input type="number" id="price-${missionSnap.key}" placeholder="Tawar Harga...">
-                                <button class="btn-bid" onclick="placeBid('${missionSnap.key}', '${fullPath}')">BID</button>
-                            </div>
-                        </div>
-                    `;
-                }
-            });
+            // Deep Scan Logic
+            if (type === "DESA") {
+                renderSingleMissions(snap, list, `${basePath}/${currentDesa}`);
+            } else {
+                snap.forEach(desaSnap => {
+                    renderSingleMissions(desaSnap, list, `${basePath}/${desaSnap.key}`);
+                });
+            }
         });
-    });
+    }
 
-    // 5. BID LOGIC
-    async function placeBid(mId, fullPath) {
-        const pInput = document.getElementById(`price-${mId}`);
-        const bidPrice = parseInt(pInput.value);
-        if(!bidPrice) return alert("Masukkan harga tawaran!");
+    function renderSingleMissions(snap, container, fullPath) {
+        snap.forEach(mSnap => {
+            const m = mSnap.val();
+            if (m.status === "open" && m.id) {
+                container.innerHTML += `
+                    <div class="mission-card">
+                        <div class="mission-header">
+                            <span class="badge-desa">${snap.key}</span>
+                            <span class="fare-tag">Rp ${parseInt(m.price).toLocaleString()}</span>
+                        </div>
+                        <div style="font-size:16px; font-weight:bold; color:var(--neon);">${m.title}</div>
+                        <div style="font-size:10px; color:#555; margin-top:5px;">ID: ${m.id}</div>
+                        <div class="bid-section">
+                            <input type="number" id="p-${m.id}" placeholder="Tawar...">
+                            <button class="btn-bid" onclick="placeBid('${m.id}', '${fullPath}')">BID</button>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+    }
 
-        const vitRef = db.ref(`adventurer-${myShard.toLowerCase()}/${myNick}/vitality`);
-        const vitSnap = await vitRef.get();
-        const currentVit = vitSnap.val();
-
-        if(currentVit < 5) return alert("Stamina Habis!");
-
+    async function placeBid(id, path) {
+        const p = document.getElementById(`p-${id}`).value;
+        if(!p) return alert("Isi tawaran!");
+        
         try {
-            await vitRef.set(currentVit - 5); // Kurangi Stamina
-            
-            // Masukkan Bid ke Tabel Desa yang benar
-            await db.ref(`${fullPath}/bids/${myNick}`).set({
-                price: bidPrice,
-                timestamp: Date.now(),
-                adventurer: myNick
+            // Simpan ke path spesifik yang ditemukan radar
+            await db.ref(`${path}/${id}/bids/${session.nick}`).set({
+                price: p,
+                adventurer: session.nick,
+                timestamp: Date.now()
             });
-
-            alert("Berhasil Mengirim Bid!");
-            pInput.disabled = true;
-        } catch (e) { alert("Error: " + e.message); }
+            alert("Tawaran terkirim!");
+        } catch(e) { alert(e.message); }
     }
 
-    // 6. INVITATION LISTENER (Pop Up Kontrak)
-    db.ref(`invitations/${myNick}`).on('value', snap => {
-        if(snap.exists()) {
-            const invite = snap.val();
-            document.getElementById('invPrice').innerText = "Rp " + invite.price.toLocaleString();
-            document.getElementById('inviteModal').style.display = 'flex';
-            startTimer();
-        }
-    });
-
-    let timerVal = 30;
-    let tInterval;
-    function startTimer() {
-        timerVal = 30;
-        clearInterval(tInterval);
-        tInterval = setInterval(() => {
-            timerVal--;
-            document.getElementById('invTimer').innerText = timerVal;
-            if(timerVal <= 0) rejectInvite();
-        }, 1000);
-    }
-
-    async function acceptMission() {
-        // Logika Accept Kontrak (briefing.html)
-        alert("Kontrak Diterima! Menuju Briefing...");
-        window.location.href = "briefing.html";
-    }
-
-    async function rejectInvite() {
-        clearInterval(tInterval);
-        document.getElementById('inviteModal').style.display = 'none';
-        await db.ref(`invitations/${myNick}`).remove();
+    // Jalankan Verifikasi Awal
+    if (verifyAreaLock()) {
+        startRegionalRadar();
     }
 </script>
 </body>
