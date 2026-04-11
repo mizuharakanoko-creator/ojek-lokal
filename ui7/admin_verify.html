@@ -7,44 +7,41 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: 'Courier New', monospace; padding: 20px; }
-        h2 { color: #00ffff; border-bottom: 2px solid #222; padding-bottom: 15px; letter-spacing: 2px; }
+        body { background: #050505; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
+        h2 { color: #00ffff; border-bottom: 2px solid #222; padding-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; }
+        
+        #pendingList { margin-top: 20px; }
         
         .row { 
             background: #111; border: 1px solid #333; padding: 20px; 
             margin-bottom: 12px; display: flex; justify-content: space-between; 
-            align-items: center; border-radius: 8px;
-            transition: 0.3s;
+            align-items: center; border-radius: 10px; border-left: 5px solid #ff0055;
         }
-        .row:hover { border-color: #00ffff; background: #151515; }
 
-        .info b { color: #ff0055; font-size: 18px; display: block; margin-bottom: 5px; }
-        .info i { color: #888; font-size: 12px; font-style: normal; display: block; }
+        .info b { color: #fff; font-size: 18px; display: block; margin-bottom: 4px; }
+        .info span { color: #888; font-size: 12px; display: block; }
         .badge-cat { 
-            display: inline-block; padding: 2px 8px; border-radius: 4px; 
-            font-size: 10px; font-weight: bold; margin-top: 5px;
-            background: #00ffff22; color: #00ffff; border: 1px solid #00ffff;
+            display: inline-block; margin-top: 8px; padding: 3px 10px; 
+            background: #00ffff22; color: #00ffff; border: 1px solid #00ffff; 
+            font-size: 10px; font-weight: bold; border-radius: 4px;
         }
 
-        .btn-approve { 
-            background: #00ff00; color: #000; border: none; padding: 12px 25px; 
+        button { 
+            background: #00ff00; color: #000; border: none; padding: 12px 20px; 
             font-weight: bold; cursor: pointer; border-radius: 6px;
-            text-transform: uppercase;
+            text-transform: uppercase; transition: 0.2s;
         }
-        .btn-approve:hover { background: #00cc00; transform: scale(1.05); }
-        .btn-approve:active { transform: scale(0.95); }
-
-        #pendingList { margin-top: 20px; }
-        .empty-state { color: #444; text-align: center; margin-top: 50px; font-size: 14px; }
+        button:hover { background: #00cc00; transform: scale(1.05); }
+        
+        .empty-msg { color: #444; text-align: center; margin-top: 50px; font-style: italic; }
     </style>
 </head>
 <body>
 
     <h2>PENDING APPROVAL LIST</h2>
-    <div id="pendingList">Menganalisis data pendaftar...</div>
+    <div id="pendingList">Mendengarkan sinyal pendaftaran...</div>
 
     <script>
-        // CONFIG MASTER
         const firebaseConfig = {
             apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
             databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -52,49 +49,50 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // 1. Monitor data pendaftaran_pending secara real-time
+        // 1. MONITOR DATA PENDING (REAL-TIME)
         db.ref('pendaftaran_pending').on('value', snap => {
             const listDiv = document.getElementById('pendingList');
             listDiv.innerHTML = "";
 
             if(!snap.exists()) {
-                listDiv.innerHTML = "<div class="empty-state">-- TIDAK ADA PENDAFTAR BARU DALAM ANTREAN --</div>";
+                listDiv.innerHTML = "<p class='empty-msg'>Tidak ada pendaftar baru dalam antrean.</p>";
                 return;
             }
 
+            // LOOPING UNTUK MENAMPILKAN SETIAP USER
             snap.forEach(child => {
                 const u = child.val();
-                // Menampilkan kategori (Motor/Car) agar admin tahu
-                const cat = u.category || "NOT SET"; 
-                
+                const nick = child.key; // Mengambil Key (Nickname)
+                const category = u.category || "MOTOR"; // Fallback jika kosong
+
                 listDiv.innerHTML += `
                     <div class="row">
                         <div class="info">
-                            <b>${u.nick.toUpperCase()}</b>
-                            <i>SHARD: ${u.shard_id}</i>
-                            <span class="badge-cat">${cat}</span>
+                            <b>${nick.toUpperCase()}</b>
+                            <span>SHARD: ${u.shard_id}</span>
+                            <div class="badge-cat">${category}</div>
                         </div>
-                        <button class="btn-approve" onclick="verifyUser('${u.nick}')">APPROVE</button>
+                        <button onclick="verifyUser('${nick}')">APPROVE ADVENTURER</button>
                     </div>
                 `;
             });
         });
 
-        // 2. LOGIKA VERIFIKASI (FIXED: Mempertahankan Kategori)
+        // 2. LOGIKA VERIFIKASI (FIXED: Memindahkan Kategori)
         async function verifyUser(nick) {
             if(!confirm("Terima " + nick.toUpperCase() + " sebagai Adventurer resmi?")) return;
 
             const pendingRef = db.ref(`pendaftaran_pending/${nick}`);
             const snap = await pendingRef.get();
             
-            if(!snap.exists()) return alert("Error: Data pendaftaran tidak ditemukan!");
+            if(!snap.exists()) return alert("Data sudah tidak ada!");
             
             const data = snap.val();
             const shardId = data.shard_id;
             const category = data.category || "MOTOR"; // Ambil kategori dari pendaftaran
 
             try {
-                // PROSES A: Buat entri di Registry Utama (Data Login Global)
+                // A. Masukkan ke Registry Utama (Login)
                 await db.ref(`users_registry/${nick}`).set({
                     password: data.password,
                     shard_id: shardId,
@@ -102,11 +100,11 @@
                     status: "active"
                 });
 
-                // PROSES B: Buat Profil Permanen Wilayah (Statistik & Kategori)
+                // B. Buat Profil Wilayah (Statistik & Kategori TETAP ADA)
                 const shardTablePath = `adventurer-${shardId.toLowerCase()}`;
                 await db.ref(`${shardTablePath}/${nick}`).set({
                     nick: nick,
-                    category: category, // KATEGORI SEKARANG DISIMPAN PERMANEN
+                    category: category, // SEKARANG TIDAK AKAN TERHAPUS LAGI
                     rating: 5.0,
                     level: 1,
                     exp: 0,
@@ -115,12 +113,12 @@
                     joined_at: Date.now()
                 });
 
-                // PROSES C: Hapus dari antrean pendaftaran_pending
+                // C. Hapus dari antrean
                 await pendingRef.remove();
 
-                alert(`SUCCESS!\nAdventurer ${nick.toUpperCase()} telah diaktifkan di kategori ${category}.`);
+                alert(`BERHASIL!\n${nick} sekarang aktif sebagai ${category}.`);
             } catch (e) {
-                alert("Critical Error: " + e.message);
+                alert("Gagal: " + e.message);
             }
         }
     </script>
