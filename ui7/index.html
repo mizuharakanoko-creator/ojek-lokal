@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SOVEREIGN GUILD | RELEASE MISSION</title>
+    <title>RELEASE MISSION | PICK ME</title>
+
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     
@@ -34,34 +35,35 @@
 
     <div id="roleOverlay">
         <div class="logo">PICK ME SYSTEM</div>
-        <div class="role-card" onclick="selectRole('stranger')"><h3>STRANGER</h3><p style="font-size:10px;color:#555">Fast mission, no login [STR]</p></div>
-        <div class="role-card" onclick="selectRole('citizen')"><h3>CITIZEN</h3><p style="font-size:10px;color:#555">Build reputation [CTZ]</p></div>
+        <div class="role-card" onclick="selectRole('stranger')">
+            <h3>STRANGER</h3>
+            <p style="font-size:10px;color:#555">Posting Cepat Tanpa Akun</p>
+        </div>
+        <div class="role-card" onclick="selectRole('citizen')">
+            <h3>CITIZEN</h3>
+            <p style="font-size:10px;color:#555">Gunakan Akun Terdaftar</p>
+        </div>
     </div>
 
     <div id="mainUI">
         <div class="logo">RELEASE MISSION</div>
-        <div class="loc-box" id="locStatus">📡 Mendeteksi Lokasi Driver...</div>
+        <div class="loc-box" id="locStatus">📡 Mencari GPS...</div>
 
         <div class="input-group">
-            <label>Pilih Kendaraan</label>
+            <label>Kategori</label>
             <select id="mCat">
-                <option value="MOTOR">MOTOR (Roda 2)</option>
-                <option value="CAR">CAR (Roda 4)</option>
+                <option value="MOTOR">MOTOR</option>
+                <option value="CAR">CAR</option>
             </select>
         </div>
 
         <div class="input-group">
             <label>Judul Misi</label>
-            <input type="text" id="mTitle" placeholder="Contoh: Titip belanja di Pasar">
+            <input type="text" id="mTitle" placeholder="Titip apa?">
         </div>
 
         <div class="input-group">
-            <label>Detail / Catatan</label>
-            <textarea id="mDesc" placeholder="Jelaskan kebutuhan Anda..."></textarea>
-        </div>
-
-        <div class="input-group">
-            <label>Bounty (Hadiah Rp)</label>
+            <label>Harga (Bounty)</label>
             <input type="number" id="mPrice" placeholder="Rp 0">
         </div>
 
@@ -75,7 +77,7 @@
     function selectRole(role) {
         if (role === 'citizen') {
             const session = JSON.parse(localStorage.getItem('pickme_session'));
-            if (!session) return alert("Anda harus login dulu!");
+            if (!session) return alert("Silakan Login Terlebih Dahulu!");
             userData = { nick: session.nick, type: "citizen", prefix: "CTZ" };
         }
         document.getElementById('roleOverlay').style.display = "none";
@@ -93,11 +95,10 @@
                 const data = await res.json();
                 const addr = data.address;
                 currentPos.kab = (addr.city || addr.regency || "KUNINGAN").toUpperCase().replace("KABUPATEN ", "");
-                currentPos.kec = (addr.village || addr.suburb || addr.district || "KOTA").toUpperCase();
-                
+                currentPos.kec = (addr.village || addr.suburb || addr.district || "JALAKSANA").toUpperCase();
                 document.getElementById('locStatus').innerHTML = `📍 KAB. ${currentPos.kab}<br>🏘️ KEC. ${currentPos.kec}`;
-            } catch (e) { document.getElementById('locStatus').innerText = "⚠️ Gagal deteksi wilayah."; }
-        });
+            } catch (e) { document.getElementById('locStatus').innerText = "Gagal memetakan lokasi."; }
+        }, () => { alert("Aktifkan GPS HP Anda!"); });
     }
 
     async function postMission() {
@@ -106,45 +107,49 @@
         const cat = document.getElementById('mCat').value;
         const btn = document.getElementById('btnRelease');
 
-        if (!title || !price || !currentPos.kab) return alert("Lengkapi data dan tunggu lokasi!");
+        if (!title || !price || !currentPos.kab) return alert("Data belum lengkap!");
 
         btn.disabled = true;
-        btn.innerText = "ROUTING MISSION...";
+        btn.innerText = "SINKRONISASI ROUTER...";
 
+        // Ambil Shard ID dari router
         const shardID = getShardID(currentPos.kab, currentPos.kec);
         const missionId = `${userData.prefix}-${Date.now()}`;
-        
-        // HIRARKI BARU: KATEGORI > KABUPATEN > KECAMATAN > ID
         const pathMisi = `${cat}/${currentPos.kab}/${currentPos.kec}/${missionId}`;
 
+        // VALIDASI VARIABEL (Agar tidak no-options)
+        if (!TERMINAL_MASTER["PENGATURAN_PUSAT"] || !SHARD_MASTER[shardID]) {
+            alert("Error: Konfigurasi Config Hilang!");
+            btn.disabled = false;
+            return;
+        }
+
         try {
-            // A. Regional Shard Write
-            const shardApp = !firebase.apps.find(a => a.name === "REGIONAL") 
-                ? firebase.initializeApp(SHARD_MASTER[shardID], "REGIONAL") 
-                : firebase.app("REGIONAL");
-            
-            // B. Terminal Central Write
+            // Inisialisasi Terminal
             const termApp = !firebase.apps.find(a => a.name === "TERMINAL") 
                 ? firebase.initializeApp(TERMINAL_MASTER["PENGATURAN_PUSAT"], "TERMINAL") 
                 : firebase.app("TERMINAL");
 
+            // Inisialisasi Shard
+            const shardApp = !firebase.apps.find(a => a.name === "REGIONAL") 
+                ? firebase.initializeApp(SHARD_MASTER[shardID], "REGIONAL") 
+                : firebase.app("REGIONAL");
+
             const payload = {
                 id: missionId,
                 title: title,
-                desc: document.getElementById('mDesc').value,
                 price: price,
                 requester: userData.nick,
-                loc: currentPos,
                 status: "open",
                 shard: shardID,
                 path: pathMisi,
                 created_at: Date.now()
             };
 
-            // 1. Tulis Data Lengkap ke Shard Regional
+            // 1. Tulis ke Shard (Data Berat)
             await shardApp.database().ref(`active_missions/${pathMisi}`).set(payload);
 
-            // 2. Tulis Index Ringan ke Terminal Pusat
+            // 2. Tulis ke Terminal (Data Ringan)
             await termApp.database().ref(`terminal_index/${currentPos.kab}/${currentPos.kec}/${missionId}`).set({
                 id: missionId,
                 title: title,
@@ -156,10 +161,10 @@
 
             localStorage.setItem('active_mission_path', pathMisi);
             localStorage.setItem('active_shard', shardID);
-            
             window.location.href = "mission_waiting.html";
+
         } catch (e) {
-            alert("Error: " + e.message);
+            alert("Firebase Error: " + e.message);
             btn.disabled = false;
         }
     }
