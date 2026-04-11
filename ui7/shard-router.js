@@ -1,88 +1,73 @@
 /**
- * File: shard-router.js
- * Deskripsi: Mapping otomatis Kecamatan ke Zona Wilayah untuk penamaan tabel Firebase
+ * DATA PUSAT WILAYAH KUNINGAN
+ * Menentukan Desa, Kecamatan, dan Zona berdasarkan Koordinat murni.
+ * Hal ini mencegah error data dari internet yang sering tertukar wilayahnya.
  */
 
-const WILAYAH_CONFIG = {
-    "KUNINGAN": {
-        // ZONA UTARA
-        "JALAKSANA": "UTARA",
-        "CILIMUS": "UTARA",
-        "KRAMATMULYA": "UTARA",
-        "MANDIRANCAN": "UTARA",
-        "PANCALANG": "UTARA",
-        "CIAWIGEBANG": "UTARA", // Bisa disesuaikan sesuai kebutuhan operasional
-        "CIGANDAMEKAR": "UTARA",
-        "JAPARA": "UTARA",
+const DATA_TITIK_PUSAT = [
+    // --- KECAMATAN KUNINGAN (PUSAT) ---
+    { desa: "KEDUNGARUM", kec: "KUNINGAN", zona: "PUSAT", lat: -6.9744, lng: 108.5028 },
+    { desa: "PADAREK", kec: "KUNINGAN", zona: "PUSAT", lat: -6.9801, lng: 108.5105 },
+    { desa: "PURWANEGARA", kec: "KUNINGAN", zona: "PUSAT", lat: -6.9850, lng: 108.4900 },
+    { desa: "KUNINGAN", kec: "KUNINGAN", zona: "PUSAT", lat: -6.9765, lng: 108.4831 },
+    { desa: "CIGINTUNG", kec: "KUNINGAN", zona: "PUSAT", lat: -6.9650, lng: 108.4950 },
 
-        // ZONA SELATAN
-        "KADUGEDE": "SELATAN",
-        "DARMA": "SELATAN",
-        "NUSAHERANG": "SELATAN",
-        "SELAJAMBE": "SELATAN",
-        "SUBANG": "SELATAN",
-        "CILEBAK": "SELATAN",
+    // --- KECAMATAN JALAKSANA (UTARA) ---
+    { desa: "JALAKSANA", kec: "JALAKSANA", zona: "UTARA", lat: -6.9152, lng: 108.4892 },
+    { desa: "SADAMANTRA", kec: "JALAKSANA", zona: "UTARA", lat: -6.9100, lng: 108.4950 },
+    { desa: "MANISLOR", kec: "JALAKSANA", zona: "UTARA", lat: -6.9050, lng: 108.4800 },
 
-        // ZONA TIMUR
-        "LURAGUNG": "TIMUR",
-        "CIDAHU": "TIMUR",
-        "KALIMANGGIS": "TIMUR",
-        "MEKARZARI": "TIMUR",
-        "MALEBER": "TIMUR",
-        "LEBAKWANGI": "TIMUR",
-        "CIMAHI": "TIMUR",
-        "CIBEUREUM": "TIMUR",
-        "KARANGKANCANA": "TIMUR",
-        "CIWARU": "TIMUR",
-
-        // ZONA BARAT
-        "CIGUGUR": "BARAT",
-        "HANTARA": "BARAT",
-        "CINIRU": "BARAT",
-
-        // ZONA PUSAT
-        "KUNINGAN": "PUSAT",
-        "SINDANGAGUNG": "PUSAT",
-        "GARAWANGI": "PUSAT"
-    },
-    "CIREBON": {
-        "SUMBER": "PUSAT",
-        "CILEDUG": "TIMUR",
-        "WERU": "BARAT"
-    }
-};
+    // --- KECAMATAN KRAMATMULYA (UTARA) ---
+    { desa: "KRAMATMULYA", kec: "KRAMATMULYA", zona: "UTARA", lat: -6.9422, lng: 108.4915 },
+    { desa: "KALAPAGUNUNG", kec: "KRAMATMULYA", zona: "UTARA", lat: -6.9350, lng: 108.4850 },
+    { desa: "CILIKU", kec: "KRAMATMULYA", zona: "UTARA", lat: -6.9480, lng: 108.5000 }
+];
 
 /**
- * Fungsi untuk mendapatkan Zona berdasarkan Kabupaten dan Kecamatan.
- * Digunakan untuk membentuk nama tabel: KATEGORI-KAB-ZONA-KEC-DESA
+ * Fungsi Canggih untuk Menentukan Lokasi Berdasarkan Jarak Terdekat (Haversine)
  */
-function getZonaWilayah(kabupaten, kecamatan) {
-    try {
-        // Normalisasi teks menjadi Huruf Kapital dan hapus spasi berlebih
-        const kab = kabupaten.toUpperCase().trim();
-        const kec = kecamatan.toUpperCase().trim();
-        
-        // Cek apakah Kabupaten terdaftar
-        if (WILAYAH_CONFIG[kab]) {
-            // Cek apakah Kecamatan terdaftar di kabupaten tersebut
-            if (WILAYAH_CONFIG[kab][kec]) {
-                return WILAYAH_CONFIG[kab][kec];
-            }
+function getInternalLocation(userLat, userLng) {
+    let terdekat = null;
+    let jarakMin = Infinity;
+
+    DATA_TITIK_PUSAT.forEach(titik => {
+        // Menghitung selisih jarak (Pythagoras sederhana untuk akurasi lokal)
+        const d = Math.sqrt(
+            Math.pow(userLat - titik.lat, 2) + Math.pow(userLng - titik.lng, 2)
+        );
+
+        if (d < jarakMin) {
+            jarakMin = d;
+            terdekat = titik;
         }
-        
-        // Jika tidak ditemukan di daftar, masukkan ke kategori default
-        return "UMUM"; 
-    } catch (e) {
-        console.error("Router Error:", e);
-        return "UNKNOWN";
+    });
+
+    // Batas toleransi jarak (Sekitar 2-3 KM dari titik pusat desa)
+    // Jika user berada di luar jangkauan titik yang didaftarkan
+    if (jarakMin > 0.025) {
+        return {
+            desa: "AREA-LUAR",
+            kec: "KUNINGAN",
+            zona: "PUSAT",
+            status: "EXTERNAL"
+        };
     }
+
+    return terdekat;
 }
 
 /**
- * Helper untuk validasi apakah area sudah tercover sistem
+ * Fungsi cadangan untuk manual router (jika dibutuhkan)
  */
-function isAreaSupported(kabupaten, kecamatan) {
-    const kab = kabupaten.toUpperCase().trim();
-    const kec = kecamatan.toUpperCase().trim();
-    return !!(WILAYAH_CONFIG[kab] && WILAYAH_CONFIG[kab][kec]);
+function getZonaByKecamatan(kec) {
+    const mapping = {
+        "KUNINGAN": "PUSAT",
+        "JALAKSANA": "UTARA",
+        "KRAMATMULYA": "UTARA",
+        "CILIMUS": "UTARA",
+        "DARMA": "SELATAN",
+        "KADUGEDE": "SELATAN",
+        "LURAGUNG": "TIMUR"
+    };
+    return mapping[kec.toUpperCase()] || "PUSAT";
 }
