@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ADVENTURER DASHBOARD | REGIONAL FEED</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="shard-config.js"></script>
+    <script src="shard-router.js"></script>
+
+    <style>
+        :root { --neon: #00ffff; --pink: #ff0055; --bg: #050505; --card: #111; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding-bottom: 50px; }
+        
+        /* Stats Bar */
+        .stats-bar { 
+            background: #111; padding: 15px; display: flex; justify-content: space-around; 
+            border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 10;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .stat-item { text-align: center; }
+        .stat-item small { display: block; font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-item b { color: var(--neon); font-size: 16px; text-shadow: 0 0 5px var(--neon); }
+
+        /* Mission List */
+        .feed { padding: 20px; max-width: 500px; margin: auto; }
+        .region-header { 
+            color: var(--pink); font-size: 10px; letter-spacing: 2px; 
+            text-transform: uppercase; margin-bottom: 20px; border-left: 3px solid var(--pink);
+            padding-left: 10px;
+        }
+
+        .mission-card { 
+            background: var(--card); border: 1px solid #222; border-radius: 15px; 
+            padding: 18px; margin-bottom: 15px; position: relative; overflow: hidden;
+        }
+        .mission-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        
+        .badge-desa { font-size: 9px; padding: 4px 10px; border-radius: 5px; background: #00ffff22; color: var(--neon); border: 1px solid var(--neon); text-transform: uppercase; font-weight: bold; }
+        .fare-tag { color: #ffbb33; font-weight: bold; font-size: 14px; }
+
+        /* Bidding */
+        .bid-section { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #333; display: flex; gap: 8px; }
+        .bid-section input { flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 8px; font-size: 14px; outline: none; }
+        .bid-section input:focus { border-color: var(--neon); }
+        .btn-bid { background: var(--pink); border: none; color: white; padding: 0 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-bid:disabled { background: #333; color: #666; }
+
+        /* Modal Invite (Sama seperti sebelumnya) */
+        #inviteModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; justify-content: center; align-items: center; }
+        .modal-box { background: #000; border: 2px solid var(--neon); padding: 30px; border-radius: 20px; text-align: center; width: 85%; max-width: 350px; }
+        .timer { font-size: 40px; color: var(--pink); font-weight: bold; margin: 15px 0; }
+        .btn-accept { background: var(--neon); color: #000; border: none; padding: 15px; font-weight: bold; border-radius: 10px; width: 100%; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="stats-bar">
+        <div class="stat-item"><small>Adventurer</small><b id="st-nick">-</b></div>
+        <div class="stat-item"><small>Stamina</small><b id="st-vit">-</b></div>
+        <div class="stat-item"><small>Region</small><b id="st-region">-</b></div>
+    </div>
+
+    <div class="feed">
+        <div class="region-header" id="regionLabel">Syncing Region...</div>
+        <div id="missionList">
+            <p style="color:#444; text-align:center;">Mencari Misi di Shard Wilayah...</p>
+        </div>
+    </div>
+
+    <div id="inviteModal">
+        <div class="modal-box">
+            <h2 style="color: var(--neon); margin: 0; font-size: 18px;">KONTRAK MASUK!</h2>
+            <div id="invPrice" style="font-size: 30px; color: #ffbb33; font-weight: bold; margin: 15px 0;">Rp 0</div>
+            <div class="timer" id="invTimer">30</div>
+            <button class="btn-accept" onclick="acceptMission()">TERIMA KONTRAK</button>
+            <p style="font-size: 10px; color: #444; margin-top: 15px;">Abaikan jika ingin menolak (Sanksi Stamina)</p>
+        </div>
+    </div>
+
+<script>
+    // 1. DATA SESI & WILAYAH
+    const session = JSON.parse(localStorage.getItem('pickme_session'));
+    if(!session) window.location.href = "login.html";
+
+    // Set Data Awal
+    const myNick = session.nick;
+    const myShard = session.shard_id; // Misal: KUNINGAN
+    const myCategory = session.category || "MOTOR"; // Diambil dari profil
+    
+    // Tentukan Filter Area (Bisa diatur manual/otomatis dari login)
+    const filterKab = "KUNINGAN";
+    const filterKec = "KUNINGAN"; // Dashboard ini khusus Kecamatan Kuningan
+    const filterZona = "PUSAT";
+
+    document.getElementById('st-nick').innerText = myNick.toUpperCase();
+    document.getElementById('st-region').innerText = filterKec;
+    document.getElementById('regionLabel').innerText = `QUEST BOARD: ${filterKab} - ${filterKec}`;
+
+    // 2. FIREBASE INIT
+    const config = SHARD_MASTER[myShard];
+    if (!firebase.apps.length) firebase.initializeApp(config);
+    const db = firebase.database();
+
+    // 3. LISTEN STATS (Stamina & Level)
+    db.ref(`adventurer-${myShard.toLowerCase()}/${myNick}`).on('value', snap => {
+        if(snap.exists()){
+            const d = snap.val();
+            document.getElementById('st-vit').innerText = d.vitality;
+        }
+    });
+
+    // 4. MISSION FEED (Sesuai Struktur Tabel Baru)
+    // Path: MOTOR-KUNINGAN-PUSAT-KUNINGAN
+    const regionalPath = `${myCategory}-${filterKab}-${filterZona}-${filterKec}`;
+
+    db.ref(regionalPath).on('value', snap => {
+        const list = document.getElementById('missionList');
+        list.innerHTML = "";
+        
+        if(!snap.exists()) {
+            list.innerHTML = "<p style='color:#333; text-align:center; margin-top:40px;'>Belum ada misi tersedia di kecamatan ini.</p>";
+            return;
+        }
+
+        // Loop 1: Folder Desa (Kedungarum, Padarek, dll)
+        snap.forEach(desaSnap => {
+            const namaDesa = desaSnap.key;
+
+            // Loop 2: Daftar Misi di dalam Desa
+            desaSnap.forEach(missionSnap => {
+                const m = missionSnap.val();
+                
+                if(m.status === "open") {
+                    const fullPath = `${regionalPath}/${namaDesa}/${missionSnap.key}`;
+                    
+                    list.innerHTML += `
+                        <div class="mission-card">
+                            <div class="mission-header">
+                                <span class="badge-desa">${namaDesa}</span>
+                                <span class="fare-tag">Rp ${parseInt(m.price).toLocaleString()}</span>
+                            </div>
+                            <div style="font-size:16px; font-weight:bold; color:var(--neon);">${m.title}</div>
+                            <div style="font-size:10px; color:#555; margin-top:5px;">ID: ${missionSnap.key}</div>
+                            
+                            <div class="bid-section">
+                                <input type="number" id="price-${missionSnap.key}" placeholder="Tawar Harga...">
+                                <button class="btn-bid" onclick="placeBid('${missionSnap.key}', '${fullPath}')">BID</button>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+        });
+    });
+
+    // 5. BID LOGIC
+    async function placeBid(mId, fullPath) {
+        const pInput = document.getElementById(`price-${mId}`);
+        const bidPrice = parseInt(pInput.value);
+        if(!bidPrice) return alert("Masukkan harga tawaran!");
+
+        const vitRef = db.ref(`adventurer-${myShard.toLowerCase()}/${myNick}/vitality`);
+        const vitSnap = await vitRef.get();
+        const currentVit = vitSnap.val();
+
+        if(currentVit < 5) return alert("Stamina Habis!");
+
+        try {
+            await vitRef.set(currentVit - 5); // Kurangi Stamina
+            
+            // Masukkan Bid ke Tabel Desa yang benar
+            await db.ref(`${fullPath}/bids/${myNick}`).set({
+                price: bidPrice,
+                timestamp: Date.now(),
+                adventurer: myNick
+            });
+
+            alert("Berhasil Mengirim Bid!");
+            pInput.disabled = true;
+        } catch (e) { alert("Error: " + e.message); }
+    }
+
+    // 6. INVITATION LISTENER (Pop Up Kontrak)
+    db.ref(`invitations/${myNick}`).on('value', snap => {
+        if(snap.exists()) {
+            const invite = snap.val();
+            document.getElementById('invPrice').innerText = "Rp " + invite.price.toLocaleString();
+            document.getElementById('inviteModal').style.display = 'flex';
+            startTimer();
+        }
+    });
+
+    let timerVal = 30;
+    let tInterval;
+    function startTimer() {
+        timerVal = 30;
+        clearInterval(tInterval);
+        tInterval = setInterval(() => {
+            timerVal--;
+            document.getElementById('invTimer').innerText = timerVal;
+            if(timerVal <= 0) rejectInvite();
+        }, 1000);
+    }
+
+    async function acceptMission() {
+        // Logika Accept Kontrak (briefing.html)
+        alert("Kontrak Diterima! Menuju Briefing...");
+        window.location.href = "briefing.html";
+    }
+
+    async function rejectInvite() {
+        clearInterval(tInterval);
+        document.getElementById('inviteModal').style.display = 'none';
+        await db.ref(`invitations/${myNick}`).remove();
+    }
+</script>
+</body>
+</html>
