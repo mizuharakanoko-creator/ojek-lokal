@@ -8,54 +8,61 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
-        .doc { background: #111; border: 1px solid #444; padding: 25px; max-width: 400px; margin: 40px auto; border-radius: 8px; border-top: 5px solid #00ff00; }
-        .info { text-align: left; margin: 20px 0; font-size: 14px; line-height: 1.8; color: #ccc; }
-        button { background: #00ff00; color: #000; padding: 15px; width: 100%; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; text-align: center; }
+        .paper { background: #111; border: 1px solid #444; padding: 30px; border-radius: 12px; max-width: 400px; margin: 40px auto; border-top: 6px solid #00ff00; }
+        .detail { text-align: left; margin: 20px 0; color: #ccc; font-size: 14px; line-height: 1.8; }
+        hr { border: 0; border-top: 1px solid #333; margin: 15px 0; }
+        button { background: #00ff00; color: #000; padding: 15px; width: 100%; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; }
+        .wait-msg { color: #ffaa00; font-style: italic; }
     </style>
 </head>
 <body>
-    <div class="doc">
-        <h2 style="margin:0; color:#00ff00;">DOKUMEN KONTRAK</h2>
-        <div class="info" id="boxDetail">Menghubungkan ke server...</div>
-        <button id="btnAction" style="display:none;" onclick="startQuest()">MULAI PERJALANAN</button>
-        <p id="msgWait" style="display:none; color:#ffaa00;">Menunggu Adventurer memulai...</p>
-    </div>
 
-    <script>
-        const session = JSON.parse(localStorage.getItem('pickme_session'));
-        const questId = sessionStorage.getItem('active_quest');
+<div class="paper">
+    <h2 style="margin:0; color:#00ff00;">SURAT KONTRAK</h2>
+    <div id="content" class="detail">Menghubungkan ke Shard...</div>
+    
+    <button id="btnMulai" style="display:none;" onclick="start()">MULAI MISI SEKARANG</button>
+    <p id="txtWait" style="display:none;" class="wait-msg">Menunggu Adventurer memulai perjalanan...</p>
+</div>
 
-        if(!questId) window.location.href = "login.html";
+<script>
+    const session = JSON.parse(localStorage.getItem('pickme_session'));
+    const questId = sessionStorage.getItem('active_quest');
+    const targetDb = getDatabaseByShard(session.shard_id);
 
-        db.ref(`kontrak_aktif/${questId}`).on('value', snap => {
-            if(!snap.exists()) return;
-            const k = snap.val();
+    if(!questId) window.location.href = "index.html";
 
-            document.getElementById('boxDetail').innerHTML = `
-                <b>ID:</b> ${k.id_misi}<br>
-                <b>Requester:</b> ${k.requester.toUpperCase()}<br>
-                <b>Adventurer:</b> ${k.adventurer.toUpperCase()}<br>
-                <hr style="border-color:#333">
-                <b>STATUS:</b> <span style="color:#00ffff">${k.status.toUpperCase()}</span>
-            `;
+    // Pantau status kontrak
+    targetDb.ref(`kontrak_aktif/${questId}`).on('value', snap => {
+        if(!snap.exists()) return;
+        const k = snap.val();
 
-            if(k.status === "on_mission") {
-                window.location.href = "mission_active.html";
-            }
+        document.getElementById('content').innerHTML = `
+            <b>ID MISI:</b> ${k.id_misi}<br>
+            <b>REQUESTER:</b> ${k.requester.toUpperCase()}<br>
+            <b>ADVENTURER:</b> ${k.adventurer.toUpperCase()}<br>
+            <hr>
+            <b>STATUS:</b> <span style="color:#00ffff">${k.status.toUpperCase()}</span>
+        `;
 
-            if(session.role === "adventurer") {
-                document.getElementById('btnAction').style.display = "block";
-            } else {
-                document.getElementById('msgWait').style.display = "block";
-            }
-        });
-
-        async function startQuest() {
-            try {
-                await db.ref(`kontrak_aktif/${questId}`).update({ status: "on_mission" });
-            } catch (e) { alert(e.message); }
+        if(k.status === "on_mission") {
+            window.location.href = "mission_active.html";
         }
-    </script>
+
+        if(session.role === "adventurer") {
+            document.getElementById('btnMulai').style.display = "block";
+        } else {
+            document.getElementById('txtWait').style.display = "block";
+        }
+    });
+
+    async function start() {
+        try {
+            await targetDb.ref(`kontrak_aktif/${questId}`).update({ status: "on_mission" });
+        } catch (e) { alert(e.message); }
+    }
+</script>
+
 </body>
 </html>
