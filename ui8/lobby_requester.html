@@ -3,43 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LOBBY | SELEKSI</title>
+    <title>LOBBY | TERMINAL BIDS</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
         body { background: #050505; color: white; font-family: monospace; padding: 20px; }
-        .header { text-align: center; border-bottom: 2px solid #ff0055; padding-bottom: 10px; margin-bottom: 20px; }
-        .card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #00ffff; }
-        .info b { color: #fff; font-size: 16px; display: block; }
-        .info span { color: #ffaa00; }
-        button { background: #00ffff; color: #000; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        .header { text-align: center; border-bottom: 2px solid #ff0055; padding-bottom: 15px; margin-bottom: 25px; }
+        .card { 
+            background: #111; border: 1px solid #333; padding: 20px; margin-bottom: 15px; 
+            display: flex; justify-content: space-between; align-items: center; 
+            border-left: 5px solid #00ffff; border-radius: 8px;
+        }
+        .info b { color: #00ffff; font-size: 18px; display: block; margin-bottom: 5px; }
+        .info span { color: #ffaa00; font-weight: bold; }
+        button { 
+            background: #ff0055; color: #fff; border: none; padding: 12px 20px; 
+            font-weight: bold; cursor: pointer; border-radius: 5px; text-transform: uppercase;
+        }
+        button:hover { background: #00ff00; color: #000; }
+        .no-data { text-align: center; color: #444; margin-top: 50px; font-style: italic; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <h2 style="color:#ff0055; margin:0;">TERMINAL BIDS</h2>
-    <small id="misiInfo">Menunggu penawaran...</small>
+    <h2 style="color:#ff0055; margin:0; letter-spacing: 2px;">RECRUITMENT TERMINAL</h2>
+    <small id="misiInfo" style="color:#888;">Menunggu sinyal dari Adventurer...</small>
 </div>
 
 <div id="listBids"></div>
 
 <script>
-    const session = JSON.parse(localStorage.getItem('pickme_session'));
+    // 1. Ambil Sesi & Data Misi (Mendukung Guest & Login)
+    const rawSession = localStorage.getItem('pickme_session');
+    let session = rawSession ? JSON.parse(rawSession) : { nick: "GUEST", shard_id: "IDN-JABAR-KNG-KUNINGAN" };
+    
     const questId = sessionStorage.getItem('active_quest');
     const questPath = sessionStorage.getItem('active_quest_path');
     
-    if(!questId) window.location.href = "index.html";
+    // Validasi: Jika tidak ada path misi, balik ke index
+    if(!questPath || !questId) {
+        alert("Data misi tidak ditemukan!");
+        window.location.href = "index.html";
+    }
+
+    // Gunakan Shard yang sesuai dengan asal misi dibuat
     const targetDb = getDatabaseByShard(session.shard_id);
+    document.getElementById('misiInfo').innerText = "MONITORING MISSION ID: " + questId;
 
-    document.getElementById('misiInfo').innerText = "QUEST ID: " + questId;
-
-    // 1. Pantau penawaran di tabel TERPISAH (terminal_bids)
+    // 2. LISTEN KE TABEL TERMINAL BIDS (Sesuai kesepakatan awal)
     targetDb.ref(`terminal_bids/${questId}`).on('value', snap => {
         const box = document.getElementById('listBids');
         box.innerHTML = "";
-        if(!snap.exists()) return box.innerHTML = "<p style='text-align:center; color:#555;'>Belum ada tawaran masuk...</p>";
+        
+        if(!snap.exists()) {
+            box.innerHTML = "<p class='no-data'>Belum ada tawaran masuk di terminal...</p>";
+            return;
+        }
 
         snap.forEach(child => {
             const b = child.val();
@@ -47,33 +68,39 @@
                 <div class="card">
                     <div class="info">
                         <b>${b.adventurer.toUpperCase()}</b>
-                        <span>Tawaran: ${b.price} G</span>
+                        <span>💰 TAWARAN: ${b.price} G</span>
                     </div>
-                    <button onclick="terima('${b.adventurer}', ${b.price}, '${b.shard_id}')">PILIH</button>
-                </div>`;
+                    <button onclick="terimaPenawaran('${b.adventurer}', ${b.price}, '${b.shard_id}')">REKRUT</button>
+                </div>
+            `;
         });
     });
 
-    async function terima(advNick, price, advShard) {
-        if(!confirm(`Rekrut ${advNick}?`)) return;
+    // 3. EKSEKUSI PENERIMAAN TUGAS
+    async function terimaPenawaran(advNick, price, advShard) {
+        if(!confirm(`Konfirmasi penugasan ke ${advNick}?`)) return;
 
         try {
-            // A. Update status misi di Radar
+            // STEP A: Update status misi di tabel radar utama
             await targetDb.ref(questPath).update({ 
                 status: "taken", 
                 assigned_to: advNick, 
                 final_price: price 
             });
 
-            // B. Kirim Undangan ke Database Shard si Adventurer
+            // STEP B: Kirim undangan aktif ke profil si Adventurer
+            // (TargetDb berdasarkan shard si penawar)
             const advDb = getDatabaseByShard(advShard);
             const pathUndangan = `adventurer-${advShard.toLowerCase()}/${advNick}/undangan_aktif`;
+            
             await advDb.ref(pathUndangan).set({
                 id_misi: questId,
-                path_misi: questPath
+                path_misi: questPath,
+                requester: session.nick,
+                timestamp: Date.now()
             });
 
-            // C. Buat Kontrak Aktif di Database Lokal
+            // STEP C: Buat Kontrak Aktif (Untuk log sistem)
             await targetDb.ref(`kontrak_aktif/${questId}`).set({
                 id_misi: questId,
                 requester: session.nick,
@@ -82,12 +109,19 @@
                 timestamp: Date.now()
             });
 
-            // D. BERSIHKAN TERMINAL (Hapus semua bid yang masuk untuk misi ini)
+            // STEP D: BERSIHKAN TERMINAL BIDS
+            // Kita hapus semua bid misi ini dari terminal agar database tetap ramping
             await targetDb.ref(`terminal_bids/${questId}`).remove();
 
+            // Pindah ke halaman briefing
             window.location.href = "briefing.html";
-        } catch (e) { alert(e.message); }
+
+        } catch (e) { 
+            console.error(e);
+            alert("Terjadi kegagalan sistem: " + e.message); 
+        }
     }
 </script>
+
 </body>
 </html>
