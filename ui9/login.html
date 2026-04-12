@@ -3,82 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sovereign - Login System</title>
+    <title>Sovereign - Login</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    
     <script src="terminal_router.js"></script>
     <script src="clearchance.js"></script>
-    
     <style>
-        body { background: #050505; color: white; font-family: monospace; padding: 20px; display:flex; justify-content:center; align-items:center; height:90vh; }
-        .box { background: #111; padding: 25px; border-radius: 8px; border: 1px solid #333; width: 100%; max-width: 350px; }
-        input, select { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #ffaa00; color: #000; border: none; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        body { background: #050505; color: white; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .box { background: #111; padding: 25px; border-radius: 8px; border: 1px solid #333; width: 100%; max-width: 350px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 15px 0; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; text-align: center; }
+        button { width: 100%; padding: 15px; background: #ffaa00; color: #000; border: none; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div class="box">
-    <h2 style="text-align: center; color: #ffaa00;">SYSTEM LOGIN</h2>
-    
-    <label>Username / ID:</label>
-    <input type="text" id="username" placeholder="Masukkan ID Terdaftar">
-    
-    <button id="btnGas" onclick="prosesLogin()">AKSES TERMINAL</button>
+    <h2 style="color: #ffaa00;">TERMINAL AKSES</h2>
+    <input type="text" id="uid" placeholder="ID ADVENTURER">
+    <button id="btnLogin" onclick="prosesLogin()">MASUK SISTEM</button>
 </div>
 
 <script>
-    // Pastikan halaman ini steril dari sisa login sebelumnya
-    Clearchance.nuclearWipe();
+    Clearchance.nuclearWipe(); // Pastikan Gelas Kosong
 
     async function prosesLogin() {
-        const un = document.getElementById('username').value.trim();
-        const btn = document.getElementById('btnGas');
-        
-        if (!un) return alert("ID Tidak Boleh Kosong!");
-        
-        btn.disabled = true;
-        btn.innerText = "MENGHUBUNGI MASTER...";
+        const id = document.getElementById('uid').value.trim().toLowerCase();
+        const btn = document.getElementById('btnLogin');
 
-        // Hubungi Firebase 1: The Global Core
+        if (!id) return;
+        btn.disabled = true;
+
         const masterDB = getTerminal('FB1_MASTER');
 
         try {
-            // Simulasi struktur DB: master/users/[username]
-            masterDB.ref(`users/${un}`).once('value')
-            .then(snap => {
-                if(snap.exists()) {
-                    const userData = snap.val();
-                    
-                    // Simpan data login di sessionStorage
-                    sessionStorage.setItem('pickme_user', JSON.stringify(userData));
-                    alert(`Welcome, ${userData.role.toUpperCase()} ${userData.nick}`);
-                    
-                    // Router Arahkan berdasarkan role
-                    if(userData.role === 'adventurer') {
-                        window.location.href = "lobby_adventurer.html";
-                    } else {
-                        window.location.href = "lobby_requester.html";
-                    }
+            const snap = await masterDB.ref(`users/${id}`).once('value');
+            if (snap.exists()) {
+                const user = snap.val();
+                
+                // Simpan identitas ke session
+                sessionStorage.setItem('pickme_user', JSON.stringify(user));
+
+                // LOGIKA FILTER STATUS
+                if (user.status === 'pending') {
+                    window.location.href = "waiting_room.html";
+                } else if (user.status === 'active') {
+                    window.location.href = "lobby_adventurer.html";
                 } else {
-                    alert("Akses Ditolak: ID tidak ditemukan di Master Database.");
+                    alert("Akun Anda dinonaktifkan.");
                     btn.disabled = false;
-                    btn.innerText = "AKSES TERMINAL";
                 }
-            })
-            .catch(e => {
-                alert("Koneksi ke FB1_MASTER Gagal: " + e.message);
+            } else {
+                alert("ID tidak terdaftar!");
                 btn.disabled = false;
-                btn.innerText = "AKSES TERMINAL";
-            });
-            
+            }
         } catch (e) {
-            alert("Sistem Error: " + e.message);
+            alert("Koneksi Master Gagal.");
             btn.disabled = false;
         }
     }
 </script>
-
 </body>
 </html>
