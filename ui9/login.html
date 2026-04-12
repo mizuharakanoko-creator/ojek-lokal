@@ -3,64 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sovereign - Login</title>
+    <title>Sovereign - Login Access</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="terminal_router.js"></script>
     <script src="clearchance.js"></script>
     <style>
         body { background: #050505; color: white; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { background: #111; padding: 25px; border-radius: 8px; border: 1px solid #333; width: 100%; max-width: 350px; text-align: center; }
-        input { width: 100%; padding: 12px; margin: 15px 0; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; text-align: center; }
-        button { width: 100%; padding: 15px; background: #ffaa00; color: #000; border: none; font-weight: bold; cursor: pointer; }
+        .login-box { background: #111; padding: 30px; border-radius: 8px; border: 1px solid #333; width: 100%; max-width: 320px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #ffaa00; color: #000; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .reg-link { display: block; text-align: center; margin-top: 20px; color: #888; text-decoration: none; font-size: 12px; }
+        .reg-link:hover { color: #00ffff; }
     </style>
 </head>
 <body>
 
-<div class="box">
-    <h2 style="color: #ffaa00;">TERMINAL AKSES</h2>
-    <input type="text" id="uid" placeholder="ID ADVENTURER">
-    <button id="btnLogin" onclick="prosesLogin()">MASUK SISTEM</button>
+<div class="login-box">
+    <h2 style="text-align: center; color: #ffaa00; margin-bottom: 25px;">GATEWAY ACCESS</h2>
+    
+    <input type="text" id="userInput" placeholder="Nickname / ID">
+    <input type="password" id="passInput" placeholder="Password">
+    
+    <button id="btnLogin" onclick="prosesLogin()">ENTER SYSTEM</button>
+    
+    <a href="register.html" class="reg-link">Belum punya ID? Daftar Adventurer</a>
 </div>
 
 <script>
-    Clearchance.nuclearWipe(); // Pastikan Gelas Kosong
+    // Pastikan sesi lama bersih saat masuk halaman login
+    if(typeof Clearchance !== 'undefined') Clearchance.nuclearWipe();
 
     async function prosesLogin() {
-        const id = document.getElementById('uid').value.trim().toLowerCase();
+        const input = document.getElementById('userInput').value.trim();
+        const pass = document.getElementById('passInput').value.trim();
         const btn = document.getElementById('btnLogin');
 
-        if (!id) return;
-        btn.disabled = true;
+        if (!input || !pass) return alert("Harap isi semua bidang!");
 
-        const masterDB = getTerminal('FB1_MASTER');
+        btn.disabled = true;
+        btn.innerText = "AUTHENTICATING...";
+
+        const db1 = getTerminal('FB1_MASTER');
 
         try {
-            const snap = await masterDB.ref(`users/${id}`).once('value');
-            if (snap.exists()) {
-                const user = snap.val();
-                
-                // Simpan identitas ke session
-                sessionStorage.setItem('pickme_user', JSON.stringify(user));
-
-                // LOGIKA FILTER STATUS
-                if (user.status === 'pending') {
-                    window.location.href = "waiting_room.html";
-                } else if (user.status === 'active') {
+            // Jalankan pencarian di 3 tabel secara berurutan
+            
+            // 1. Cek di Adventurer Index
+            let userFound = await findUserInTable(db1, 'adventurer_index', input);
+            if (userFound) {
+                if (userFound.password === pass) {
+                    sessionStorage.setItem('pickme_user', JSON.stringify(userFound));
                     window.location.href = "lobby_adventurer.html";
+                    return;
                 } else {
-                    alert("Akun Anda dinonaktifkan.");
-                    btn.disabled = false;
+                    return failLogin("Password salah!");
                 }
-            } else {
-                alert("ID tidak terdaftar!");
-                btn.disabled = false;
             }
+
+            // 2. Cek di Requester Index
+            userFound = await findUserInTable(db1, 'requester_index', input);
+            if (userFound) {
+                if (userFound.password === pass) {
+                    sessionStorage.setItem('pickme_user', JSON.stringify(userFound));
+                    window.location.href = "lobby_requester.html";
+                    return;
+                } else {
+                    return failLogin("Password salah!");
+                }
+            }
+
+            // 3. Cek di Register Pending
+            userFound = await findUserInTable(db1, 'register_pending', input);
+            if (userFound) {
+                if (userFound.password === pass) {
+                    sessionStorage.setItem('pickme_user', JSON.stringify(userFound));
+                    window.location.href = "waiting_room.html";
+                    return;
+                } else {
+                    return failLogin("Password salah!");
+                }
+            }
+
+            // Jika semua pencarian gagal
+            failLogin("Nickname atau ID tidak terdaftar.");
+
         } catch (e) {
-            alert("Koneksi Master Gagal.");
-            btn.disabled = false;
+            console.error(e);
+            failLogin("Kesalahan koneksi terminal.");
         }
     }
+
+    // Fungsi pembantu untuk mencari user berdasarkan ID atau Nickname
+    async function findUserInTable(db, path, val) {
+        // Cek berdasarkan ID (Key)
+        const snapById = await db.ref(`${path}/${val}`).once('value');
+        if (snapById.exists()) return snapById.val();
+
+        // Cek berdasarkan Nickname
+        const snapByNick = await db.ref(path).orderByChild('nickname').equalTo(val).once('value');
+        if (snapByNick.exists()) {
+            // Karena orderByChild mengembalikan object pembungkus, kita ambil isinya
+            const data = snapByNick.val();
+            const firstKey = Object.keys(data)[0];
+            return data[firstKey];
+        }
+
+        return null;
+    }
+
+    function failLogin(msg) {
+        alert(msg);
+        const btn = document.getElementById('btnLogin');
+        btn.disabled = false;
+        btn.innerText = "ENTER SYSTEM";
+    }
 </script>
+
 </body>
 </html>
