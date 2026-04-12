@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Briefing Room</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; display: flex; flex-direction: column; height: 100vh; margin: 0; }
+        .chat-box { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; }
+        .msg { margin-bottom: 10px; padding: 10px; border-radius: 5px; max-width: 80%; }
+        .msg.me { align-self: flex-end; background: #004444; border: 1px solid #00ffff; }
+        .msg.them { align-self: flex-start; background: #222; border: 1px solid #444; }
+        .input-area { padding: 15px; background: #111; display: flex; gap: 10px; border-top: 1px solid #333; }
+        input { flex: 1; padding: 12px; background: #000; border: 1px solid #444; color: #fff; }
+        .btn-finish { background: #00ff00; color: #000; padding: 10px; font-weight: bold; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div style="padding:10px; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center;">
+    <b id="roomTitle">ROOM: CONNECTING...</b>
+    <button id="btnSelesai" class="btn-finish" style="display:none;" onclick="selesaikanMisi()">SELESAI</button>
+</div>
+
+<div class="chat-box" id="chatBox"></div>
+
+<div class="input-area">
+    <input type="text" id="chatInput" placeholder="Ketik pesan...">
+    <button onclick="kirimPesan()" style="background:#00ffff; border:none; padding:10px 20px; font-weight:bold;">KIRIM</button>
+</div>
+
+<script>
+    const user = Clearchance.enforceIdentity();
+    const contractId = sessionStorage.getItem('active_contract_id');
+    if (!contractId) window.location.href = "index.html";
+
+    const dealDB = getTerminal('FB5_DEAL');
+    const boardDB = getTerminal('FB4_BOARD');
+    const masterDB = getTerminal('FB1_MASTER');
+
+    // 1. Ambil Data Kontrak & Tampilkan Tombol Selesai (Hanya untuk Requester)
+    dealDB.ref(`kontrak_detail/${contractId}`).on('value', snap => {
+        if (!snap.exists()) {
+            alert("Kontrak telah ditutup.");
+            window.location.href = "index.html";
+            return;
+        }
+        const c = snap.val();
+        document.getElementById('roomTitle').innerText = `CONTRACT: ${c.id}`;
+        if (user.role === 'requester' || user.uid === c.requester_id) {
+            document.getElementById('btnSelesai').style.display = "block";
+        }
+        
+        // Cek status, jika sudah 'completed' otomatis tendang
+        if (c.status === 'completed') {
+            alert("Misi telah selesai!");
+            Clearchance.clearActiveMission();
+            window.location.href = "history_mission.html";
+        }
+    });
+
+    // 2. Real-time Chat
+    dealDB.ref(`chats/${contractId}`).on('child_added', snap => {
+        const m = snap.val();
+        const div = document.createElement('div');
+        div.className = `msg ${m.sender_id === user.uid ? 'me' : 'them'}`;
+        div.innerHTML = `<small style="color:#888">${m.sender_nick}</small><br>${m.text}`;
+        document.getElementById('chatBox').appendChild(div);
+        document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
+    });
+
+    function kirimPesan() {
+        const txt = document.getElementById('chatInput').value.trim();
+        if (!txt) return;
+        dealDB.ref(`chats/${contractId}`).push({
+            sender_id: user.uid,
+            sender_nick: user.nick,
+            text: txt,
+            time: Date.now()
+        });
+        document.getElementById('chatInput').value = "";
+    }
+
+    async function selesaikanMisi() {
+        if (!confirm("Konfirmasi misi selesai? Driver akan menerima reward.")) return;
+        
+        try {
+            const snap = await dealDB.ref(`kontrak_detail/${contractId}`).once('value');
+            const c = snap.val();
+
+            // 1. Update Kontrak di FB5
+            await dealDB.ref(`kontrak_detail/${contractId}`).update({ status: 'completed' });
+            
+            // 2. Hapus Misi dari FB4 (Biar Terminal BOARD Bersih/Sepi)
+            await boardDB.ref(`misi_aktif/${user.zone}/${c.mission_id}`).remove();
+            await boardDB.ref(`bids/${c.mission_id}`).remove();
+
+            // 3. Update Buku Induk di FB1 (Status Selesai)
+            await masterDB.ref(`buku_induk/misi/${c.mission_id}`).update({ status: 'completed' });
+
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    }
+</script>
+
+</body>
+</html>
