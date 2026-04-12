@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - In Progress</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; text-align: center; }
+        .loader { border: 4px solid #111; border-top: 4px solid #00ffff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div>
+    <div class="loader"></div>
+    <h3 id="statusText">Menunggu Keputusan...</h3>
+    <p style="color:#555; font-size:12px">Jangan tutup halaman ini.</p>
+    <button onclick="batalBid()" style="background:none; border:1px solid #333; color:#555; padding:5px; margin-top:20px; cursor:pointer;">Batalkan Penawaran</button>
+</div>
+
+<script>
+    const user = Clearchance.enforceIdentity();
+    const mid = sessionStorage.getItem('active_mission_id');
+    const boardDB = getTerminal('FB4_BOARD');
+
+    // Pantau apakah misi ini diambil oleh kita atau orang lain
+    boardDB.ref(`misi_aktif/${user.zone}/${mid}`).on('value', snap => {
+        if (!snap.exists()) {
+            alert("Misi dibatalkan oleh Requester.");
+            Clearchance.clearActiveMission();
+            window.location.href = (user.role === 'adventurer') ? "lobby_adventurer.html" : "publish.html";
+            return;
+        }
+
+        const m = snap.val();
+        
+        // Jika status berubah jadi 'taken'
+        if (m.status === 'taken') {
+            if (m.contract_id && m.adventurer_id === user.uid) {
+                // KITA YANG DIAMBIL!
+                sessionStorage.setItem('active_contract_id', m.contract_id);
+                window.location.href = "briefing_room.html";
+            } else if (m.adventurer_id !== user.uid) {
+                // DIAMBIL ORANG LAIN
+                alert("Misi ini sudah diambil oleh Adventurer lain.");
+                Clearchance.clearActiveMission();
+                window.location.href = "lobby_adventurer.html";
+            }
+        }
+    });
+
+    async function batalBid() {
+        if (confirm("Batal bid?")) {
+            await boardDB.ref(`bids/${mid}/${user.uid}`).remove();
+            Clearchance.clearActiveMission();
+            window.location.href = "lobby_adventurer.html";
+        }
+    }
+</script>
+
+</body>
+</html>
