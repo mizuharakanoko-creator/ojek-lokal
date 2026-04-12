@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADVENTURER | RADAR</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="router_lokal.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; margin: 0; padding-bottom: 50px; }
+        
+        .stats-bar { background: #111; padding: 15px; display: flex; justify-content: space-around; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 10px rgba(0,255,255,0.1); }
+        .stat-item { text-align: center; }
+        .stat-item small { display: block; font-size: 10px; color: #888; }
+        .stat-item b { color: #00ffff; font-size: 16px; }
+
+        .radar-box { background: #1a1a1a; margin: 15px; padding: 15px; border-radius: 8px; border: 1px solid #00ffff; }
+        .radar-box span { display: block; color: #ff0055; font-size: 12px; margin-bottom: 10px; }
+        
+        .quest-card { background: #111; border: 1px solid #333; margin: 15px; padding: 15px; border-radius: 8px; border-left: 4px solid #00ffff; }
+        .quest-price { color: #ffaa00; font-size: 18px; font-weight: bold; float: right; }
+        .quest-title { font-size: 14px; margin: 5px 0 10px 0; color: #fff; }
+        .badge { background: #333; padding: 3px 8px; border-radius: 4px; font-size: 10px; color: #fff; }
+
+        .bid-area { display: flex; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #333; }
+        .bid-area input { flex: 1; padding: 10px; background: #000; border: 1px solid #444; color: #fff; outline: none; border-radius: 4px; }
+        .bid-area button { background: #ff0055; color: white; border: none; padding: 0 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="stats-bar">
+        <div class="stat-item"><small>NICKNAME</small><b id="stNick">-</b></div>
+        <div class="stat-item"><small>CATEGORY</small><b id="stCat">-</b></div>
+        <div class="stat-item"><small>VITALITY</small><b id="stVit">-</b></div>
+    </div>
+
+    <div class="radar-box">
+        <span>📍 YURISDIKSI: <b id="stArea">MEMUAT...</b></span>
+        <button style="width:100%; padding:10px; background:#00ffff; color:#000; font-weight:bold; border:none; border-radius:4px;" onclick="initRadar()">🔁 REFRESH RADAR</button>
+    </div>
+
+    <div id="questBoard">
+        <p style="text-align:center; color:#555; margin-top:40px;">Sinkronisasi satelit...</p>
+    </div>
+
+    <script>
+        const session = JSON.parse(localStorage.getItem('pickme_session'));
+        if(!session || session.role !== "adventurer") window.location.href = "login.html";
+
+        let myKecamatan = "";
+        let myCategory = session.category || "MOTOR";
+
+        // 1. Ambil Data Profil Asli dari Database
+        const profilPath = `adventurer-${session.shard_id.toLowerCase()}/${session.nick}`;
+        db.ref(profilPath).once('value').then(snap => {
+            const data = snap.val();
+            if(!data) return alert("Data profil korup. Harap lapor Admin.");
+
+            // Ekstrak Kecamatan dari Shard ID (contoh: IDN-JABAR-KNG-KUNINGAN -> KUNINGAN)
+            myKecamatan = session.shard_id.split('-').pop();
+            myCategory = data.category || myCategory;
+
+            document.getElementById('stNick').innerText = data.nick.toUpperCase();
+            document.getElementById('stCat').innerText = myCategory;
+            document.getElementById('stVit').innerText = data.vitality;
+            document.getElementById('stArea').innerText = `KEC. ${myKecamatan}`;
+
+            initRadar(); // Mulai memindai setelah profil terbaca
+        });
+
+        // 2. Fungsi Radar (Deep Scan)
+        function initRadar() {
+            const board = document.getElementById('questBoard');
+            board.innerHTML = "<p style='text-align:center; color:#555;'>Memindai wilayah...</p>";
+
+            // Path simetris dengan index.html (Requester)
+            const pathWilayah = `${myCategory}-KUNINGAN-PUSAT-${myKecamatan}`;
+
+            // Dengarkan perubahan secara real-time
+            db.ref(pathWilayah).on('value', snap => {
+                board.innerHTML = "";
+                
+                if (!snap.exists()) {
+                    board.innerHTML = `<p style='text-align:center; color:#555;'>Tidak ada misi aktif di Kecamatan ${myKecamatan}.</p>`;
+                    return;
+                }
+
+                // Loop Lapis 1: Daftar Desa
+                snap.forEach(desaSnap => {
+                    const namaDesa = desaSnap.key;
+                    
+                    // Loop Lapis 2: Daftar Misi di Desa tersebut
+                    desaSnap.forEach(misiSnap => {
+                        const m = misiSnap.val();
+                        
+                        if (m.status === "open") {
+                            const fullPath = `${pathWilayah}/${namaDesa}/${m.id}`;
+                            tampilkanKartu(m, namaDesa, fullPath);
+                        }
+                    });
+                });
+
+                if(board.innerHTML === "") {
+                    board.innerHTML = `<p style='text-align:center; color:#555;'>Semua misi sedang dikerjakan atau tidak ada yang terbuka.</p>`;
+                }
+            });
+        }
+
+        // 3. Render Visual UI
+        function tampilkanKartu(m, desa, fullPath) {
+            const board = document.getElementById('questBoard');
+            board.innerHTML += `
+                <div class="quest-card">
+                    <span class="quest-price">${m.price} G</span>
+                    <span class="badge">📍 ${desa}</span>
+                    <div class="quest-title">Tujuan: ${m.tujuan}</div>
+                    <div style="font-size:11px; color:#aaa;">${m.description}</div>
+                    
+                    <div class="bid-area">
+                        <input type="number" id="bid-${m.id}" placeholder="Tawaran Anda...">
+                        <button onclick="ajukanKontrak('${m.id}', '${fullPath}')">BID</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 4. Mekanisme Penawaran (Bidding)
+        async function ajukanKontrak(idMisi, fullPath) {
+            const hargaBid = document.getElementById(`bid-${idMisi}`).value;
+            if(!hargaBid) return alert("Masukkan nominal tawaran Anda!");
+
+            try {
+                // Tulis data bid ke dalam sub-folder misi tersebut
+                await db.ref(`${fullPath}/bids/${session.nick}`).set({
+                    adventurer: session.nick,
+                    price: parseInt(hargaBid),
+                    waktu: Date.now(),
+                    rating: 5.0 // Bisa dihubungkan dengan rating asli nanti
+                });
+
+                alert("Tawaran berhasil dikirim! Menunggu persetujuan Requester.");
+                
+                // Simpan state bahwa Adventurer sedang menunggu
+                sessionStorage.setItem('waiting_bid_path', fullPath);
+                // (Nanti bisa di-redirect ke halaman briefing/menunggu)
+                
+            } catch (error) {
+                alert("Gagal mengirim tawaran: " + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
