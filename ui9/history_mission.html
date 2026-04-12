@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Archive</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; padding: 15px; }
+        .nav { margin-bottom: 20px; display: flex; gap: 10px; }
+        .history-card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-left: 4px solid #888; }
+        .status-done { color: #00ff00; font-size: 12px; font-weight: bold; }
+        .price { color: #ffaa00; }
+    </style>
+</head>
+<body>
+
+<div class="nav">
+    <button onclick="window.history.back()" style="background:#222; color:#fff; border:1px solid #444; padding:5px 15px;">KEMBALI</button>
+    <h3 style="margin:0">LOG MISI SELESAI</h3>
+</div>
+
+<div id="historyList">Memuat arsip dari Terminal 5...</div>
+
+<script>
+    const user = Clearchance.enforceIdentity();
+    const dealDB = getTerminal('FB5_DEAL');
+
+    // Filter: Cari kontrak yang melibatkan UID user ini
+    dealDB.ref('kontrak_detail')
+        .orderByChild(user.role === 'adventurer' ? 'adventurer_id' : 'requester_id')
+        .equalTo(user.uid)
+        .on('value', snap => {
+            const list = document.getElementById('historyList');
+            list.innerHTML = "";
+
+            if (!snap.exists()) {
+                list.innerHTML = "<p style='color:#444'>Belum ada riwayat misi.</p>";
+                return;
+            }
+
+            snap.forEach(child => {
+                const c = child.val();
+                if (c.status === 'completed') {
+                    const card = document.createElement('div');
+                    card.className = 'history-card';
+                    card.innerHTML = `
+                        <div style="display:flex; justify-content:space-between">
+                            <b>ID: ${c.id}</b>
+                            <span class="status-done">COMPLETED</span>
+                        </div>
+                        <div style="font-size:12px; color:#aaa; margin:5px 0;">Misi: ${c.mission_id}</div>
+                        <div class="price">Final Reward: Rp ${c.final_price.toLocaleString()}</div>
+                    `;
+                    list.appendChild(card);
+                }
+            });
+        });
+</script>
+
+</body>
+</html>
