@@ -1,26 +1,115 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <title>Sovereign Admin</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign Admin - Verifikasi</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="terminal_router.js"></script>
     <style>
-        body { background:#000; color:#0f0; font-family:monospace; padding:20px; }
-        .stat-card { border:1px solid #0f0; padding:15px; margin-bottom:10px; }
+        body { background: #050505; color: white; font-family: monospace; padding: 20px; }
+        .card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+        .info b { color: #00ffff; }
+        .btn-verify { background: #00ff00; color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        .btn-verify:hover { background: #00cc00; }
+        h2 { border-bottom: 2px solid #333; padding-bottom: 10px; color: #ffaa00; }
     </style>
 </head>
 <body>
-    <h2>OVERSEER DASHBOARD</h2>
-    <div id="stats"></div>
 
-    <script>
-        // Admin memantau Buku Induk di FB1 untuk melihat sebaran beban data
-        const masterDB = getTerminal('FB1_MASTER');
-        masterDB.ref('buku_induk/misi').on('value', snap => {
-            const total = snap.numChildren();
-            document.getElementById('stats').innerHTML = `TOTAL MISI DISELURUH TERMINAL: ${total}`;
+<h2>PENGAJUAN REGISTER_PENDING</h2>
+<div id="pendingList">Memuat data pengajuan...</div>
+
+<script>
+    const db1 = getTerminal('FB1_MASTER');
+    const db2 = getTerminal('FB2_RUNNER');
+
+    // 1. Baca data dari FB1 register_pending secara real-time
+    db1.ref('register_pending').on('value', snap => {
+        const list = document.getElementById('pendingList');
+        list.innerHTML = "";
+
+        if (!snap.exists()) {
+            list.innerHTML = "<p style='color:#555'>Tidak ada antrean pendaftaran.</p>";
+            return;
+        }
+
+        snap.forEach(child => {
+            const u = child.val();
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.innerHTML = `
+                <div class="info">
+                    <b>${u.nickname}</b> [${u.id_adv}]<br>
+                    Role: ${u.role} | Domisili: ${u.domisili} | Kat: ${u.kategori}
+                </div>
+                <button class="btn-verify" onclick="verifikasiUser('${u.id_adv}')">VERIFIKASI & AKTIFKAN</button>
+            `;
+            list.appendChild(div);
         });
-    </script>
+    });
+
+    // 2. Fungsi Verifikasi (Pindah Data)
+    async function verifikasiUser(idAdv) {
+        if (!confirm("Verifikasi user ini dan pindahkan ke database aktif?")) return;
+
+        try {
+            // Ambil data asli dari register_pending
+            const snap = await db1.ref(`register_pending/${idAdv}`).once('value');
+            const data = snap.val();
+
+            if (!data) return;
+
+            // Tentukan tabel tujuan di FB1 berdasarkan role
+            const targetIndex = (data.role === 'adventurer') ? 'adventurer_index' : 'requester_index';
+
+            // --- A. Simpan ke Index Pusat (FB1) ---
+            const indexData = {
+                id_adv: data.id_adv,
+                nickname: data.nickname,
+                password: data.password,
+                role: data.role,
+                kategori: data.kategori,
+                area_tugas: data.domisili,
+                shard_id: "FB2_RUNNER" // Alamat terminal data operasional
+            };
+
+            // --- B. Simpan ke Database Operasional (FB2) ---
+            // Mengikuti pola: adventurer-(DOMISILI)/(DESA)/...
+            // Untuk sementara desa dikosongkan/default sesuai domisili
+            const operationalData = {
+                id_adv: data.id_adv,
+                nickname: data.nickname,
+                password: data.password,
+                created_at: data.created_at,
+                role: data.role,
+                kategori: data.kategori,
+                area_tugas: data.domisili,
+                stamina: 1000,
+                level: 1,
+                rank: "F"
+            };
+
+            // Eksekusi Pemindahan (Atomically)
+            // 1. Masukkan ke Index FB1
+            await db1.ref(`${targetIndex}/${data.id_adv}`).set(indexData);
+            
+            // 2. Masukkan ke Database Lapangan FB2
+            // Path: adventurer-KNG/Kuningan/id_adv
+            await db2.ref(`adventurer-${data.domisili}/Umum/${data.id_adv}`).set(operationalData);
+
+            // 3. Hapus dari register_pending FB1
+            await db1.ref(`register_pending/${idAdv}`).remove();
+
+            alert(`User ${data.nickname} Berhasil diverifikasi dan diaktifkan di terminal FB2!`);
+
+        } catch (e) {
+            console.error(e);
+            alert("Terjadi kesalahan saat verifikasi.");
+        }
+    }
+</script>
+
 </body>
 </html>
