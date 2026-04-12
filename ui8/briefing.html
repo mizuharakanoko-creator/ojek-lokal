@@ -20,7 +20,6 @@
         .value { color: #fff; font-weight: bold; }
         .status-badge { background: #00ff00; color: #000; padding: 2px 10px; font-weight: bold; border-radius: 3px; font-size: 12px; }
         
-        /* Tombol Start */
         #btnAction { 
             width: 100%; padding: 18px; background: #fff; color: #000; border: none; 
             font-weight: bold; margin-top: 30px; cursor: pointer; border-radius: 8px;
@@ -65,31 +64,31 @@
 </div>
 
 <script>
-    // 1. Inisialisasi Data Sesi & Misi
+    // 1. Ambil Sesi & Data Misi
     const rawSession = localStorage.getItem('pickme_session');
-    const session = rawSession ? JSON.parse(rawSession) : { nick: "GUEST", shard_id: "IDN-JABAR-KNG-KUNINGAN" };
+    const session = rawSession ? JSON.parse(rawSession) : null;
     
-    const questId = sessionStorage.getItem('active_quest');
-    const questPath = sessionStorage.getItem('active_quest_path');
+    const qId = sessionStorage.getItem('active_quest');
+    const qPath = sessionStorage.getItem('active_quest_path');
 
-    // Jika data hilang di tengah jalan, kembali ke awal
-    if(!questId || !questPath) {
+    // Validasi Dasar
+    if(!session || !qId || !qPath) {
+        alert("Sesi atau Data Misi tidak ditemukan. Kembali ke Dashboard.");
         window.location.href = "index.html";
     }
 
-    // Sambungkan ke Shard yang sesuai
     const targetDb = getDatabaseByShard(session.shard_id);
 
-    // 2. Listener Real-time (Kunci Utama Sinkronisasi)
-    targetDb.ref(`kontrak_aktif/${questId}`).on('value', snap => {
+    // 2. Real-time Listener
+    targetDb.ref(`kontrak_aktif/${qId}`).on('value', snap => {
         if(!snap.exists()) {
-            document.getElementById('loadingMsg').innerText = "KONTRAK TIDAK DITEMUKAN.";
+            document.getElementById('loadingMsg').innerText = "KONTRAK TIDAK DITEMUKAN / SUDAH SELESAI.";
             return;
         }
 
         const data = snap.val();
         
-        // Tampilkan UI Kontrak
+        // Render UI
         document.getElementById('loadingArea').style.display = "none";
         document.getElementById('contractUI').style.display = "block";
         
@@ -98,46 +97,54 @@
         document.getElementById('cAdv').innerText = data.adventurer;
         document.getElementById('cStatus').innerText = data.status.toUpperCase();
 
-        // LOGIKA AUTO-REDIRECT (Pindah Halaman Bersama)
+        // CEK APAKAH STATUS BERUBAH KE 'ON_PROGRESS'
         if(data.status === "on_progress") {
-            // Berikan sedikit feedback visual sebelum pindah
-            document.getElementById('btnAction').innerText = "MENYIAPKAN HALAMAN...";
-            document.getElementById('btnAction').style.background = "#ffaa00";
-            
+            // Re-sync storage sebelum pindah untuk memastikan data aman
+            sessionStorage.setItem('active_quest', qId);
+            sessionStorage.setItem('active_quest_path', qPath);
+
+            const btn = document.getElementById('btnAction');
+            btn.innerText = "MENGALIHKAN KE HALAMAN MISI...";
+            btn.style.background = "#ffaa00";
+            btn.disabled = true;
+
             setTimeout(() => {
                 window.location.href = "active_mission.html";
-            }, 1200);
+            }, 1000);
         }
     });
 
-    // 3. Eksekusi Tombol (Hanya Bisa Dijalankan oleh Adventurer)
+    // 3. Fungsi Start (Khusus Adventurer)
     async function startMission() {
         try {
-            // Ambil data kontrak terbaru untuk validasi role
-            const snap = await targetDb.ref(`kontrak_aktif/${questId}`).get();
+            const snap = await targetDb.ref(`kontrak_aktif/${qId}`).get();
+            if(!snap.exists()) return;
             const d = snap.val();
 
-            // Hanya Adventurer (Wawa) yang berhak menekan tombol
-            if(session.nick !== d.adventurer) {
-                alert("Hanya Adventurer yang bisa menekan tombol 'Mulai'!");
+            // NORMALISASI NAMA (Cegah Case Sensitive)
+            const myNick = session.nick.toLowerCase();
+            const advNick = d.adventurer.toLowerCase();
+
+            if(myNick !== advNick) {
+                alert("Hanya Adventurer (" + d.adventurer + ") yang bisa menekan tombol ini!");
                 return;
             }
 
             const btn = document.getElementById('btnAction');
             btn.disabled = true;
-            btn.innerText = "UPDATING STATUS...";
+            btn.innerText = "MEMPROSES KONTRAK...";
 
-            // Update status di Kontrak Aktif (Akan memicu redirect di semua HP)
-            await targetDb.ref(`kontrak_aktif/${questId}`).update({
-                status: "on_progress",
-                start_time: Date.now()
-            });
-
-            // Update status di tabel radar utama agar misi resmi "hilang" dari pasar
-            await targetDb.ref(questPath).update({ status: "on_progress" });
+            // UPDATE DUA TEMPAT: Kontrak & Radar Utama
+            const updates = {};
+            updates[`kontrak_aktif/${qId}/status`] = "on_progress";
+            updates[`kontrak_aktif/${qId}/start_time`] = Date.now();
+            
+            // Gunakan qPath untuk update radar asli
+            await targetDb.ref().update(updates);
+            await targetDb.ref(qPath).update({ status: "on_progress" });
 
         } catch (e) {
-            alert("Kesalahan Jaringan: " + e.message);
+            alert("Gagal Memulai: " + e.message);
             document.getElementById('btnAction').disabled = false;
             document.getElementById('btnAction').innerText = "MULAI MISI SEKARANG";
         }
