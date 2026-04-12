@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>LOBBY | MENUNGGU ADVENTURER</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; padding: 20px; max-width: 500px; margin: auto; }
+        .header { text-align: center; border-bottom: 1px dashed #ff0055; padding-bottom: 10px; margin-bottom: 20px; }
+        .header h2 { color: #ff0055; }
+        .bid-card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #00ffff; }
+        .bid-info b { font-size: 18px; color: #fff; }
+        .bid-info span { display: block; color: #ffaa00; font-weight: bold; }
+        button { background: #00ffff; color: #000; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>PENAWARAN MASUK</h2>
+        <p>Pilih salah satu Adventurer untuk menjalankan misi Anda.</p>
+    </div>
+    <div id="bidList"><p style="text-align:center; color:#555;">Menunggu sinyal dari Adventurer...</p></div>
+
+    <script>
+        const questPath = sessionStorage.getItem('active_quest_path');
+        const questId = sessionStorage.getItem('active_quest');
+        if(!questPath) window.location.href = "index.html";
+
+        // Pantau folder 'bids' di dalam misi ini
+        db.ref(`${questPath}/bids`).on('value', snap => {
+            const list = document.getElementById('bidList');
+            list.innerHTML = "";
+            
+            if(!snap.exists()) {
+                list.innerHTML = "<p style='text-align:center; color:#555;'>Belum ada tawaran masuk.</p>";
+                return;
+            }
+
+            snap.forEach(child => {
+                const b = child.val();
+                list.innerHTML += `
+                    <div class="bid-card">
+                        <div class="bid-info">
+                            <b>${b.adventurer.toUpperCase()}</b>
+                            <span>Tawaran: ${b.price} G</span>
+                        </div>
+                        <button onclick="terimaBid('${b.adventurer}', ${b.price})">TERIMA</button>
+                    </div>
+                `;
+            });
+        });
+
+        async function terimaBid(advNick, finalPrice) {
+            if(!confirm(`Serahkan misi ini kepada ${advNick}?`)) return;
+
+            try {
+                // 1. Ubah status misi agar hilang dari Radar Adventurer lain
+                await db.ref(questPath).update({ status: "taken", final_price: finalPrice, assigned_to: advNick });
+                
+                // 2. Buat Kontrak Resmi
+                await db.ref(`kontrak_aktif/${questId}`).set({
+                    id_misi: questId,
+                    path_misi: questPath,
+                    requester: JSON.parse(localStorage.getItem('pickme_session')).nick,
+                    adventurer: advNick,
+                    status: "briefing",
+                    timestamp: Date.now()
+                });
+
+                alert("Kontrak disepakati! Menuju ruang Briefing...");
+                window.location.href = "briefing.html";
+            } catch (e) {
+                alert("Gagal memproses kontrak: " + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
