@@ -3,86 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LOBBY | MENUNGGU ADVENTURER</title>
+    <title>LOBBY | SELEKSI ADVENTURER</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: monospace; padding: 20px; max-width: 500px; margin: auto; }
-        .header { text-align: center; border-bottom: 1px dashed #ff0055; padding-bottom: 10px; margin-bottom: 20px; }
-        .header h2 { color: #ff0055; }
-        .bid-card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #00ffff; }
-        .bid-info b { font-size: 18px; color: #fff; }
-        .bid-info span { display: block; color: #ffaa00; font-weight: bold; }
+        body { background: #050505; color: white; font-family: monospace; padding: 20px; }
+        .header { text-align: center; border-bottom: 2px solid #ff0055; padding-bottom: 10px; margin-bottom: 20px; }
+        .card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #00ffff; }
+        .info b { color: #fff; font-size: 16px; display: block; }
+        .info span { color: #ffaa00; }
         button { background: #00ffff; color: #000; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h2>PENAWARAN MASUK</h2>
-        <p>Pilih salah satu Adventurer untuk menjalankan misi Anda.</p>
-    </div>
-    <div id="bidList"><p style="text-align:center; color:#555;">Menunggu sinyal dari Adventurer...</p></div>
 
-    <script>
-        const questPath = sessionStorage.getItem('active_quest_path');
-        const questId = sessionStorage.getItem('active_quest');
-        if(!questPath) window.location.href = "index.html";
+<div class="header">
+    <h2 style="color:#ff0055; margin:0;">BIDS RECEIVED</h2>
+    <small id="misiInfo">Memuat info misi...</small>
+</div>
 
-        db.ref(`${questPath}/bids`).on('value', snap => {
-            const list = document.getElementById('bidList');
-            list.innerHTML = "";
-            if(!snap.exists()) {
-                list.innerHTML = "<p style='text-align:center; color:#555;'>Belum ada tawaran masuk.</p>";
-                return;
-            }
-            snap.forEach(child => {
-                const b = child.val();
-                // Mengambil shard_id dari data bid untuk alamat pengiriman undangan
-                list.innerHTML += `
-                    <div class="bid-card">
-                        <div class="bid-info">
-                            <b>${b.adventurer.toUpperCase()}</b>
-                            <span>Tawaran: ${b.price} G</span>
-                        </div>
-                        <button onclick="terimaBid('${b.adventurer}', ${b.price}, '${b.shard_id}')">TERIMA</button>
+<div id="listBids"></div>
+
+<script>
+    const session = JSON.parse(localStorage.getItem('pickme_session'));
+    const questId = sessionStorage.getItem('active_quest');
+    const questPath = sessionStorage.getItem('active_quest_path');
+    
+    if(!questPath) window.location.href = "index.html";
+    const targetDb = getDatabaseByShard(session.shard_id);
+
+    document.getElementById('misiInfo').innerText = "ID: " + questId;
+
+    // Pantau penawaran yang masuk
+    targetDb.ref(`${questPath}/bids`).on('value', snap => {
+        const box = document.getElementById('listBids');
+        box.innerHTML = "";
+        if(!snap.exists()) return box.innerHTML = "<p style='text-align:center; color:#555;'>Belum ada tawaran...</p>";
+
+        snap.forEach(child => {
+            const b = child.val();
+            box.innerHTML += `
+                <div class="card">
+                    <div class="info">
+                        <b>${b.adventurer.toUpperCase()}</b>
+                        <span>Tawaran: ${b.price} G</span>
                     </div>
-                `;
-            });
+                    <button onclick="terima('${b.adventurer}', ${b.price}, '${b.shard_id}')">PILIH</button>
+                </div>
+            `;
         });
+    });
 
-        async function terimaBid(advNick, finalPrice, advShard) {
-            if(!advShard || advShard === "undefined") return alert("Error: Shard Adventurer tidak terdeteksi!");
-            if(!confirm(`Serahkan misi ini kepada ${advNick.toUpperCase()}?`)) return;
+    async function terima(advNick, price, advShard) {
+        if(!confirm(`Serahkan tugas ke ${advNick}?`)) return;
 
-            try {
-                // 1. Update status misi utama
-                await db.ref(questPath).update({ status: "taken", final_price: finalPrice, assigned_to: advNick });
-                
-                // 2. Kirim UNDANGAN ke folder Adventurer (Pemicu Alert di HP Adventurer)
-                const targetPath = `adventurer-${advShard.toLowerCase()}/${advNick}/undangan_aktif`;
-                await db.ref(targetPath).set({
-                    id_misi: questId,
-                    path_misi: questPath,
-                    timestamp: Date.now()
-                });
+        try {
+            // 1. Update status misi di Shard
+            await targetDb.ref(questPath).update({ status: "taken", assigned_to: advNick, final_price: price });
 
-                // 3. Buat Kontrak Aktif
-                await db.ref(`kontrak_aktif/${questId}`).set({
-                    id_misi: questId,
-                    path_misi: questPath,
-                    requester: JSON.parse(localStorage.getItem('pickme_session')).nick,
-                    adventurer: advNick,
-                    status: "briefing",
-                    timestamp: Date.now()
-                });
+            // 2. Kirim Undangan ke Shard si Adventurer
+            const advDb = getDatabaseByShard(advShard);
+            const pathUndangan = `adventurer-${advShard.toLowerCase()}/${advNick}/undangan_aktif`;
+            await advDb.ref(pathUndangan).set({
+                id_misi: questId,
+                path_misi: questPath
+            });
 
-                alert("Undangan dikirim! Menunggu konfirmasi Adventurer...");
-                window.location.href = "briefing.html";
-            } catch (e) {
-                alert("Gagal memproses: " + e.message);
-            }
-        }
-    </script>
+            // 3. Buat Kontrak
+            await targetDb.ref(`kontrak_aktif/${questId}`).set({
+                id_misi: questId,
+                requester: session.nick,
+                adventurer: advNick,
+                status: "briefing",
+                timestamp: Date.now()
+            });
+
+            window.location.href = "briefing.html";
+        } catch (e) { alert(e.message); }
+    }
+</script>
+
 </body>
 </html>
