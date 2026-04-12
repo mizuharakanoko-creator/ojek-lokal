@@ -15,25 +15,42 @@
         input:focus { border-color: #ff0055; outline: none; }
         button { width: 100%; background: #00ffff; color: #000; font-weight: bold; border: none; padding: 12px; cursor: pointer; transition: 0.3s; margin-top: 10px; border-radius: 4px; }
         button:hover { background: #00cccc; }
+        button:disabled { background: #444; cursor: not-allowed; }
         .link { display: block; margin-top: 15px; color: #888; font-size: 12px; text-decoration: none; }
-        .link:hover { color: #fff; }
     </style>
 </head>
 <body>
     <div class="box">
         <h1>LOGIN PORTAL</h1>
-        <input type="text" id="logNick" placeholder="ID NICKNAME">
+        <input type="text" id="logNick" placeholder="ID NICKNAME" autocomplete="off">
         <input type="password" id="logPass" placeholder="PASSWORD">
         <button id="btnLogin" onclick="loginUser()">ENTER THE GUILD</button>
         <a href="register.html" class="link">Belum punya lisensi? Daftar disini</a>
     </div>
 
     <script>
-        // Auto-redirect jika sesi masih ada
-        if(localStorage.getItem('pickme_session')) {
-            const sess = JSON.parse(localStorage.getItem('pickme_session'));
-            if(sess.role === "adventurer") window.location.href = "dashboard_adventurer.html";
-            else window.location.href = "index.html";
+        // --- SAFETY GUARD: AUTO-CLEANUP ---
+        // Jika database kosong tapi localStorage masih ada, bersihkan saat halaman dimuat.
+        window.onload = async function() {
+            const rawSess = localStorage.getItem('pickme_session');
+            if (rawSess) {
+                try {
+                    const sess = JSON.parse(rawSess);
+                    // Cek ke Firebase apakah user ini masih eksis di database baru
+                    const check = await db.ref(`users_registry/${sess.nick}`).get();
+                    if (!check.exists()) {
+                        console.log("Database kosong/User hilang, membersihkan sesi...");
+                        localStorage.clear();
+                        sessionStorage.clear();
+                    } else {
+                        // Jika eksis, baru boleh redirect
+                        if(sess.role === "adventurer") window.location.href = "dashboard_adventurer.html";
+                        else window.location.href = "index.html";
+                    }
+                } catch (e) {
+                    localStorage.clear();
+                }
+            }
         }
 
         async function loginUser() {
@@ -43,15 +60,15 @@
 
             if(!nick || !pass) return alert("Harap isi Nickname dan Password.");
 
-            btn.innerText = "AUTHENTICATING...";
+            btn.innerText = "VERIFYING...";
             btn.disabled = true;
 
             try {
-                // Efisiensi: Sekali baca (GET) untuk login
+                // 1. Ambil data dari Registry Utama
                 const snap = await db.ref(`users_registry/${nick}`).get();
 
                 if(!snap.exists()) {
-                    alert("Akun tidak ditemukan. Silakan daftar atau tunggu persetujuan Admin.");
+                    alert("Nickname tidak terdaftar di database baru. Silakan Register ulang.");
                     btn.disabled = false;
                     btn.innerText = "ENTER THE GUILD";
                     return;
@@ -59,6 +76,7 @@
 
                 const user = snap.val();
 
+                // 2. Cek Password
                 if(user.password !== pass) {
                     alert("Password salah!");
                     btn.disabled = false;
@@ -66,34 +84,31 @@
                     return;
                 }
 
-                if(user.status !== "active") {
-                    alert("Akun ini dibekukan oleh sistem.");
+                // 3. Ambil Kategori dari Shard (Untuk memastikan data profil sudah dibuat Admin)
+                const shardFolder = `adventurer-${user.shard_id.toLowerCase()}`;
+                const profilSnap = await db.ref(`${shardFolder}/${nick}`).get();
+                
+                if(!profilSnap.exists()) {
+                    alert("Akun terdaftar tapi profil wilayah belum siap. Hubungi Admin untuk APPROVE ulang.");
                     btn.disabled = false;
                     btn.innerText = "ENTER THE GUILD";
                     return;
                 }
 
-                // Ambil data profil spesifik dari shard untuk menyimpan 'category' ke sesi lokal
-                const shardFolder = `adventurer-${user.shard_id.toLowerCase()}`;
-                const profilSnap = await db.ref(`${shardFolder}/${nick}`).get();
-                
-                let category = "MOTOR"; // Default fallback
-                if(profilSnap.exists() && profilSnap.val().category) {
-                    category = profilSnap.val().category;
-                }
+                const profilData = profilSnap.val();
 
-                // Simpan Sesi di LocalStorage (Tidak perlu memanggil Firebase lagi setelah ini untuk cek identitas)
+                // 4. Simpan Sesi Baru
                 const sessionData = {
                     nick: nick,
                     role: user.role,
                     shard_id: user.shard_id,
-                    category: category,
+                    category: profilData.category || "MOTOR",
                     login_time: Date.now()
                 };
                 
                 localStorage.setItem('pickme_session', JSON.stringify(sessionData));
 
-                // Routing Pintar
+                // 5. Redirect
                 if(user.role === "adventurer") {
                     window.location.href = "dashboard_adventurer.html";
                 } else {
@@ -101,7 +116,8 @@
                 }
 
             } catch (error) {
-                alert("Gagal terhubung ke database: " + error.message);
+                console.error(error);
+                alert("Koneksi gagal. Pastikan Firebase Config benar.");
                 btn.disabled = false;
                 btn.innerText = "ENTER THE GUILD";
             }
