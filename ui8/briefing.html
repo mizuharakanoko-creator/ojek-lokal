@@ -3,64 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GUILD | BRIEFING</title>
+    <title>CONTRACT | BRIEFING ROOM</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; text-align: center; }
-        .paper { background: #111; border: 1px solid #444; padding: 30px; border-radius: 12px; max-width: 400px; margin: 40px auto; border-top: 6px solid #00ff00; }
-        .detail { text-align: left; margin: 20px 0; color: #ccc; font-size: 14px; line-height: 1.8; }
-        hr { border: 0; border-top: 1px solid #333; margin: 15px 0; }
-        button { background: #00ff00; color: #000; padding: 15px; width: 100%; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; }
-        .wait-msg { color: #ffaa00; font-style: italic; }
+        body { background: #050505; color: white; font-family: 'Courier New', Courier, monospace; padding: 20px; }
+        .contract-frame { 
+            border: 2px solid #00ff00; padding: 25px; border-radius: 15px; 
+            background: linear-gradient(145deg, #0a1a0a, #050505);
+            box-shadow: 0 0 20px rgba(0,255,0,0.2); max-width: 450px; margin: auto;
+        }
+        h2 { text-align: center; color: #00ff00; text-transform: uppercase; letter-spacing: 3px; border-bottom: 1px solid #333; padding-bottom: 15px; }
+        .detail-row { margin: 15px 0; font-size: 14px; display: flex; justify-content: space-between; border-bottom: 1px dashed #222; padding-bottom: 5px; }
+        .label { color: #888; }
+        .value { color: #fff; font-weight: bold; }
+        .status-badge { background: #00ff00; color: #000; padding: 2px 8px; font-weight: bold; border-radius: 3px; }
+        
+        #btnAction { 
+            width: 100%; padding: 15px; background: #fff; color: #000; border: none; 
+            font-weight: bold; margin-top: 30px; cursor: pointer; border-radius: 5px;
+            transition: 0.3s; text-transform: uppercase;
+        }
+        #btnAction:hover { background: #00ff00; }
+        #loadingMsg { text-align: center; color: #00ff00; margin-top: 50px; }
     </style>
 </head>
 <body>
 
-<div class="paper">
-    <h2 style="margin:0; color:#00ff00;">SURAT KONTRAK</h2>
-    <div id="content" class="detail">Menghubungkan ke Shard...</div>
+<div id="loadingArea">
+    <h3 id="loadingMsg">Menghubungkan ke Shard...</h3>
+</div>
+
+<div class="contract-frame" id="contractUI" style="display: none;">
+    <h2>SURAT KONTRAK</h2>
     
-    <button id="btnMulai" style="display:none;" onclick="start()">MULAI MISI SEKARANG</button>
-    <p id="txtWait" style="display:none;" class="wait-msg">Menunggu Adventurer memulai perjalanan...</p>
+    <div class="detail-row">
+        <span class="label">ID MISI:</span>
+        <span class="value" id="cId">-</span>
+    </div>
+    <div class="detail-row">
+        <span class="label">REQUESTER:</span>
+        <span class="value" id="cReq">-</span>
+    </div>
+    <div class="detail-row">
+        <span class="label">ADVENTURER:</span>
+        <span class="value" id="cAdv">-</span>
+    </div>
+    <div class="detail-row">
+        <span class="label">STATUS:</span>
+        <span class="value"><span class="status-badge" id="cStatus">-</span></span>
+    </div>
+
+    <button id="btnAction" onclick="startMission()">MULAI MISI SEKARANG</button>
 </div>
 
 <script>
-    const session = JSON.parse(localStorage.getItem('pickme_session'));
+    // 1. Ambil Identitas & Info Misi
+    const rawSession = localStorage.getItem('pickme_session');
+    const session = rawSession ? JSON.parse(rawSession) : { nick: "GUEST", shard_id: "IDN-JABAR-KNG-KUNINGAN" };
+    
     const questId = sessionStorage.getItem('active_quest');
-    const targetDb = getDatabaseByShard(session.shard_id);
+    const questPath = sessionStorage.getItem('active_quest_path');
 
     if(!questId) window.location.href = "index.html";
 
-    // Pantau status kontrak
+    // 2. Inisialisasi Database (Gunakan Shard dari Sesi)
+    const targetDb = getDatabaseByShard(session.shard_id);
+
+    // 3. Listen Perubahan Kontrak
     targetDb.ref(`kontrak_aktif/${questId}`).on('value', snap => {
-        if(!snap.exists()) return;
-        const k = snap.val();
-
-        document.getElementById('content').innerHTML = `
-            <b>ID MISI:</b> ${k.id_misi}<br>
-            <b>REQUESTER:</b> ${k.requester.toUpperCase()}<br>
-            <b>ADVENTURER:</b> ${k.adventurer.toUpperCase()}<br>
-            <hr>
-            <b>STATUS:</b> <span style="color:#00ffff">${k.status.toUpperCase()}</span>
-        `;
-
-        if(k.status === "on_mission") {
-            window.location.href = "mission_active.html";
+        if(!snap.exists()) {
+            document.getElementById('loadingMsg').innerText = "Kontrak tidak ditemukan atau telah selesai.";
+            return;
         }
 
-        if(session.role === "adventurer") {
-            document.getElementById('btnMulai').style.display = "block";
-        } else {
-            document.getElementById('txtWait').style.display = "block";
+        const data = snap.val();
+        
+        // Update UI
+        document.getElementById('loadingArea').style.display = "none";
+        document.getElementById('contractUI').style.display = "block";
+        
+        document.getElementById('cId').innerText = data.id_misi;
+        document.getElementById('cReq').innerText = data.requester;
+        document.getElementById('cAdv').innerText = data.adventurer;
+        document.getElementById('cStatus').innerText = data.status.toUpperCase();
+
+        // Jika status sudah berubah, ubah tampilan tombol atau teks
+        if(data.status === "on_progress") {
+            document.getElementById('btnAction').innerText = "MISI SEDANG BERJALAN...";
+            document.getElementById('btnAction').style.background = "#ffaa00";
         }
     });
 
-    async function start() {
+    // 4. Fungsi untuk Adventurer Memulai Misi
+    async function startMission() {
+        // Cek apakah yang klik benar-benar si Adventurer
+        // (Sistem yang berpikir agar tidak sembarang orang bisa klik)
+        const snap = await targetDb.ref(`kontrak_aktif/${questId}`).get();
+        const d = snap.val();
+
+        if(session.nick !== d.adventurer) {
+            alert("Hanya Adventurer yang bisa memulai misi ini!");
+            return;
+        }
+
         try {
-            await targetDb.ref(`kontrak_aktif/${questId}`).update({ status: "on_mission" });
-        } catch (e) { alert(e.message); }
+            // Update status di Kontrak
+            await targetDb.ref(`kontrak_aktif/${questId}`).update({
+                status: "on_progress",
+                start_time: Date.now()
+            });
+
+            // Update juga status di tabel radar utama agar orang lain tahu misi sudah jalan
+            await targetDb.ref(questPath).update({ status: "on_progress" });
+
+            alert("Misi Dimulai! Hati-hati di jalan.");
+        } catch (e) {
+            alert("Gagal memulai misi: " + e.message);
+        }
     }
 </script>
 
