@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOVEREIGN GUILD | LOGIN</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .box { width: 300px; background: #111; padding: 30px; border: 1px solid #333; border-radius: 8px; box-shadow: 0 0 20px rgba(255, 0, 85, 0.15); text-align: center; }
+        h1 { color: #ff0055; margin-top: 0; font-size: 24px; letter-spacing: 2px; text-transform: uppercase; }
+        input { width: 100%; padding: 12px; margin: 10px 0; box-sizing: border-box; background: #000; color: #fff; border: 1px solid #444; border-radius: 4px; text-align: center; }
+        input:focus { border-color: #ff0055; outline: none; }
+        button { width: 100%; background: #00ffff; color: #000; font-weight: bold; border: none; padding: 12px; cursor: pointer; transition: 0.3s; margin-top: 10px; border-radius: 4px; }
+        button:hover { background: #00cccc; }
+        .link { display: block; margin-top: 15px; color: #888; font-size: 12px; text-decoration: none; }
+        .link:hover { color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>LOGIN PORTAL</h1>
+        <input type="text" id="logNick" placeholder="ID NICKNAME">
+        <input type="password" id="logPass" placeholder="PASSWORD">
+        <button id="btnLogin" onclick="loginUser()">ENTER THE GUILD</button>
+        <a href="register.html" class="link">Belum punya lisensi? Daftar disini</a>
+    </div>
+
+    <script>
+        // Auto-redirect jika sesi masih ada
+        if(localStorage.getItem('pickme_session')) {
+            const sess = JSON.parse(localStorage.getItem('pickme_session'));
+            if(sess.role === "adventurer") window.location.href = "dashboard_adventurer.html";
+            else window.location.href = "index.html";
+        }
+
+        async function loginUser() {
+            const nick = document.getElementById('logNick').value.trim().toLowerCase();
+            const pass = document.getElementById('logPass').value;
+            const btn = document.getElementById('btnLogin');
+
+            if(!nick || !pass) return alert("Harap isi Nickname dan Password.");
+
+            btn.innerText = "AUTHENTICATING...";
+            btn.disabled = true;
+
+            try {
+                // Efisiensi: Sekali baca (GET) untuk login
+                const snap = await db.ref(`users_registry/${nick}`).get();
+
+                if(!snap.exists()) {
+                    alert("Akun tidak ditemukan. Silakan daftar atau tunggu persetujuan Admin.");
+                    btn.disabled = false;
+                    btn.innerText = "ENTER THE GUILD";
+                    return;
+                }
+
+                const user = snap.val();
+
+                if(user.password !== pass) {
+                    alert("Password salah!");
+                    btn.disabled = false;
+                    btn.innerText = "ENTER THE GUILD";
+                    return;
+                }
+
+                if(user.status !== "active") {
+                    alert("Akun ini dibekukan oleh sistem.");
+                    btn.disabled = false;
+                    btn.innerText = "ENTER THE GUILD";
+                    return;
+                }
+
+                // Ambil data profil spesifik dari shard untuk menyimpan 'category' ke sesi lokal
+                const shardFolder = `adventurer-${user.shard_id.toLowerCase()}`;
+                const profilSnap = await db.ref(`${shardFolder}/${nick}`).get();
+                
+                let category = "MOTOR"; // Default fallback
+                if(profilSnap.exists() && profilSnap.val().category) {
+                    category = profilSnap.val().category;
+                }
+
+                // Simpan Sesi di LocalStorage (Tidak perlu memanggil Firebase lagi setelah ini untuk cek identitas)
+                const sessionData = {
+                    nick: nick,
+                    role: user.role,
+                    shard_id: user.shard_id,
+                    category: category,
+                    login_time: Date.now()
+                };
+                
+                localStorage.setItem('pickme_session', JSON.stringify(sessionData));
+
+                // Routing Pintar
+                if(user.role === "adventurer") {
+                    window.location.href = "dashboard_adventurer.html";
+                } else {
+                    window.location.href = "index.html";
+                }
+
+            } catch (error) {
+                alert("Gagal terhubung ke database: " + error.message);
+                btn.disabled = false;
+                btn.innerText = "ENTER THE GUILD";
+            }
+        }
+    </script>
+</body>
+</html>
