@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Registrasi</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; padding: 20px; display:flex; justify-content:center; align-items:center; height:90vh; }
+        .box { background: #111; padding: 25px; border-radius: 8px; border: 1px solid #333; width: 100%; max-width: 350px; }
+        input, select { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #00ffff; color: #000; border: none; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        .back-link { display: block; text-align: center; margin-top: 15px; color: #888; text-decoration: none; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2 style="text-align: center; color: #00ffff;">REGISTRASI BARU</h2>
+    
+    <input type="text" id="reg_id" placeholder="Buat ID (Tanpa Spasi)">
+    <input type="text" id="reg_nick" placeholder="Nickname">
+    
+    <select id="reg_role">
+        <option value="adventurer">Adventurer (Driver)</option>
+        <option value="requester">Requester (Klien)</option>
+    </select>
+
+    <select id="reg_zone">
+        <option value="KUNINGAN">Zona Kuningan</option>
+        <option value="KADUGEDE">Zona Kadugede</option>
+    </select>
+    
+    <button id="btnReg" onclick="prosesDaftar()">DAFTARKAN IDENTITAS</button>
+    <a href="login.html" class="back-link">Sudah punya ID? Kembali ke Login</a>
+</div>
+
+<script>
+    Clearchance.nuclearWipe(); // Pastikan bersih
+
+    function prosesDaftar() {
+        const id = document.getElementById('reg_id').value.trim();
+        const nick = document.getElementById('reg_nick').value.trim();
+        const role = document.getElementById('reg_role').value;
+        const zone = document.getElementById('reg_zone').value;
+        const btn = document.getElementById('btnReg');
+
+        if (!id || !nick) return alert("ID dan Nickname Wajib Diisi!");
+
+        btn.disabled = true;
+        btn.innerText = "MENYIMPAN KE MASTER...";
+
+        const masterDB = getTerminal('FB1_MASTER');
+
+        // Cek apakah ID sudah ada
+        masterDB.ref(`users/${id}`).once('value', snap => {
+            if (snap.exists()) {
+                alert("ID sudah digunakan! Pilih ID lain.");
+                btn.disabled = false;
+                btn.innerText = "DAFTARKAN IDENTITAS";
+            } else {
+                // Simpan data baru
+                const newData = {
+                    uid: id,
+                    nick: nick,
+                    role: role,
+                    zone: zone,
+                    status: (role === 'adventurer') ? 'pending' : 'active', // Adven butuh ACC
+                    created_at: Date.now()
+                };
+
+                masterDB.ref(`users/${id}`).set(newData)
+                .then(() => {
+                    alert("Registrasi Berhasil! Silakan Login.");
+                    window.location.href = "login.html";
+                })
+                .catch(e => {
+                    alert("Gagal menyimpan: " + e.message);
+                    btn.disabled = false;
+                    btn.innerText = "DAFTARKAN IDENTITAS";
+                });
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
