@@ -10,56 +10,75 @@
     <script src="clearchance.js"></script>
     <style>
         body { background: #050505; color: white; font-family: monospace; padding: 15px; }
-        .card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 20px; border-top: 3px solid #ff0055; }
+        .card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 20px; border-top: 3px solid #ff0055; position: relative; }
         .bid-item { background: #222; padding: 10px; margin-top: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid #00ffff; }
         .btn-acc { background: #00ffff; color: #000; border: none; padding: 8px 15px; font-weight: bold; cursor: pointer; }
-        .status-msg { color: #888; font-size: 12px; margin-top: 10px; }
+        .btn-abort { background: #444; color: #ff4444; border: 1px solid #ff4444; padding: 5px 10px; font-size: 10px; cursor: pointer; float: right; margin-top: -5px; }
+        .status-msg { color: #888; font-size: 11px; margin-top: 10px; letter-spacing: 1px; }
+        .reward-tag { color: #00ff00; font-size: 18px; font-weight: bold; margin-top: 5px; display: block; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h3 id="missionTitle">Memuat Detail Misi...</h3>
-    <div id="missionDetail" style="font-size: 14px; color: #bbb;"></div>
-    <div class="status-msg">Menunggu Adventurer melakukan penawaran (Bid)...</div>
+    <button class="btn-abort" onclick="hancurkanMisi()">[ HANCURKAN MISI ]</button>
+    <h3 id="missionTitle" style="margin: 0; color: #ff0055;">MEMINDDAI SINYAL...</h3>
+    
+    <div id="missionDetail" style="margin-top: 15px; font-size: 13px; line-height: 1.6;">
+        </div>
+    <div class="status-msg" id="statusPulsing">MENUNGGU ADVENTURER MERESPON...</div>
 </div>
 
 <div id="bidSection">
-    <h4>PENELUSURAN SINYAL (BIDS):</h4>
+    <h4 style="border-bottom: 1px solid #333; padding-bottom: 5px;">PENELUSURAN SINYAL (BIDS):</h4>
     <div id="bidList"></div>
 </div>
 
 <script>
+    // 1. Ambil Data Session dari publish.html
     const user = Clearchance.enforceIdentity();
-    const activeMissionId = sessionStorage.getItem('active_mission_id');
+    const activeMid = sessionStorage.getItem('active_mission_id');
+    const activeShard = sessionStorage.getItem('active_mission_shard');
+    const activeDesa = sessionStorage.getItem('active_mission_desa');
 
-    if (!activeMissionId) {
-        alert("Tidak ada misi aktif.");
+    // Keamanan: Jika data session hilang, kembalikan ke publish
+    if (!activeMid || !activeShard || !activeDesa) {
+        alert("Sesi misi tidak ditemukan.");
         window.location.href = "publish.html";
     }
 
-    const boardDB = getTerminal('FB4_BOARD');
+    const db1 = getTerminal('FB1_MASTER');
+    const db4 = getTerminal('FB4_BOARD');
+    
+    // Path sesuai struktur FB4: mission-SHARD/DESA/ID_MISI
+    const missionRefPath = `mission-${activeShard}/${activeDesa}/${activeMid}`;
 
-    // 1. Pantau Detail Misi
-    boardDB.ref(`misi_aktif/${user.zone}/${activeMissionId}`).on('value', snap => {
+    // 2. Pantau Detail Misi secara Realtime
+    db4.ref(missionRefPath).on('value', snap => {
         if (!snap.exists()) {
-            alert("Misi telah dihapus atau selesai.");
-            Clearchance.clearActiveMission();
+            // Jika misi hilang (dihapus manual dari console atau didelete requester lain)
+            alert("Sinyal misi terputus.");
             window.location.href = "publish.html";
             return;
         }
+
         const m = snap.val();
-        document.getElementById('missionTitle').innerText = `MISI: ${m.type}`;
-        document.getElementById('missionDetail').innerHTML = `Tujuan: ${m.destination}<br>Reward: Rp ${m.reward.toLocaleString()}`;
+        document.getElementById('missionTitle').innerText = `ID: ${m.id_misi}`;
+        document.getElementById('missionDetail').innerHTML = `
+            <span style="color:#888">DARI:</span> ${m.origin_desa} (${m.origin_name})<br>
+            <span style="color:#888">KE:</span> ${m.dest_desa} (${m.dest_name})<br>
+            <span style="color:#888">INFO:</span> ${m.catatan || '-'}<br>
+            <span class="reward-tag">Rp ${m.reward.toLocaleString()}</span>
+        `;
     });
 
-    // 2. Pantau Antrean Bid (Penawaran dari Driver)
-    boardDB.ref(`bids/${activeMissionId}`).on('value', snap => {
+    // 3. Pantau Bids (Penawaran)
+    db4.ref(`bids/${activeMid}`).on('value', snap => {
         const list = document.getElementById('bidList');
         list.innerHTML = "";
         
         if (!snap.exists()) {
-            list.innerHTML = "<p style='color:#444'>Belum ada penawaran...</p>";
+            list.innerHTML = "<p style='color:#444; font-style:italic;'>Belum ada sinyal masuk...</p>";
             return;
         }
 
@@ -70,45 +89,76 @@
             div.innerHTML = `
                 <div>
                     <b style="color:#00ffff">${b.adventurer_nick}</b><br>
-                    <small>Harga: Rp ${b.offer_price.toLocaleString()}</small>
+                    <small style="color:#aaa">Penawaran: Rp ${b.offer_price.toLocaleString()}</small>
                 </div>
-                <button class="btn-acc" onclick="terimaPenawaran('${child.key}', '${b.adventurer_id}', ${b.offer_price})">TERIMA</button>
+                <button class="btn-acc" onclick="terimaPenawaran('${child.key}', '${b.adventurer_id}', '${b.adventurer_nick}', ${b.offer_price})">TERIMA</button>
             `;
             list.appendChild(div);
         });
     });
 
-    async function terimaPenawaran(bidId, advenId, finalPrice) {
-        if (!confirm("Terima penawaran ini?")) return;
+    // 4. Fungsi Terima Penawaran & Buat Kontrak
+    async function terimaPenawaran(bidId, advenId, advenNick, finalPrice) {
+        if (!confirm(`Terima penawaran dari ${advenNick}?`)) return;
 
-        // Pindah ke Terminal 5 (Deal)
-        const dealDB = getTerminal('FB5_DEAL');
         const contractId = "CTR-" + Date.now();
-
+        
         const contractData = {
-            id: contractId,
-            mission_id: activeMissionId,
-            requester_id: user.uid,
-            adventurer_id: advenId,
+            id_kontrak: contractId,
+            id_misi: activeMid,
+            id_requester: user.uid,
+            id_adventurer: advenId,
+            adventurer_name: advenNick,
             final_price: finalPrice,
             status: 'briefing',
             created_at: Date.now()
         };
 
         try {
-            // 1. Buat Kontrak di FB5
-            await dealDB.ref(`kontrak_detail/${contractId}`).set(contractData);
+            // A. Simpan Kontrak ke FB4 (Tabel kontrak_mission sesuai permintaanmu)
+            await db4.ref(`kontrak_mission/${contractId}`).set(contractData);
             
-            // 2. Update status misi di FB4 (Biar hilang dari lobby driver lain)
-            await boardDB.ref(`misi_aktif/${user.zone}/${activeMissionId}`).update({ 
+            // B. Update status misi agar tidak tampil lagi di Board Driver
+            await db4.ref(missionRefPath).update({ 
                 status: 'taken',
-                contract_id: contractId 
+                active_contract_id: contractId,
+                adventurer_id: advenId
             });
 
+            // C. Hapus semua bids misi ini karena sudah ada pemenang
+            await db4.ref(`bids/${activeMid}`).remove();
+
             sessionStorage.setItem('active_contract_id', contractId);
+            alert("Kontrak Terbentuk. Menuju Briefing Room...");
             window.location.href = "briefing_room.html";
         } catch (e) {
-            alert("Gagal memproses kontrak: " + e.message);
+            alert("Kegagalan Sistem: " + e.message);
+        }
+    }
+
+    // 5. Fungsi Hancurkan Misi (Delete FB1 & FB4)
+    async function hancurkanMisi() {
+        if (!confirm("HANCURKAN MISI? Sinyal akan dihapus dari seluruh jaringan.")) return;
+
+        try {
+            // Hapus di Master (FB1)
+            await db1.ref(`misi_index/${activeMid}`).remove();
+            
+            // Hapus di Board (FB4)
+            await db4.ref(missionRefPath).remove();
+            
+            // Hapus Bids yang sempat masuk
+            await db4.ref(`bids/${activeMid}`).remove();
+
+            // Bersihkan Session
+            sessionStorage.removeItem('active_mission_id');
+            sessionStorage.removeItem('active_mission_shard');
+            sessionStorage.removeItem('active_mission_desa');
+
+            alert("Sinyal Berhasil Dihancurkan.");
+            window.location.href = "publish.html";
+        } catch (e) {
+            alert("Gagal menghancurkan misi: " + e.message);
         }
     }
 </script>
