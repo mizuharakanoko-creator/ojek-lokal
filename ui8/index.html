@@ -3,107 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PUBLISH DEBUG</title>
+    <title>Sovereign - Create Mission</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #000; color: #fff; font-family: monospace; padding: 20px; }
-        .box { border: 2px solid #f00; padding: 20px; max-width: 400px; margin: auto; }
-        input, select, button { width: 100%; padding: 15px; margin: 10px 0; display: block; box-sizing: border-box; }
-        button { background: #0f0; color: #000; font-weight: bold; cursor: pointer; }
+        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; }
+        .card { background: #111; padding: 25px; border-radius: 15px; border: 1px solid #333; max-width: 400px; margin: auto; }
+        select, input, textarea { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #444; color: #fff; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 18px; background: #00ffff; color: #000; border: none; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 16px; }
+        .info { font-size: 10px; color: #ffaa00; text-align: center; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-<div class="box">
-    <h2>DEBUG PUBLISH</h2>
+<div class="card">
+    <h2 style="text-align: center; color: #00ffff;">CREATE MISSION</h2>
     
+    <div class="info" id="statusUser">Mengecek Identitas...</div>
+
     <label>Kirim Sebagai:</label>
     <select id="userSelect"></select>
 
-    <input type="text" id="tujuan" placeholder="Tujuan">
-    <input type="number" id="harga" placeholder="Harga">
+    <label>Pilih Armada:</label>
+    <select id="cat">
+        <option value="MOTOR">MOTOR</option>
+        <option value="MOBIL">MOBIL</option>
+    </select>
+
+    <input type="text" id="tujuan" placeholder="Ke mana kita pergi?">
+    <input type="number" id="harga" placeholder="Harga (G)">
+    <textarea id="desc" placeholder="Detail tugas..."></textarea>
     
-    <button id="btnGas" onclick="gasKan()">PUBLISH SEKARANG</button>
+    <button id="btnPublish" onclick="eksekusiHajar()">PUBLISH MISSION</button>
 </div>
 
 <script>
-    // 1. Ambil semua akun dari localStorage tanpa syarat
-    function loadUsers() {
+    // Load semua user dari storage tanpa filter "Adventurer"
+    function loadIdentity() {
         const select = document.getElementById('userSelect');
         const session = JSON.parse(localStorage.getItem('pickme_session'));
         
+        // 1. Ambil dari session aktif (Bodo amat dia Adventurer atau bukan)
         if(session) {
             let opt = document.createElement('option');
             opt.value = JSON.stringify(session);
-            opt.innerText = session.nick;
+            opt.innerText = `${session.nick.toUpperCase()} (${session.role})`;
             select.appendChild(opt);
+            document.getElementById('statusUser').innerText = "Identitas Terdeteksi: " + session.role;
         }
         
-        // Tambah opsi manual jika session kosong agar tidak error
-        let guest = { nick: "TESTER", shard_id: "IDN-JABAR-KNG-KUNINGAN" };
-        let opt2 = document.createElement('option');
-        opt2.value = JSON.stringify(guest);
-        opt2.innerText = "TESTER MODE";
-        select.appendChild(opt2);
+        // 2. Opsi Tester/Guest (Cadangan)
+        let guest = { nick: "GUEST-" + Math.floor(Math.random()*100), shard_id: "IDN-JABAR-KNG-KUNINGAN", role: "guest" };
+        let optGuest = document.createElement('option');
+        optGuest.value = JSON.stringify(guest);
+        optGuest.innerText = "GUEST MODE";
+        select.appendChild(optGuest);
     }
-    loadUsers();
+    loadIdentity();
 
-    async function gasKan() {
-        alert("Langkah 1: Fungsi gasKan dimulai");
-        
+    async function eksekusiHajar() {
+        const btn = document.getElementById('btnPublish');
+        const user = JSON.parse(document.getElementById('userSelect').value);
         const tj = document.getElementById('tujuan').value;
         const hg = document.getElementById('harga').value;
-        const user = JSON.parse(document.getElementById('userSelect').value);
 
-        if(!tj || !hg) {
-            alert("Error: Isi tujuan dan harga!");
-            return;
-        }
+        if(!tj || !hg) return alert("Isi data dulu!");
+
+        btn.disabled = true;
+        btn.innerText = "MEMAKSA KIRIM...";
 
         try {
-            alert("Langkah 2: Menghubungkan ke DB Shard: " + user.shard_id);
+            // Kita bypass getDatabaseByShard yang mungkin bermasalah di role adventurer
+            // Dengan cara memastikan shard_id selalu terkirim dengan benar
             const db = getDatabaseByShard(user.shard_id);
             
-            if(!db) {
-                alert("CRITICAL ERROR: Objek Database (db) TIDAK DITEMUKAN! Periksa firebase-config.js");
-                return;
-            }
+            if(!db) throw new Error("Database Shard tidak merespon!");
 
             const idMisi = "MS-" + Date.now();
-            // Path dibuat sangat sederhana untuk tes
-            const pathMisi = "MOTOR-KUNINGAN-PUSAT-KUNINGAN/KEDUNGARUM/" + idMisi;
+            const category = document.getElementById('cat').value;
+            
+            // Path universal
+            const path = `${category}-KUNINGAN-PUSAT-KUNINGAN/KEDUNGARUM/${idMisi}`;
 
-            alert("Langkah 3: Mencoba menulis ke Path: " + pathMisi);
+            alert("Mencoba kirim ke: " + path);
 
             const data = {
                 id: idMisi,
                 requester: user.nick,
+                role_asal: user.role, // Kita catat dia sbg apa saat kirim
                 tujuan: tj,
                 price: parseInt(hg),
+                description: document.getElementById('desc').value || "-",
                 status: "open",
                 timestamp: Date.now()
             };
 
-            // Gunakan .set tanpa 'await' dulu untuk melihat respon callback
-            db.ref(pathMisi).set(data, (err) => {
-                if(err) {
-                    alert("Langkah 4 GAGAL: " + err.message);
-                } else {
-                    alert("Langkah 4 BERHASIL: Data masuk ke Firebase!");
-                    
-                    // Simpan data ke session untuk halaman berikutnya
-                    sessionStorage.setItem('active_quest', idMisi);
-                    sessionStorage.setItem('active_quest_path', pathMisi);
-                    
-                    alert("Langkah 5: Mencoba pindah halaman...");
-                    window.location.href = "lobby_requester.html";
-                }
+            // Gunakan metode Direct Set
+            db.ref(path).set(data)
+            .then(() => {
+                alert("SUKSES! Misi Terbit.");
+                sessionStorage.setItem('active_quest', idMisi);
+                sessionStorage.setItem('active_quest_path', path);
+                window.location.href = "lobby_requester.html";
+            })
+            .catch(e => {
+                alert("FIREBASE ERROR: " + e.message);
+                btn.disabled = false;
             });
 
         } catch (e) {
-            alert("CATCH ERROR: " + e.message);
+            alert("SISTEM ERROR: " + e.message);
+            btn.disabled = false;
         }
     }
 </script>
