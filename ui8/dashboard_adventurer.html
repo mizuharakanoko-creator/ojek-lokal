@@ -7,123 +7,128 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
-    <script src="router_lokal.js"></script>
     <style>
         body { background: #050505; color: white; font-family: monospace; margin: 0; padding-bottom: 50px; }
-        .stats-bar { background: #111; padding: 15px; display: flex; justify-content: space-around; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 100; }
-        .stat-item { text-align: center; }
-        .stat-item b { color: #00ffff; font-size: 16px; display: block; }
-        .stat-item small { color: #888; font-size: 10px; }
-        .radar-box { background: #1a1a1a; margin: 15px; padding: 15px; border-radius: 8px; border: 1px solid #00ffff; }
-        .quest-card { background: #111; border: 1px solid #333; margin: 15px; padding: 15px; border-radius: 8px; border-left: 4px solid #00ffff; position: relative; }
-        .quest-price { color: #ffaa00; font-size: 18px; font-weight: bold; position: absolute; right: 15px; top: 15px; }
-        .bid-area { display: flex; gap: 10px; margin-top: 15px; border-top: 1px dashed #333; padding-top: 15px; }
-        .bid-area input { flex: 1; padding: 10px; background: #000; color: #fff; border: 1px solid #444; }
-        button { background: #ff0055; color: white; border: none; padding: 10px; cursor: pointer; font-weight: bold; border-radius: 4px; }
+        .header { background: #111; padding: 15px; display: flex; justify-content: space-around; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 100; }
+        .stat b { color: #00ffff; display: block; font-size: 16px; }
+        .stat small { color: #888; font-size: 10px; }
+        .radar-info { background: #1a1a1a; margin: 15px; padding: 15px; border: 1px solid #00ffff; border-radius: 8px; }
+        .quest-card { background: #111; border: 1px solid #333; margin: 15px; padding: 15px; border-radius: 8px; border-left: 4px solid #ff0055; position: relative; }
+        .price { position: absolute; right: 15px; top: 15px; color: #ffaa00; font-weight: bold; font-size: 18px; }
+        .bid-box { display: flex; gap: 10px; margin-top: 15px; border-top: 1px dashed #333; padding-top: 15px; }
+        .bid-box input { flex: 1; padding: 10px; background: #000; color: #fff; border: 1px solid #444; }
+        button { background: #ff0055; color: white; border: none; padding: 10px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        .btn-check { width: 100%; background: #00ffff; color: #000; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="stats-bar">
-        <div class="stat-item"><small>NICK</small><b id="stNick">-</b></div>
-        <div class="stat-item"><small>CAT</small><b id="stCat">-</b></div>
-        <div class="stat-item"><small>VIT</small><b id="stVit">-</b></div>
-    </div>
+<div class="header">
+    <div class="stat"><small>NICK</small><b id="stNick">-</b></div>
+    <div class="stat"><small>CAT</small><b id="stCat">-</b></div>
+    <div class="stat"><small>VIT</small><b id="stVit">-</b></div>
+</div>
 
-    <div class="radar-box">
-        <span style="color:#00ffff; font-size: 12px;">📍 RADAR: <b id="stArea">...</b></span>
-        <button style="width:100%; margin-top:10px; background:#00ffff; color:#000;" onclick="initRadar()">🔁 REFRESH RADAR</button>
-        <button style="width:100%; margin-top:5px; background:#ffaa00; color:#000;" onclick="manualCheckInvite()">🔎 CEK UNDANGAN MANUAL</button>
-    </div>
+<div class="radar-info">
+    <span style="font-size:12px; color:#00ffff;">📍 AREA: <b id="stArea">MEMINDAL...</b></span>
+    <button class="btn-check" onclick="initRadar()">🔁 REFRESH RADAR</button>
+    <button style="width:100%; margin-top:5px; background:#ffaa00; color:#000;" onclick="manualCheckInvite()">🔎 CEK UNDANGAN MANUAL</button>
+</div>
 
-    <div id="questBoard"></div>
+<div id="questBoard"></div>
 
-    <script>
-        const session = JSON.parse(localStorage.getItem('pickme_session'));
-        if(!session) window.location.href = "login.html";
+<script>
+    const session = JSON.parse(localStorage.getItem('pickme_session'));
+    if(!session) window.location.href = "login.html";
 
-        const myProfilPath = `adventurer-${session.shard_id.toLowerCase()}/${session.nick}`;
+    const targetDb = getDatabaseByShard(session.shard_id);
+    const profilPath = `adventurer-${session.shard_id.toLowerCase()}/${session.nick}`;
 
-        // 1. Load Data Profil
-        db.ref(myProfilPath).once('value').then(snap => {
-            const d = snap.val();
-            if(!d) return alert("Profil tidak ditemukan!");
+    // 1. Load Profile & Start Listeners
+    db.ref(profilPath).once('value').then(snap => {
+        const d = snap.val();
+        if(!d) return alert("Data korup! Lapor Admin.");
+        
+        document.getElementById('stNick').innerText = d.nick.toUpperCase();
+        document.getElementById('stCat').innerText = d.category;
+        document.getElementById('stVit').innerText = d.vitality;
+        document.getElementById('stArea').innerText = session.shard_id.split('-').pop().toUpperCase();
+        
+        initRadar();
+        listenForInvites();
+    });
+
+    // 2. Scan Radar di Shard Sendiri
+    function initRadar() {
+        const board = document.getElementById('questBoard');
+        board.innerHTML = "<p style='text-align:center; color:#555;'>Mencari sinyal misi...</p>";
+        
+        const kec = session.shard_id.split('-').pop().toUpperCase();
+        const radarPath = `${session.category}-KUNINGAN-PUSAT-${kec}`;
+
+        targetDb.ref(radarPath).on('value', snap => {
+            board.innerHTML = "";
+            if(!snap.exists()) return board.innerHTML = "<p style='text-align:center;'>Radar Kosong.</p>";
             
-            document.getElementById('stNick').innerText = d.nick.toUpperCase();
-            document.getElementById('stCat').innerText = d.category;
-            document.getElementById('stVit').innerText = d.vitality;
-            document.getElementById('stArea').innerText = session.shard_id.split('-').pop();
-            
-            initRadar();
-            listenForInvites(); // Mulai mendengarkan undangan otomatis
-        });
-
-        // 2. Radar Misi
-        function initRadar() {
-            const board = document.getElementById('questBoard');
-            board.innerHTML = "<p style='text-align:center; color:#555;'>Scanning...</p>";
-            const kec = session.shard_id.split('-').pop();
-            const path = `${session.category}-KUNINGAN-PUSAT-${kec}`;
-
-            db.ref(path).on('value', snap => {
-                board.innerHTML = "";
-                if(!snap.exists()) return board.innerHTML = "<p style='text-align:center;'>No Quests Found.</p>";
-                snap.forEach(desaSnap => {
-                    desaSnap.forEach(misiSnap => {
-                        const m = misiSnap.val();
-                        if(m.status === "open") renderCard(m, desaSnap.key, `${path}/${desaSnap.key}/${m.id}`);
-                    });
+            snap.forEach(desaSnap => {
+                desaSnap.forEach(misiSnap => {
+                    const m = misiSnap.val();
+                    if(m.status === "open") {
+                        board.innerHTML += `
+                            <div class="quest-card">
+                                <span class="price">${m.price} G</span>
+                                <div style="color:#00ffff; font-size:12px;">📍 DESA ${desaSnap.key}</div>
+                                <div style="margin:10px 0; font-weight:bold;">Tujuan: ${m.tujuan}</div>
+                                <div style="font-size:12px; color:#888;">${m.description}</div>
+                                <div class="bid-box">
+                                    <input type="number" id="bid-${m.id}" placeholder="Tawaran G">
+                                    <button onclick="kirimBid('${m.id}', '${radarPath}/${desaSnap.key}/${m.id}')">BID</button>
+                                </div>
+                            </div>
+                        `;
+                    }
                 });
             });
-        }
+        });
+    }
 
-        function renderCard(m, desa, fullPath) {
-            document.getElementById('questBoard').innerHTML += `
-                <div class="quest-card">
-                    <span class="quest-price">${m.price} G</span>
-                    <div style="font-size:12px; color:#00ffff;">📍 ${desa}</div>
-                    <div style="margin:10px 0;">${m.tujuan}</div>
-                    <div class="bid-area">
-                        <input type="number" id="bid-${m.id}" placeholder="G">
-                        <button onclick="ajukanKontrak('${m.id}', '${fullPath}')">BID</button>
-                    </div>
-                </div>
-            `;
-        }
+    async function kirimBid(id, fullPath) {
+        const val = document.getElementById(`bid-${id}`).value;
+        if(!val) return alert("Isi harga penawaran!");
 
-        async function ajukanKontrak(id, path) {
-            const price = document.getElementById(`bid-${id}`).value;
-            if(!price) return alert("Isi harga!");
-            await db.ref(`${path}/bids/${session.nick}`).set({
+        try {
+            await targetDb.ref(`${fullPath}/bids/${session.nick}`).set({
                 adventurer: session.nick,
-                price: parseInt(price),
-                shard_id: session.shard_id, // KRUSIAL: Agar requester tahu alamat shard kita
+                price: parseInt(val),
+                shard_id: session.shard_id,
                 timestamp: Date.now()
             });
-            alert("Bid terkirim!");
-        }
+            alert("Tawaran terkirim ke Requester!");
+        } catch (e) { alert(e.message); }
+    }
 
-        // 3. Logika Undangan (Otomatis & Manual)
-        function listenForInvites() {
-            db.ref(`${myProfilPath}/undangan_aktif`).on('value', snap => {
-                if(snap.exists()) processInvite(snap.val());
-            });
-        }
+    // 3. Listener Undangan Tugas (Real-time)
+    function listenForInvites() {
+        targetDb.ref(`${profilPath}/undangan_aktif`).on('value', snap => {
+            if(snap.exists()) handleInvite(snap.val());
+        });
+    }
 
-        async function manualCheckInvite() {
-            const snap = await db.ref(`${myProfilPath}/undangan_aktif`).get();
-            if(snap.exists()) processInvite(snap.val());
-            else alert("Tidak ada undangan.");
-        }
+    async function manualCheckInvite() {
+        const snap = await targetDb.ref(`${profilPath}/undangan_aktif`).get();
+        if(snap.exists()) handleInvite(snap.val());
+        else alert("Belum ada undangan masuk.");
+    }
 
-        function processInvite(data) {
-            if(confirm(`📢 TUGAS MASUK!\nRequester menerima tawaran Anda.\n\nMasuk ke Briefing?`)) {
-                sessionStorage.setItem('active_quest', data.id_misi);
-                sessionStorage.setItem('active_quest_path', data.path_misi);
-                db.ref(`${myProfilPath}/undangan_aktif`).remove(); // Bersihkan
-                window.location.href = "briefing.html";
-            }
+    function handleInvite(data) {
+        if(confirm(`📢 TUGAS BARU!\nTawaran diterima untuk Misi: ${data.id_misi}.\n\nMasuk ke Briefing?`)) {
+            sessionStorage.setItem('active_quest', data.id_misi);
+            sessionStorage.setItem('active_quest_path', data.path_misi);
+            targetDb.ref(`${profilPath}/undangan_aktif`).remove();
+            window.location.href = "briefing.html";
         }
-    </script>
+    }
+</script>
+
 </body>
 </html>
