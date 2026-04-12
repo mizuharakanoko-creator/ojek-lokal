@@ -14,8 +14,7 @@
         .bid-card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #00ffff; }
         .bid-info b { font-size: 18px; color: #fff; }
         .bid-info span { display: block; color: #ffaa00; font-weight: bold; }
-        button { background: #00ffff; color: #000; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; transition: 0.3s; }
-        button:hover { background: #00cccc; }
+        button { background: #00ffff; color: #000; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -30,19 +29,16 @@
         const questId = sessionStorage.getItem('active_quest');
         if(!questPath) window.location.href = "index.html";
 
-        // Pantau folder 'bids' di dalam misi ini
         db.ref(`${questPath}/bids`).on('value', snap => {
             const list = document.getElementById('bidList');
             list.innerHTML = "";
-            
             if(!snap.exists()) {
                 list.innerHTML = "<p style='text-align:center; color:#555;'>Belum ada tawaran masuk.</p>";
                 return;
             }
-
             snap.forEach(child => {
                 const b = child.val();
-                // Melempar b.shard_id ke fungsi terimaBid agar Requester tahu kemana harus mengirim undangan
+                // Mengambil shard_id dari data bid untuk alamat pengiriman undangan
                 list.innerHTML += `
                     <div class="bid-card">
                         <div class="bid-info">
@@ -56,22 +52,22 @@
         });
 
         async function terimaBid(advNick, finalPrice, advShard) {
+            if(!advShard || advShard === "undefined") return alert("Error: Shard Adventurer tidak terdeteksi!");
             if(!confirm(`Serahkan misi ini kepada ${advNick.toUpperCase()}?`)) return;
 
             try {
-                // 1. Ubah status misi agar hilang dari Radar Adventurer lain
+                // 1. Update status misi utama
                 await db.ref(questPath).update({ status: "taken", final_price: finalPrice, assigned_to: advNick });
                 
-                // 2. KIRIM UNDANGAN KE ADVENTURER TERPILIH
-                const shardFolder = `adventurer-${advShard.toLowerCase()}`;
-                await db.ref(`${shardFolder}/${advNick}/undangan_aktif`).set({
-                    id_kontrak: questId,
+                // 2. Kirim UNDANGAN ke folder Adventurer (Pemicu Alert di HP Adventurer)
+                const targetPath = `adventurer-${advShard.toLowerCase()}/${advNick}/undangan_aktif`;
+                await db.ref(targetPath).set({
                     id_misi: questId,
                     path_misi: questPath,
                     timestamp: Date.now()
                 });
 
-                // 3. Buat Kontrak Resmi di Meja Briefing
+                // 3. Buat Kontrak Aktif
                 await db.ref(`kontrak_aktif/${questId}`).set({
                     id_misi: questId,
                     path_misi: questPath,
@@ -81,10 +77,10 @@
                     timestamp: Date.now()
                 });
 
-                alert("Kontrak disepakati! Menunggu Adventurer menerima undangan...");
+                alert("Undangan dikirim! Menunggu konfirmasi Adventurer...");
                 window.location.href = "briefing.html";
             } catch (e) {
-                alert("Gagal memproses kontrak: " + e.message);
+                alert("Gagal memproses: " + e.message);
             }
         }
     </script>
