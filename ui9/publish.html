@@ -7,111 +7,170 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="terminal_router.js"></script>
+    <script src="router_lokal.js"></script>
     <script src="clearchance.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: monospace; padding: 20px; }
-        .header { border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; color: #ff0055; }
+        body { background: #050505; color: white; font-family: monospace; padding: 15px; }
+        .box { background: #111; border: 1px solid #333; padding: 15px; border-radius: 8px; }
+        .gps-status { font-size: 11px; padding: 10px; margin-bottom: 10px; background: #222; border-left: 3px solid #ffaa00; }
         .form-group { margin-bottom: 15px; }
-        input, textarea, select { width: 100%; padding: 10px; background: #111; border: 1px solid #444; color: #fff; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #ff0055; color: #fff; border: none; font-weight: bold; cursor: pointer; }
-        button:hover { background: #cc0044; }
+        label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; }
+        input, select, textarea { width: 100%; padding: 10px; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
+        .btn-publish { width: 100%; padding: 15px; background: #ff0055; color: #fff; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
+        .manual-toggle { font-size: 11px; color: #00ffff; cursor: pointer; text-decoration: underline; margin-bottom: 10px; display: inline-block; }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <h2>[ PUBLISH NEW QUEST ]</h2>
-    <span id="userInfo" style="color: #888; font-size: 12px;"></span>
-</div>
+<div class="box">
+    <h2 style="color:#ff0055; margin-top:0;">[ PUBLISH QUEST ]</h2>
+    
+    <div class="gps-status" id="gpsDisplay">Memulai GPS...</div>
+    <span class="manual-toggle" onclick="toggleManual()">Gunakan Input Manual Lokasi</span>
 
-<div class="form-group">
-    <label>Tipe Misi:</label>
-    <select id="quest_type">
-        <option value="DELIVERY">Pengiriman Barang</option>
-        <option value="RIDE">Ojek / Antar Jemput</option>
-        <option value="BUY">Titip Beli</option>
-    </select>
-</div>
+    <div id="locationSection">
+        <div class="form-group">
+            <label>Pilih Kecamatan:</label>
+            <select id="selKec" onchange="updateDesa()">
+                <option value="">-- Pilih Kecamatan --</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Pilih Desa Titik Jemput:</label>
+            <select id="selDesa">
+                <option value="">-- Pilih Desa --</option>
+            </select>
+        </div>
+    </div>
 
-<div class="form-group">
-    <label>Titik Jemput / Asal:</label>
-    <input type="text" id="quest_origin" placeholder="Cth: Indomaret Cirendang">
-</div>
+    <div class="form-group">
+        <label>Detail Titik Jemput (Nama Tempat):</label>
+        <input type="text" id="originName" placeholder="Contoh: Depan Toko A">
+    </div>
 
-<div class="form-group">
-    <label>Tujuan:</label>
-    <input type="text" id="quest_dest" placeholder="Cth: Perumahan Pesona Kuningan">
-</div>
+    <div class="form-group">
+        <label>Tujuan Antar:</label>
+        <input type="text" id="destName" placeholder="Contoh: Alun-alun Kuningan">
+    </div>
 
-<div class="form-group">
-    <label>Reward Dasar (Rp):</label>
-    <input type="number" id="quest_reward" placeholder="Cth: 15000">
-</div>
+    <div class="form-group">
+        <label>Reward (Rp):</label>
+        <input type="number" id="reward" placeholder="15000">
+    </div>
 
-<button id="btnPublish" onclick="publishMission()">SEBARKAN MISI KE LOKASI</button>
+    <div class="form-group">
+        <label>Catatan Tambahan:</label>
+        <textarea id="note" rows="2" placeholder="Bawa uang pas, dll..."></textarea>
+    </div>
+
+    <button class="btn-publish" id="btnGo" onclick="publishAction()">SEBARKAN SINYAL</button>
+</div>
 
 <script>
-    // 1. Validasi Identitas (Bisa dipakai oleh Quest/Guest atau Requester)
-    const user = Clearchance.enforceIdentity();
-    document.getElementById('userInfo').innerText = `Requester: ${user.nick} | Zona: ${user.zone}`;
+    // 1. Inisialisasi User & GPS
+    const user = Clearchance.enforceIdentity() || { uid: "str-" + Date.now(), nick: "Guest", zone: "KNG" };
+    let currentCoords = { lat: 0, lng: 0 };
 
-    function publishMission() {
-        const type = document.getElementById('quest_type').value;
-        const origin = document.getElementById('quest_origin').value.trim();
-        const dest = document.getElementById('quest_dest').value.trim();
-        const reward = document.getElementById('quest_reward').value;
-        const btn = document.getElementById('btnPublish');
+    // Isi Dropdown Kecamatan dari router_lokal.js
+    const kecSelect = document.getElementById('selKec');
+    Object.keys(LOKASI_DB).forEach(kec => {
+        let opt = document.createElement('option');
+        opt.value = kec;
+        opt.innerText = kec;
+        kecSelect.appendChild(opt);
+    });
 
-        if (!origin || !dest || !reward) return alert("Lengkapi semua data koordinat dan reward!");
+    function updateDesa() {
+        const kec = document.getElementById('selKec').value;
+        const desaSelect = document.getElementById('selDesa');
+        desaSelect.innerHTML = '<option value="">-- Pilih Desa --</option>';
+        if (LOKASI_DB[kec]) {
+            LOKASI_DB[kec].forEach(desa => {
+                let opt = document.createElement('option');
+                opt.value = desa;
+                opt.innerText = desa;
+                desaSelect.appendChild(opt);
+            });
+        }
+    }
+
+    // Fungsi GPS Otomatis
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            currentCoords.lat = pos.coords.latitude;
+            currentCoords.lng = pos.coords.longitude;
+            document.getElementById('gpsDisplay').innerText = `GPS AKTIF: ${currentCoords.lat.toFixed(5)}, ${currentCoords.lng.toFixed(5)}`;
+            document.getElementById('gpsDisplay').style.borderColor = "#00ff00";
+        }, err => {
+            document.getElementById('gpsDisplay').innerText = "GPS GAGAL: Gunakan Mode Manual";
+        });
+    }
+
+    function toggleManual() {
+        alert("Mode manual diaktifkan. Pastikan koordinat tetap aman.");
+    }
+
+    async function publishAction() {
+        const desa = document.getElementById('selDesa').value;
+        const kec = document.getElementById('selKec').value;
+        const origin = document.getElementById('originName').value;
+        const dest = document.getElementById('destName').value;
+        const reward = document.getElementById('reward').value;
+        const note = document.getElementById('note').value;
+        const btn = document.getElementById('btnGo');
+
+        if(!desa || !reward || !dest) return alert("Lengkapi data!");
 
         btn.disabled = true;
-        btn.innerText = "MENGIRIM SINYAL KE TERMINAL...";
+        btn.innerText = "TRANSMITTING...";
 
-        // Generate ID Misi Unik
-        const missionId = "MS-" + Date.now();
-        
-        // Panggil Terminal 4 (Board) dan Terminal 1 (Master Index)
-        const boardDB = getTerminal('FB4_BOARD');
-        const masterDB = getTerminal('FB1_MASTER');
+        const mid = "MS-" + Date.now();
+        const shard = getShardDariDesa(desa); // KNG, KGD, dll
 
-        const missionData = {
-            id: missionId,
-            requester_id: user.uid,
-            requester_nick: user.nick,
-            zona: user.zone,
-            type: type,
-            origin: origin,
-            destination: dest,
+        const db1 = getTerminal('FB1_MASTER');
+        const db4 = getTerminal('FB4_BOARD');
+
+        const indexData = {
+            id_misi: mid,
+            id_requester: user.uid,
             reward: parseInt(reward),
-            status: 'open',
+            zona: kec,
+            id_shard: "FB4_BOARD" 
+        };
+
+        const boardData = {
+            id_misi: mid,
+            id_requester: user.uid,
+            reward: parseInt(reward),
+            zona: kec,
+            nama_titik_jemput: origin,
+            desa_jemput: desa,
+            langleng_titik_jemput: `${currentCoords.lat},${currentCoords.lng}`,
+            nama_titik_antar: dest,
+            langleng_titik_antar: "0,0", // Bisa diupdate dengan geocoding nanti
+            estimasi_jarak: "Menghitung...",
+            catatan: note,
+            status: "open",
             created_at: Date.now()
         };
 
-        // Simpan ke Terminal 4 (Zona Lokal)
-        boardDB.ref(`misi_aktif/${user.zone}/${missionId}`).set(missionData)
-        .then(() => {
-            // Lapor ke Buku Induk (Terminal 1) agar sistem tahu misi ini ada di mana
-            const indexLog = {
-                lokasi_terminal: 'FB4_BOARD',
-                path: `misi_aktif/${user.zone}/${missionId}`,
-                status: 'open',
-                timestamp: Date.now()
-            };
-            return masterDB.ref(`buku_induk/misi/${missionId}`).set(indexLog);
-        })
-        .then(() => {
-            alert("Misi berhasil disebar ke jaringan " + user.zone + "!");
-            // Set session bahwa user ini sedang punya misi aktif
-            sessionStorage.setItem('active_mission_id', missionId);
-            window.location.href = "lobby_requester.html"; // Lempar ke pantauan misi
-        })
-        .catch(e => {
-            alert("Transmisi Gagal: " + e.message);
+        try {
+            // Kirim ke FB1 Misi Index
+            await db1.ref(`misi_index/${mid}`).set(indexData);
+            
+            // Kirim ke FB4 dengan Path Sharding
+            // mission-KNG/DESA/ID_MISI
+            await db4.ref(`mission-${shard}/${desa}/${mid}`).set(boardData);
+
+            sessionStorage.setItem('active_mission_id', mid);
+            alert("Misi Berhasil Terbit!");
+            window.location.href = "lobby_requester.html";
+
+        } catch (e) {
+            alert("Gagal Publish: " + e.message);
             btn.disabled = false;
-            btn.innerText = "SEBARKAN MISI KE LOKASI";
-        });
+        }
     }
 </script>
-
 </body>
 </html>
