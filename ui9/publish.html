@@ -81,18 +81,21 @@
     });
 
     function updateDesa() {
-        const kec = document.getElementById('selKec').value;
-        const desaSelect = document.getElementById('selDesa');
-        desaSelect.innerHTML = '<option value="">-- Pilih Desa --</option>';
-        if (LOKASI_DB[kec]) {
-            LOKASI_DB[kec].forEach(desa => {
-                let opt = document.createElement('option');
-                opt.value = desa;
-                opt.innerText = desa;
-                desaSelect.appendChild(opt);
-            });
-        }
+    const kec = document.getElementById('selKec').value;
+    const desaSelect = document.getElementById('selDesa');
+    desaSelect.innerHTML = '<option value="">-- Pilih Desa --</option>';
+    
+    if (LOKASI_DB[kec]) {
+        // Karena format sekarang adalah LOKASI_DB[kec].desa
+        LOKASI_DB[kec].desa.forEach(desaObj => {
+            let opt = document.createElement('option');
+            opt.value = desaObj.name; // Simpan namanya
+            opt.innerText = desaObj.name;
+            desaSelect.appendChild(opt);
+        });
     }
+}
+
 
     // Fungsi GPS Otomatis
     if (navigator.geolocation) {
@@ -111,66 +114,74 @@
     }
 
     async function publishAction() {
-        const desa = document.getElementById('selDesa').value;
-        const kec = document.getElementById('selKec').value;
-        const origin = document.getElementById('originName').value;
-        const dest = document.getElementById('destName').value;
-        const reward = document.getElementById('reward').value;
-        const note = document.getElementById('note').value;
-        const btn = document.getElementById('btnGo');
+    // 1. Ambil NILAI (Value) dari input, bukan elemennya saja
+    const desaName = document.getElementById('selDesa').value; // Nama desa yg dipilih
+    const kecName = document.getElementById('selKec').value;   // Nama kec yg dipilih
+    const origin = document.getElementById('originName').value;
+    const dest = document.getElementById('destName').value;
+    const reward = document.getElementById('reward').value;
+    const note = document.getElementById('note').value;
+    const btn = document.getElementById('btnGo');
 
-        if(!desa || !reward || !dest) return alert("Lengkapi data!");
+    // Validasi dasar
+    if (!desaName || !reward || !dest) return alert("Lengkapi data!");
 
-        btn.disabled = true;
-        btn.innerText = "TRANSMITTING...";
+    btn.disabled = true;
+    btn.innerText = "TRANSMITTING...";
 
-        const mid = "MS-" + Date.now();
-        const shard = getShardDariDesa(desa); // KNG, KGD, dll
+    // 2. Tentukan ID Misi dan Shard ID (Gunakan fungsi dari router_lokal.js)
+    const mid = "MS-" + Date.now();
+    const shard = getShardDariKecamatan(kecName); // Contoh: "KNG", "CGR", dll
+    
+    // Ambil detail koordinat & difficulty dari database wilayah
+    const detailDesa = getDetailDesa(kecName, desaName);
+    const difficulty = detailDesa ? detailDesa.diff : 1.0;
 
-        const db1 = getTerminal('FB1_MASTER');
-        const db4 = getTerminal('FB4_BOARD');
+    // 3. Hubungkan ke Terminal Firebase
+    const db1 = getTerminal('FB1_MASTER');
+    const db4 = getTerminal('FB4_BOARD');
 
-        const indexData = {
-            id_misi: mid,
-            id_requester: user.uid,
-            reward: parseInt(reward),
-            zona: kec,
-            id_shard: "FB4_BOARD" 
-        };
+    // Data Ringkas untuk Master Index (FB1)
+    const indexData = {
+        id_misi: mid,
+        id_requester: user.uid,
+        reward: parseInt(reward),
+        zona: kecName,
+        id_shard: shard // Agar sistem tahu misi ini ada di FB4 folder mana
+    };
 
-        const boardData = {
-            id_misi: mid,
-            id_requester: user.uid,
-            reward: parseInt(reward),
-            zona: kec,
-            nama_titik_jemput: origin,
-            desa_jemput: desa,
-            langleng_titik_jemput: `${currentCoords.lat},${currentCoords.lng}`,
-            nama_titik_antar: dest,
-            langleng_titik_antar: "0,0", // Bisa diupdate dengan geocoding nanti
-            estimasi_jarak: "Menghitung...",
-            catatan: note,
-            status: "open",
-            created_at: Date.now()
-        };
+    // Data Detail untuk Board (FB4)
+    const boardData = {
+        id_misi: mid,
+        id_requester: user.uid,
+        reward: parseInt(reward),
+        difficulty_rate: difficulty, // Skill level yang dibutuhkan
+        zona: kecName,
+        nama_titik_jemput: origin,
+        desa_jemput: desaName,
+        langleng_titik_jemput: `${currentCoords.lat},${currentCoords.lng}`,
+        nama_titik_antar: dest,
+        catatan: note,
+        status: "open",
+        created_at: Date.now()
+    };
 
-        try {
-            // Kirim ke FB1 Misi Index
-            await db1.ref(`misi_index/${mid}`).set(indexData);
-            
-            // Kirim ke FB4 dengan Path Sharding
-            // mission-KNG/DESA/ID_MISI
-            await db4.ref(`mission-${shard}/${desa}/${mid}`).set(boardData);
+    try {
+        // Simpan ke Master
+        await db1.ref(`misi_index/${mid}`).set(indexData);
+        
+        // Simpan ke Shard spesifik (misal: mission-CGR/Desa Cisantana/MS-123)
+        await db4.ref(`mission-${shard}/${desaName}/${mid}`).set(boardData);
 
-            sessionStorage.setItem('active_mission_id', mid);
-            alert("Misi Berhasil Terbit!");
-            window.location.href = "lobby_requester.html";
-
-        } catch (e) {
-            alert("Gagal Publish: " + e.message);
-            btn.disabled = false;
-        }
+        alert("Misi Berhasil Terbit!");
+        window.location.href = "lobby_requester.html";
+    } catch (e) {
+        alert("Gagal: " + e.message);
+        btn.disabled = false;
+        btn.innerText = "PUBLISH";
     }
+}
+
 </script>
 </body>
 </html>
