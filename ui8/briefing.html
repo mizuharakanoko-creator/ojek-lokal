@@ -25,52 +25,72 @@
             font-weight: bold; margin-top: 30px; cursor: pointer; border-radius: 8px;
             transition: 0.3s; text-transform: uppercase; font-size: 16px;
         }
-        #btnAction:hover { background: #00ff00; }
+        #btnAction:hover { background: #00ff00; transform: translateY(-2px); }
         #btnAction:disabled { background: #222; color: #555; cursor: not-allowed; }
+        
         #loadingArea { text-align: center; margin-top: 100px; color: #00ff00; }
+        .loader { border: 4px solid #111; border-top: 4px solid #00ff00; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 10px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
 <div id="loadingArea">
+    <div class="loader"></div>
     <h3 id="loadingMsg">MENGHUBUNGKAN KE SHARD...</h3>
 </div>
 
 <div class="contract-frame" id="contractUI" style="display: none;">
     <h2>SURAT KONTRAK</h2>
-    <div class="detail-row"><span class="label">ID MISI</span><span class="value" id="cId">-</span></div>
-    <div class="detail-row"><span class="label">REQUESTER</span><span class="value" id="cReq">-</span></div>
-    <div class="detail-row"><span class="label">ADVENTURER</span><span class="value" id="cAdv">-</span></div>
-    <div class="detail-row"><span class="label">STATUS</span><span class="value"><span class="status-badge" id="cStatus">-</span></span></div>
+    
+    <div class="detail-row">
+        <span class="label">ID MISI</span>
+        <span class="value" id="cId">-</span>
+    </div>
+    <div class="detail-row">
+        <span class="label">REQUESTER</span>
+        <span class="value" id="cReq">-</span>
+    </div>
+    <div class="detail-row">
+        <span class="label">ADVENTURER</span>
+        <span class="value" id="cAdv">-</span>
+    </div>
+    <div class="detail-row">
+        <span class="label">STATUS SYSTEM</span>
+        <span class="value"><span class="status-badge" id="cStatus">WAITING</span></span>
+    </div>
+
     <button id="btnAction" onclick="startMission()">MULAI MISI SEKARANG</button>
 </div>
 
 <script>
-    // 1. Ambil Identitas
-    const session = JSON.parse(localStorage.getItem('pickme_session'));
-    let qId = sessionStorage.getItem('active_quest');
-    let qPath = sessionStorage.getItem('active_quest_path');
+    // 1. Ambil Data Sesi & Misi
+    const rawSession = localStorage.getItem('pickme_session');
+    const session = rawSession ? JSON.parse(rawSession) : { nick: "GUEST", shard_id: "IDN-JABAR-KNG-KUNINGAN" };
+    
+    // Gunakan let agar bisa dimanipulasi jika perlu
+    let questId = sessionStorage.getItem('active_quest');
+    let questPath = sessionStorage.getItem('active_quest_path');
 
-    // PERBAIKAN: Jika data hilang tapi ada di URL, coba selamatkan (opsional)
-    // Untuk saat ini, kita pastikan proteksi tidak terlalu agresif
-    if(!session) {
-        alert("Sesi berakhir");
-        window.location.href = "index.html";
+    // PROTEKSI: Hanya tendang jika benar-benar kosong setelah 1 detik (mencegah glitch loading)
+    if(!questId) {
+        setTimeout(() => {
+            if(!sessionStorage.getItem('active_quest')) window.location.href = "index.html";
+        }, 1000);
     }
 
     const targetDb = getDatabaseByShard(session.shard_id);
 
-    // 2. Listener Utama
-    targetDb.ref(`kontrak_aktif/${qId}`).on('value', snap => {
+    // 2. Listener Real-time
+    targetDb.ref(`kontrak_aktif/${questId}`).on('value', snap => {
         if(!snap.exists()) {
-            // JANGAN langsung terpental jika statusnya cuma delay loading
-            console.log("Menunggu data kontrak...");
+            document.getElementById('loadingMsg').innerText = "KONTRAK TIDAK DITEMUKAN.";
             return;
         }
 
         const data = snap.val();
         
-        // Tampilkan UI
+        // Render UI
         document.getElementById('loadingArea').style.display = "none";
         document.getElementById('contractUI').style.display = "block";
         
@@ -79,50 +99,59 @@
         document.getElementById('cAdv').innerText = data.adventurer;
         document.getElementById('cStatus').innerText = data.status.toUpperCase();
 
-        // LOGIKA REDIRECT
-        if(data.status === "on_progress") {
-            // Pastikan data penting dikunci kembali ke session sebelum pindah
-            sessionStorage.setItem('active_quest', data.id_misi);
-            if(data.path_asli) sessionStorage.setItem('active_quest_path', data.path_asli);
+        // CEK ROLE: Jika bukan Adventurer, matikan tombol secara visual
+        const btn = document.getElementById('btnAction');
+        const isAdventurer = session.nick.toLowerCase() === data.adventurer.toLowerCase();
 
-            document.getElementById('btnAction').innerText = "MENYIAPKAN HALAMAN...";
-            document.getElementById('btnAction').disabled = true;
-
-            setTimeout(() => {
-                window.location.href = "active_mission.html";
-            }, 800);
+        if(!isAdventurer) {
+            btn.innerText = "MENUNGGU KONFIRMASI ADVENTURER...";
+            btn.disabled = true;
+            btn.style.background = "#111";
+            btn.style.color = "#444";
         }
 
-        // Cek Role untuk Tombol
-        if(session.nick.toLowerCase() !== data.adventurer.toLowerCase()) {
-            document.getElementById('btnAction').innerText = "MENUNGGU ADVENTURER...";
-            document.getElementById('btnAction').disabled = true;
-            document.getElementById('btnAction').style.background = "#111";
-            document.getElementById('btnAction').style.color = "#444";
+        // REDIRECT OTOMATIS
+        if(data.status === "on_progress") {
+            btn.innerText = "MENGALIHKAN...";
+            btn.style.background = "#ffaa00";
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                window.location.href = "active_mission.html";
+            }, 1000);
         }
     });
 
+    // 3. Fungsi Start (Hanya untuk Adventurer)
     async function startMission() {
         try {
-            const snap = await targetDb.ref(`kontrak_aktif/${qId}`).get();
+            const snap = await targetDb.ref(`kontrak_aktif/${questId}`).get();
             const d = snap.val();
 
-            if(session.nick.toLowerCase() !== d.adventurer.toLowerCase()) return;
+            // Validasi Nick (Toleransi Huruf Besar/Kecil)
+            if(session.nick.toLowerCase() !== d.adventurer.toLowerCase()) {
+                alert("Hanya Adventurer yang bisa menekan tombol!");
+                return;
+            }
 
-            // Update status dengan tambahan 'path_asli' untuk jaga-jaga jika Requester kehilangan path
-            await targetDb.ref(`kontrak_aktif/${qId}`).update({
+            const btn = document.getElementById('btnAction');
+            btn.disabled = true;
+            btn.innerText = "MEMPROSES...";
+
+            // Update Firebase
+            await targetDb.ref(`kontrak_aktif/${questId}`).update({
                 status: "on_progress",
-                path_asli: qPath, 
                 start_time: Date.now()
             });
 
-            // Update radar utama
-            await targetDb.ref(qPath).update({ status: "on_progress" });
+            await targetDb.ref(questPath).update({ status: "on_progress" });
 
         } catch (e) {
             alert("Error: " + e.message);
+            document.getElementById('btnAction').disabled = false;
         }
     }
 </script>
+
 </body>
 </html>
