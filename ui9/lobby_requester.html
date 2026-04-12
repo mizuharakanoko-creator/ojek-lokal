@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Requester Lobby</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; padding: 15px; }
+        .card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 20px; border-top: 3px solid #ff0055; }
+        .bid-item { background: #222; padding: 10px; margin-top: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid #00ffff; }
+        .btn-acc { background: #00ffff; color: #000; border: none; padding: 8px 15px; font-weight: bold; cursor: pointer; }
+        .status-msg { color: #888; font-size: 12px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h3 id="missionTitle">Memuat Detail Misi...</h3>
+    <div id="missionDetail" style="font-size: 14px; color: #bbb;"></div>
+    <div class="status-msg">Menunggu Adventurer melakukan penawaran (Bid)...</div>
+</div>
+
+<div id="bidSection">
+    <h4>PENELUSURAN SINYAL (BIDS):</h4>
+    <div id="bidList"></div>
+</div>
+
+<script>
+    const user = Clearchance.enforceIdentity();
+    const activeMissionId = sessionStorage.getItem('active_mission_id');
+
+    if (!activeMissionId) {
+        alert("Tidak ada misi aktif.");
+        window.location.href = "publish.html";
+    }
+
+    const boardDB = getTerminal('FB4_BOARD');
+
+    // 1. Pantau Detail Misi
+    boardDB.ref(`misi_aktif/${user.zone}/${activeMissionId}`).on('value', snap => {
+        if (!snap.exists()) {
+            alert("Misi telah dihapus atau selesai.");
+            Clearchance.clearActiveMission();
+            window.location.href = "publish.html";
+            return;
+        }
+        const m = snap.val();
+        document.getElementById('missionTitle').innerText = `MISI: ${m.type}`;
+        document.getElementById('missionDetail').innerHTML = `Tujuan: ${m.destination}<br>Reward: Rp ${m.reward.toLocaleString()}`;
+    });
+
+    // 2. Pantau Antrean Bid (Penawaran dari Driver)
+    boardDB.ref(`bids/${activeMissionId}`).on('value', snap => {
+        const list = document.getElementById('bidList');
+        list.innerHTML = "";
+        
+        if (!snap.exists()) {
+            list.innerHTML = "<p style='color:#444'>Belum ada penawaran...</p>";
+            return;
+        }
+
+        snap.forEach(child => {
+            const b = child.val();
+            const div = document.createElement('div');
+            div.className = 'bid-item';
+            div.innerHTML = `
+                <div>
+                    <b style="color:#00ffff">${b.adventurer_nick}</b><br>
+                    <small>Harga: Rp ${b.offer_price.toLocaleString()}</small>
+                </div>
+                <button class="btn-acc" onclick="terimaPenawaran('${child.key}', '${b.adventurer_id}', ${b.offer_price})">TERIMA</button>
+            `;
+            list.appendChild(div);
+        });
+    });
+
+    async function terimaPenawaran(bidId, advenId, finalPrice) {
+        if (!confirm("Terima penawaran ini?")) return;
+
+        // Pindah ke Terminal 5 (Deal)
+        const dealDB = getTerminal('FB5_DEAL');
+        const contractId = "CTR-" + Date.now();
+
+        const contractData = {
+            id: contractId,
+            mission_id: activeMissionId,
+            requester_id: user.uid,
+            adventurer_id: advenId,
+            final_price: finalPrice,
+            status: 'briefing',
+            created_at: Date.now()
+        };
+
+        try {
+            // 1. Buat Kontrak di FB5
+            await dealDB.ref(`kontrak_detail/${contractId}`).set(contractData);
+            
+            // 2. Update status misi di FB4 (Biar hilang dari lobby driver lain)
+            await boardDB.ref(`misi_aktif/${user.zone}/${activeMissionId}`).update({ 
+                status: 'taken',
+                contract_id: contractId 
+            });
+
+            sessionStorage.setItem('active_contract_id', contractId);
+            window.location.href = "briefing_room.html";
+        } catch (e) {
+            alert("Gagal memproses kontrak: " + e.message);
+        }
+    }
+</script>
+
+</body>
+</html>
