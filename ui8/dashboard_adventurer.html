@@ -8,20 +8,51 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: monospace; margin: 0; padding-bottom: 50px; }
+        body { background: #050505; color: white; font-family: monospace; margin: 0; padding-bottom: 50px; overflow-x: hidden; }
         .header { background: #111; padding: 15px; display: flex; justify-content: space-around; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 100; }
         .stat b { color: #00ffff; display: block; font-size: 16px; }
         .stat small { color: #888; font-size: 10px; }
+        
+        /* Radar UI */
         .radar-info { background: #1a1a1a; margin: 15px; padding: 15px; border: 1px solid #00ffff; border-radius: 8px; }
-        .quest-card { background: #111; border: 1px solid #333; margin: 15px; padding: 15px; border-radius: 8px; border-left: 4px solid #ff0055; position: relative; }
+        .quest-card { background: #111; border: 1px solid #333; margin: 15px; padding: 15px; border-radius: 8px; border-left: 4px solid #ff0055; position: relative; animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        
         .price { position: absolute; right: 15px; top: 15px; color: #ffaa00; font-weight: bold; font-size: 18px; }
         .bid-box { display: flex; gap: 10px; margin-top: 15px; border-top: 1px dashed #333; padding-top: 15px; }
-        .bid-box input { flex: 1; padding: 10px; background: #000; color: #fff; border: 1px solid #444; }
-        button { background: #ff0055; color: white; border: none; padding: 10px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        .bid-box input { flex: 1; padding: 10px; background: #000; color: #fff; border: 1px solid #444; border-radius: 4px; }
+        
+        button { background: #ff0055; color: white; border: none; padding: 10px; font-weight: bold; cursor: pointer; border-radius: 4px; transition: 0.2s; }
+        button:active { transform: scale(0.95); }
         .btn-check { width: 100%; background: #00ffff; color: #000; margin-top: 10px; }
+
+        /* MODAL POP-UP UNDANGAN */
+        #inviteOverlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center;
+        }
+        .modal-box { 
+            width: 85%; max-width: 350px; background: #111; border: 2px solid #00ff00; 
+            padding: 25px; border-radius: 15px; text-align: center; box-shadow: 0 0 30px rgba(0,255,0,0.2);
+        }
+        .modal-box h2 { color: #00ff00; margin-top: 0; letter-spacing: 2px; }
+        .modal-box p { color: #ccc; font-size: 14px; margin: 20px 0; }
+        .btn-accept { background: #00ff00; color: #000; width: 100%; padding: 15px; font-size: 16px; margin-top: 10px; }
     </style>
 </head>
 <body>
+
+<audio id="notifSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+
+<div id="inviteOverlay">
+    <div class="modal-box">
+        <div style="font-size: 40px;">📧</div>
+        <h2>MISSION ASSIGNED!</h2>
+        <p id="inviteText">Tawaran Anda telah diterima oleh Requester. Segera lakukan konfirmasi briefing.</p>
+        <button class="btn-accept" id="btnGoBriefing">TERIMA & BRIEFING</button>
+        <button style="background:none; color:#555; margin-top:15px;" onclick="closeModal()">Nanti saja</button>
+    </div>
+</div>
 
 <div class="header">
     <div class="stat"><small>NICK</small><b id="stNick">-</b></div>
@@ -32,7 +63,6 @@
 <div class="radar-info">
     <span style="font-size:12px; color:#00ffff;">📍 AREA: <b id="stArea">MEMINDAL...</b></span>
     <button class="btn-check" onclick="initRadar()">🔁 REFRESH RADAR</button>
-    <button style="width:100%; margin-top:5px; background:#ffaa00; color:#000;" onclick="manualCheckInvite()">🔎 CEK UNDANGAN MANUAL</button>
 </div>
 
 <div id="questBoard"></div>
@@ -42,12 +72,13 @@
     if(!session) window.location.href = "login.html";
 
     const targetDb = getDatabaseByShard(session.shard_id);
-    const profilPath = `adventurer-${session.shard_id.toLowerCase()}/${session.nick}`;
+    const shardKecil = session.shard_id.toLowerCase();
+    const profilPath = `adventurer-${shardKecil}/${session.nick}`;
 
-    // 1. Load Profile & Start Listeners
+    // 1. Load Profile & Listeners
     db.ref(profilPath).once('value').then(snap => {
         const d = snap.val();
-        if(!d) return alert("Data korup! Lapor Admin.");
+        if(!d) return alert("Sesi bermasalah, silakan login ulang.");
         
         document.getElementById('stNick').innerText = d.nick.toUpperCase();
         document.getElementById('stCat').innerText = d.category;
@@ -58,7 +89,7 @@
         listenForInvites();
     });
 
-    // 2. Scan Radar di Shard Sendiri
+    // 2. Scan Radar
     function initRadar() {
         const board = document.getElementById('questBoard');
         board.innerHTML = "<p style='text-align:center; color:#555;'>Mencari sinyal misi...</p>";
@@ -81,7 +112,7 @@
                                 <div style="margin:10px 0; font-weight:bold;">Tujuan: ${m.tujuan}</div>
                                 <div style="font-size:12px; color:#888;">${m.description}</div>
                                 <div class="bid-box">
-                                    <input type="number" id="bid-${m.id}" placeholder="Tawaran G">
+                                    <input type="number" id="bid-${m.id}" placeholder="G">
                                     <button onclick="kirimBid('${m.id}', '${radarPath}/${desaSnap.key}/${m.id}')">BID</button>
                                 </div>
                             </div>
@@ -94,7 +125,7 @@
 
     async function kirimBid(id, fullPath) {
         const val = document.getElementById(`bid-${id}`).value;
-        if(!val) return alert("Isi harga penawaran!");
+        if(!val) return;
 
         try {
             await targetDb.ref(`${fullPath}/bids/${session.nick}`).set({
@@ -103,30 +134,46 @@
                 shard_id: session.shard_id,
                 timestamp: Date.now()
             });
-            alert("Tawaran terkirim ke Requester!");
+            alert("Bid Terkirim!");
         } catch (e) { alert(e.message); }
     }
 
-    // 3. Listener Undangan Tugas (Real-time)
+    // 3. LOGIKA REAL-TIME POP-UP UNDANGAN
     function listenForInvites() {
+        // Listener stand-by di jalur undangan_aktif
         targetDb.ref(`${profilPath}/undangan_aktif`).on('value', snap => {
-            if(snap.exists()) handleInvite(snap.val());
+            if(snap.exists()) {
+                const data = snap.val();
+                showInviteModal(data);
+            }
         });
     }
 
-    async function manualCheckInvite() {
-        const snap = await targetDb.ref(`${profilPath}/undangan_aktif`).get();
-        if(snap.exists()) handleInvite(snap.val());
-        else alert("Belum ada undangan masuk.");
-    }
+    function showInviteModal(data) {
+        const overlay = document.getElementById('inviteOverlay');
+        const btn = document.getElementById('btnGoBriefing');
+        const sound = document.getElementById('notifSound');
 
-    function handleInvite(data) {
-        if(confirm(`📢 TUGAS BARU!\nTawaran diterima untuk Misi: ${data.id_misi}.\n\nMasuk ke Briefing?`)) {
+        // Play sound
+        sound.play().catch(e => console.log("Sound blocked by browser"));
+
+        document.getElementById('inviteText').innerHTML = `Misi <b>${data.id_misi}</b> telah memilih Anda!<br>Segera masuk ke ruang briefing.`;
+        overlay.style.display = "flex";
+
+        btn.onclick = async () => {
+            // Simpan data misi ke session untuk digunakan di briefing.html
             sessionStorage.setItem('active_quest', data.id_misi);
             sessionStorage.setItem('active_quest_path', data.path_misi);
-            targetDb.ref(`${profilPath}/undangan_aktif`).remove();
+            
+            // Hapus data undangan di DB agar tidak muncul lagi saat refresh
+            await targetDb.ref(`${profilPath}/undangan_aktif`).remove();
+            
             window.location.href = "briefing.html";
-        }
+        };
+    }
+
+    function closeModal() {
+        document.getElementById('inviteOverlay').style.display = "none";
     }
 </script>
 
