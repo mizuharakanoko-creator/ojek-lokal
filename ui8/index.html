@@ -9,24 +9,18 @@
     <script src="firebase-config.js"></script>
     <style>
         body { background: #050505; color: white; font-family: 'Courier New', monospace; padding: 20px; margin: 0; }
-        .form-card { background: #111; padding: 25px; border-radius: 15px; border: 1px solid #333; max-width: 400px; margin: 20px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h2 { text-align: center; color: #00ffff; letter-spacing: 2px; margin-bottom: 25px; border-bottom: 1px solid #222; padding-bottom: 10px; }
-        label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-        input, select, textarea { width: 100%; padding: 15px; margin: 8px 0 20px 0; background: #000; border: 1px solid #333; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
-        input:focus { border-color: #00ffff; outline: none; box-shadow: 0 0 10px rgba(0,255,255,0.2); }
+        .form-card { background: #111; padding: 25px; border-radius: 15px; border: 1px solid #333; max-width: 400px; margin: 10px auto; }
+        h2 { text-align: center; color: #00ffff; letter-spacing: 2px; border-bottom: 1px solid #222; padding-bottom: 10px; }
+        label { font-size: 11px; color: #888; text-transform: uppercase; }
+        input, select, textarea { width: 100%; padding: 12px; margin: 8px 0 18px 0; background: #000; border: 1px solid #333; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
         
-        /* Tombol Barbar - Selalu Nyala */
         #btnPublish { 
-            width: 100%; padding: 20px; 
-            background: linear-gradient(45deg, #00ffff, #0088ff); 
-            color: #000; border: none; font-weight: bold; font-size: 16px; 
-            cursor: pointer; border-radius: 8px; text-transform: uppercase; 
-            transition: 0.3s; box-shadow: 0 5px 15px rgba(0,255,255,0.2);
+            width: 100%; padding: 18px; 
+            background: linear-gradient(45deg, #ff0055, #ffaa00); 
+            color: #fff; border: none; font-weight: bold; font-size: 16px; 
+            cursor: pointer; border-radius: 8px; text-transform: uppercase;
         }
-        #btnPublish:active { transform: scale(0.98); }
-        #btnPublish:disabled { background: #222; color: #555; cursor: not-allowed; }
-
-        .user-status { font-size: 10px; text-align: center; margin-bottom: 15px; color: #ffaa00; }
+        .sender-box { background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px dashed #444; margin-bottom: 20px; }
     </style>
 </head>
 <body>
@@ -34,93 +28,102 @@
 <div class="form-card">
     <h2>CREATE MISSION</h2>
     
-    <div class="user-status" id="senderInfo">Mendeteksi Identitas...</div>
+    <div class="sender-box">
+        <label>KIRIM SEBAGAI (IDENTITY)</label>
+        <select id="senderSelect">
+            </select>
+    </div>
 
-    <label>PILIH ARMADA</label>
+    <label>ARMADA</label>
     <select id="cat">
         <option value="MOTOR">MOTOR (BIKE)</option>
         <option value="MOBIL">MOBIL (CAR)</option>
     </select>
 
     <label>LOKASI TUJUAN</label>
-    <input type="text" id="tujuan" placeholder="Ke mana tujuannya?">
-
-    <label>DETAIL (OPSIONAL)</label>
-    <textarea id="desc" rows="2" placeholder="Contoh: Beli nasi goreng pedas..."></textarea>
+    <input type="text" id="tujuan" placeholder="Ke mana kita pergi?">
 
     <label>REWARD / HADIAH (G)</label>
     <input type="number" id="price" placeholder="Harga (Contoh: 15000)">
+
+    <label>TUGAS (OPSIONAL)</label>
+    <textarea id="desc" rows="2" placeholder="Detail tambahan..."></textarea>
     
-    <button id="btnPublish" onclick="startPublishProcess()">PUBLISH MISSION</button>
+    <button id="btnPublish" onclick="startPublish()">PUBLISH MISSION</button>
 </div>
 
 <script>
-    // 1. Ambil Sesi (Tanpa Filter Peran)
-    const rawSession = localStorage.getItem('pickme_session');
-    let session = rawSession ? JSON.parse(rawSession) : null;
+    // 1. AMBIL SEMUA USER YANG TERDAFTAR DI HP INI
+    function loadAvailableUsers() {
+        const select = document.getElementById('senderSelect');
+        const rawSession = localStorage.getItem('pickme_session');
+        
+        // Tambahkan opsi nama dari sesi yang sedang aktif
+        if (rawSession) {
+            const session = JSON.parse(rawSession);
+            let opt = document.createElement('option');
+            opt.value = session.nick;
+            opt.innerText = session.nick.toUpperCase() + " (AKTIF)";
+            select.appendChild(opt);
+        }
 
-    if (!session) {
-        session = { nick: "GUEST-" + Math.floor(1000+Math.random()*9000), shard_id: "IDN-JABAR-KNG-KUNINGAN" };
+        // Jika kamu punya daftar user lain di localStorage (misal: 'all_users')
+        // Bisa ditambahkan di sini. Jika tidak, tambahkan opsi manual:
+        const guestOpt = document.createElement('option');
+        guestOpt.value = "QUEST-" + Math.floor(Math.random()*1000);
+        guestOpt.innerText = "ANONYMOUS QUEST";
+        select.appendChild(guestOpt);
     }
 
-    // Tampilkan di UI siapa yang kirim
-    document.getElementById('senderInfo').innerText = `KIRIM SEBAGAI: ${session.nick.toUpperCase()}`;
+    // Jalankan saat startup
+    loadAvailableUsers();
 
-    async function startPublishProcess() {
+    async function startPublish() {
         const tujuan = document.getElementById('tujuan').value.trim();
         const price = document.getElementById('price').value;
+        const selectedNick = document.getElementById('senderSelect').value;
 
-        if (!tujuan || !price) return alert("Isi Tujuan & Harga dulu!");
+        if (!tujuan || !price) return alert("Lengkapi data!");
 
         const btn = document.getElementById('btnPublish');
         btn.disabled = true;
-        btn.innerText = "BROADCASTING...";
+        btn.innerText = "SENDING...";
 
-        // Langsung hajar eksekusi
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => { executePublish(tujuan, price, pos.coords.latitude, pos.coords.longitude); },
-                () => { executePublish(tujuan, price, null, null); }
-            );
-        } else {
-            executePublish(tujuan, price, null, null);
-        }
-    }
-
-    async function executePublish(tujuan, price, lat, lon) {
+        // Kita ambil shard_id dari session utama
+        const session = JSON.parse(localStorage.getItem('pickme_session'));
+        const shard = session ? session.shard_id : "IDN-JABAR-KNG-KUNINGAN";
+        
         try {
-            const targetDb = getDatabaseByShard(session.shard_id);
+            const targetDb = getDatabaseByShard(shard);
             const idMisi = "MS-" + Date.now();
             
-            // Format Path (Tetap rapi di Shard)
+            // Path simpel (sesuaikan dengan struktur lamamu)
             const category = document.getElementById('cat').value;
             const path = `${category}-KUNINGAN-PUSAT-KUNINGAN/KEDUNGARUM/${idMisi}`;
 
             const dataMisi = {
                 id: idMisi,
-                requester: session.nick, // Nama asli user (Mau dia driver atau bukan)
+                requester: selectedNick, // Menggunakan nama yang dipilih di dropdown
                 tujuan: tujuan,
                 description: document.getElementById('desc').value,
                 price: parseInt(price),
                 status: "open",
-                shard_origin: session.shard_id,
-                coords: lat ? { lat, lon } : "no-gps",
+                shard_origin: shard,
                 timestamp: Date.now()
             };
 
             await targetDb.ref(path).set(dataMisi);
 
-            // Simpan track untuk lobby
+            // Simpan ke session untuk lobby
             sessionStorage.setItem('active_quest', idMisi);
             sessionStorage.setItem('active_quest_path', path);
             
-            // Lempar ke Lobby
             window.location.href = "lobby_requester.html";
 
         } catch (e) {
-            alert("Gagal: " + e.message);
-            document.getElementById('btnPublish').disabled = false;
-            document.getElementById('btnPublish').innerText = "PUBLISH MISSION";
+            alert("Error: " + e.message);
+            btn.disabled = false;
+            btn.innerText = "PUBLISH MISSION";
         }
     }
 </script>
