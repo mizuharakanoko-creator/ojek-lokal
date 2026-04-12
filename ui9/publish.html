@@ -12,176 +12,223 @@
     <style>
         body { background: #050505; color: white; font-family: monospace; padding: 15px; }
         .box { background: #111; border: 1px solid #333; padding: 15px; border-radius: 8px; }
-        .gps-status { font-size: 11px; padding: 10px; margin-bottom: 10px; background: #222; border-left: 3px solid #ffaa00; }
+        
+        /* Tab Styling */
+        .tab-container { display: flex; margin-bottom: 15px; border: 1px solid #333; }
+        .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; background: #222; font-size: 12px; }
+        .tab.active { background: #ff0055; color: white; font-weight: bold; }
+
+        .gps-status { font-size: 11px; padding: 10px; margin-bottom: 10px; background: #000; border-left: 3px solid #00ff00; display: none; }
         .form-group { margin-bottom: 15px; }
-        label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; }
-        input, select, textarea { width: 100%; padding: 10px; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
-        .btn-publish { width: 100%; padding: 15px; background: #ff0055; color: #fff; border: none; font-weight: bold; cursor: pointer; font-size: 16px; }
-        .manual-toggle { font-size: 11px; color: #00ffff; cursor: pointer; text-decoration: underline; margin-bottom: 10px; display: inline-block; }
+        label { display: block; font-size: 11px; color: #ff0055; margin-bottom: 5px; text-transform: uppercase; }
+        input, select, textarea { width: 100%; padding: 12px; background: #000; border: 1px solid #333; color: #fff; box-sizing: border-box; font-family: monospace; }
+        
+        .section-title { font-size: 12px; background: #222; padding: 5px 10px; margin-bottom: 10px; border-left: 3px solid #888; color: #ccc; }
+        .btn-publish { width: 100%; padding: 15px; background: #ff0055; color: #fff; border: none; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="box">
-    <h2 style="color:#ff0055; margin-top:0;">[ PUBLISH QUEST ]</h2>
+    <h2 style="color:#ff0055; margin:0 0 15px 0; text-align: center;">[ PUBLISH QUEST ]</h2>
     
-    <div class="gps-status" id="gpsDisplay">Memulai GPS...</div>
-    <span class="manual-toggle" onclick="toggleManual()">Gunakan Input Manual Lokasi</span>
+    <label>Metode Titik Jemput:</label>
+    <div class="tab-container">
+        <div class="tab active" id="tabGps" onclick="switchMode('gps')">GPS OTOMATIS</div>
+        <div class="tab" id="tabManual" onclick="switchMode('manual')">INPUT MANUAl</div>
+    </div>
 
-    <div id="locationSection">
+    <div class="section-title">A. TITIK JEMPUT (ORIGIN)</div>
+    
+    <div id="gpsDisplay" class="gps-status">Mencari Sinyal Satelit...</div>
+
+    <div id="manualJemput" style="display: none;">
         <div class="form-group">
-            <label>Pilih Kecamatan:</label>
-            <select id="selKec" onchange="updateDesa()">
-                <option value="">-- Pilih Kecamatan --</option>
+            <select id="selKecJemput" onchange="updateDesa('selKecJemput', 'selDesaJemput')">
+                <option value="">-- Pilih Kecamatan Jemput --</option>
             </select>
         </div>
         <div class="form-group">
-            <label>Pilih Desa Titik Jemput:</label>
-            <select id="selDesa">
-                <option value="">-- Pilih Desa --</option>
+            <select id="selDesaJemput">
+                <option value="">-- Pilih Desa Jemput --</option>
             </select>
         </div>
     </div>
 
     <div class="form-group">
-        <label>Detail Titik Jemput (Nama Tempat):</label>
-        <input type="text" id="originName" placeholder="Contoh: Depan Toko A">
+        <input type="text" id="originDetail" placeholder="Nama Tempat/Patokan (Contoh: Depan Indomaret)">
     </div>
 
+    <div class="section-title">B. TUJUAN ANTAR (DESTINATION)</div>
     <div class="form-group">
-        <label>Tujuan Antar:</label>
-        <input type="text" id="destName" placeholder="Contoh: Alun-alun Kuningan">
+        <select id="selKecAntar" onchange="updateDesa('selKecAntar', 'selDesaAntar')">
+            <option value="">-- Pilih Kecamatan Tujuan --</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <select id="selDesaAntar">
+            <option value="">-- Pilih Desa Tujuan --</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <input type="text" id="destDetail" placeholder="Detail Tujuan (Contoh: Blok M, Gang Jambu)">
     </div>
 
+    <div class="section-title">C. KOMPENSASI & CATATAN</div>
     <div class="form-group">
         <label>Reward (Rp):</label>
         <input type="number" id="reward" placeholder="15000">
     </div>
 
     <div class="form-group">
-        <label>Catatan Tambahan:</label>
-        <textarea id="note" rows="2" placeholder="Bawa uang pas, dll..."></textarea>
+        <textarea id="note" rows="2" placeholder="Catatan tambahan (Contoh: Bawa helm dua, barang pecah belah)"></textarea>
     </div>
 
     <button class="btn-publish" id="btnGo" onclick="publishAction()">SEBARKAN SINYAL</button>
 </div>
 
 <script>
-    // 1. Inisialisasi User & GPS
     const user = Clearchance.enforceIdentity() || { uid: "str-" + Date.now(), nick: "Guest", zone: "KNG" };
     let currentCoords = { lat: 0, lng: 0 };
+    let modeJemput = 'gps'; // default
 
-    // Isi Dropdown Kecamatan dari router_lokal.js
-    const kecSelect = document.getElementById('selKec');
-    Object.keys(LOKASI_DB).forEach(kec => {
-        let opt = document.createElement('option');
-        opt.value = kec;
-        opt.innerText = kec;
-        kecSelect.appendChild(opt);
-    });
-
-    function updateDesa() {
-    const kec = document.getElementById('selKec').value;
-    const desaSelect = document.getElementById('selDesa');
-    desaSelect.innerHTML = '<option value="">-- Pilih Desa --</option>';
-    
-    if (LOKASI_DB[kec]) {
-        // Karena format sekarang adalah LOKASI_DB[kec].desa
-        LOKASI_DB[kec].desa.forEach(desaObj => {
-            let opt = document.createElement('option');
-            opt.value = desaObj.name; // Simpan namanya
-            opt.innerText = desaObj.name;
-            desaSelect.appendChild(opt);
-        });
-    }
-}
-
-
-    // Fungsi GPS Otomatis
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            currentCoords.lat = pos.coords.latitude;
-            currentCoords.lng = pos.coords.longitude;
-            document.getElementById('gpsDisplay').innerText = `GPS AKTIF: ${currentCoords.lat.toFixed(5)}, ${currentCoords.lng.toFixed(5)}`;
-            document.getElementById('gpsDisplay').style.borderColor = "#00ff00";
-        }, err => {
-            document.getElementById('gpsDisplay').innerText = "GPS GAGAL: Gunakan Mode Manual";
+    // Inisialisasi Dropdown Kecamatan (Semua Select Kecamatan)
+    function initKecamatan() {
+        const selects = ['selKecJemput', 'selKecAntar'];
+        selects.forEach(id => {
+            const el = document.getElementById(id);
+            Object.keys(LOKASI_DB).forEach(kec => {
+                let opt = document.createElement('option');
+                opt.value = kec;
+                opt.innerText = kec;
+                el.appendChild(opt);
+            });
         });
     }
 
-    function toggleManual() {
-        alert("Mode manual diaktifkan. Pastikan koordinat tetap aman.");
+    // Fungsi Update Desa dinamis berdasarkan ID Select
+    function updateDesa(idKec, idDesa) {
+        const kec = document.getElementById(idKec).value;
+        const desaSelect = document.getElementById(idDesa);
+        desaSelect.innerHTML = '<option value="">-- Pilih Desa --</option>';
+        
+        if (LOKASI_DB[kec]) {
+            LOKASI_DB[kec].desa.forEach(desaObj => {
+                let opt = document.createElement('option');
+                opt.value = desaObj.name;
+                opt.innerText = desaObj.name;
+                desaSelect.appendChild(opt);
+            });
+        }
+    }
+
+    function switchMode(mode) {
+        modeJemput = mode;
+        document.getElementById('tabGps').classList.toggle('active', mode === 'gps');
+        document.getElementById('tabManual').classList.toggle('active', mode === 'manual');
+        
+        document.getElementById('gpsDisplay').style.display = (mode === 'gps') ? 'block' : 'none';
+        document.getElementById('manualJemput').style.display = (mode === 'manual') ? 'block' : 'none';
+        
+        if(mode === 'manual') {
+            currentCoords = { lat: 0, lng: 0 }; // Reset GPS jika manual
+        } else {
+            startGPS();
+        }
+    }
+
+    function startGPS() {
+        if (navigator.geolocation) {
+            document.getElementById('gpsDisplay').style.display = 'block';
+            navigator.geolocation.getCurrentPosition(pos => {
+                currentCoords.lat = pos.coords.latitude;
+                currentCoords.lng = pos.coords.longitude;
+                document.getElementById('gpsDisplay').innerText = `📡 GPS AKTIF: ${currentCoords.lat.toFixed(5)}, ${currentCoords.lng.toFixed(5)}`;
+                document.getElementById('gpsDisplay').style.borderColor = "#00ff00";
+            }, err => {
+                document.getElementById('gpsDisplay').innerText = "⚠️ GPS GAGAL: Gunakan Mode Manual";
+                document.getElementById('gpsDisplay').style.borderColor = "#ff0000";
+            });
+        }
     }
 
     async function publishAction() {
-    // 1. Ambil NILAI (Value) dari input, bukan elemennya saja
-    const desaName = document.getElementById('selDesa').value; // Nama desa yg dipilih
-    const kecName = document.getElementById('selKec').value;   // Nama kec yg dipilih
-    const origin = document.getElementById('originName').value;
-    const dest = document.getElementById('destName').value;
-    const reward = document.getElementById('reward').value;
-    const note = document.getElementById('note').value;
-    const btn = document.getElementById('btnGo');
-
-    // Validasi dasar
-    if (!desaName || !reward || !dest) return alert("Lengkapi data!");
-
-    btn.disabled = true;
-    btn.innerText = "TRANSMITTING...";
-
-    // 2. Tentukan ID Misi dan Shard ID (Gunakan fungsi dari router_lokal.js)
-    const mid = "MS-" + Date.now();
-    const shard = getShardDariKecamatan(kecName); // Contoh: "KNG", "CGR", dll
-    
-    // Ambil detail koordinat & difficulty dari database wilayah
-    const detailDesa = getDetailDesa(kecName, desaName);
-    const difficulty = detailDesa ? detailDesa.diff : 1.0;
-
-    // 3. Hubungkan ke Terminal Firebase
-    const db1 = getTerminal('FB1_MASTER');
-    const db4 = getTerminal('FB4_BOARD');
-
-    // Data Ringkas untuk Master Index (FB1)
-    const indexData = {
-        id_misi: mid,
-        id_requester: user.uid,
-        reward: parseInt(reward),
-        zona: kecName,
-        id_shard: shard // Agar sistem tahu misi ini ada di FB4 folder mana
-    };
-
-    // Data Detail untuk Board (FB4)
-    const boardData = {
-        id_misi: mid,
-        id_requester: user.uid,
-        reward: parseInt(reward),
-        difficulty_rate: difficulty, // Skill level yang dibutuhkan
-        zona: kecName,
-        nama_titik_jemput: origin,
-        desa_jemput: desaName,
-        langleng_titik_jemput: `${currentCoords.lat},${currentCoords.lng}`,
-        nama_titik_antar: dest,
-        catatan: note,
-        status: "open",
-        created_at: Date.now()
-    };
-
-    try {
-        // Simpan ke Master
-        await db1.ref(`misi_index/${mid}`).set(indexData);
+        const btn = document.getElementById('btnGo');
         
-        // Simpan ke Shard spesifik (misal: mission-CGR/Desa Cisantana/MS-123)
-        await db4.ref(`mission-${shard}/${desaName}/${mid}`).set(boardData);
+        // Data Jemput
+        let jemputKec, jemputDesa, jemputLat, jemputLng;
+        const originNote = document.getElementById('originDetail').value;
 
-        alert("Misi Berhasil Terbit!");
-        window.location.href = "lobby_requester.html";
-    } catch (e) {
-        alert("Gagal: " + e.message);
-        btn.disabled = false;
-        btn.innerText = "PUBLISH";
+        if (modeJemput === 'gps') {
+            if (currentCoords.lat === 0) return alert("Tunggu GPS mengunci lokasi!");
+            // Gunakan fungsi router_lokal untuk deteksi kecamatan otomatis dari koordinat jika tersedia, 
+            // atau paksa manual jika GPS kurang akurat. Di sini kita asumsikan manual untuk akurasi shard.
+            jemputKec = user.zone; // Default ke zona user
+            jemputDesa = "Titik GPS";
+            jemputLat = currentCoords.lat;
+            jemputLng = currentCoords.lng;
+        } else {
+            jemputKec = document.getElementById('selKecJemput').value;
+            jemputDesa = document.getElementById('selDesaJemput').value;
+            const detail = getDetailDesa(jemputKec, jemputDesa);
+            if (!detail) return alert("Pilih lokasi jemput manual!");
+            jemputLat = detail.lat;
+            jemputLng = detail.lng;
+        }
+
+        // Data Antar
+        const antarKec = document.getElementById('selKecAntar').value;
+        const antarDesa = document.getElementById('selDesaAntar').value;
+        const antarDetail = document.getElementById('destDetail').value;
+        const detailAntar = getDetailDesa(antarKec, antarDesa);
+
+        if (!detailAntar) return alert("Pilih desa tujuan antar!");
+
+        const reward = document.getElementById('reward').value;
+        if (!reward || reward < 5000) return alert("Reward minimal Rp 5.000");
+
+        btn.disabled = true;
+        btn.innerText = "TRANSMITTING...";
+
+        const mid = "MS-" + Date.now();
+        const shard = getShardDariKecamatan(jemputKec);
+        
+        const db1 = getTerminal('FB1_MASTER');
+        const db4 = getTerminal('FB4_BOARD');
+
+        const boardData = {
+            id_misi: mid,
+            id_requester: user.uid,
+            reward: parseInt(reward),
+            difficulty_rate: (getDetailDesa(jemputKec, jemputDesa)?.diff || 1.0),
+            zona: jemputKec,
+            // Koordinat Jemput
+            origin_name: originNote,
+            origin_desa: jemputDesa,
+            origin_coords: `${jemputLat},${jemputLng}`,
+            // Koordinat Antar
+            dest_name: antarDetail,
+            dest_desa: antarDesa,
+            dest_coords: `${detailAntar.lat},${detailAntar.lng}`,
+            catatan: document.getElementById('note').value,
+            status: "open",
+            created_at: Date.now()
+        };
+
+        try {
+            await db1.ref(`misi_index/${mid}`).set({ id_misi: mid, id_shard: shard, zona: jemputKec });
+            await db4.ref(`mission-${shard}/${jemputDesa}/${mid}`).set(boardData);
+            alert("Sinyal Berhasil Disebarkan!");
+            window.location.href = "lobby_requester.html";
+        } catch (e) {
+            alert("Gagal: " + e.message);
+            btn.disabled = false;
+        }
     }
-}
 
+    // Run
+    initKecamatan();
+    startGPS();
 </script>
 </body>
 </html>
