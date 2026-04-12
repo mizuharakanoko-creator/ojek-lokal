@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Quest Detail</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; padding: 20px; }
+        .box { background: #111; border: 1px solid #444; padding: 20px; border-radius: 5px; }
+        .price-input { width: 100%; padding: 15px; margin: 20px 0; background: #000; border: 1px solid #00ffff; color: #00ffff; font-size: 20px; text-align: center; }
+        .btn-bid { background: #00ffff; color: #000; border: none; width: 100%; padding: 15px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2 id="mType" style="color:#ffaa00">-</h2>
+    <p id="mRoute">-</p>
+    <hr style="border:0; border-top:1px solid #333">
+    <label>Masukkan Penawaran Anda:</label>
+    <input type="number" id="bidPrice" class="price-input" placeholder="Rp 0">
+    <button class="btn-bid" onclick="kirimBid()">KIRIM PENAWARAN (BID)</button>
+</div>
+
+<script>
+    const user = Clearchance.enforceIdentity();
+    const urlParams = new URLSearchParams(window.location.search);
+    const missionId = urlParams.get('id');
+
+    if (!missionId) window.location.href = "lobby_adventurer.html";
+
+    const boardDB = getTerminal('FB4_BOARD');
+
+    // Load data misi
+    boardDB.ref(`misi_aktif/${user.zone}/${missionId}`).once('value', snap => {
+        if (!snap.exists()) {
+            alert("Misi sudah tidak tersedia.");
+            window.location.href = "lobby_adventurer.html";
+            return;
+        }
+        const m = snap.val();
+        document.getElementById('mType').innerText = m.type;
+        document.getElementById('mRoute').innerText = `Dari: ${m.origin}\nKe: ${m.destination}`;
+        document.getElementById('bidPrice').value = m.reward;
+    });
+
+    async function kirimBid() {
+        const price = document.getElementById('bidPrice').value;
+        if (!price || price <= 0) return alert("Masukkan harga yang valid!");
+
+        const bidData = {
+            adventurer_id: user.uid,
+            adventurer_nick: user.nick,
+            offer_price: parseInt(price),
+            timestamp: Date.now()
+        };
+
+        try {
+            await boardDB.ref(`bids/${missionId}/${user.uid}`).set(bidData);
+            alert("Penawaran terkirim! Menunggu konfirmasi Requester...");
+            
+            // Simpan ID misi yang sedang kita bid
+            sessionStorage.setItem('active_mission_id', missionId);
+            window.location.href = "mission_progress.html";
+        } catch (e) {
+            alert("Gagal kirim bid: " + e.message);
+        }
+    }
+</script>
+
+</body>
+</html>
