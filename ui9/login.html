@@ -31,8 +31,12 @@
 </div>
 
 <script>
-    // Pastikan sesi lama bersih saat masuk halaman login
-    if(typeof Clearchance !== 'undefined') Clearchance.nuclearWipe();
+    // 1. Bersihkan semua sesi lama saat masuk halaman login
+    if(typeof Clearchance !== 'undefined') {
+        Clearchance.nuclearWipe();
+    } else {
+        sessionStorage.clear();
+    }
 
     async function prosesLogin() {
         const input = document.getElementById('userInput').value.trim();
@@ -47,13 +51,19 @@
         const db1 = getTerminal('FB1_MASTER');
 
         try {
-            // Jalankan pencarian di 3 tabel secara berurutan
-            
-            // 1. Cek di Adventurer Index
+            // --- 1. Cek di Adventurer Index ---
             let userFound = await findUserInTable(db1, 'adventurer_index', input);
             if (userFound) {
                 if (userFound.password === pass) {
-                    sessionStorage.setItem('pickme_user', JSON.stringify(userFound));
+                    // Pastikan role dan info dasar ada untuk Clearchance
+                    const sessionData = {
+                        uid: userFound.uid || userFound.id_adventurer,
+                        nick: userFound.nickname,
+                        role: 'adventurer',
+                        zone: userFound.area_tugas || userFound.zone || "KNG"
+                    };
+                    // Simpan dengan key 'user_identity' agar sinkron dengan Clearchance
+                    sessionStorage.setItem('user_identity', JSON.stringify(sessionData));
                     window.location.href = "lobby_adventurer.html";
                     return;
                 } else {
@@ -61,11 +71,17 @@
                 }
             }
 
-            // 2. Cek di Requester Index
+            // --- 2. Cek di Requester Index ---
             userFound = await findUserInTable(db1, 'requester_index', input);
             if (userFound) {
                 if (userFound.password === pass) {
-                    sessionStorage.setItem('pickme_user', JSON.stringify(userFound));
+                    const sessionData = {
+                        uid: userFound.uid || userFound.id_requester,
+                        nick: userFound.nickname,
+                        role: 'requester',
+                        zone: userFound.zone || "KNG"
+                    };
+                    sessionStorage.setItem('user_identity', JSON.stringify(sessionData));
                     window.location.href = "lobby_requester.html";
                     return;
                 } else {
@@ -73,11 +89,16 @@
                 }
             }
 
-            // 3. Cek di Register Pending
+            // --- 3. Cek di Register Pending ---
             userFound = await findUserInTable(db1, 'register_pending', input);
             if (userFound) {
                 if (userFound.password === pass) {
-                    sessionStorage.setItem('pickme_user', JSON.stringify(userFound));
+                    const sessionData = {
+                        uid: userFound.uid,
+                        nick: userFound.nickname,
+                        role: 'pending'
+                    };
+                    sessionStorage.setItem('user_identity', JSON.stringify(sessionData));
                     window.location.href = "waiting_room.html";
                     return;
                 } else {
@@ -85,7 +106,6 @@
                 }
             }
 
-            // Jika semua pencarian gagal
             failLogin("Nickname atau ID tidak terdaftar.");
 
         } catch (e) {
@@ -94,21 +114,18 @@
         }
     }
 
-    // Fungsi pembantu untuk mencari user berdasarkan ID atau Nickname
     async function findUserInTable(db, path, val) {
-        // Cek berdasarkan ID (Key)
+        // Cek ID
         const snapById = await db.ref(`${path}/${val}`).once('value');
         if (snapById.exists()) return snapById.val();
 
-        // Cek berdasarkan Nickname
+        // Cek Nickname
         const snapByNick = await db.ref(path).orderByChild('nickname').equalTo(val).once('value');
         if (snapByNick.exists()) {
-            // Karena orderByChild mengembalikan object pembungkus, kita ambil isinya
             const data = snapByNick.val();
             const firstKey = Object.keys(data)[0];
             return data[firstKey];
         }
-
         return null;
     }
 
