@@ -3,100 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOVEREIGN GUILD | REQUESTER</title>
+    <title>REQUESTER DASHBOARD</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; }
-        .container { max-width: 500px; margin: auto; background: #111; padding: 20px; border: 1px solid #333; border-radius: 12px; }
-        h1 { color: #ff0055; text-align: center; letter-spacing: 2px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; }
-        input, textarea, select { width: 100%; padding: 12px; background: #000; border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #00ffff; color: #000; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 10px; transition: 0.3s; }
-        button:hover { background: #00cccc; transform: translateY(-2px); }
-        .nav-btn { background: transparent; color: #888; border: 1px solid #333; margin-top: 20px; }
+        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; }
+        .form-card { background: #111; padding: 20px; border-radius: 10px; border: 1px solid #333; max-width: 400px; margin: auto; }
+        input, select, textarea { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #ff0055; color: #fff; border: none; font-weight: bold; cursor: pointer; }
+        .logout { background: none; color: #555; border: none; margin-top: 20px; text-decoration: underline; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>POST MISSION</h1>
+<div class="form-card">
+    <h2 style="text-align:center; color:#00ffff;">CREATE MISSION</h2>
+    <label>Armada</label>
+    <select id="cat">
+        <option value="MOTOR">MOTOR</option>
+        <option value="MOBIL">MOBIL</option>
+    </select>
+    <input type="text" id="tujuan" placeholder="Lokasi Tujuan">
+    <textarea id="desc" placeholder="Detail Tugas"></textarea>
+    <input type="number" id="price" placeholder="Reward (G)">
     
-    <div class="form-group">
-        <label>KATEGORI ARMADA</label>
-        <select id="misiCat">
-            <option value="MOTOR">MOTOR (SCOUT)</option>
-            <option value="MOBIL">MOBIL (CARGO)</option>
-        </select>
-    </div>
-
-    <div class="form-group">
-        <label>TUJUAN PENGIRIMAN</label>
-        <input type="text" id="misiTujuan" placeholder="Contoh: Jl. Siliwangi No. 10">
-    </div>
-
-    <div class="form-group">
-        <label>DESKRIPSI TUGAS</label>
-        <textarea id="misiDesc" rows="3" placeholder="Detail misi..."></textarea>
-    </div>
-
-    <div class="form-group">
-        <label>HADIAH (GOLDPICE)</label>
-        <input type="number" id="misiPrice" placeholder="Jumlah G">
-    </div>
-
-    <button onclick="buatMisi()">PUBLISH TO RADAR</button>
-    <button class="nav-btn" onclick="localStorage.clear(); location.reload();">LOGOUT SYSTEM</button>
+    <button onclick="publishMisi()">PUBLISH MISSION</button>
+    <center><button class="logout" onclick="logout()">EXIT SYSTEM (LOGOUT)</button></center>
 </div>
 
 <script>
+    // PROTEKSI HALAMAN
     const session = JSON.parse(localStorage.getItem('pickme_session'));
-    if(!session || session.role !== "requester") window.location.href = "login.html";
+    
+    if(!session) {
+        window.location.href = "login.html";
+    } else if(session.role !== "requester") {
+        // Jika Adventurer memaksa masuk ke index.html, arahkan ke dashboardnya sendiri
+        window.location.href = "dashboard_adventurer.html";
+    }
 
-    async function buatMisi() {
-        const cat = document.getElementById('misiCat').value;
-        const tujuan = document.getElementById('misiTujuan').value;
-        const desc = document.getElementById('misiDesc').value;
-        const price = document.getElementById('misiPrice').value;
-
-        if(!tujuan || !price) return alert("Lengkapi data misi!");
-
-        // 1. Tentukan Database Shard berdasarkan lokasi Requester
+    async function publishMisi() {
         const targetDb = getDatabaseByShard(session.shard_id);
-        const misiId = "MS-" + Date.now();
-        
-        // Path sesuai struktur: CATEGORY-PROVINSI-KOTA-KECAMATAN / DESA / ID
-        // Di sini kita asumsikan shard_id berisi 'IDN-JABAR-KNG-KECAMATAN'
+        const idMisi = "MS-" + Date.now();
         const kec = session.shard_id.split('-').pop().toUpperCase();
-        const pathMisi = `${cat}-KUNINGAN-PUSAT-${kec}/KEDUNGARUM/${misiId}`;
+        const path = `${document.getElementById('cat').value}-KUNINGAN-PUSAT-${kec}/KEDUNGARUM/${idMisi}`;
 
-        const payload = {
-            id: misiId,
+        const data = {
+            id: idMisi,
             requester: session.nick,
             shard_id: session.shard_id,
-            tujuan: tujuan,
-            description: desc,
-            price: parseInt(price),
+            tujuan: document.getElementById('tujuan').value,
+            description: document.getElementById('desc').value,
+            price: parseInt(document.getElementById('price').value),
             status: "open",
             timestamp: Date.now()
         };
 
         try {
-            await targetDb.ref(pathMisi).set(payload);
-            
-            // Simpan referensi ke Session agar Lobby tahu harus baca dari mana
-            sessionStorage.setItem('active_quest', misiId);
-            sessionStorage.setItem('active_quest_path', pathMisi);
-            
-            alert("Misi telah dipublikasikan!");
+            await targetDb.ref(path).set(data);
+            sessionStorage.setItem('active_quest', idMisi);
+            sessionStorage.setItem('active_quest_path', path);
             window.location.href = "lobby_requester.html";
-        } catch (e) {
-            alert("Gagal Publish: " + e.message);
-        }
+        } catch (e) { alert(e.message); }
+    }
+
+    function logout() {
+        localStorage.removeItem('pickme_session');
+        window.location.href = "login.html";
     }
 </script>
-
 </body>
 </html>
