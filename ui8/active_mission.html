@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MISSION PROGRESS | SOVEREIGN GUILD</title>
+    <title>MISSION ROOM | DEBUG MODE</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
@@ -11,128 +11,102 @@
         body { background: #050505; color: white; font-family: monospace; margin: 0; display: flex; flex-direction: column; height: 100vh; }
         .header { background: #111; padding: 15px; border-bottom: 2px solid #00ffff; display: flex; justify-content: space-between; }
         #chatBox { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; background: #0a0a0a; }
-        .msg { max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+        .msg { max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 13px; margin: 2px 0; }
         .msg.me { align-self: flex-end; background: #00ffff; color: #000; }
         .msg.them { align-self: flex-start; background: #222; color: #fff; border: 1px solid #333; }
         .input-area { background: #111; padding: 10px; display: flex; gap: 5px; }
-        input { flex: 1; padding: 10px; background: #000; border: 1px solid #444; color: white; border-radius: 4px; }
+        input { flex: 1; padding: 12px; background: #000; border: 1px solid #444; color: white; border-radius: 4px; }
         .action-bar { background: #111; padding: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .btn { padding: 12px; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; text-align: center; font-size: 11px; text-decoration: none; }
-        .btn-finish { background: #ff0055; color: white; grid-column: span 2; margin-top: 5px; }
+        .btn { padding: 15px; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; text-align: center; font-size: 11px; text-decoration: none; color: white; }
+        .btn-finish { background: #ff0055; grid-column: span 2; margin-top: 5px; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <div id="missionTarget">MEMUAT DATA...</div>
-    <div id="myRole" style="color: #888; font-size: 10px;">CHECKING...</div>
+    <div id="missionTarget">TARGET: LOADING...</div>
+    <div id="myRole" style="color: #00ffff;">ROLE: ?</div>
 </div>
 
-<div id="chatBox"></div>
+<div id="chatBox">
+    <div style="color: #555; font-size: 10px; text-align: center;">-- DEBUG CONSOLE ACTIVE --</div>
+</div>
 
 <div class="input-area">
-    <input type="text" id="msgInput" placeholder="Pesan untuk partner...">
-    <button onclick="sendChat()" style="background:#00ffff; border:none; padding:10px;">KIRIM</button>
+    <input type="text" id="msgInput" placeholder="Ketik pesan...">
+    <button onclick="sendChat()" style="background:#00ffff; border:none; padding:10px 20px; font-weight:bold; border-radius:4px;">KIRIM</button>
 </div>
 
 <div class="action-bar">
-    <a id="linkWA" href="#" target="_blank" class="btn" style="background:#25d366; color:white;">WHATSAPP</a>
-    <a id="linkMap" href="#" target="_blank" class="btn" style="background:#4285f4; color:white;">GMAPS</a>
+    <a id="linkWA" href="#" target="_blank" class="btn" style="background:#25d366;">WHATSAPP</a>
+    <a id="linkMap" href="#" target="_blank" class="btn" style="background:#4285f4;">MAPS</a>
     <button id="btnFinish" class="btn btn-finish" onclick="completeMission()">SELESAIKAN MISI</button>
 </div>
 
 <script>
+    // 1. CEK DATA DENGAN ALERT (Audit System)
     const session = JSON.parse(localStorage.getItem('pickme_session'));
+    const qId = sessionStorage.getItem('active_quest');
+    const qPath = sessionStorage.getItem('active_quest_path');
+
+    if (!session) alert("DANGER: Session User Hilang!");
+    if (!qId) alert("DANGER: ID Misi (active_quest) Hilang!");
+    if (!qPath) alert("WARNING: Path Misi (active_quest_path) Hilang!");
+
     const targetDb = getDatabaseByShard(session.shard_id);
-    
-    // Variabel Global Misi
-    let currentQuestId = sessionStorage.getItem('active_quest');
-    let currentQuestPath = sessionStorage.getItem('active_quest_path');
 
-    async function startLogic() {
-        if (!currentQuestId) {
-            console.log("ID hilang, mencoba mencari kontrak aktif...");
-            await recoverSession();
-        } else {
-            runMissionStream();
+    // 2. LOGIKA SYNC KONTRAK
+    targetDb.ref(`kontrak_aktif/${qId}`).on('value', snap => {
+        if (!snap.exists()) {
+            console.log("Kontrak tidak terbaca di Firebase");
+            document.getElementById('missionTarget').innerText = "KONTRAK TIDAK DITEMUKAN";
+            return;
         }
-    }
 
-    // --- FITUR SELF-HEALING: Mencari kontrak jika ID hilang ---
-    async function recoverSession() {
-        try {
-            const snap = await targetDb.ref('kontrak_aktif').once('value');
-            let found = false;
-            
-            snap.forEach(child => {
-                const d = child.val();
-                const myNick = session.nick.toLowerCase();
-                if (d.requester.toLowerCase() === myNick || d.adventurer.toLowerCase() === myNick) {
-                    currentQuestId = d.id_misi;
-                    currentQuestPath = d.path_asli; // Diambil dari suntikan data di briefing
-                    sessionStorage.setItem('active_quest', currentQuestId);
-                    sessionStorage.setItem('active_quest_path', currentQuestPath);
-                    found = true;
-                }
-            });
+        const data = snap.val();
+        const myNick = session.nick.toLowerCase();
+        const isAdv = (myNick === data.adventurer.toLowerCase());
+        const lawan = isAdv ? data.requester : data.adventurer;
 
-            if (found) {
-                runMissionStream();
-            } else {
-                alert("KONTRAK TIDAK DITEMUKAN.");
-                window.location.href = "index.html";
-            }
-        } catch (e) { console.error(e); }
-    }
+        // Update UI
+        document.getElementById('missionTarget').innerText = "TARGET: " + lawan.toUpperCase();
+        document.getElementById('myRole').innerText = "ROLE: " + (isAdv ? "ADVENTURER" : "REQUESTER");
 
-    // --- STREAM UTAMA ---
-    function runMissionStream() {
-        // 1. Monitor Kontrak
-        targetDb.ref(`kontrak_aktif/${currentQuestId}`).on('value', snap => {
-            if (!snap.exists()) return;
-            const data = snap.val();
+        // Role Power: Adventurer bisa klik, Requester cuma nonton
+        const finishBtn = document.getElementById('btnFinish');
+        if (isAdv) {
+            finishBtn.disabled = false;
+            finishBtn.innerText = "SELESAIKAN MISI";
+            finishBtn.style.opacity = "1";
+        } else {
+            finishBtn.disabled = true;
+            finishBtn.innerText = "MENUNGGU ADVENTURER SELESAI...";
+            finishBtn.style.opacity = "0.5";
+        }
 
-            const isAdv = session.nick.toLowerCase() === data.adventurer.toLowerCase();
-            const lawan = isAdv ? data.requester : data.adventurer;
-            
-            document.getElementById('missionTarget').innerText = "TARGET: " + lawan.toUpperCase();
-            document.getElementById('myRole').innerText = isAdv ? "ADVENTURER" : "REQUESTER";
+        // Auto pindah kalau status 'completed'
+        if (data.status === "completed") {
+            window.location.href = "rating.html";
+        }
+    });
 
-            // Role Action
-            const btn = document.getElementById('btnFinish');
-            if (isAdv) {
-                btn.disabled = false;
-                btn.innerText = "SELESAIKAN MISI";
-            } else {
-                btn.disabled = true;
-                btn.innerText = "MENUNGGU ADVENTURER...";
-                btn.style.opacity = "0.5";
-            }
-
-            // Pindah halaman jika selesai
-            if (data.status === "completed") {
-                window.location.href = "rating.html";
-            }
-        });
-
-        // 2. Monitor Chat
-        targetDb.ref(`chats/${currentQuestId}`).on('child_added', snap => {
-            const c = snap.val();
-            const isMe = c.sender.toLowerCase() === session.nick.toLowerCase();
-            const box = document.getElementById('chatBox');
-            
-            const div = document.createElement('div');
-            div.className = `msg ${isMe ? 'me' : 'them'}`;
-            div.innerText = c.text;
-            box.appendChild(div);
-            box.scrollTop = box.scrollHeight;
-        });
-    }
+    // 3. LOGIKA CHAT
+    targetDb.ref(`chats/${qId}`).on('child_added', snap => {
+        const c = snap.val();
+        const isMe = c.sender.toLowerCase() === session.nick.toLowerCase();
+        const box = document.getElementById('chatBox');
+        
+        const div = document.createElement('div');
+        div.className = `msg ${isMe ? 'me' : 'them'}`;
+        div.innerText = c.text;
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    });
 
     function sendChat() {
         const val = document.getElementById('msgInput').value;
-        if (!val) return;
-        targetDb.ref(`chats/${currentQuestId}`).push({
+        if (!val || !qId) return;
+        targetDb.ref(`chats/${qId}`).push({
             sender: session.nick,
             text: val,
             timestamp: Date.now()
@@ -141,18 +115,22 @@
     }
 
     async function completeMission() {
-        if (!confirm("Akhiri misi sekarang?")) return;
+        if (!confirm("Konfirmasi misi selesai?")) return;
         
-        // Hancurkan status di dua tempat
-        await targetDb.ref(`kontrak_aktif/${currentQuestId}`).update({ status: "completed" });
-        await targetDb.ref(currentQuestPath).update({ status: "completed" });
-        
-        // Adventurer langsung pindah
-        window.location.href = "rating.html";
-    }
+        try {
+            // Kita buat urutan eksekusi yang jelas
+            await targetDb.ref(`kontrak_aktif/${qId}`).update({ status: "completed" });
+            
+            // Kalau qPath ada, kita update, kalau gak ada kita skip biar gak error
+            if (qPath) {
+                await targetDb.ref(qPath).update({ status: "completed" });
+            }
 
-    // Jalankan mesin utama
-    startLogic();
+            window.location.href = "rating.html";
+        } catch (e) {
+            alert("Gagal Update: " + e.message);
+        }
+    }
 </script>
 
 </body>
