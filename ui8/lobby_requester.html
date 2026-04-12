@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LOBBY | SELEKSI ADVENTURER</title>
+    <title>LOBBY | SELEKSI</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
@@ -19,8 +19,8 @@
 <body>
 
 <div class="header">
-    <h2 style="color:#ff0055; margin:0;">BIDS RECEIVED</h2>
-    <small id="misiInfo">Memuat info misi...</small>
+    <h2 style="color:#ff0055; margin:0;">TERMINAL BIDS</h2>
+    <small id="misiInfo">Menunggu penawaran...</small>
 </div>
 
 <div id="listBids"></div>
@@ -30,16 +30,16 @@
     const questId = sessionStorage.getItem('active_quest');
     const questPath = sessionStorage.getItem('active_quest_path');
     
-    if(!questPath) window.location.href = "index.html";
+    if(!questId) window.location.href = "index.html";
     const targetDb = getDatabaseByShard(session.shard_id);
 
-    document.getElementById('misiInfo').innerText = "ID: " + questId;
+    document.getElementById('misiInfo').innerText = "QUEST ID: " + questId;
 
-    // Pantau penawaran yang masuk
-    targetDb.ref(`${questPath}/bids`).on('value', snap => {
+    // 1. Pantau penawaran di tabel TERPISAH (terminal_bids)
+    targetDb.ref(`terminal_bids/${questId}`).on('value', snap => {
         const box = document.getElementById('listBids');
         box.innerHTML = "";
-        if(!snap.exists()) return box.innerHTML = "<p style='text-align:center; color:#555;'>Belum ada tawaran...</p>";
+        if(!snap.exists()) return box.innerHTML = "<p style='text-align:center; color:#555;'>Belum ada tawaran masuk...</p>";
 
         snap.forEach(child => {
             const b = child.val();
@@ -50,19 +50,22 @@
                         <span>Tawaran: ${b.price} G</span>
                     </div>
                     <button onclick="terima('${b.adventurer}', ${b.price}, '${b.shard_id}')">PILIH</button>
-                </div>
-            `;
+                </div>`;
         });
     });
 
     async function terima(advNick, price, advShard) {
-        if(!confirm(`Serahkan tugas ke ${advNick}?`)) return;
+        if(!confirm(`Rekrut ${advNick}?`)) return;
 
         try {
-            // 1. Update status misi di Shard
-            await targetDb.ref(questPath).update({ status: "taken", assigned_to: advNick, final_price: price });
+            // A. Update status misi di Radar
+            await targetDb.ref(questPath).update({ 
+                status: "taken", 
+                assigned_to: advNick, 
+                final_price: price 
+            });
 
-            // 2. Kirim Undangan ke Shard si Adventurer
+            // B. Kirim Undangan ke Database Shard si Adventurer
             const advDb = getDatabaseByShard(advShard);
             const pathUndangan = `adventurer-${advShard.toLowerCase()}/${advNick}/undangan_aktif`;
             await advDb.ref(pathUndangan).set({
@@ -70,7 +73,7 @@
                 path_misi: questPath
             });
 
-            // 3. Buat Kontrak
+            // C. Buat Kontrak Aktif di Database Lokal
             await targetDb.ref(`kontrak_aktif/${questId}`).set({
                 id_misi: questId,
                 requester: session.nick,
@@ -79,10 +82,12 @@
                 timestamp: Date.now()
             });
 
+            // D. BERSIHKAN TERMINAL (Hapus semua bid yang masuk untuk misi ini)
+            await targetDb.ref(`terminal_bids/${questId}`).remove();
+
             window.location.href = "briefing.html";
         } catch (e) { alert(e.message); }
     }
 </script>
-
 </body>
 </html>
