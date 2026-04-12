@@ -3,88 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LOGIN | MULTI-DB SYSTEM</title>
+    <title>LOGIN | SYSTEM</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #000; color: #00ffff; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-box { background: #111; padding: 30px; border: 1px solid #00ffff; border-radius: 10px; width: 300px; text-align: center; }
-        input { width: 100%; padding: 10px; margin: 10px 0; background: #000; border: 1px solid #333; color: #fff; text-align: center; }
-        button { width: 100%; padding: 12px; background: #00ffff; color: #000; border: none; font-weight: bold; cursor: pointer; }
-        .error-msg { color: #ff0055; font-size: 12px; margin-bottom: 10px; display: none; }
+        body { background: #000; color: #00ffff; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background: #111; padding: 30px; border: 2px solid #00ffff; border-radius: 15px; width: 320px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 10px 0; background: #050505; border: 1px solid #333; color: #fff; text-align: center; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #00ffff; color: #000; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .msg { color: #ffaa00; font-size: 11px; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="login-box">
-    <h3>GUILD LOGIN</h3>
-    <div id="error" class="error-msg"></div>
+    <h2 style="color:#ff0055">GATEWAY</h2>
     <input type="text" id="nick" placeholder="NICKNAME">
     <input type="password" id="pass" placeholder="PASSWORD">
-    <button id="btnEnter" onclick="executeLogin()">ENTER SYSTEM</button>
+    <button id="btnEnter" onclick="executeLogin()">AUTHENTICATE</button>
+    <div id="status" class="msg"></div>
 </div>
 
 <script>
-    // Cek apakah sudah login
-    if(localStorage.getItem('pickme_session')) {
-        const s = JSON.parse(localStorage.getItem('pickme_session'));
-        redirectUser(s.role);
-    }
-
+    // LOGIKA: Jangan pakai auto-redirect di sini agar user bisa ganti akun
     async function executeLogin() {
         const nick = document.getElementById('nick').value.trim().toLowerCase();
         const pass = document.getElementById('pass').value;
         const btn = document.getElementById('btnEnter');
-        const err = document.getElementById('error');
+        const status = document.getElementById('status');
 
         if(!nick || !pass) return;
 
         btn.disabled = true;
-        btn.innerText = "SYNCHRONIZING...";
+        status.innerText = "Verifying Credentials...";
 
         try {
-            // SELALU CEK KE DATABASE UTAMA (Registry)
             const snap = await db.ref(`users_registry/${nick}`).get();
 
-            if(!snap.exists()) {
-                throw new Error("Nickname tidak terdaftar!");
-            }
-
+            if(!snap.exists()) throw new Error("ID Tidak Ditemukan!");
             const user = snap.val();
 
-            if(user.password !== pass) {
-                throw new Error("Password tidak cocok!");
-            }
+            if(user.password !== pass) throw new Error("Password Salah!");
 
-            // Validasi Shard ID (Mencegah undefined)
-            if(!user.shard_id) {
-                throw new Error("Data wilayah (Shard) hilang. Hubungi Admin.");
-            }
-
-            // SIMPAN SESI DENGAN DATA VALID
+            // Simpan Sesi Lengkap
             const sessionData = {
                 nick: user.nick,
                 role: user.role,
-                shard_id: user.shard_id.toLowerCase(), // Pastikan lowercase
+                shard_id: user.shard_id.toLowerCase(),
                 category: user.category || "MOTOR",
-                login_time: Date.now()
+                vitality: user.vitality || 100
             };
 
             localStorage.setItem('pickme_session', JSON.stringify(sessionData));
-            redirectUser(user.role);
+            
+            // Redirect sesuai role
+            if(user.role === "adventurer") {
+                window.location.href = "dashboard_adventurer.html";
+            } else {
+                window.location.href = "index.html";
+            }
 
         } catch (e) {
-            err.innerText = e.message;
-            err.style.display = "block";
+            alert(e.message);
+            status.innerText = "";
             btn.disabled = false;
-            btn.innerText = "ENTER SYSTEM";
         }
-    }
-
-    function redirectUser(role) {
-        if(role === "adventurer") window.location.href = "dashboard_adventurer.html";
-        else window.location.href = "index.html";
     }
 </script>
 </body>
