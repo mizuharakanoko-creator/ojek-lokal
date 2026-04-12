@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PUBLISH MISSION | SOVEREIGN</title>
+    <title>CREATE MISSION | SOVEREIGN</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
         body { background: #050505; color: white; font-family: 'Courier New', monospace; padding: 20px; }
         .form-card { background: #111; padding: 25px; border-radius: 15px; border: 1px solid #333; max-width: 400px; margin: auto; }
-        h2 { text-align: center; color: #00ffff; margin-bottom: 20px; text-transform: uppercase; }
+        h2 { text-align: center; color: #00ffff; margin-bottom: 20px; }
         label { font-size: 11px; color: #888; display: block; margin-top: 15px; }
         input, select, textarea { width: 100%; padding: 12px; margin-top: 5px; background: #000; border: 1px solid #444; color: #fff; border-radius: 8px; box-sizing: border-box; }
-        #btnPublish { width: 100%; padding: 18px; background: #00ffff; color: #000; border: none; font-weight: bold; margin-top: 25px; border-radius: 8px; cursor: pointer; }
-        #btnPublish:disabled { background: #333; color: #666; }
-        .identity-box { border: 1px dashed #00ffff; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+        #btnPublish { width: 100%; padding: 18px; background: #ff0055; color: #fff; border: none; font-weight: bold; margin-top: 25px; border-radius: 8px; cursor: pointer; }
+        #btnPublish:disabled { background: #444; color: #888; }
     </style>
 </head>
 <body>
@@ -23,116 +22,109 @@
 <div class="form-card">
     <h2>NEW MISSION</h2>
     
-    <div class="identity-box">
-        <label>KIRIM SEBAGAI:</label>
-        <select id="senderSelect">
-            </select>
-    </div>
+    <label>KIRIM SEBAGAI</label>
+    <select id="senderSelect">
+        </select>
 
     <label>ARMADA</label>
     <select id="cat">
-        <option value="MOTOR">MOTOR (BIKE)</option>
-        <option value="MOBIL">MOBIL (CAR)</option>
+        <option value="MOTOR">MOTOR</option>
+        <option value="MOBIL">MOBIL</option>
     </select>
 
-    <label>TUJUAN</label>
+    <label>LOKASI TUJUAN</label>
     <input type="text" id="tujuan" placeholder="Ke mana?">
 
-    <label>REWARD (G)</label>
-    <input type="number" id="price" placeholder="Harga">
+    <label>HARGA / REWARD</label>
+    <input type="number" id="price" placeholder="Contoh: 15000">
 
-    <label>TUGAS</label>
-    <textarea id="desc" rows="2" placeholder="Detail..."></textarea>
+    <label>KETERANGAN</label>
+    <textarea id="desc" rows="2"></textarea>
     
-    <button id="btnPublish" onclick="startPublishProcess()">PUBLISH MISSION</button>
+    <button id="btnPublish" onclick="startPublish()">PUBLISH MISSION</button>
 </div>
 
 <script>
-    // 1. Baca localhost untuk ambil semua identitas yang pernah login
-    function setupIdentities() {
+    // 1. SETUP IDENTITAS (AMBIL DARI LOCALSTORAGE)
+    function init() {
         const select = document.getElementById('senderSelect');
         const session = JSON.parse(localStorage.getItem('pickme_session'));
         
-        // Tambahkan user aktif sekarang
+        // Selalu tampilkan user yang login saat ini
         if(session) {
             let opt = document.createElement('option');
             opt.value = JSON.stringify(session);
-            opt.innerText = `${session.nick.toUpperCase()} (${session.role})`;
+            opt.innerText = session.nick.toUpperCase() + " (ACTIVE)";
             select.appendChild(opt);
-        }
-
-        // Jika ada akun lain di storage (opsional jika kamu simpan list akun)
-        // Kita buat opsi default jika session kosong
-        if(!session) {
-            let guest = { nick: "GUEST", shard_id: "IDN-JABAR-KNG-KUNINGAN", role: "guest" };
+        } else {
+            // Jika benar-benar kosong, buatkan identitas darurat agar tidak stuck
+            let guest = { nick: "GUEST", shard_id: "IDN-JABAR-KNG-KUNINGAN" };
             let opt = document.createElement('option');
             opt.value = JSON.stringify(guest);
             opt.innerText = "GUEST MODE";
             select.appendChild(opt);
         }
     }
-    setupIdentities();
+    init();
 
-    async function startPublishProcess() {
+    async function startPublish() {
+        const btn = document.getElementById('btnPublish');
         const tujuan = document.getElementById('tujuan').value.trim();
         const price = document.getElementById('price').value;
-        if (!tujuan || !price) return alert("Lengkapi data!");
 
-        const btn = document.getElementById('btnPublish');
+        if (!tujuan || !price) return alert("Data tidak lengkap!");
+
         btn.disabled = true;
-        btn.innerText = "GETTING LOCATION...";
+        btn.innerText = "CONNECTING...";
 
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (p) => executePublish(tujuan, price, p.coords.latitude, p.coords.longitude),
-                () => executePublish(tujuan, price, null, null)
-            );
-        } else {
-            executePublish(tujuan, price, null, null);
-        }
+        // Langsung hajar eksekusi tanpa nunggu GPS kalau lemot
+        executePublish(tujuan, price);
     }
 
-    async function executePublish(tujuan, price, lat, lon) {
+    async function executePublish(tujuan, price) {
         const btn = document.getElementById('btnPublish');
-        btn.innerText = "SENDING...";
-
-        // Ambil identitas yang dipilih dari dropdown
-        const selectedUser = JSON.parse(document.getElementById('senderSelect').value);
-
+        const user = JSON.parse(document.getElementById('senderSelect').value);
+        
         try {
-            const targetDb = getDatabaseByShard(selectedUser.shard_id);
+            // CEK KONEKSI DATABASE
+            const targetDb = getDatabaseByShard(user.shard_id);
+            if (!targetDb) {
+                throw new Error("Gagal menyambung ke Shard Database. Cek firebase-config.js!");
+            }
+
+            btn.innerText = "SENDING...";
+
             const idMisi = "MS-" + Date.now();
             const category = document.getElementById('cat').value;
-
-            // PERBAIKAN PATH: Pakai Shard ID Langsung agar tidak salah folder
-            // Path ini harus sama persis dengan yang dibaca oleh lobby_adventurer.html
-            const shardSuffix = selectedUser.shard_id.split('-').pop().toUpperCase(); 
-            const path = `${category}-KUNINGAN-PUSAT-${shardSuffix}/KEDUNGARUM/${idMisi}`;
-
-            console.log("Publishing to:", path); // Debug di console
+            // Gunakan path paling sederhana untuk ngetes
+            const path = `${category}-KUNINGAN-PUSAT-KUNINGAN/KEDUNGARUM/${idMisi}`;
 
             const dataMisi = {
                 id: idMisi,
-                requester: selectedUser.nick,
+                requester: user.nick,
                 tujuan: tujuan,
-                description: document.getElementById('desc').value,
+                description: document.getElementById('desc').value || "-",
                 price: parseInt(price),
                 status: "open",
-                shard_origin: selectedUser.shard_id,
-                coords: lat ? { lat, lon } : "no-gps",
                 timestamp: Date.now()
             };
 
-            await targetDb.ref(path).set(dataMisi);
-
-            // Simpan jejak
-            sessionStorage.setItem('active_quest', idMisi);
-            sessionStorage.setItem('active_quest_path', path);
-            
-            window.location.href = "lobby_requester.html";
+            // EKSEKUSI (Gunakan .set dengan callback agar tidak gantung)
+            targetDb.ref(path).set(dataMisi, (error) => {
+                if (error) {
+                    alert("Gagal simpan ke DB: " + error.message);
+                    btn.disabled = false;
+                    btn.innerText = "RETRY PUBLISH";
+                } else {
+                    // BERHASIL -> SIMPAN SESSION & PINDAH
+                    sessionStorage.setItem('active_quest', idMisi);
+                    sessionStorage.setItem('active_quest_path', path);
+                    window.location.href = "lobby_requester.html";
+                }
+            });
 
         } catch (e) {
-            alert("Gagal: " + e.message);
+            alert("SISTEM ERROR: " + e.message);
             btn.disabled = false;
             btn.innerText = "PUBLISH MISSION";
         }
