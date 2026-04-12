@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Publish Quest</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; padding: 20px; }
+        .header { border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; color: #ff0055; }
+        .form-group { margin-bottom: 15px; }
+        input, textarea, select { width: 100%; padding: 10px; background: #111; border: 1px solid #444; color: #fff; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #ff0055; color: #fff; border: none; font-weight: bold; cursor: pointer; }
+        button:hover { background: #cc0044; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>[ PUBLISH NEW QUEST ]</h2>
+    <span id="userInfo" style="color: #888; font-size: 12px;"></span>
+</div>
+
+<div class="form-group">
+    <label>Tipe Misi:</label>
+    <select id="quest_type">
+        <option value="DELIVERY">Pengiriman Barang</option>
+        <option value="RIDE">Ojek / Antar Jemput</option>
+        <option value="BUY">Titip Beli</option>
+    </select>
+</div>
+
+<div class="form-group">
+    <label>Titik Jemput / Asal:</label>
+    <input type="text" id="quest_origin" placeholder="Cth: Indomaret Cirendang">
+</div>
+
+<div class="form-group">
+    <label>Tujuan:</label>
+    <input type="text" id="quest_dest" placeholder="Cth: Perumahan Pesona Kuningan">
+</div>
+
+<div class="form-group">
+    <label>Reward Dasar (Rp):</label>
+    <input type="number" id="quest_reward" placeholder="Cth: 15000">
+</div>
+
+<button id="btnPublish" onclick="publishMission()">SEBARKAN MISI KE LOKASI</button>
+
+<script>
+    // 1. Validasi Identitas (Bisa dipakai oleh Quest/Guest atau Requester)
+    const user = Clearchance.enforceIdentity();
+    document.getElementById('userInfo').innerText = `Requester: ${user.nick} | Zona: ${user.zone}`;
+
+    function publishMission() {
+        const type = document.getElementById('quest_type').value;
+        const origin = document.getElementById('quest_origin').value.trim();
+        const dest = document.getElementById('quest_dest').value.trim();
+        const reward = document.getElementById('quest_reward').value;
+        const btn = document.getElementById('btnPublish');
+
+        if (!origin || !dest || !reward) return alert("Lengkapi semua data koordinat dan reward!");
+
+        btn.disabled = true;
+        btn.innerText = "MENGIRIM SINYAL KE TERMINAL...";
+
+        // Generate ID Misi Unik
+        const missionId = "MS-" + Date.now();
+        
+        // Panggil Terminal 4 (Board) dan Terminal 1 (Master Index)
+        const boardDB = getTerminal('FB4_BOARD');
+        const masterDB = getTerminal('FB1_MASTER');
+
+        const missionData = {
+            id: missionId,
+            requester_id: user.uid,
+            requester_nick: user.nick,
+            zona: user.zone,
+            type: type,
+            origin: origin,
+            destination: dest,
+            reward: parseInt(reward),
+            status: 'open',
+            created_at: Date.now()
+        };
+
+        // Simpan ke Terminal 4 (Zona Lokal)
+        boardDB.ref(`misi_aktif/${user.zone}/${missionId}`).set(missionData)
+        .then(() => {
+            // Lapor ke Buku Induk (Terminal 1) agar sistem tahu misi ini ada di mana
+            const indexLog = {
+                lokasi_terminal: 'FB4_BOARD',
+                path: `misi_aktif/${user.zone}/${missionId}`,
+                status: 'open',
+                timestamp: Date.now()
+            };
+            return masterDB.ref(`buku_induk/misi/${missionId}`).set(indexLog);
+        })
+        .then(() => {
+            alert("Misi berhasil disebar ke jaringan " + user.zone + "!");
+            // Set session bahwa user ini sedang punya misi aktif
+            sessionStorage.setItem('active_mission_id', missionId);
+            window.location.href = "lobby_requester.html"; // Lempar ke pantauan misi
+        })
+        .catch(e => {
+            alert("Transmisi Gagal: " + e.message);
+            btn.disabled = false;
+            btn.innerText = "SEBARKAN MISI KE LOKASI";
+        });
+    }
+</script>
+
+</body>
+</html>
