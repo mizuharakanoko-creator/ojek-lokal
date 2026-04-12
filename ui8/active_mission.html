@@ -2,45 +2,128 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>MISSION IN PROGRESS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MISSION IN PROGRESS | SOVEREIGN GUILD</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: monospace; text-align: center; padding: 50px 20px; }
-        .radar-ring { width: 100px; height: 100px; border: 4px solid #00ffff; border-radius: 50%; margin: 0 auto 20px; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0.4); } 70% { box-shadow: 0 0 0 20px rgba(0, 255, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0); } }
-        button { background: #ff0055; color: white; padding: 15px 30px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; margin-top: 30px; }
+        body { background: #050505; color: white; font-family: monospace; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .mission-header { background: #111; padding: 15px; border-bottom: 2px solid #00ffff; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* Chat UI */
+        #chatBox { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #0a0a0a; }
+        .msg { max-width: 80%; padding: 10px; border-radius: 8px; font-size: 13px; position: relative; }
+        .msg.me { align-self: flex-end; background: #00ffff; color: #000; }
+        .msg.them { align-self: flex-start; background: #222; color: #fff; border: 1px solid #333; }
+        .msg small { display: block; font-size: 9px; opacity: 0.7; margin-top: 5px; }
+
+        .input-area { background: #111; padding: 10px; display: flex; gap: 8px; border-top: 1px solid #333; }
+        input { flex: 1; padding: 12px; background: #000; border: 1px solid #444; color: white; border-radius: 4px; }
+        
+        /* Action Buttons */
+        .action-bar { background: #111; padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn { padding: 12px; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; text-align: center; text-decoration: none; font-size: 12px; }
+        .btn-wa { background: #25d366; color: white; }
+        .btn-map { background: #4285f4; color: white; }
+        .btn-finish { background: #ff0055; color: white; grid-column: span 2; font-size: 16px; margin-top: 5px; }
     </style>
 </head>
 <body>
-    <div class="radar-ring"></div>
-    <h2 style="color:#00ffff;">MISI SEDANG BERJALAN</h2>
-    <p id="statusTxt" style="color:#888;">Adventurer sedang dalam perjalanan...</p>
 
-    <button id="btnFinish" style="display:none;" onclick="selesaikanMisi()">BARANG DITERIMA (SELESAI)</button>
+<div class="mission-header">
+    <div>
+        <small style="color:#888;">MISSION ACTIVE</small>
+        <div id="displayTarget" style="font-weight:bold; color:#00ffff;">Loading...</div>
+    </div>
+    <div id="statusBadge" style="font-size:10px; border:1px solid #00ff00; color:#00ff00; padding:2px 5px;">ON PROGRESS</div>
+</div>
 
-    <script>
-        const session = JSON.parse(localStorage.getItem('pickme_session'));
-        const questId = sessionStorage.getItem('active_quest');
+<div id="chatBox"></div>
 
-        // Hanya Requester (Citizen) yang boleh menyelesaikan misi
-        if(session.role !== "adventurer") {
-            document.getElementById('btnFinish').style.display = "inline-block";
+<div class="input-area">
+    <input type="text" id="msgInput" placeholder="Ketik pesan ketuk Enter...">
+    <button onclick="sendChat()" style="background:#00ffff; border:none; padding:10px 15px; border-radius:4px;">🚀</button>
+</div>
+
+<div class="action-bar">
+    <a id="linkWA" href="#" target="_blank" class="btn btn-wa">💬 WHATSAPP</a>
+    <a id="linkMap" href="https://www.google.com/maps" target="_blank" class="btn btn-map">📍 GOOGLE MAPS</a>
+    
+    <button class="btn btn-finish" onclick="completeMission()">SELESAIKAN MISI</button>
+</div>
+
+<script>
+    const rawSession = localStorage.getItem('pickme_session');
+    const session = rawSession ? JSON.parse(rawSession) : { nick: "GUEST", shard_id: "IDN-JABAR-KNG-KUNINGAN" };
+    
+    const questId = sessionStorage.getItem('active_quest');
+    const questPath = sessionStorage.getItem('active_quest_path');
+    const targetDb = getDatabaseByShard(session.shard_id);
+
+    if(!questId) window.location.href = "index.html";
+
+    // 1. Inisialisasi Data & Listener Status
+    targetDb.ref(`kontrak_aktif/${questId}`).on('value', snap => {
+        if(!snap.exists()) {
+            // Jika data dihapus oleh pihak lain (Destruction), tendang ke index
+            window.location.href = "index.html";
+            return;
+        }
+        const data = snap.val();
+        
+        // Tentukan lawan bicara
+        const lawan = (session.nick === data.adventurer) ? data.requester : data.adventurer;
+        document.getElementById('displayTarget').innerText = "VS " + lawan.toUpperCase();
+
+        // Logika Tombol Selesai: Hanya muncul/aktif untuk Adventurer (Wawa)
+        if(session.nick !== data.adventurer) {
+            document.getElementById('linkMap').style.opacity = "0.3";
+            document.getElementById('linkMap').onclick = (e) => e.preventDefault();
         }
 
-        // Adventurer dipantau, jika kontrak dihapus/selesai, kembali ke radar
-        db.ref(`kontrak_aktif/${questId}`).on('value', snap => {
-            if(!snap.exists() && session.role === "adventurer") {
-                alert("Misi telah diselesaikan oleh Requester!");
-                sessionStorage.removeItem('active_quest');
-                window.location.href = "dashboard_adventurer.html";
-            }
+        // Cek jika status berubah jadi 'completed' oleh lawan
+        if(data.status === "completed") {
+            window.location.href = "rating.html";
+        }
+    });
+
+    // 2. Chat P2P System
+    function sendChat() {
+        const text = document.getElementById('msgInput').value;
+        if(!text) return;
+
+        targetDb.ref(`chats/${questId}`).push({
+            sender: session.nick,
+            text: text,
+            timestamp: Date.now()
         });
+        document.getElementById('msgInput').value = "";
+    }
 
-        function selesaikanMisi() {
-            window.location.href = "completion_rating.html";
-        }
-    </script>
-</body>
-</html>
+    targetDb.ref(`chats/${questId}`).limitToLast(20).on('child_added', snap => {
+        const c = snap.val();
+        const box = document.getElementById('chatBox');
+        const isMe = c.sender === session.nick;
+        
+        box.innerHTML += `
+            <div class="msg ${isMe ? 'me' : 'them'}">
+                ${c.text}
+                <small>${new Date(c.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</small>
+            </div>
+        `;
+        box.scrollTop = box.scrollHeight;
+    });
+
+    // Support Enter Key
+    document.getElementById('msgInput').addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendChat();
+    });
+
+    // 3. Complete Mission & Trigger Rating
+    async function completeMission() {
+        if(!confirm("Yakin misi sudah selesai?")) return;
+
+        try {
+            // Update status di kontrak agar lawan ikut pindah halaman
+            await target
