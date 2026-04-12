@@ -31,7 +31,7 @@
 </div>
 
 <script>
-    // 1. Bersihkan semua sesi lama saat masuk halaman login
+    // 1. Membersihkan sisa-sisa sesi lama agar tidak terjadi loop alert
     if(typeof Clearchance !== 'undefined') {
         Clearchance.nuclearWipe();
     } else {
@@ -51,81 +51,66 @@
         const db1 = getTerminal('FB1_MASTER');
 
         try {
-            // --- 1. Cek di Adventurer Index ---
+            // --- Pencarian Berlapis di Master Database ---
+            
+            // 1. Cek Tabel Adventurer
             let userFound = await findUserInTable(db1, 'adventurer_index', input);
-            if (userFound) {
-                if (userFound.password === pass) {
-                    // Pastikan role dan info dasar ada untuk Clearchance
-                    const sessionData = {
-                        uid: userFound.uid || userFound.id_adventurer,
-                        nick: userFound.nickname,
-                        role: 'adventurer',
-                        zone: userFound.area_tugas || userFound.zone || "KNG"
-                    };
-                    // Simpan dengan key 'user_identity' agar sinkron dengan Clearchance
-                    sessionStorage.setItem('user_identity', JSON.stringify(sessionData));
-                    window.location.href = "lobby_adventurer.html";
-                    return;
-                } else {
-                    return failLogin("Password salah!");
-                }
+            if (userFound && userFound.password === pass) {
+                saveAndRedirect(userFound, 'adventurer', "lobby_adventurer.html");
+                return;
             }
 
-            // --- 2. Cek di Requester Index ---
+            // 2. Cek Tabel Requester
             userFound = await findUserInTable(db1, 'requester_index', input);
-            if (userFound) {
-                if (userFound.password === pass) {
-                    const sessionData = {
-                        uid: userFound.uid || userFound.id_requester,
-                        nick: userFound.nickname,
-                        role: 'requester',
-                        zone: userFound.zone || "KNG"
-                    };
-                    sessionStorage.setItem('user_identity', JSON.stringify(sessionData));
-                    window.location.href = "lobby_requester.html";
-                    return;
-                } else {
-                    return failLogin("Password salah!");
-                }
+            if (userFound && userFound.password === pass) {
+                saveAndRedirect(userFound, 'requester', "lobby_requester.html");
+                return;
             }
 
-            // --- 3. Cek di Register Pending ---
+            // 3. Cek Tabel Register Pending
             userFound = await findUserInTable(db1, 'register_pending', input);
-            if (userFound) {
-                if (userFound.password === pass) {
-                    const sessionData = {
-                        uid: userFound.uid,
-                        nick: userFound.nickname,
-                        role: 'pending'
-                    };
-                    sessionStorage.setItem('user_identity', JSON.stringify(sessionData));
-                    window.location.href = "waiting_room.html";
-                    return;
-                } else {
-                    return failLogin("Password salah!");
-                }
+            if (userFound && userFound.password === pass) {
+                saveAndRedirect(userFound, 'pending', "waiting_room.html");
+                return;
             }
 
-            failLogin("Nickname atau ID tidak terdaftar.");
+            // Jika sampai sini berarti password salah atau user tidak ada
+            failLogin("Akses Ditolak: Kredensial tidak valid.");
 
         } catch (e) {
             console.error(e);
-            failLogin("Kesalahan koneksi terminal.");
+            failLogin("Terjadi kegagalan transmisi terminal.");
         }
     }
 
+    // Fungsi Utama: Sinkronisasi Data dengan Clearchance
+    function saveAndRedirect(data, role, targetPage) {
+        const sessionData = {
+            uid: data.uid || data.id_adventurer || data.id_requester || "USR-" + Date.now(),
+            nick: data.nickname || data.nick,
+            role: role,
+            zone: data.area_tugas || data.zone || "KNG" // Default zona Kuningan jika kosong
+        };
+
+        // KRITIKAL: Gunakan key 'user_identity' agar Clearchance tidak menganggap identitas hilang
+        sessionStorage.setItem('user_identity', JSON.stringify(sessionData));
+        
+        window.location.href = targetPage;
+    }
+
     async function findUserInTable(db, path, val) {
-        // Cek ID
+        // Cari berdasarkan ID langsung (Key)
         const snapById = await db.ref(`${path}/${val}`).once('value');
         if (snapById.exists()) return snapById.val();
 
-        // Cek Nickname
+        // Cari berdasarkan property 'nickname'
         const snapByNick = await db.ref(path).orderByChild('nickname').equalTo(val).once('value');
         if (snapByNick.exists()) {
-            const data = snapByNick.val();
-            const firstKey = Object.keys(data)[0];
-            return data[firstKey];
+            const result = snapByNick.val();
+            const keys = Object.keys(result);
+            return result[keys[0]];
         }
+
         return null;
     }
 
