@@ -12,6 +12,7 @@
         .form-card { background: #111; padding: 20px; border-radius: 10px; border: 1px solid #333; max-width: 400px; margin: auto; }
         input, select, textarea { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
         button { width: 100%; padding: 15px; background: #ff0055; color: #fff; border: none; font-weight: bold; cursor: pointer; }
+        .warning-box { background: #442200; color: #ffaa00; padding: 10px; font-size: 12px; border-radius: 5px; margin-bottom: 15px; display: none; }
         .logout { background: none; color: #555; border: none; margin-top: 20px; text-decoration: underline; cursor: pointer; }
     </style>
 </head>
@@ -19,6 +20,11 @@
 
 <div class="form-card">
     <h2 style="text-align:center; color:#00ffff;">CREATE MISSION</h2>
+    
+    <div id="roleWarning" class="warning-box">
+        ⚠️ Terdeteksi Sesi Adventurer. Gunakan akun Requester agar misi terbit dengan benar.
+    </div>
+
     <label>Armada</label>
     <select id="cat">
         <option value="MOTOR">MOTOR</option>
@@ -28,44 +34,69 @@
     <textarea id="desc" placeholder="Detail Tugas"></textarea>
     <input type="number" id="price" placeholder="Reward (G)">
     
-    <button onclick="publishMisi()">PUBLISH MISSION</button>
-    <center><button class="logout" onclick="logout()">EXIT SYSTEM (LOGOUT)</button></center>
+    <button id="btnPublish" onclick="publishMisi()">PUBLISH MISSION</button>
+    <center><button class="logout" onclick="logout()">LOGOUT / CLEAR SESSION</button></center>
 </div>
 
 <script>
-    // PROTEKSI HALAMAN
-    const session = JSON.parse(localStorage.getItem('pickme_session'));
-    
-    if(!session) {
-        window.location.href = "login.html";
-    } else if(session.role !== "requester") {
-        // Jika Adventurer memaksa masuk ke index.html, arahkan ke dashboardnya sendiri
-        window.location.href = "dashboard_adventurer.html";
+    // 1. Ambil data sesi (Apapun yang ada di localhost)
+    const rawSession = localStorage.getItem('pickme_session');
+    const session = rawSession ? JSON.parse(rawSession) : null;
+
+    // 2. Cek apakah role-nya cocok. Jika tidak, tampilkan peringatan saja (Jangan lempar/redirect)
+    if (session && session.role !== "requester") {
+        document.getElementById('roleWarning').style.display = "block";
+        document.getElementById('btnPublish').innerText = "PUBLISH AS " + session.nick.toUpperCase();
     }
 
     async function publishMisi() {
+        // Cek apakah ada sesi sama sekali
+        if (!session) {
+            alert("Sesi tidak ditemukan. Silakan login kembali.");
+            window.location.href = "login.html";
+            return;
+        }
+
+        const tujuan = document.getElementById('tujuan').value.trim();
+        const price = document.getElementById('price').value;
+
+        if (!tujuan || !price) {
+            alert("Tujuan dan Harga wajib diisi!");
+            return;
+        }
+
+        // Tentukan database berdasarkan Shard ID user (Apapun role-nya saat itu)
         const targetDb = getDatabaseByShard(session.shard_id);
         const idMisi = "MS-" + Date.now();
-        const kec = session.shard_id.split('-').pop().toUpperCase();
+        
+        // Ambil kecamatan dari Shard ID secara aman
+        const shardParts = session.shard_id.split('-');
+        const kec = shardParts[shardParts.length - 1].toUpperCase();
+        
         const path = `${document.getElementById('cat').value}-KUNINGAN-PUSAT-${kec}/KEDUNGARUM/${idMisi}`;
 
         const data = {
             id: idMisi,
             requester: session.nick,
             shard_id: session.shard_id,
-            tujuan: document.getElementById('tujuan').value,
+            tujuan: tujuan,
             description: document.getElementById('desc').value,
-            price: parseInt(document.getElementById('price').value),
+            price: parseInt(price),
             status: "open",
             timestamp: Date.now()
         };
 
         try {
             await targetDb.ref(path).set(data);
+            
+            // Gunakan sessionStorage agar tidak menimpa localStorage aplikasi lain
             sessionStorage.setItem('active_quest', idMisi);
             sessionStorage.setItem('active_quest_path', path);
+            
             window.location.href = "lobby_requester.html";
-        } catch (e) { alert(e.message); }
+        } catch (e) { 
+            alert("Gagal terbit: " + e.message); 
+        }
     }
 
     function logout() {
