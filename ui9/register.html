@@ -3,89 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sovereign - Registrasi</title>
+    <title>Sovereign - Register</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="terminal_router.js"></script>
     <script src="clearchance.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: monospace; padding: 20px; display:flex; justify-content:center; align-items:center; height:90vh; }
+        body { background: #050505; color: white; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .box { background: #111; padding: 25px; border-radius: 8px; border: 1px solid #333; width: 100%; max-width: 350px; }
         input, select { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #00ffff; color: #000; border: none; font-weight: bold; cursor: pointer; margin-top: 15px; }
-        .back-link { display: block; text-align: center; margin-top: 15px; color: #888; text-decoration: none; font-size: 12px; }
+        button { width: 100%; padding: 15px; background: #00ffff; color: #000; border: none; font-weight: bold; cursor: pointer; width: 100%; }
     </style>
 </head>
 <body>
 
 <div class="box">
-    <h2 style="text-align: center; color: #00ffff;">REGISTRASI BARU</h2>
-    
-    <input type="text" id="reg_id" placeholder="Buat ID (Tanpa Spasi)">
-    <input type="text" id="reg_nick" placeholder="Nickname">
-    
-    <select id="reg_role">
-        <option value="adventurer">Adventurer (Driver)</option>
-        <option value="requester">Requester (Klien)</option>
-    </select>
-
+    <h2 style="text-align: center; color: #00ffff;">DAFTAR BARU</h2>
+    <input type="text" id="reg_id" placeholder="ID Unik (Cth: adven01)">
+    <input type="text" id="reg_nick" placeholder="Nama Tampilan">
     <select id="reg_zone">
-        <option value="KUNINGAN">Zona Kuningan</option>
-        <option value="KADUGEDE">Zona Kadugede</option>
+        <option value="KUNINGAN">Kec. Kuningan</option>
+        <option value="KADUGEDE">Kec. Kadugede</option>
+        <option value="CIGUGUR">Kec. Cigugur</option>
     </select>
-    
-    <button id="btnReg" onclick="prosesDaftar()">DAFTARKAN IDENTITAS</button>
-    <a href="login.html" class="back-link">Sudah punya ID? Kembali ke Login</a>
+    <button id="btnReg" onclick="prosesDaftar()">AJUKAN PENDAFTARAN</button>
 </div>
 
 <script>
-    Clearchance.nuclearWipe(); // Pastikan bersih
+    Clearchance.nuclearWipe(); // Sterilkan sebelum daftar
 
-    function prosesDaftar() {
-        const id = document.getElementById('reg_id').value.trim();
+    async function prosesDaftar() {
+        const id = document.getElementById('reg_id').value.trim().toLowerCase();
         const nick = document.getElementById('reg_nick').value.trim();
-        const role = document.getElementById('reg_role').value;
         const zone = document.getElementById('reg_zone').value;
         const btn = document.getElementById('btnReg');
 
-        if (!id || !nick) return alert("ID dan Nickname Wajib Diisi!");
+        if (!id || !nick) return alert("Lengkapi data!");
 
         btn.disabled = true;
-        btn.innerText = "MENYIMPAN KE MASTER...";
+        btn.innerText = "MENGHUBUNGI MASTER...";
 
         const masterDB = getTerminal('FB1_MASTER');
 
-        // Cek apakah ID sudah ada
-        masterDB.ref(`users/${id}`).once('value', snap => {
+        try {
+            // Cek apakah ID sudah terpakai
+            const snap = await masterDB.ref(`users/${id}`).once('value');
             if (snap.exists()) {
-                alert("ID sudah digunakan! Pilih ID lain.");
+                alert("ID sudah ada!");
                 btn.disabled = false;
-                btn.innerText = "DAFTARKAN IDENTITAS";
-            } else {
-                // Simpan data baru
-                const newData = {
-                    uid: id,
-                    nick: nick,
-                    role: role,
-                    zone: zone,
-                    status: (role === 'adventurer') ? 'pending' : 'active', // Adven butuh ACC
-                    created_at: Date.now()
-                };
-
-                masterDB.ref(`users/${id}`).set(newData)
-                .then(() => {
-                    alert("Registrasi Berhasil! Silakan Login.");
-                    window.location.href = "login.html";
-                })
-                .catch(e => {
-                    alert("Gagal menyimpan: " + e.message);
-                    btn.disabled = false;
-                    btn.innerText = "DAFTARKAN IDENTITAS";
-                });
+                return;
             }
-        });
+
+            const data = {
+                uid: id,
+                nick: nick,
+                zone: zone,
+                role: 'adventurer',
+                status: 'pending', // Menunggu ACC Admin
+                created_at: Date.now()
+            };
+
+            await masterDB.ref(`users/${id}`).set(data);
+            alert("Pendaftaran Berhasil! Status: Menunggu Verifikasi.");
+            window.location.href = "login.html";
+        } catch (e) {
+            alert("Error: " + e.message);
+            btn.disabled = false;
+        }
     }
 </script>
-
 </body>
 </html>
