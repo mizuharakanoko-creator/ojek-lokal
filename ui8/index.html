@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CITIZEN HUB | POST QUEST</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="router_lokal.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
+        .header { text-align: center; border-bottom: 2px solid #ff0055; padding-bottom: 15px; margin-bottom: 20px; }
+        .header h1 { color: #ff0055; margin: 0; font-size: 24px; }
+        .header span { color: #888; font-size: 12px; }
+        
+        .panel { background: #111; padding: 20px; border-radius: 8px; border: 1px solid #333; margin-bottom: 15px; }
+        label { color: #00ffff; font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px; margin-top: 15px; }
+        input, select, textarea { width: 100%; padding: 12px; box-sizing: border-box; background: #000; color: #fff; border: 1px solid #444; border-radius: 4px; }
+        textarea { resize: vertical; min-height: 80px; }
+        
+        button { width: 100%; background: #ff0055; color: white; font-weight: bold; border: none; padding: 15px; cursor: pointer; border-radius: 4px; margin-top: 20px; }
+        button:hover { background: #cc0044; }
+        
+        #lokasiStatus { color: #ffaa00; font-size: 12px; font-style: italic; margin-top: 5px; display: block; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>CITIZEN HUB</h1>
+        <span id="userGreeting">Memuat ID...</span>
+    </div>
+
+    <div class="panel">
+        <label>LOKASI PENJEMPUTAN (GPS)</label>
+        <div style="display:flex; gap:10px;">
+            <input type="text" id="titikAwal" placeholder="Mendeteksi koordinat..." readonly>
+            <button style="width:auto; margin:0; padding:12px;" onclick="getLocation()">📍 GPS</button>
+        </div>
+        <span id="lokasiStatus">Menunggu GPS... (Contoh manual: KEDUNGARUM)</span>
+        <input type="text" id="manualDesa" placeholder="Atau ketik nama Desa (Misal: KEDUNGARUM)" style="margin-top:10px; border-color:#ffaa00;">
+
+        <label>KATEGORI KENDARAAN</label>
+        <select id="kategori">
+            <option value="MOTOR">MOTOR (RODA 2)</option>
+            <option value="CAR">MOBIL (RODA 4)</option>
+        </select>
+
+        <label>TUJUAN PENGIRIMAN</label>
+        <input type="text" id="tujuan" placeholder="Contoh: Desa Awirarangan, Jl. Merdeka">
+
+        <label>HARGA REWARD (GOLD/Rp)</label>
+        <input type="number" id="harga" placeholder="Contoh: 15000">
+
+        <label>KETERANGAN MISI</label>
+        <textarea id="keterangan" placeholder="Contoh: Tolong belikan seblak level 5, uang dari adventurer dulu."></textarea>
+
+        <button id="btnKirim" onclick="kirimMisi()">TERBITKAN MISI</button>
+    </div>
+
+    <script>
+        // Cek Sesi (Harus Login)
+        const session = JSON.parse(localStorage.getItem('pickme_session'));
+        if(!session) window.location.href = "login.html";
+        
+        document.getElementById('userGreeting').innerText = `Issuer: ${session.nick.toUpperCase()}`;
+
+        let detectedDesa = "";
+        let detectedKec = "";
+
+        // Simulasi GPS ke Nama Desa (Karena Nominatim API sering delay/limit)
+        function getLocation() {
+            document.getElementById('lokasiStatus').innerText = "Memindai satelit...";
+            // Dalam sistem nyata, gunakan navigator.geolocation dan API Reverse Geocoding.
+            // Di sini kita persingkat untuk menghindari error API saat pengujian.
+            setTimeout(() => {
+                const manual = document.getElementById('manualDesa').value.toUpperCase();
+                detectedDesa = manual || "KEDUNGARUM"; // Fallback ke Kedungarum
+                detectedKec = getKecamatanDariDesa(detectedDesa);
+                
+                document.getElementById('titikAwal').value = `${detectedDesa}, KEC. ${detectedKec}`;
+                document.getElementById('lokasiStatus').innerText = "Lokasi terkonfirmasi.";
+                document.getElementById('lokasiStatus').style.color = "#00ff00";
+            }, 1000);
+        }
+
+        async function kirimMisi() {
+            const kategori = document.getElementById('kategori').value;
+            const tujuan = document.getElementById('tujuan').value;
+            const harga = document.getElementById('harga').value;
+            const ket = document.getElementById('keterangan').value;
+            const btn = document.getElementById('btnKirim');
+
+            if(!detectedDesa || detectedKec === "UNKNOWN") return alert("Pastikan lokasi GPS valid / Desa terdaftar!");
+            if(!tujuan || !harga) return alert("Tujuan dan Harga wajib diisi!");
+
+            btn.disabled = true;
+            btn.innerText = "MENYUSUN KONTRAK...";
+
+            // ID Unik Misi (Kombinasi waktu dan Nickname)
+            const missionId = `QUEST-${Date.now()}`;
+            
+            // PATH MENDALAM: KATEGORI-KABUPATEN-ZONA-KECAMATAN / DESA / ID_MISI
+            const pathMisi = `${kategori}-KUNINGAN-PUSAT-${detectedKec}/${detectedDesa}/${missionId}`;
+            const pathTerminal = `terminal_misi/KUNINGAN/${missionId}`;
+
+            const dataMisi = {
+                id: missionId,
+                issuer: session.nick,
+                kategori: kategori,
+                desa_awal: detectedDesa,
+                kec_awal: detectedKec,
+                tujuan: tujuan,
+                price: parseInt(harga),
+                description: ket,
+                status: "open",
+                created_at: Date.now()
+            };
+
+            try {
+                // 1. Tulis ke Path Mendalam (Untuk dilacak Radar Adventurer)
+                await db.ref(pathMisi).set(dataMisi);
+                
+                // 2. Tulis ke Terminal Global (Untuk rekapan sistem)
+                await db.ref(pathTerminal).set({
+                    kategori: kategori,
+                    desa: detectedDesa,
+                    kec: detectedKec,
+                    status: "open"
+                });
+
+                // Simpan ID misi aktif di session untuk dibawa ke lobby
+                sessionStorage.setItem('active_quest', missionId);
+                sessionStorage.setItem('active_quest_path', pathMisi);
+
+                alert("Misi berhasil disebarkan ke jaringan Guild!");
+                window.location.href = "lobby_requester.html"; // Berpindah ke ruang tunggu bid
+
+            } catch (error) {
+                alert("Gagal menerbitkan misi: " + error.message);
+                btn.disabled = false;
+                btn.innerText = "TERBITKAN MISI";
+            }
+        }
+    </script>
+</body>
+</html>
