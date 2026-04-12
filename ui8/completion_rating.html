@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>QUEST CLEARED</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: sans-serif; text-align: center; padding: 40px; }
+        h1 { color: #00ff00; }
+        .rating { margin: 20px 0; }
+        .rating input { width: 50px; text-align: center; padding: 10px; font-size: 18px; }
+        button { background: #00ffff; color: #000; padding: 15px 30px; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>QUEST CLEARED!</h1>
+    <p>Terima kasih. Berapa bintang untuk Adventurer ini?</p>
+    
+    <div class="rating">
+        <input type="number" id="ratingScore" min="1" max="5" value="5"> / 5
+    </div>
+    <button onclick="submitRating()">KIRIM RATING & TUTUP KONTRAK</button>
+
+    <script>
+        async function submitRating() {
+            const questId = sessionStorage.getItem('active_quest');
+            const score = document.getElementById('ratingScore').value;
+            
+            try {
+                // 1. Ambil data kontrak untuk tahu siapa Adventurer-nya dan dimana path-nya
+                const snapKontrak = await db.ref(`kontrak_aktif/${questId}`).get();
+                if(!snapKontrak.exists()) return alert("Kontrak tidak ditemukan!");
+                const kontrak = snapKontrak.val();
+
+                // 2. Tulis ke History
+                await db.ref(`history/${kontrak.adventurer}/${questId}`).set({
+                    requester: kontrak.requester,
+                    rating: parseInt(score),
+                    cleared_at: Date.now()
+                });
+
+                // 3. PEMBERSIHAN (SANGAT PENTING UNTUK EFISIENSI)
+                await db.ref(kontrak.path_misi).remove(); // Hapus dari Radar Desa
+                await db.ref(`terminal_misi/KUNINGAN/${questId}`).remove(); // Hapus dari Terminal Global
+                await db.ref(`kontrak_aktif/${questId}`).remove(); // Hapus Dokumen Kontrak
+
+                alert("Rating dikirim! Semua jejak radar berhasil dibersihkan.");
+                sessionStorage.removeItem('active_quest');
+                sessionStorage.removeItem('active_quest_path');
+                window.location.href = "index.html";
+
+            } catch(e) {
+                alert("Terjadi kesalahan: " + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
