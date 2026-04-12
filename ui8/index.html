@@ -3,106 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>REQUESTER DASHBOARD</title>
+    <title>CREATE MISSION | SOVEREIGN</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; }
-        .form-card { background: #111; padding: 20px; border-radius: 10px; border: 1px solid #333; max-width: 400px; margin: auto; }
-        input, select, textarea { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #ff0055; color: #fff; border: none; font-weight: bold; cursor: pointer; }
-        .warning-box { background: #442200; color: #ffaa00; padding: 10px; font-size: 12px; border-radius: 5px; margin-bottom: 15px; display: none; }
-        .logout { background: none; color: #555; border: none; margin-top: 20px; text-decoration: underline; cursor: pointer; }
+        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; margin: 0; }
+        .form-card { background: #111; padding: 25px; border-radius: 15px; border: 1px solid #333; max-width: 400px; margin: 20px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { text-align: center; color: #00ffff; letter-spacing: 2px; margin-bottom: 25px; }
+        label { font-size: 12px; color: #888; margin-left: 5px; }
+        input, select, textarea { width: 100%; padding: 15px; margin: 10px 0 20px 0; background: #000; border: 1px solid #444; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        input:focus { border-color: #ff0055; outline: none; }
+        
+        /* Tombol Utama yang Selalu Aktif */
+        #btnPublish { width: 100%; padding: 18px; background: linear-gradient(45deg, #ff0055, #ff5500); color: #fff; border: none; font-weight: bold; font-size: 16px; cursor: pointer; border-radius: 8px; text-transform: uppercase; transition: 0.3s; }
+        #btnPublish:active { transform: scale(0.95); }
+        
+        .footer-link { text-align: center; margin-top: 25px; }
+        .footer-link a { color: #555; font-size: 12px; text-decoration: none; }
     </style>
 </head>
 <body>
 
 <div class="form-card">
-    <h2 style="text-align:center; color:#00ffff;">CREATE MISSION</h2>
+    <h2>CREATE MISSION</h2>
     
-    <div id="roleWarning" class="warning-box">
-        ⚠️ Terdeteksi Sesi Adventurer. Gunakan akun Requester agar misi terbit dengan benar.
-    </div>
-
-    <label>Armada</label>
+    <label>PILIH ARMADA</label>
     <select id="cat">
-        <option value="MOTOR">MOTOR</option>
-        <option value="MOBIL">MOBIL</option>
+        <option value="MOTOR">MOTOR (BIKE)</option>
+        <option value="MOBIL">MOBIL (CAR)</option>
     </select>
-    <input type="text" id="tujuan" placeholder="Lokasi Tujuan">
-    <textarea id="desc" placeholder="Detail Tugas"></textarea>
-    <input type="number" id="price" placeholder="Reward (G)">
+
+    <label>LOKASI TUJUAN</label>
+    <input type="text" id="tujuan" placeholder="Ke mana kita pergi?">
+
+    <label>DETAIL TUGAS (OPSIONAL)</label>
+    <textarea id="desc" rows="3" placeholder="Contoh: Titip beli kopi atau antar paket..."></textarea>
+
+    <label>HADIAH / REWARD (G)</label>
+    <input type="number" id="price" placeholder="Masukkan harga (Contoh: 15000)">
     
-    <button id="btnPublish" onclick="publishMisi()">PUBLISH MISSION</button>
-    <center><button class="logout" onclick="logout()">LOGOUT / CLEAR SESSION</button></center>
+    <button id="btnPublish" onclick="startPublishProcess()">PUBLISH MISSION</button>
+
+    <div class="footer-link">
+        <a href="login.html">Switch Account or Login</a>
+    </div>
 </div>
 
 <script>
-    // 1. Ambil data sesi (Apapun yang ada di localhost)
+    // 1. IDENTIFIKASI USER (Sistem yang berpikir)
     const rawSession = localStorage.getItem('pickme_session');
-    const session = rawSession ? JSON.parse(rawSession) : null;
+    let session = rawSession ? JSON.parse(rawSession) : null;
 
-    // 2. Cek apakah role-nya cocok. Jika tidak, tampilkan peringatan saja (Jangan lempar/redirect)
-    if (session && session.role !== "requester") {
-        document.getElementById('roleWarning').style.display = "block";
-        document.getElementById('btnPublish').innerText = "PUBLISH AS " + session.nick.toUpperCase();
+    // Jika tidak login, buat identitas Guest sementara agar sistem tidak error
+    if (!session) {
+        session = {
+            nick: "GUEST-" + Math.floor(1000 + Math.random() * 9000),
+            role: "guest",
+            shard_id: "IDN-JABAR-KNG-KUNINGAN" // Default wilayah
+        };
     }
 
-    async function publishMisi() {
-        // Cek apakah ada sesi sama sekali
-        if (!session) {
-            alert("Sesi tidak ditemukan. Silakan login kembali.");
-            window.location.href = "login.html";
-            return;
-        }
-
+    async function startPublishProcess() {
+        const btn = document.getElementById('btnPublish');
         const tujuan = document.getElementById('tujuan').value.trim();
         const price = document.getElementById('price').value;
 
-        if (!tujuan || !price) {
-            alert("Tujuan dan Harga wajib diisi!");
-            return;
+        if (!tujuan || !price) return alert("Tujuan dan Harga tidak boleh kosong!");
+
+        btn.disabled = true;
+        btn.innerText = "LOCALIZING...";
+
+        // 2. AMBIL LOKASI (GPS) UNTUK PENENTUAN SHARD OTOMATIS
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => { executePublish(tujuan, price, pos.coords.latitude, pos.coords.longitude); },
+                () => { executePublish(tujuan, price, null, null); } // Jika GPS ditolak, lanjut tanpa koordinat
+            );
+        } else {
+            executePublish(tujuan, price, null, null);
         }
+    }
 
-        // Tentukan database berdasarkan Shard ID user (Apapun role-nya saat itu)
-        const targetDb = getDatabaseByShard(session.shard_id);
-        const idMisi = "MS-" + Date.now();
-        
-        // Ambil kecamatan dari Shard ID secara aman
-        const shardParts = session.shard_id.split('-');
-        const kec = shardParts[shardParts.length - 1].toUpperCase();
-        
-        const path = `${document.getElementById('cat').value}-KUNINGAN-PUSAT-${kec}/KEDUNGARUM/${idMisi}`;
-
-        const data = {
-            id: idMisi,
-            requester: session.nick,
-            shard_id: session.shard_id,
-            tujuan: tujuan,
-            description: document.getElementById('desc').value,
-            price: parseInt(price),
-            status: "open",
-            timestamp: Date.now()
-        };
+    async function executePublish(tujuan, price, lat, lon) {
+        const btn = document.getElementById('btnPublish');
+        btn.innerText = "SENDING TO SYSTEM...";
 
         try {
-            await targetDb.ref(path).set(data);
+            // Gunakan shard_id dari session (Sistem tetap tahu wilayahnya)
+            const targetDb = getDatabaseByShard(session.shard_id);
+            const idMisi = "MS-" + Date.now();
             
-            // Gunakan sessionStorage agar tidak menimpa localStorage aplikasi lain
+            // Format Path: MOTOR-KUNINGAN-PUSAT-KUNINGAN/KEDUNGARUM/MS-123
+            const kec = session.shard_id.split('-').pop().toUpperCase();
+            const category = document.getElementById('cat').value;
+            const path = `${category}-KUNINGAN-PUSAT-${kec}/KEDUNGARUM/${idMisi}`;
+
+            const dataMisi = {
+                id: idMisi,
+                requester: session.nick,
+                role_creator: session.role, // Tetap catat siapa yang buat (Adventurer/Guest/Requester)
+                tujuan: tujuan,
+                description: document.getElementById('desc').value,
+                price: parseInt(price),
+                status: "open",
+                shard_origin: session.shard_id,
+                coords: lat ? { lat, lon } : "no-gps",
+                timestamp: Date.now()
+            };
+
+            // Simpan ke Shard Database yang sesuai
+            await targetDb.ref(path).set(dataMisi);
+
+            // Simpan jejak misi di sessionStorage agar halaman lobby tahu jalurnya
             sessionStorage.setItem('active_quest', idMisi);
             sessionStorage.setItem('active_quest_path', path);
             
             window.location.href = "lobby_requester.html";
-        } catch (e) { 
-            alert("Gagal terbit: " + e.message); 
+
+        } catch (e) {
+            alert("Sistem Gagal: " + e.message);
+            btn.disabled = false;
+            btn.innerText = "PUBLISH MISSION";
         }
     }
-
-    function logout() {
-        localStorage.removeItem('pickme_session');
-        window.location.href = "login.html";
-    }
 </script>
+
 </body>
 </html>
