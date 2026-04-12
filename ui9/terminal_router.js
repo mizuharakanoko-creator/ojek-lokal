@@ -4,11 +4,11 @@
 
 // 1. Konfigurasi 5 Terminal Firebase (Ganti URL dengan Firebase asli kamu)
 const TERMINAL_URLS = {
-    FB1_MASTER: "https://app-master-auth-default-rtdb.firebaseio.com/",     // Data Akun & Buku Induk
-    FB2_RUNNER: "https://app-kng-runner-default-rtdb.firebaseio.com/",    // Status Adventurer Online
-    FB3_DIRECTORY: "https://app-kng-dir-default-rtdb.firebaseio.com/",    // Data Requester Zone
-    FB4_BOARD: "https://app-kng-board-default-rtdb.firebaseio.com/",      // Misi Open & Bids
-    FB5_DEAL: "https://app-kng-deal-default-rtdb.firebaseio.com/"         // Chat & Kontrak Privat
+    FB1_MASTER: "https://data1-fe8b7-default-rtdb.asia-southeast1.firebasedatabase.app/",     // Data Akun & Buku Induk
+    FB2_RUNNER: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",    // Status Adventurer Online
+    FB3_DIRECTORY: "https://requester-2c6d9-default-rtdb.asia-southeast1.firebasedatabase.app/",    // Data Requester Zone
+    FB4_BOARD: "https://biding-c8f01-default-rtdb.asia-southeast1.firebasedatabase.app/",      // Misi Open & Bids
+    FB5_DEAL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/"         // Chat & Kontrak Privat
 };
 
 // 2. Tempat menyimpan instance koneksi agar tidak dobel (Hemat Kuota)
