@@ -3,74 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sovereign - Register</title>
+    <title>Sovereign - Register Adventurer</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="terminal_router.js"></script>
     <script src="clearchance.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { background: #111; padding: 25px; border-radius: 8px; border: 1px solid #333; width: 100%; max-width: 350px; }
-        input, select { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #00ffff; color: #000; border: none; font-weight: bold; cursor: pointer; width: 100%; }
+        body { background: #050505; color: white; font-family: monospace; padding: 20px; display: flex; justify-content: center; }
+        .form-container { background: #111; border: 1px solid #333; padding: 20px; border-radius: 8px; width: 100%; max-width: 400px; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; color: #888; font-size: 12px; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 12px; background: #000; border: 1px solid #444; color: #fff; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #00ffff; color: #000; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:disabled { background: #333; color: #777; }
+        .msg { font-size: 12px; margin-top: 10px; text-align: center; }
     </style>
 </head>
 <body>
 
-<div class="box">
-    <h2 style="text-align: center; color: #00ffff;">DAFTAR BARU</h2>
-    <input type="text" id="reg_id" placeholder="ID Unik (Cth: adven01)">
-    <input type="text" id="reg_nick" placeholder="Nama Tampilan">
-    <select id="reg_zone">
-        <option value="KUNINGAN">Kec. Kuningan</option>
-        <option value="KADUGEDE">Kec. Kadugede</option>
-        <option value="CIGUGUR">Kec. Cigugur</option>
-    </select>
+<div class="form-container">
+    <h2 style="color: #00ffff; text-align: center; margin-bottom: 25px;">REGISTRASI ADVENTURER</h2>
+    
+    <div class="input-group">
+        <label>NICKNAME (Unik)</label>
+        <input type="text" id="nick" placeholder="Contoh: ShadowHunter">
+    </div>
+
+    <div class="input-group">
+        <label>PASSWORD</label>
+        <input type="password" id="pass" placeholder="******">
+    </div>
+
+    <div class="input-group">
+        <label>DOMISILI (Area Kerja)</label>
+        <select id="domisili">
+            <option value="KNG">Kuningan</option>
+            <option value="KGD">Kadugede</option>
+            <option value="CGR">Cigugur</option>
+        </select>
+    </div>
+
+    <div class="input-group">
+        <label>KATEGORI KENDARAAN</label>
+        <select id="kategori">
+            <option value="MOTOR">Sepeda Motor</option>
+            <option value="MOBIL">Mobil / Roda 4</option>
+        </select>
+    </div>
+
     <button id="btnReg" onclick="prosesDaftar()">AJUKAN PENDAFTARAN</button>
+    <div id="statusMsg" class="msg"></div>
 </div>
 
 <script>
-    Clearchance.nuclearWipe(); // Sterilkan sebelum daftar
-
     async function prosesDaftar() {
-        const id = document.getElementById('reg_id').value.trim().toLowerCase();
-        const nick = document.getElementById('reg_nick').value.trim();
-        const zone = document.getElementById('reg_zone').value;
+        const nick = document.getElementById('nick').value.trim();
+        const pass = document.getElementById('pass').value.trim();
+        const dom = document.getElementById('domisili').value;
+        const kat = document.getElementById('kategori').value;
         const btn = document.getElementById('btnReg');
+        const msg = document.getElementById('statusMsg');
 
-        if (!id || !nick) return alert("Lengkapi data!");
+        if (!nick || !pass) return alert("Nickname dan Password wajib diisi!");
 
         btn.disabled = true;
-        btn.innerText = "MENGHUBUNGI MASTER...";
+        msg.innerText = "Memvalidasi nickname...";
 
-        const masterDB = getTerminal('FB1_MASTER');
+        const db1 = getTerminal('FB1_MASTER');
 
         try {
-            // Cek apakah ID sudah terpakai
-            const snap = await masterDB.ref(`users/${id}`).once('value');
-            if (snap.exists()) {
-                alert("ID sudah ada!");
+            // --- STEP 1: TRIPLE CHECK NICKNAME ---
+            // Cek di register_pending, adventurer_index, dan requester_index
+            const checkPaths = ['register_pending', 'adventurer_index', 'requester_index'];
+            let isTaken = false;
+
+            for (let path of checkPaths) {
+                const snap = await db1.ref(path).orderByChild('nickname').equalTo(nick).once('value');
+                if (snap.exists()) {
+                    isTaken = true;
+                    break;
+                }
+            }
+
+            if (isTaken) {
+                alert("Nickname sudah terdaftar! Gunakan nama lain.");
                 btn.disabled = false;
+                msg.innerText = "";
                 return;
             }
 
-            const data = {
-                uid: id,
-                nick: nick,
-                zone: zone,
-                role: 'adventurer',
-                status: 'pending', // Menunggu ACC Admin
-                created_at: Date.now()
+            // --- STEP 2: GENERATE AUTOMATIC DATA ---
+            const timestamp = Date.now();
+            const dateObj = new Date();
+            const monthYear = (dateObj.getMonth() + 1) + "-" + dateObj.getFullYear();
+            
+            // Generate ID: adv-kng-16583920 (prefix-domisili-random)
+            const randomID = Math.floor(Math.random() * 9000) + 1000;
+            const generatedID = `adv-${dom.toLowerCase()}-${timestamp.toString().slice(-4)}${randomID}`;
+
+            const payload = {
+                id_adv: generatedID,
+                nickname: nick,
+                password: pass, // Saran: Enkripsi di masa depan
+                role: "adventurer",
+                kategori: kat,
+                domisili: dom,
+                status_verified: "pending",
+                created_at: monthYear,
+                raw_timestamp: timestamp
             };
 
-            await masterDB.ref(`users/${id}`).set(data);
-            alert("Pendaftaran Berhasil! Status: Menunggu Verifikasi.");
-            window.location.href = "login.html";
+            // --- STEP 3: KIRIM KE FB1 register_pending ---
+            await db1.ref(`register_pending/${generatedID}`).set(payload);
+
+            msg.style.color = "#00ff00";
+            msg.innerText = "Pendaftaran Berhasil dikirim! ID Anda: " + generatedID;
+            
+            alert("Berhasil! Simpan ID Anda: " + generatedID);
+            // window.location.href = "login.html";
+
         } catch (e) {
-            alert("Error: " + e.message);
+            console.error(e);
+            alert("Terjadi kesalahan sistem.");
             btn.disabled = false;
         }
     }
 </script>
+
 </body>
 </html>
