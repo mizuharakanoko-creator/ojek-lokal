@@ -3,90 +3,209 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sovereign - Adventurer Lobby</title>
+    <title>Sovereign - Adventurer Radar</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="terminal_router.js"></script>
+    <script src="router_lokal.js"></script>
     <script src="clearchance.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: monospace; padding: 15px; }
-        .header { border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; }
-        .mission-card { background: #1a1a1a; border: 1px solid #333; padding: 15px; margin-bottom: 15px; border-left: 4px solid #ffaa00; }
-        .mission-title { font-weight: bold; color: #ffaa00; margin-bottom: 5px; font-size: 18px; }
-        .mission-route { color: #aaa; font-size: 14px; margin-bottom: 10px; }
-        .mission-reward { color: #00ff00; font-weight: bold; font-size: 16px; }
-        .btn-take { background: #ffaa00; color: #000; padding: 10px; text-align: center; display: block; margin-top: 10px; text-decoration: none; font-weight: bold; cursor: pointer; border: none; width: 100%; box-sizing: border-box;}
-        #emptyState { text-align: center; color: #555; margin-top: 50px; font-style: italic; }
+        body { background: #050505; color: white; font-family: monospace; padding: 10px; }
+        .radar-box { border: 1px solid #333; background: #111; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .status-bar { font-size: 11px; color: #888; border-bottom: 1px solid #222; padding-bottom: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+        .location-tag { color: #00ff00; font-weight: bold; }
+        
+        .mission-card { background: #1a1a1a; border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-left: 4px solid #ffaa00; }
+        .m-id { font-size: 10px; color: #666; }
+        .m-title { color: #ffaa00; font-weight: bold; margin: 5px 0; font-size: 14px; }
+        .m-reward { color: #00ff00; font-weight: bold; }
+        
+        .btn-bid { width: 100%; padding: 10px; background: #ffaa00; color: #000; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-expand { width: 100%; padding: 8px; background: #222; color: #ffaa00; border: 1px solid #ffaa00; cursor: pointer; font-size: 11px; margin-bottom: 15px; }
+        
+        /* Modal Simple */
+        #bidModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:100; }
+        .modal-content { background:#111; padding:20px; margin:20% 10%; border:1px solid #ffaa00; }
+        #emptyState { text-align: center; color: #444; padding: 40px 0; font-style: italic; }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <div>
-        <b style="color: #ffaa00;">[ LOBBY: ADVENTURER ]</b><br>
-        <span id="driverInfo" style="font-size: 12px; color: #888;"></span>
+<div class="radar-box">
+    <div class="status-bar">
+        <span>RADAR: <span id="locName">Mencari GPS...</span></span>
+        <span>ZONA TUGAS: <b id="taskZone">-</b></span>
     </div>
-    <button onclick="Clearchance.nuclearWipe(); window.location.href='index.html'" style="background:#440000; color:#fff; border:1px solid #f00; padding:5px 10px; cursor:pointer;">LOGOUT</button>
+    <div id="radarPulse" style="font-size: 10px; color: #ffaa00; margin-bottom: 10px;">[ SENSING NEARBY SIGNALS... ]</div>
+    
+    <button class="btn-expand" id="btnExpand" onclick="perluasRadar()">[ PERLUAS RADAR KE SELURUH KECAMATAN ]</button>
+
+    <div id="missionList">
+        <div id="emptyState">Memindai area...</div>
+    </div>
 </div>
 
-<div id="missionList">
-    <div id="emptyState">Memindai sinyal misi di sekitar...</div>
+<div id="bidModal">
+    <div class="modal-content">
+        <h3 style="color:#ffaa00; margin-top:0;">KIRIM PENAWARAN</h3>
+        <p id="bidInfo" style="font-size:12px;"></p>
+        <label style="font-size:11px;">Nominal Penawaran (Rp):</label>
+        <input type="number" id="bidAmount" style="width:100%; padding:10px; margin:10px 0; background:#000; color:#fff; border:1px solid #444;">
+        <button class="btn-bid" onclick="submitBid()">KIRIM SINYAL</button>
+        <button onclick="closeModal()" style="width:100%; background:none; color:#888; border:none; margin-top:10px; cursor:pointer;">BATAL</button>
+    </div>
 </div>
 
 <script>
-    // 1. Validasi Identitas
     const user = Clearchance.enforceIdentity();
-    if (user.role !== 'adventurer') {
-        alert("Akses Ilegal! Anda bukan Adventurer.");
-        window.location.href = "index.html";
+    let currentLoc = { desa: "", kec: "", shard: "", lat: 0, lng: 0 };
+    let areaTugas = ""; 
+    let selectedMid = "";
+    let isExpanded = false;
+
+    const db1 = getTerminal('FB1_MASTER');
+    const db4 = getTerminal('FB4_BOARD');
+
+    // 1. Inisialisasi: Cek Area Tugas di FB1 & Kunci GPS
+    async function initAdventurer() {
+        try {
+            // Ambil area_tugas dari profil (Contoh path: users/uid/area_tugas)
+            const userSnap = await db1.ref(`users/${user.uid}`).once('value');
+            areaTugas = userSnap.val()?.area_tugas || user.zone || "KNG";
+            document.getElementById('taskZone').innerText = areaTugas;
+
+            startGPS();
+            listenToContracts(); // Listener undangan kontrak
+        } catch (e) {
+            console.error("Gagal init:", e);
+        }
     }
 
-    document.getElementById('driverInfo').innerText = `ID: ${user.nick} | Radar: ZONA ${user.zone}`;
+    function startGPS() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                currentLoc.lat = pos.coords.latitude;
+                currentLoc.lng = pos.coords.longitude;
+                
+                // Reverse Geocoding Lokal dari router_lokal.js
+                const hasil = cariDesaTerdekat(currentLoc.lat, currentCoords.lng); // Gunakan fungsi yg kita buat di publish.html
+                currentLoc.desa = hasil.name;
+                currentLoc.kec = hasil.kec;
+                currentLoc.shard = getShardDariKecamatan(hasil.kec);
 
-    // 2. Hubungkan ke Terminal Board Lokal (Sangat ringan, cuma dengerin folder zone dia aja)
-    const boardDB = getTerminal('FB4_BOARD');
-    const missionRef = boardDB.ref(`misi_aktif/${user.zone}`);
-
-    // 3. Listener Real-time
-    missionRef.on('value', snap => {
-        const listDiv = document.getElementById('missionList');
-        listDiv.innerHTML = ''; // Kosongkan list lama
-        
-        if (!snap.exists()) {
-            listDiv.innerHTML = '<div id="emptyState">Tidak ada misi aktif di zona ini.</div>';
-            return;
+                document.getElementById('locName').innerText = `${currentLoc.desa} (${currentLoc.kec})`;
+                
+                startRadar();
+            }, null, { enableHighAccuracy: true });
         }
+    }
 
-        let hasMissions = false;
+    // 2. Fungsi Radar (Scan FB4)
+    function startRadar() {
+        const listDiv = document.getElementById('missionList');
         
-        snap.forEach(child => {
-            const misi = child.val();
-            // FILTER KETAT: Hanya tampilkan misi yang statusnya "open"
-            if (misi.status === 'open') {
-                hasMissions = true;
-                const card = document.createElement('div');
-                card.className = 'mission-card';
-                card.innerHTML = `
-                    <div class="mission-title">[${misi.type}] ${misi.id}</div>
-                    <div class="mission-route">📍 ${misi.origin} <br>🏁 ${misi.destination}</div>
-                    <div class="mission-reward">💰 Rp ${misi.reward.toLocaleString('id-ID')}</div>
-                    <button class="btn-take" onclick="masukDetailMisi('${misi.id}')">LIHAT / BID MISI</button>
-                `;
-                listDiv.appendChild(card);
+        // Path Penentu: Jika expanded scan Shard, jika tidak scan per Desa
+        const scanPath = isExpanded ? 
+            `mission-${getShardDariKecamatan(areaTugas)}` : 
+            `mission-${getShardDariKecamatan(areaTugas)}/${currentLoc.desa}`;
+
+        db4.ref(scanPath).on('value', snap => {
+            listDiv.innerHTML = "";
+            if (!snap.exists()) {
+                listDiv.innerHTML = '<div id="emptyState">Tidak ada sinyal aktif di area ini.</div>';
+                return;
+            }
+
+            // Jika Expanded, kita harus loop desa-desanya dulu
+            if (isExpanded) {
+                snap.forEach(desaSnap => {
+                    desaSnap.forEach(misiSnap => renderMisi(misiSnap.val()));
+                });
+            } else {
+                snap.forEach(misiSnap => renderMisi(misiSnap.val()));
             }
         });
+    }
 
-        if (!hasMissions) {
-            listDiv.innerHTML = '<div id="emptyState">Semua misi sudah diambil. Standby...</div>';
+    function renderMisi(m) {
+        if (m.status !== 'open') return;
+        const div = document.createElement('div');
+        div.className = 'mission-card';
+        div.innerHTML = `
+            <div class="m-id">${m.id_misi} | Diff: ${m.difficulty_rate}x</div>
+            <div class="m-title">KE: ${m.dest_desa}</div>
+            <div style="font-size:11px; color:#aaa;">Jemput: ${m.origin_desa} (${m.origin_name})</div>
+            <div class="m-reward">Rp ${m.reward.toLocaleString()}</div>
+            <button class="btn-bid" onclick="openBidModal('${m.id_misi}', ${m.reward})">OPEN BID</button>
+        `;
+        document.getElementById('missionList').appendChild(div);
+    }
+
+    function perluasRadar() {
+        isExpanded = true;
+        document.getElementById('btnExpand').style.display = 'none';
+        document.getElementById('radarPulse').innerText = "[ DEEP SCANNING ENTIRE SHARD... ]";
+        startRadar();
+    }
+
+    // 3. Sistem Bidding
+    function openBidModal(mid, reward) {
+        selectedMid = mid;
+        document.getElementById('bidModal').style.display = 'block';
+        document.getElementById('bidInfo').innerText = `Misi: ${mid}\nReward Dasar: Rp ${reward.toLocaleString()}`;
+        document.getElementById('bidAmount').value = reward;
+    }
+
+    async function submitBid() {
+        const amount = document.getElementById('bidAmount').value;
+        if (!amount || amount < 1000) return alert("Nominal tidak valid");
+
+        try {
+            // Simpan ke bids/ID_MISI/ID_ADVENTURER
+            await db4.ref(`bids/${selectedMid}/${user.uid}`).set({
+                adventurer_id: user.uid,
+                adventurer_nick: user.nick,
+                offer_price: parseInt(amount),
+                timestamp: Date.now()
+            });
+            alert("Tawaran terkirim! Menunggu respon requester...");
+            closeModal();
+        } catch (e) {
+            alert("Gagal kirim bid: " + e.message);
         }
-    });
+    }
 
-    // 4. Router pindah ke detail misi
-    function masukDetailMisi(idMisi) {
-        // Halaman cuma bawa ID (sesuai request kamu, tidak bawa data penuh)
-        window.location.href = `mission_detail.html?id=${idMisi}`;
+    // 4. Listener Kontrak (Dipanggil jika Requester klik 'Terima')
+    function listenToContracts() {
+        // Pantau tabel kontrak_mission di FB4
+        db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(user.uid).on('child_added', snap => {
+            const k = snap.val();
+            if (k.status === 'briefing') {
+                alert(`KONTRAK DITERIMA!\nMisi: ${k.id_misi}\nSegera menuju Briefing Room.`);
+                sessionStorage.setItem('active_contract_id', k.id_kontrak);
+                window.location.href = "briefing_room.html";
+            }
+        });
+    }
+
+    function closeModal() { document.getElementById('bidModal').style.display = 'none'; }
+
+    // Jalankan
+    initAdventurer();
+
+    // Helper Fungsi (Sama dengan yg ada di router_lokal / publish)
+    function cariDesaTerdekat(lat, lng) {
+        let terdekat = { name: "Luar Jangkauan", kec: "UNK", dist: 999 };
+        for (const kec in LOKASI_DB) {
+            LOKASI_DB[kec].desa.forEach(d => {
+                const dist = Math.sqrt(Math.pow(lat - d.lat, 2) + Math.pow(lng - d.lng, 2));
+                if (dist < terdekat.dist) {
+                    terdekat = { name: d.name, kec: kec, dist: dist };
+                }
+            });
+        }
+        return terdekat;
     }
 </script>
-
 </body>
 </html>
