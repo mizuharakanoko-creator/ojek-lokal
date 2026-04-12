@@ -2,6 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GUILD | BRIEFING ROOM</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -9,9 +10,10 @@
     <style>
         body { background: #050505; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
         .doc { background: #111; border: 1px solid #444; padding: 20px; max-width: 400px; margin: auto; border-radius: 8px; }
-        h3 { color: #00ffff; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .detail { text-align: left; margin-bottom: 20px; color: #ccc; line-height: 1.6; }
-        button { background: #00ff00; color: #000; padding: 15px; width: 100%; border: none; font-weight: bold; font-size: 16px; cursor: pointer; border-radius: 4px; }
+        h3 { color: #00ffff; border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 0; }
+        .detail { text-align: left; margin-bottom: 20px; color: #ccc; line-height: 1.6; font-size: 14px; }
+        button { background: #00ff00; color: #000; padding: 15px; width: 100%; border: none; font-weight: bold; font-size: 16px; cursor: pointer; border-radius: 4px; transition: 0.3s; }
+        button:hover { background: #00cc00; }
     </style>
 </head>
 <body>
@@ -19,41 +21,55 @@
         <h3>DOKUMEN KONTRAK AKTIF</h3>
         <div class="detail" id="contractData">Memuat data briefing...</div>
         
-        <button id="btnStart" style="display:none;" onclick="mulaiMisi()">MULAI PERJALANAN</button>
-        <p id="waitText" style="color:#ffaa00; display:none;">Menunggu Adventurer memulai perjalanan...</p>
+        <button id="btnStart" style="display:none;" onclick="mulaiMisi()">SEPAKAT & MULAI PERJALANAN</button>
+        
+        <p id="waitText" style="color:#ffaa00; display:none; font-style: italic;">Menunggu Adventurer menyetujui kontrak dan memulai perjalanan...</p>
     </div>
 
     <script>
         const session = JSON.parse(localStorage.getItem('pickme_session'));
         const questId = sessionStorage.getItem('active_quest');
         
+        if(!questId) {
+            alert("Sesi Misi Hilang!");
+            window.location.href = session.role === "adventurer" ? "dashboard_adventurer.html" : "index.html";
+        }
+
+        // Listener Real-time untuk Status Kontrak
         db.ref(`kontrak_aktif/${questId}`).on('value', snap => {
-            if(!snap.exists()) return window.location.href = "index.html";
+            if(!snap.exists()) return; // Hindari error jika kontrak tiba-tiba dihapus
+
             const k = snap.val();
 
             document.getElementById('contractData').innerHTML = `
-                <b>ID Kontrak:</b> ${k.id_misi} <br>
+                <b>ID Misi:</b> ${k.id_misi} <br>
                 <b>Requester:</b> ${k.requester.toUpperCase()} <br>
                 <b>Adventurer:</b> ${k.adventurer.toUpperCase()} <br>
                 <hr style="border-color:#333;">
-                Status: <span style="color:#00ffff">${k.status.toUpperCase()}</span>
+                Status Server: <span style="color:#00ffff">${k.status.toUpperCase()}</span>
             `;
 
+            // Tampilkan UI berdasarkan Role
             if(session.role === "adventurer") {
                 document.getElementById('btnStart').style.display = "block";
             } else {
                 document.getElementById('waitText').style.display = "block";
             }
 
-            // Jika Adventurer menekan mulai, Requester otomatis pindah halaman
+            // AUTO-REDIRECT: Jika status berubah jadi on_mission, lemparkan kedua pihak ke halaman aktif
             if(k.status === "on_mission") {
                 window.location.href = "mission_active.html";
             }
         });
 
-        function mulaiMisi() {
-            db.ref(`kontrak_aktif/${questId}`).update({ status: "on_mission" });
-            window.location.href = "mission_active.html";
+        // Fungsi ini HANYA bisa dijalankan oleh Adventurer karena tombolnya disembunyikan untuk Requester
+        async function mulaiMisi() {
+            try {
+                // Mengubah status ini akan memicu AUTO-REDIRECT di blok listener atas untuk kedua device
+                await db.ref(`kontrak_aktif/${questId}`).update({ status: "on_mission" });
+            } catch (e) {
+                alert("Gagal memulai misi: " + e.message);
+            }
         }
     </script>
 </body>
