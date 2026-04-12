@@ -3,33 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CREATE MISSION | SOVEREIGN</title>
+    <title>PUBLISH MISSION | SOVEREIGN</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: 'Courier New', monospace; padding: 20px; margin: 0; }
-        .form-card { background: #111; padding: 25px; border-radius: 15px; border: 1px solid #333; max-width: 400px; margin: 10px auto; }
-        h2 { text-align: center; color: #00ffff; letter-spacing: 2px; border-bottom: 1px solid #222; padding-bottom: 10px; }
-        label { font-size: 11px; color: #888; text-transform: uppercase; }
-        input, select, textarea { width: 100%; padding: 12px; margin: 8px 0 18px 0; background: #000; border: 1px solid #333; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
-        
-        #btnPublish { 
-            width: 100%; padding: 18px; 
-            background: linear-gradient(45deg, #ff0055, #ffaa00); 
-            color: #fff; border: none; font-weight: bold; font-size: 16px; 
-            cursor: pointer; border-radius: 8px; text-transform: uppercase;
-        }
-        .sender-box { background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px dashed #444; margin-bottom: 20px; }
+        body { background: #050505; color: white; font-family: 'Courier New', monospace; padding: 20px; }
+        .form-card { background: #111; padding: 25px; border-radius: 15px; border: 1px solid #333; max-width: 400px; margin: auto; }
+        h2 { text-align: center; color: #00ffff; margin-bottom: 20px; text-transform: uppercase; }
+        label { font-size: 11px; color: #888; display: block; margin-top: 15px; }
+        input, select, textarea { width: 100%; padding: 12px; margin-top: 5px; background: #000; border: 1px solid #444; color: #fff; border-radius: 8px; box-sizing: border-box; }
+        #btnPublish { width: 100%; padding: 18px; background: #00ffff; color: #000; border: none; font-weight: bold; margin-top: 25px; border-radius: 8px; cursor: pointer; }
+        #btnPublish:disabled { background: #333; color: #666; }
+        .identity-box { border: 1px dashed #00ffff; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
 <div class="form-card">
-    <h2>CREATE MISSION</h2>
+    <h2>NEW MISSION</h2>
     
-    <div class="sender-box">
-        <label>KIRIM SEBAGAI (IDENTITY)</label>
+    <div class="identity-box">
+        <label>KIRIM SEBAGAI:</label>
         <select id="senderSelect">
             </select>
     </div>
@@ -40,93 +35,108 @@
         <option value="MOBIL">MOBIL (CAR)</option>
     </select>
 
-    <label>LOKASI TUJUAN</label>
-    <input type="text" id="tujuan" placeholder="Ke mana kita pergi?">
+    <label>TUJUAN</label>
+    <input type="text" id="tujuan" placeholder="Ke mana?">
 
-    <label>REWARD / HADIAH (G)</label>
-    <input type="number" id="price" placeholder="Harga (Contoh: 15000)">
+    <label>REWARD (G)</label>
+    <input type="number" id="price" placeholder="Harga">
 
-    <label>TUGAS (OPSIONAL)</label>
-    <textarea id="desc" rows="2" placeholder="Detail tambahan..."></textarea>
+    <label>TUGAS</label>
+    <textarea id="desc" rows="2" placeholder="Detail..."></textarea>
     
-    <button id="btnPublish" onclick="startPublish()">PUBLISH MISSION</button>
+    <button id="btnPublish" onclick="startPublishProcess()">PUBLISH MISSION</button>
 </div>
 
 <script>
-    // 1. AMBIL SEMUA USER YANG TERDAFTAR DI HP INI
-    function loadAvailableUsers() {
+    // 1. Baca localhost untuk ambil semua identitas yang pernah login
+    function setupIdentities() {
         const select = document.getElementById('senderSelect');
-        const rawSession = localStorage.getItem('pickme_session');
+        const session = JSON.parse(localStorage.getItem('pickme_session'));
         
-        // Tambahkan opsi nama dari sesi yang sedang aktif
-        if (rawSession) {
-            const session = JSON.parse(rawSession);
+        // Tambahkan user aktif sekarang
+        if(session) {
             let opt = document.createElement('option');
-            opt.value = session.nick;
-            opt.innerText = session.nick.toUpperCase() + " (AKTIF)";
+            opt.value = JSON.stringify(session);
+            opt.innerText = `${session.nick.toUpperCase()} (${session.role})`;
             select.appendChild(opt);
         }
 
-        // Jika kamu punya daftar user lain di localStorage (misal: 'all_users')
-        // Bisa ditambahkan di sini. Jika tidak, tambahkan opsi manual:
-        const guestOpt = document.createElement('option');
-        guestOpt.value = "QUEST-" + Math.floor(Math.random()*1000);
-        guestOpt.innerText = "ANONYMOUS QUEST";
-        select.appendChild(guestOpt);
+        // Jika ada akun lain di storage (opsional jika kamu simpan list akun)
+        // Kita buat opsi default jika session kosong
+        if(!session) {
+            let guest = { nick: "GUEST", shard_id: "IDN-JABAR-KNG-KUNINGAN", role: "guest" };
+            let opt = document.createElement('option');
+            opt.value = JSON.stringify(guest);
+            opt.innerText = "GUEST MODE";
+            select.appendChild(opt);
+        }
     }
+    setupIdentities();
 
-    // Jalankan saat startup
-    loadAvailableUsers();
-
-    async function startPublish() {
+    async function startPublishProcess() {
         const tujuan = document.getElementById('tujuan').value.trim();
         const price = document.getElementById('price').value;
-        const selectedNick = document.getElementById('senderSelect').value;
-
         if (!tujuan || !price) return alert("Lengkapi data!");
 
         const btn = document.getElementById('btnPublish');
         btn.disabled = true;
+        btn.innerText = "GETTING LOCATION...";
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (p) => executePublish(tujuan, price, p.coords.latitude, p.coords.longitude),
+                () => executePublish(tujuan, price, null, null)
+            );
+        } else {
+            executePublish(tujuan, price, null, null);
+        }
+    }
+
+    async function executePublish(tujuan, price, lat, lon) {
+        const btn = document.getElementById('btnPublish');
         btn.innerText = "SENDING...";
 
-        // Kita ambil shard_id dari session utama
-        const session = JSON.parse(localStorage.getItem('pickme_session'));
-        const shard = session ? session.shard_id : "IDN-JABAR-KNG-KUNINGAN";
-        
+        // Ambil identitas yang dipilih dari dropdown
+        const selectedUser = JSON.parse(document.getElementById('senderSelect').value);
+
         try {
-            const targetDb = getDatabaseByShard(shard);
+            const targetDb = getDatabaseByShard(selectedUser.shard_id);
             const idMisi = "MS-" + Date.now();
-            
-            // Path simpel (sesuaikan dengan struktur lamamu)
             const category = document.getElementById('cat').value;
-            const path = `${category}-KUNINGAN-PUSAT-KUNINGAN/KEDUNGARUM/${idMisi}`;
+
+            // PERBAIKAN PATH: Pakai Shard ID Langsung agar tidak salah folder
+            // Path ini harus sama persis dengan yang dibaca oleh lobby_adventurer.html
+            const shardSuffix = selectedUser.shard_id.split('-').pop().toUpperCase(); 
+            const path = `${category}-KUNINGAN-PUSAT-${shardSuffix}/KEDUNGARUM/${idMisi}`;
+
+            console.log("Publishing to:", path); // Debug di console
 
             const dataMisi = {
                 id: idMisi,
-                requester: selectedNick, // Menggunakan nama yang dipilih di dropdown
+                requester: selectedUser.nick,
                 tujuan: tujuan,
                 description: document.getElementById('desc').value,
                 price: parseInt(price),
                 status: "open",
-                shard_origin: shard,
+                shard_origin: selectedUser.shard_id,
+                coords: lat ? { lat, lon } : "no-gps",
                 timestamp: Date.now()
             };
 
             await targetDb.ref(path).set(dataMisi);
 
-            // Simpan ke session untuk lobby
+            // Simpan jejak
             sessionStorage.setItem('active_quest', idMisi);
             sessionStorage.setItem('active_quest_path', path);
             
             window.location.href = "lobby_requester.html";
 
         } catch (e) {
-            alert("Error: " + e.message);
+            alert("Gagal: " + e.message);
             btn.disabled = false;
             btn.innerText = "PUBLISH MISSION";
         }
     }
 </script>
-
 </body>
 </html>
