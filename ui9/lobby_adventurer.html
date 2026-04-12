@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Adventurer Lobby</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        body { background: #050505; color: white; font-family: monospace; padding: 15px; }
+        .header { border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; }
+        .mission-card { background: #1a1a1a; border: 1px solid #333; padding: 15px; margin-bottom: 15px; border-left: 4px solid #ffaa00; }
+        .mission-title { font-weight: bold; color: #ffaa00; margin-bottom: 5px; font-size: 18px; }
+        .mission-route { color: #aaa; font-size: 14px; margin-bottom: 10px; }
+        .mission-reward { color: #00ff00; font-weight: bold; font-size: 16px; }
+        .btn-take { background: #ffaa00; color: #000; padding: 10px; text-align: center; display: block; margin-top: 10px; text-decoration: none; font-weight: bold; cursor: pointer; border: none; width: 100%; box-sizing: border-box;}
+        #emptyState { text-align: center; color: #555; margin-top: 50px; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <b style="color: #ffaa00;">[ LOBBY: ADVENTURER ]</b><br>
+        <span id="driverInfo" style="font-size: 12px; color: #888;"></span>
+    </div>
+    <button onclick="Clearchance.nuclearWipe(); window.location.href='index.html'" style="background:#440000; color:#fff; border:1px solid #f00; padding:5px 10px; cursor:pointer;">LOGOUT</button>
+</div>
+
+<div id="missionList">
+    <div id="emptyState">Memindai sinyal misi di sekitar...</div>
+</div>
+
+<script>
+    // 1. Validasi Identitas
+    const user = Clearchance.enforceIdentity();
+    if (user.role !== 'adventurer') {
+        alert("Akses Ilegal! Anda bukan Adventurer.");
+        window.location.href = "index.html";
+    }
+
+    document.getElementById('driverInfo').innerText = `ID: ${user.nick} | Radar: ZONA ${user.zone}`;
+
+    // 2. Hubungkan ke Terminal Board Lokal (Sangat ringan, cuma dengerin folder zone dia aja)
+    const boardDB = getTerminal('FB4_BOARD');
+    const missionRef = boardDB.ref(`misi_aktif/${user.zone}`);
+
+    // 3. Listener Real-time
+    missionRef.on('value', snap => {
+        const listDiv = document.getElementById('missionList');
+        listDiv.innerHTML = ''; // Kosongkan list lama
+        
+        if (!snap.exists()) {
+            listDiv.innerHTML = '<div id="emptyState">Tidak ada misi aktif di zona ini.</div>';
+            return;
+        }
+
+        let hasMissions = false;
+        
+        snap.forEach(child => {
+            const misi = child.val();
+            // FILTER KETAT: Hanya tampilkan misi yang statusnya "open"
+            if (misi.status === 'open') {
+                hasMissions = true;
+                const card = document.createElement('div');
+                card.className = 'mission-card';
+                card.innerHTML = `
+                    <div class="mission-title">[${misi.type}] ${misi.id}</div>
+                    <div class="mission-route">📍 ${misi.origin} <br>🏁 ${misi.destination}</div>
+                    <div class="mission-reward">💰 Rp ${misi.reward.toLocaleString('id-ID')}</div>
+                    <button class="btn-take" onclick="masukDetailMisi('${misi.id}')">LIHAT / BID MISI</button>
+                `;
+                listDiv.appendChild(card);
+            }
+        });
+
+        if (!hasMissions) {
+            listDiv.innerHTML = '<div id="emptyState">Semua misi sudah diambil. Standby...</div>';
+        }
+    });
+
+    // 4. Router pindah ke detail misi
+    function masukDetailMisi(idMisi) {
+        // Halaman cuma bawa ID (sesuai request kamu, tidak bawa data penuh)
+        window.location.href = `mission_detail.html?id=${idMisi}`;
+    }
+</script>
+
+</body>
+</html>
