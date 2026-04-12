@@ -8,19 +8,25 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: sans-serif; padding: 20px; margin: 0; }
+        body { background: #050505; color: white; font-family: 'Courier New', monospace; padding: 20px; margin: 0; }
         .form-card { background: #111; padding: 25px; border-radius: 15px; border: 1px solid #333; max-width: 400px; margin: 20px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h2 { text-align: center; color: #00ffff; letter-spacing: 2px; margin-bottom: 25px; }
-        label { font-size: 12px; color: #888; margin-left: 5px; }
-        input, select, textarea { width: 100%; padding: 15px; margin: 10px 0 20px 0; background: #000; border: 1px solid #444; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
-        input:focus { border-color: #ff0055; outline: none; }
+        h2 { text-align: center; color: #00ffff; letter-spacing: 2px; margin-bottom: 25px; border-bottom: 1px solid #222; padding-bottom: 10px; }
+        label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        input, select, textarea { width: 100%; padding: 15px; margin: 8px 0 20px 0; background: #000; border: 1px solid #333; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        input:focus { border-color: #00ffff; outline: none; box-shadow: 0 0 10px rgba(0,255,255,0.2); }
         
-        /* Tombol Utama yang Selalu Aktif */
-        #btnPublish { width: 100%; padding: 18px; background: linear-gradient(45deg, #ff0055, #ff5500); color: #fff; border: none; font-weight: bold; font-size: 16px; cursor: pointer; border-radius: 8px; text-transform: uppercase; transition: 0.3s; }
-        #btnPublish:active { transform: scale(0.95); }
-        
-        .footer-link { text-align: center; margin-top: 25px; }
-        .footer-link a { color: #555; font-size: 12px; text-decoration: none; }
+        /* Tombol Barbar - Selalu Nyala */
+        #btnPublish { 
+            width: 100%; padding: 20px; 
+            background: linear-gradient(45deg, #00ffff, #0088ff); 
+            color: #000; border: none; font-weight: bold; font-size: 16px; 
+            cursor: pointer; border-radius: 8px; text-transform: uppercase; 
+            transition: 0.3s; box-shadow: 0 5px 15px rgba(0,255,255,0.2);
+        }
+        #btnPublish:active { transform: scale(0.98); }
+        #btnPublish:disabled { background: #222; color: #555; cursor: not-allowed; }
+
+        .user-status { font-size: 10px; text-align: center; margin-bottom: 15px; color: #ffaa00; }
     </style>
 </head>
 <body>
@@ -28,6 +34,8 @@
 <div class="form-card">
     <h2>CREATE MISSION</h2>
     
+    <div class="user-status" id="senderInfo">Mendeteksi Identitas...</div>
+
     <label>PILIH ARMADA</label>
     <select id="cat">
         <option value="MOTOR">MOTOR (BIKE)</option>
@@ -35,50 +43,44 @@
     </select>
 
     <label>LOKASI TUJUAN</label>
-    <input type="text" id="tujuan" placeholder="Ke mana kita pergi?">
+    <input type="text" id="tujuan" placeholder="Ke mana tujuannya?">
 
-    <label>DETAIL TUGAS (OPSIONAL)</label>
-    <textarea id="desc" rows="3" placeholder="Contoh: Titip beli kopi atau antar paket..."></textarea>
+    <label>DETAIL (OPSIONAL)</label>
+    <textarea id="desc" rows="2" placeholder="Contoh: Beli nasi goreng pedas..."></textarea>
 
-    <label>HADIAH / REWARD (G)</label>
-    <input type="number" id="price" placeholder="Masukkan harga (Contoh: 15000)">
+    <label>REWARD / HADIAH (G)</label>
+    <input type="number" id="price" placeholder="Harga (Contoh: 15000)">
     
     <button id="btnPublish" onclick="startPublishProcess()">PUBLISH MISSION</button>
-
-    <div class="footer-link">
-        <a href="login.html">Switch Account or Login</a>
-    </div>
 </div>
 
 <script>
-    // 1. IDENTIFIKASI USER (Sistem yang berpikir)
+    // 1. Ambil Sesi (Tanpa Filter Peran)
     const rawSession = localStorage.getItem('pickme_session');
     let session = rawSession ? JSON.parse(rawSession) : null;
 
-    // Jika tidak login, buat identitas Guest sementara agar sistem tidak error
     if (!session) {
-        session = {
-            nick: "GUEST-" + Math.floor(1000 + Math.random() * 9000),
-            role: "guest",
-            shard_id: "IDN-JABAR-KNG-KUNINGAN" // Default wilayah
-        };
+        session = { nick: "GUEST-" + Math.floor(1000+Math.random()*9000), shard_id: "IDN-JABAR-KNG-KUNINGAN" };
     }
 
+    // Tampilkan di UI siapa yang kirim
+    document.getElementById('senderInfo').innerText = `KIRIM SEBAGAI: ${session.nick.toUpperCase()}`;
+
     async function startPublishProcess() {
-        const btn = document.getElementById('btnPublish');
         const tujuan = document.getElementById('tujuan').value.trim();
         const price = document.getElementById('price').value;
 
-        if (!tujuan || !price) return alert("Tujuan dan Harga tidak boleh kosong!");
+        if (!tujuan || !price) return alert("Isi Tujuan & Harga dulu!");
 
+        const btn = document.getElementById('btnPublish');
         btn.disabled = true;
-        btn.innerText = "LOCALIZING...";
+        btn.innerText = "BROADCASTING...";
 
-        // 2. AMBIL LOKASI (GPS) UNTUK PENENTUAN SHARD OTOMATIS
+        // Langsung hajar eksekusi
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (pos) => { executePublish(tujuan, price, pos.coords.latitude, pos.coords.longitude); },
-                () => { executePublish(tujuan, price, null, null); } // Jika GPS ditolak, lanjut tanpa koordinat
+                () => { executePublish(tujuan, price, null, null); }
             );
         } else {
             executePublish(tujuan, price, null, null);
@@ -86,23 +88,17 @@
     }
 
     async function executePublish(tujuan, price, lat, lon) {
-        const btn = document.getElementById('btnPublish');
-        btn.innerText = "SENDING TO SYSTEM...";
-
         try {
-            // Gunakan shard_id dari session (Sistem tetap tahu wilayahnya)
             const targetDb = getDatabaseByShard(session.shard_id);
             const idMisi = "MS-" + Date.now();
             
-            // Format Path: MOTOR-KUNINGAN-PUSAT-KUNINGAN/KEDUNGARUM/MS-123
-            const kec = session.shard_id.split('-').pop().toUpperCase();
+            // Format Path (Tetap rapi di Shard)
             const category = document.getElementById('cat').value;
-            const path = `${category}-KUNINGAN-PUSAT-${kec}/KEDUNGARUM/${idMisi}`;
+            const path = `${category}-KUNINGAN-PUSAT-KUNINGAN/KEDUNGARUM/${idMisi}`;
 
             const dataMisi = {
                 id: idMisi,
-                requester: session.nick,
-                role_creator: session.role, // Tetap catat siapa yang buat (Adventurer/Guest/Requester)
+                requester: session.nick, // Nama asli user (Mau dia driver atau bukan)
                 tujuan: tujuan,
                 description: document.getElementById('desc').value,
                 price: parseInt(price),
@@ -112,19 +108,19 @@
                 timestamp: Date.now()
             };
 
-            // Simpan ke Shard Database yang sesuai
             await targetDb.ref(path).set(dataMisi);
 
-            // Simpan jejak misi di sessionStorage agar halaman lobby tahu jalurnya
+            // Simpan track untuk lobby
             sessionStorage.setItem('active_quest', idMisi);
             sessionStorage.setItem('active_quest_path', path);
             
+            // Lempar ke Lobby
             window.location.href = "lobby_requester.html";
 
         } catch (e) {
-            alert("Sistem Gagal: " + e.message);
-            btn.disabled = false;
-            btn.innerText = "PUBLISH MISSION";
+            alert("Gagal: " + e.message);
+            document.getElementById('btnPublish').disabled = false;
+            document.getElementById('btnPublish').innerText = "PUBLISH MISSION";
         }
     }
 </script>
