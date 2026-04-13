@@ -13,7 +13,6 @@
         .info-box { border: 1px solid #333; background: #111; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
         .status-pulse { color: #ffaa00; font-weight: bold; animation: blink 1.5s infinite; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
-        
         .btn-start { background: #00ff00; color: #000; padding: 15px; width: 100%; font-weight: bold; border: none; cursor: pointer; font-size: 16px; margin-top: 20px; }
         .btn-abort { background: none; color: #ff4444; border: 1px solid #ff4444; padding: 10px; width: 100%; cursor: pointer; margin-top: 10px; font-size: 12px; }
         .warning-text { color: #888; font-size: 11px; margin-top: 20px; line-height: 1.5; }
@@ -23,47 +22,33 @@
 
 <div class="info-box">
     <h2 style="color: #ffaa00; margin-top: 0;">BRIEFING ROOM</h2>
-    <div id="statusMsg" class="status-pulse">MENUNGGU KONEKSI...</div>
+    <div id="statusMsg" class="status-pulse">MEMVERIFIKASI SINYAL...</div>
     <hr style="border: 0; border-top: 1px solid #222; margin: 20px 0;">
-    
-    <div id="contractDetail" style="text-align: left; font-size: 13px; color: #ccc;">
-        Memverifikasi identitas kedua belah pihak...
-    </div>
+    <div id="contractDetail" style="text-align: left; font-size: 13px; color: #ccc;">Menghubungkan...</div>
 </div>
 
 <div id="actionArea"></div>
 
-<p class="warning-text">
-    ⚠️ <b>PERINGATAN:</b> Jangan menutup aplikasi atau keluar dari halaman ini.<br>
-    Memutuskan koneksi saat ini dapat menghancurkan data kontrak secara permanen.
-</p>
+<p class="warning-text">⚠️ <b>PERINGATAN:</b> Jangan menutup aplikasi agar koneksi kontrak tidak terputus secara permanen.</p>
 
 <script>
     const user = Clearchance.enforceIdentity();
     const contractId = sessionStorage.getItem('active_contract_id');
     
     if (!contractId) {
-        alert("Akses Ilegal: Tidak ada kontrak aktif.");
+        alert("Akses Ilegal.");
         window.location.href = "index.html";
     }
 
-    const dealDB = getTerminal('FB5_DEAL');
-    const boardDB = getTerminal('FB4_BOARD');
+    const db4 = getTerminal('FB4_BOARD'); // Jalur utama FB4
+    let isInitialLoad = true;
 
-    let missionData = null;
-    let isInitialLoad = true; // Menghindari kick mendadak saat awal loading
+    // Monitor di FB4 sesuai alur lobby_adventurer
+    const contractRef = db4.ref(`kontrak_mission/${contractId}`);
 
-    // Path referensi kontrak
-    const contractRef = dealDB.ref(`kontrak_detail/${contractId}`);
-
-    // 1. Monitor Kontrak & Misi secara Real-time
-    contractRef.on('value', async snap => {
+    contractRef.on('value', snap => {
         if (!snap.exists()) {
-            // Jika baru pertama kali load, beri toleransi waktu untuk sinkronisasi Firebase
-            if (isInitialLoad) {
-                isInitialLoad = false;
-                return;
-            }
+            if (isInitialLoad) { isInitialLoad = false; return; }
             alert("KONTRAK DIHANCURKAN: Requester membatalkan pesanan.");
             window.location.href = "index.html";
             return;
@@ -72,24 +57,21 @@
         isInitialLoad = false;
         const c = snap.val();
         
-        // Verifikasi ID (Hanya yang terlibat yang boleh di sini)
+        // Verifikasi identitas
         if (user.uid !== c.id_requester && user.uid !== c.id_adventurer) {
-            alert("Akses Ditolak: Anda tidak terlibat dalam kontrak ini.");
+            alert("Akses Ditolak.");
             window.location.href = "index.html";
             return;
         }
 
-        // Simpan data misi ke session agar dibawa ke halaman progress
-        missionData = c.full_mission_data;
-        if (missionData) {
-            sessionStorage.setItem('current_mission_full', JSON.stringify(missionData));
+        if (c.full_mission_data) {
+            sessionStorage.setItem('current_mission_full', JSON.stringify(c.full_mission_data));
         }
 
         renderUI(c);
 
-        // Jika Adventurer sudah tekan "Mulai" (kita pantau lewat field trigger 'is_started')
         if (c.is_started === true) {
-            contractRef.off(); // Matikan listener sebelum pindah halaman
+            contractRef.off();
             window.location.href = "mission_progress.html";
         }
     });
@@ -99,66 +81,40 @@
         const actionArea = document.getElementById('actionArea');
         const statusMsg = document.getElementById('statusMsg');
 
-        // Pastikan nominal reward ada (fallback ke 0 jika kosong)
-        const rewardAmount = c.reward ? c.reward.toLocaleString() : "0";
-
         detailDiv.innerHTML = `
             <b>ID Kontrak:</b> ${c.id_kontrak}<br>
             <b>Misi:</b> ${c.id_misi}<br>
-            <hr style="border:0; border-top:1px solid #333; margin:10px 0;">
             <b>Requester:</b> ${c.requester_nick}<br>
             <b>Adventurer:</b> ${c.adventurer_nick}<br>
-            <b style="color:#00ff00;">Reward: Rp ${rewardAmount}</b>
+            <b style="color:#00ff00;">Reward: Rp ${(c.reward || 0).toLocaleString()}</b>
         `;
 
         actionArea.innerHTML = "";
-
         if (user.role === 'adventurer') {
             statusMsg.innerText = "KONTRAK SIAP. EKSEKUSI?";
             actionArea.innerHTML = `<button class="btn-start" onclick="mulaiMisi()">MULAI MISI SEKARANG</button>`;
         } else {
             statusMsg.innerText = "MENUNGGU ADVENTURER MEMULAI...";
-            // Field harus sesuai dengan yang dikirim lobby_requester (id_misi, id_shard, id_desa)
             actionArea.innerHTML = `<button class="btn-abort" onclick="batalkanKontrakTotal('${c.id_misi}', '${c.id_shard}', '${c.id_desa}')">BATALKAN & HAPUS MISI</button>`;
         }
     }
 
-    // Fungsi Adventurer: Menjalankan Misi
     async function mulaiMisi() {
-        if (!confirm("Mulai perjalanan sekarang?")) return;
-        
+        if (!confirm("Mulai perjalanan?")) return;
         try {
-            await dealDB.ref(`kontrak_detail/${contractId}`).update({ 
-                is_started: true,
-                start_time: Date.now()
-            });
-        } catch (e) {
-            alert("Gagal sinkronisasi terminal: " + e.message);
-        }
+            await contractRef.update({ is_started: true, start_time: Date.now() });
+        } catch (e) { alert("Gagal update: " + e.message); }
     }
 
-    // Fungsi Requester: Hapus Total (FB5 & FB4)
     async function batalkanKontrakTotal(mid, shard, desa) {
-        if (!confirm("HAPUS TOTAL? Misi akan hilang dari radar dan kontrak dibatalkan.")) return;
-
+        if (!confirm("Hapus total?")) return;
         try {
-            // 1. Hapus dari FB4 (Board Iklan) menggunakan path Shard/Desa
-            const pathFB4 = `mission-${shard}/${desa}/${mid}`;
-            await boardDB.ref(pathFB4).remove();
-            
-            // 2. Hapus Bids
-            await boardDB.ref(`bids/${mid}`).remove();
-
-            // 3. Hapus Kontrak di FB5
-            await dealDB.ref(`kontrak_detail/${contractId}`).remove();
-            
-            alert("Misi dan Kontrak telah dibumihanguskan.");
+            await db4.ref(`mission-${shard}/${desa}/${mid}`).remove();
+            await db4.ref(`bids/${mid}`).remove();
+            await contractRef.remove();
             window.location.href = "lobby_requester.html";
-        } catch (e) {
-            alert("Error saat penghapusan: " + e.message);
-        }
+        } catch (e) { alert("Error: " + e.message); }
     }
 </script>
-
 </body>
 </html>
