@@ -3,35 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sovereign Admin - Verifikasi</title>
+    <title>Sovereign Admin - Command Center</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="terminal_router.js"></script>
     <style>
-        body { background: #050505; color: white; font-family: monospace; padding: 20px; }
-        .card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+        body { background: #050505; color: white; font-family: monospace; padding: 20px; max-width: 1200px; margin: auto; }
+        h2 { border-bottom: 2px solid #333; padding-bottom: 10px; color: #ffaa00; margin-top: 30px; }
+        
+        /* Card Pendafaran */
+        .card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #00ff00; }
         .info b { color: #00ffff; }
-        .btn-verify { background: #00ff00; color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        
+        /* Buttons */
+        button { font-family: monospace; font-weight: bold; cursor: pointer; border-radius: 4px; border: none; padding: 10px 15px; }
+        .btn-verify { background: #00ff00; color: #000; }
         .btn-verify:hover { background: #00cc00; }
-        h2 { border-bottom: 2px solid #333; padding-bottom: 10px; color: #ffaa00; }
+        .btn-action { background: #ffaa00; color: #000; width: 100%; margin-top: 10px; }
+        .btn-danger { background: #ff4444; color: #fff; width: 100%; margin-top: 10px; }
+        .btn-scan { background: #00ffff; color: #000; font-size: 16px; padding: 15px; width: 100%; margin-bottom: 20px; }
+        
+        /* Admin Grid Layout */
+        .admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .stat-card { background: #111; border: 1px solid #333; padding: 20px; border-radius: 5px; }
+        .stat-card h3 { margin-top: 0; color: #888; border-bottom: 1px dashed #444; padding-bottom: 10px; }
+        .stat-val { font-size: 24px; color: #00ffff; font-weight: bold; display: block; margin: 10px 0; }
+        
+        input[type="text"] { width: 90%; padding: 10px; background: #000; color: #00ffff; border: 1px solid #444; font-family: monospace; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
+<h2>SISTEM RADAR & KONTROL</h2>
+<button class="btn-scan" onclick="scanSystem()">[ Pindai Jaringan Database Sekarang ]</button>
+
+<div class="admin-grid">
+    <div class="stat-card">
+        <h3>RADAR LALU LINTAS (FB4/FB1)</h3>
+        Misi Terindeks: <span class="stat-val" id="valMisi">0</span>
+        Sinyal Bids Terdeteksi: <span class="stat-val" id="valBids">0</span>
+        <button class="btn-action" onclick="cleanOrphanBids()">SAPU BERSIH BIDS RESIDU</button>
+    </div>
+
+    <div class="stat-card">
+        <h3>KONTRAK AKTIF (FB5)</h3>
+        Kontrak Berjalan: <span class="stat-val" id="valKontrak">0</span>
+        <div style="font-size: 11px; color: #666; margin-top: 10px;">*Hanya menghitung kontrak yang belum berstatus 'completed'</div>
+    </div>
+
+    <div class="stat-card" style="border-color: #ff4444;">
+        <h3 style="color: #ff4444;">KEAMANAN SISTEM</h3>
+        <input type="text" id="targetUid" placeholder="Masukkan ID_ADV User...">
+        <button class="btn-danger" onclick="banUser()">BANNED USER (FB1)</button>
+        <button class="btn-danger" onclick="toggleMaintenance()" id="btnMaint" style="background: #444; border: 1px solid #ff4444; color: #ff4444;">MODE PERBAIKAN: OFF</button>
+    </div>
+</div>
+
 <h2>PENGAJUAN REGISTER_PENDING</h2>
-<div id="pendingList">Memuat data pengajuan...</div>
+<div id="pendingList">Memuat antrean...</div>
 
 <script>
     const db1 = getTerminal('FB1_MASTER');
     const db2 = getTerminal('FB2_RUNNER');
+    const db4 = getTerminal('FB4_BOARD');
+    const db5 = getTerminal('FB5_DEAL');
 
-    // 1. Baca data dari FB1 register_pending secara real-time
+    let isMaintenance = false;
+
+    // ==========================================
+    // 1. FUNGSI VERIFIKASI (KODE ASLI)
+    // ==========================================
     db1.ref('register_pending').on('value', snap => {
         const list = document.getElementById('pendingList');
         list.innerHTML = "";
 
         if (!snap.exists()) {
-            list.innerHTML = "<p style='color:#555'>Tidak ada antrean pendaftaran.</p>";
+            list.innerHTML = "<p style='color:#555'>Tidak ada antrean pendaftaran saat ini.</p>";
             return;
         }
 
@@ -44,72 +91,150 @@
                     <b>${u.nickname}</b> [${u.id_adv}]<br>
                     Role: ${u.role} | Domisili: ${u.domisili} | Kat: ${u.kategori}
                 </div>
-                <button class="btn-verify" onclick="verifikasiUser('${u.id_adv}')">VERIFIKASI & AKTIFKAN</button>
+                <button class="btn-verify" onclick="verifikasiUser('${u.id_adv}')">TERIMA & AKTIFKAN</button>
             `;
             list.appendChild(div);
         });
     });
 
-    // 2. Fungsi Verifikasi (Pindah Data)
     async function verifikasiUser(idAdv) {
-        if (!confirm("Verifikasi user ini dan pindahkan ke database aktif?")) return;
-
+        if (!confirm("Aktifkan user ini ke terminal operasional?")) return;
         try {
-            // Ambil data asli dari register_pending
             const snap = await db1.ref(`register_pending/${idAdv}`).once('value');
             const data = snap.val();
-
             if (!data) return;
 
-            // Tentukan tabel tujuan di FB1 berdasarkan role
             const targetIndex = (data.role === 'adventurer') ? 'adventurer_index' : 'requester_index';
 
-            // --- A. Simpan ke Index Pusat (FB1) ---
             const indexData = {
-                id_adv: data.id_adv,
-                nickname: data.nickname,
-                password: data.password,
-                role: data.role,
-                kategori: data.kategori,
-                area_tugas: data.domisili,
-                shard_id: "FB2_RUNNER" // Alamat terminal data operasional
+                id_adv: data.id_adv, nickname: data.nickname, password: data.password,
+                role: data.role, kategori: data.kategori, area_tugas: data.domisili, shard_id: "FB2_RUNNER"
             };
 
-            // --- B. Simpan ke Database Operasional (FB2) ---
-            // Mengikuti pola: adventurer-(DOMISILI)/(DESA)/...
-            // Untuk sementara desa dikosongkan/default sesuai domisili
             const operationalData = {
-                id_adv: data.id_adv,
-                nickname: data.nickname,
-                password: data.password,
-                created_at: data.created_at,
-                role: data.role,
-                kategori: data.kategori,
-                area_tugas: data.domisili,
-                stamina: 1000,
-                level: 1,
-                rank: "F"
+                id_adv: data.id_adv, nickname: data.nickname, password: data.password,
+                created_at: data.created_at, role: data.role, kategori: data.kategori,
+                area_tugas: data.domisili, stamina: 1000, level: 1, rank: "F"
             };
 
-            // Eksekusi Pemindahan (Atomically)
-            // 1. Masukkan ke Index FB1
             await db1.ref(`${targetIndex}/${data.id_adv}`).set(indexData);
-            
-            // 2. Masukkan ke Database Lapangan FB2
-            // Path: adventurer-KNG/Kuningan/id_adv
             await db2.ref(`adventurer-${data.domisili}/Umum/${data.id_adv}`).set(operationalData);
-
-            // 3. Hapus dari register_pending FB1
             await db1.ref(`register_pending/${idAdv}`).remove();
 
-            alert(`User ${data.nickname} Berhasil diverifikasi dan diaktifkan di terminal FB2!`);
-
+            alert(`${data.nickname} berhasil diaktifkan!`);
         } catch (e) {
-            console.error(e);
-            alert("Terjadi kesalahan saat verifikasi.");
+            console.error(e); alert("Terjadi kesalahan sistem.");
         }
     }
-</script>
 
+    // ==========================================
+    // 2. FUNGSI ADMIN DASHBOARD (PEMANTAUAN)
+    // ==========================================
+    
+    // Fungsi untuk menarik data tanpa membuat listener (Hemat Bandwidth)
+    async function scanSystem() {
+        document.getElementById('valMisi').innerText = "Loading...";
+        document.getElementById('valBids').innerText = "Loading...";
+        document.getElementById('valKontrak').innerText = "Loading...";
+
+        try {
+            // Hitung Misi di FB1 (Misi Index lebih ringan discan daripada FB4 Shard)
+            const snapMisi = await db1.ref('misi_index').once('value');
+            document.getElementById('valMisi').innerText = snapMisi.numChildren() || 0;
+
+            // Hitung Total Bids di FB4
+            const snapBids = await db4.ref('bids').once('value');
+            document.getElementById('valBids').innerText = snapBids.numChildren() || 0;
+
+            // Hitung Kontrak di FB5
+            const snapKontrak = await db5.ref('kontrak_detail').once('value');
+            document.getElementById('valKontrak').innerText = snapKontrak.numChildren() || 0;
+            
+        } catch (error) {
+            console.error("Gagal memindai: ", error);
+        }
+    }
+
+    // Fungsi pembersihan data Bids yang ID misinya sudah dihapus
+    async function cleanOrphanBids() {
+        if (!confirm("Mulai pembersihan? Ini akan menghapus bids yang kehilangan induk misinya.")) return;
+        
+        try {
+            const bidsSnap = await db4.ref('bids').once('value');
+            if (!bidsSnap.exists()) return alert("Radar sudah bersih.");
+
+            let deletedCount = 0;
+            const promises = [];
+
+            bidsSnap.forEach(child => {
+                const mid = child.key;
+                // Cek apakah mid ini ada di misi_index FB1
+                const p = db1.ref(`misi_index/${mid}`).once('value').then(idx => {
+                    if (!idx.exists()) {
+                        // Misi sudah tidak ada, hapus bid-nya
+                        db4.ref(`bids/${mid}`).remove();
+                        deletedCount++;
+                    }
+                });
+                promises.push(p);
+            });
+
+            await Promise.all(promises);
+            alert(`Selesai! Menghapus ${deletedCount} residu bids.`);
+            scanSystem(); // Refresh angka
+        } catch (e) {
+            alert("Error saat pembersihan: " + e.message);
+        }
+    }
+
+    // Fungsi memblokir akses pengguna
+    async function banUser() {
+        const uid = document.getElementById('targetUid').value.trim();
+        if (!uid) return alert("Masukkan ID_ADV terlebih dahulu!");
+        if (!confirm(`Blokir akses untuk ID: ${uid} secara permanen?`)) return;
+
+        try {
+            // Asumsi kita tambahkan properti 'is_banned' ke index utama
+            await db1.ref(`adventurer_index/${uid}`).update({ is_banned: true });
+            await db1.ref(`requester_index/${uid}`).update({ is_banned: true });
+            
+            alert(`User ${uid} telah diblokir. Sistem Clearchance akan menolak aksesnya.`);
+            document.getElementById('targetUid').value = "";
+        } catch (e) {
+            alert("Gagal memblokir: " + e.message);
+        }
+    }
+
+    // Fungsi Emergency Maintenance
+    async function toggleMaintenance() {
+        isMaintenance = !isMaintenance;
+        try {
+            // Simpan status maintenance ke root FB1 agar dibaca aplikasi klien
+            await db1.ref('system_config').update({ is_maintenance: isMaintenance });
+            
+            const btn = document.getElementById('btnMaint');
+            if (isMaintenance) {
+                btn.innerText = "MODE PERBAIKAN: ON";
+                btn.style.background = "#ff4444";
+                btn.style.color = "white";
+                alert("Sistem telah DIMATIKAN! User baru akan dicegah masuk.");
+            } else {
+                btn.innerText = "MODE PERBAIKAN: OFF";
+                btn.style.background = "#444";
+                btn.style.color = "#ff4444";
+                alert("Sistem telah dihidupkan kembali.");
+            }
+        } catch (e) {
+            alert("Gagal mengubah status: " + e.message);
+        }
+    }
+
+    // Load initial system config for maintenance status
+    db1.ref('system_config/is_maintenance').once('value').then(snap => {
+        isMaintenance = snap.val() || false;
+        if (isMaintenance) toggleMaintenance(); // Sinkronkan UI jika sudah aktif dari sananya
+    });
+
+</script>
 </body>
 </html>
