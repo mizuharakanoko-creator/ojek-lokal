@@ -46,7 +46,6 @@
 
     const db1 = getTerminal('FB1_MASTER');
     const db4 = getTerminal('FB4_BOARD');
-    const db5 = getTerminal('FB5_DEAL'); // Menambahkan akses ke FB5
     
     const missionRefPath = `mission-${activeShard}/${activeDesa}/${activeMid}`;
 
@@ -57,7 +56,6 @@
             window.location.href = "publish.html";
             return;
         }
-
         const m = snap.val();
         document.getElementById('missionTitle').innerText = `ID: ${m.id_misi}`;
         document.getElementById('missionDetail').innerHTML = `
@@ -68,16 +66,14 @@
         `;
     });
 
-    // 3. Pantau Bids (Penawaran)
+    // 3. Pantau Bids
     db4.ref(`bids/${activeMid}`).on('value', snap => {
         const list = document.getElementById('bidList');
         list.innerHTML = "";
-        
         if (!snap.exists()) {
             list.innerHTML = "<p style='color:#444; font-style:italic;'>Belum ada sinyal masuk...</p>";
             return;
         }
-
         snap.forEach(child => {
             const b = child.val();
             const div = document.createElement('div');
@@ -93,40 +89,39 @@
         });
     });
 
-    // 4. Fungsi Terima Penawaran & Buat Kontrak (FIXED SINKRONISASI FB5)
+    // 4. Fungsi Terima Penawaran & Buat Kontrak (Sinkron dengan Adventurer Radar)
     async function terimaPenawaran(bidId, advenId, advenNick, finalPrice) {
         if (!confirm(`Terima penawaran dari ${advenNick}?`)) return;
 
         const contractId = "CTR-" + Date.now();
-        
-        // Ambil data misi utuh untuk dibawa ke briefing & progress
         const missionSnap = await db4.ref(missionRefPath).once('value');
         const m = missionSnap.val();
-
+        
         const contractData = {
             id_kontrak: contractId,
             id_misi: activeMid,
             id_requester: user.uid,
-            requester_nick: user.nick, // Tambahan untuk Briefing
-            id_adventurer: advenId,
-            adventurer_nick: advenNick, // Penyesuaian nama field
-            reward: finalPrice, // Penyesuaian nama field
+            requester_nick: user.nick || "Requester",
+            id_adventurer: advenId, // Kunci utama untuk listener adventurer
+            adventurer_nick: advenNick,
+            reward: finalPrice,
             id_shard: activeShard,
             id_desa: activeDesa,
             status: 'briefing',
             is_started: false,
             created_at: Date.now(),
-            full_mission_data: m // Sangat penting untuk halaman selanjutnya
+            full_mission_data: m
         };
 
         try {
-            // A. Simpan Kontrak ke FB5_DEAL (Agar ditemukan oleh Briefing Room)
-            await db5.ref(`kontrak_detail/${contractId}`).set(contractData);
+            // A. Simpan Kontrak ke FB4 (kontrak_mission) agar terdeteksi listenToContracts() adventurer
+            await db4.ref(`kontrak_mission/${contractId}`).set(contractData);
             
-            // B. Update status misi di FB4
+            // B. Update status misi
             await db4.ref(missionRefPath).update({ 
                 status: 'taken',
-                active_contract_id: contractId
+                active_contract_id: contractId,
+                adventurer_id: advenId
             });
 
             // C. Hapus semua bids
@@ -140,26 +135,16 @@
         }
     }
 
-    // 5. Fungsi Hancurkan Misi
     async function hancurkanMisi() {
-        if (!confirm("HANCURKAN MISI? Sinyal akan dihapus dari seluruh jaringan.")) return;
-
+        if (!confirm("HANCURKAN MISI?")) return;
         try {
             await db1.ref(`misi_index/${activeMid}`).remove();
             await db4.ref(missionRefPath).remove();
             await db4.ref(`bids/${activeMid}`).remove();
-
-            sessionStorage.removeItem('active_mission_id');
-            sessionStorage.removeItem('active_mission_shard');
-            sessionStorage.removeItem('active_mission_desa');
-
-            alert("Sinyal Berhasil Dihancurkan.");
+            sessionStorage.clear();
             window.location.href = "publish.html";
-        } catch (e) {
-            alert("Gagal menghancurkan misi: " + e.message);
-        }
+        } catch (e) { alert("Gagal: " + e.message); }
     }
 </script>
-
 </body>
 </html>
