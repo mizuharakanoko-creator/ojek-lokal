@@ -31,8 +31,7 @@
     </div>
 </div>
 
-<div id="actionArea">
-    </div>
+<div id="actionArea"></div>
 
 <p class="warning-text">
     ⚠️ <b>PERINGATAN:</b> Jangan menutup aplikasi atau keluar dari halaman ini.<br>
@@ -52,19 +51,29 @@
     const boardDB = getTerminal('FB4_BOARD');
 
     let missionData = null;
+    let isInitialLoad = true; // Menghindari kick mendadak saat awal loading
+
+    // Path referensi kontrak
+    const contractRef = dealDB.ref(`kontrak_detail/${contractId}`);
 
     // 1. Monitor Kontrak & Misi secara Real-time
-    dealDB.ref(`kontrak_detail/${contractId}`).on('value', async snap => {
+    contractRef.on('value', async snap => {
         if (!snap.exists()) {
+            // Jika baru pertama kali load, beri toleransi waktu untuk sinkronisasi Firebase
+            if (isInitialLoad) {
+                isInitialLoad = false;
+                return;
+            }
             alert("KONTRAK DIHANCURKAN: Requester membatalkan pesanan.");
             window.location.href = "index.html";
             return;
         }
 
+        isInitialLoad = false;
         const c = snap.val();
         
         // Verifikasi ID (Hanya yang terlibat yang boleh di sini)
-        if (user.uid !== c.requester_id && user.uid !== c.adventurer_id) {
+        if (user.uid !== c.id_requester && user.uid !== c.id_adventurer) {
             alert("Akses Ditolak: Anda tidak terlibat dalam kontrak ini.");
             window.location.href = "index.html";
             return;
@@ -72,12 +81,15 @@
 
         // Simpan data misi ke session agar dibawa ke halaman progress
         missionData = c.full_mission_data;
-        sessionStorage.setItem('current_mission_full', JSON.stringify(missionData));
+        if (missionData) {
+            sessionStorage.setItem('current_mission_full', JSON.stringify(missionData));
+        }
 
         renderUI(c);
 
         // Jika Adventurer sudah tekan "Mulai" (kita pantau lewat field trigger 'is_started')
         if (c.is_started === true) {
+            contractRef.off(); // Matikan listener sebelum pindah halaman
             window.location.href = "mission_progress.html";
         }
     });
@@ -87,12 +99,16 @@
         const actionArea = document.getElementById('actionArea');
         const statusMsg = document.getElementById('statusMsg');
 
+        // Pastikan nominal reward ada (fallback ke 0 jika kosong)
+        const rewardAmount = c.reward ? c.reward.toLocaleString() : "0";
+
         detailDiv.innerHTML = `
             <b>ID Kontrak:</b> ${c.id_kontrak}<br>
             <b>Misi:</b> ${c.id_misi}<br>
+            <hr style="border:0; border-top:1px solid #333; margin:10px 0;">
             <b>Requester:</b> ${c.requester_nick}<br>
             <b>Adventurer:</b> ${c.adventurer_nick}<br>
-            <b style="color:#00ff00;">Reward: Rp ${c.reward.toLocaleString()}</b>
+            <b style="color:#00ff00;">Reward: Rp ${rewardAmount}</b>
         `;
 
         actionArea.innerHTML = "";
@@ -102,6 +118,7 @@
             actionArea.innerHTML = `<button class="btn-start" onclick="mulaiMisi()">MULAI MISI SEKARANG</button>`;
         } else {
             statusMsg.innerText = "MENUNGGU ADVENTURER MEMULAI...";
+            // Field harus sesuai dengan yang dikirim lobby_requester (id_misi, id_shard, id_desa)
             actionArea.innerHTML = `<button class="btn-abort" onclick="batalkanKontrakTotal('${c.id_misi}', '${c.id_shard}', '${c.id_desa}')">BATALKAN & HAPUS MISI</button>`;
         }
     }
@@ -111,13 +128,12 @@
         if (!confirm("Mulai perjalanan sekarang?")) return;
         
         try {
-            // Kita cukup beri tanda 'is_started' di FB5 sebagai sinyal untuk kedua pihak
             await dealDB.ref(`kontrak_detail/${contractId}`).update({ 
                 is_started: true,
                 start_time: Date.now()
             });
         } catch (e) {
-            alert("Gagal sinkronisasi: " + e.message);
+            alert("Gagal sinkronisasi terminal: " + e.message);
         }
     }
 
@@ -126,11 +142,11 @@
         if (!confirm("HAPUS TOTAL? Misi akan hilang dari radar dan kontrak dibatalkan.")) return;
 
         try {
-            // 1. Hapus dari FB4 (Board Iklan)
+            // 1. Hapus dari FB4 (Board Iklan) menggunakan path Shard/Desa
             const pathFB4 = `mission-${shard}/${desa}/${mid}`;
             await boardDB.ref(pathFB4).remove();
             
-            // 2. Hapus Bids (jika ada)
+            // 2. Hapus Bids
             await boardDB.ref(`bids/${mid}`).remove();
 
             // 3. Hapus Kontrak di FB5
