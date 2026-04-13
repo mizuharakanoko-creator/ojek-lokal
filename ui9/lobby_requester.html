@@ -24,8 +24,7 @@
     <button class="btn-abort" onclick="hancurkanMisi()">[ HANCURKAN MISI ]</button>
     <h3 id="missionTitle" style="margin: 0; color: #ff0055;">MEMINDDAI SINYAL...</h3>
     
-    <div id="missionDetail" style="margin-top: 15px; font-size: 13px; line-height: 1.6;">
-        </div>
+    <div id="missionDetail" style="margin-top: 15px; font-size: 13px; line-height: 1.6;"></div>
     <div class="status-msg" id="statusPulsing">MENUNGGU ADVENTURER MERESPON...</div>
 </div>
 
@@ -35,13 +34,11 @@
 </div>
 
 <script>
-    // 1. Ambil Data Session dari publish.html
     const user = Clearchance.enforceIdentity();
     const activeMid = sessionStorage.getItem('active_mission_id');
     const activeShard = sessionStorage.getItem('active_mission_shard');
     const activeDesa = sessionStorage.getItem('active_mission_desa');
 
-    // Keamanan: Jika data session hilang, kembalikan ke publish
     if (!activeMid || !activeShard || !activeDesa) {
         alert("Sesi misi tidak ditemukan.");
         window.location.href = "publish.html";
@@ -49,14 +46,13 @@
 
     const db1 = getTerminal('FB1_MASTER');
     const db4 = getTerminal('FB4_BOARD');
+    const db5 = getTerminal('FB5_DEAL'); // Menambahkan akses ke FB5
     
-    // Path sesuai struktur FB4: mission-SHARD/DESA/ID_MISI
     const missionRefPath = `mission-${activeShard}/${activeDesa}/${activeMid}`;
 
     // 2. Pantau Detail Misi secara Realtime
     db4.ref(missionRefPath).on('value', snap => {
         if (!snap.exists()) {
-            // Jika misi hilang (dihapus manual dari console atau didelete requester lain)
             alert("Sinyal misi terputus.");
             window.location.href = "publish.html";
             return;
@@ -97,35 +93,43 @@
         });
     });
 
-    // 4. Fungsi Terima Penawaran & Buat Kontrak
+    // 4. Fungsi Terima Penawaran & Buat Kontrak (FIXED SINKRONISASI FB5)
     async function terimaPenawaran(bidId, advenId, advenNick, finalPrice) {
         if (!confirm(`Terima penawaran dari ${advenNick}?`)) return;
 
         const contractId = "CTR-" + Date.now();
         
+        // Ambil data misi utuh untuk dibawa ke briefing & progress
+        const missionSnap = await db4.ref(missionRefPath).once('value');
+        const m = missionSnap.val();
+
         const contractData = {
             id_kontrak: contractId,
             id_misi: activeMid,
             id_requester: user.uid,
+            requester_nick: user.nick, // Tambahan untuk Briefing
             id_adventurer: advenId,
-            adventurer_name: advenNick,
-            final_price: finalPrice,
+            adventurer_nick: advenNick, // Penyesuaian nama field
+            reward: finalPrice, // Penyesuaian nama field
+            id_shard: activeShard,
+            id_desa: activeDesa,
             status: 'briefing',
-            created_at: Date.now()
+            is_started: false,
+            created_at: Date.now(),
+            full_mission_data: m // Sangat penting untuk halaman selanjutnya
         };
 
         try {
-            // A. Simpan Kontrak ke FB4 (Tabel kontrak_mission sesuai permintaanmu)
-            await db4.ref(`kontrak_mission/${contractId}`).set(contractData);
+            // A. Simpan Kontrak ke FB5_DEAL (Agar ditemukan oleh Briefing Room)
+            await db5.ref(`kontrak_detail/${contractId}`).set(contractData);
             
-            // B. Update status misi agar tidak tampil lagi di Board Driver
+            // B. Update status misi di FB4
             await db4.ref(missionRefPath).update({ 
                 status: 'taken',
-                active_contract_id: contractId,
-                adventurer_id: advenId
+                active_contract_id: contractId
             });
 
-            // C. Hapus semua bids misi ini karena sudah ada pemenang
+            // C. Hapus semua bids
             await db4.ref(`bids/${activeMid}`).remove();
 
             sessionStorage.setItem('active_contract_id', contractId);
@@ -136,21 +140,15 @@
         }
     }
 
-    // 5. Fungsi Hancurkan Misi (Delete FB1 & FB4)
+    // 5. Fungsi Hancurkan Misi
     async function hancurkanMisi() {
         if (!confirm("HANCURKAN MISI? Sinyal akan dihapus dari seluruh jaringan.")) return;
 
         try {
-            // Hapus di Master (FB1)
             await db1.ref(`misi_index/${activeMid}`).remove();
-            
-            // Hapus di Board (FB4)
             await db4.ref(missionRefPath).remove();
-            
-            // Hapus Bids yang sempat masuk
             await db4.ref(`bids/${activeMid}`).remove();
 
-            // Bersihkan Session
             sessionStorage.removeItem('active_mission_id');
             sessionStorage.removeItem('active_mission_shard');
             sessionStorage.removeItem('active_mission_desa');
