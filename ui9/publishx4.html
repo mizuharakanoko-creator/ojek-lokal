@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CREATE QUEST | SOVEREIGN GUILD</title>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* ==========================================================================
+           [1] VARIABEL & RESET GLOBAL
+           ========================================================================== */
+        :root {
+            --bg-dark: #050505;
+            --panel-bg: #0a0a0a;
+            --p-cyan: #00fff2;
+            --p-purple: #bc00ff;
+            --p-gold: #ffcc00;
+            --p-red: #ff0055;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --border-color: #333333;
+            --font-main: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --font-cyber: 'Courier New', Courier, monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 15px;
+            overflow-x: hidden;
+        }
+
+        /* ==========================================================================
+           [2] WADAH UTAMA (TERMINAL BOARD)
+           ========================================================================== */
+        .terminal-container {
+            width: 100%;
+            max-width: 450px;
+            background: var(--panel-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(0, 255, 242, 0.05);
+            position: relative;
+            margin-bottom: 30px;
+        }
+
+        /* Header */
+        .terminal-header {
+            text-align: center;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .main-title {
+            font-size: 20px;
+            font-weight: 900;
+            color: var(--p-cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px var(--p-cyan);
+        }
+        .lore-text {
+            font-size: 10px;
+            color: var(--p-gold);
+            font-family: var(--font-cyber);
+            margin-top: 5px;
+            animation: pulse-text 2s infinite;
+        }
+
+        @keyframes pulse-text {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* Navigasi Step */
+        .step-section {
+            display: none;
+            animation: fadeIn 0.4s ease forwards;
+        }
+        .step-section.active { display: block; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-title {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        /* ==========================================================================
+           [3] KOMPONEN INPUT & FORM (RAMAH GAPTEK)
+           ========================================================================== */
+        .input-group { margin-bottom: 15px; position: relative; }
+        .input-group label {
+            display: block; font-size: 10px; color: var(--text-muted);
+            text-transform: uppercase; margin-bottom: 5px; font-weight: bold;
+        }
+        
+        input, select, textarea {
+            width: 100%; padding: 14px;
+            background: #000; border: 1px solid var(--border-color);
+            color: var(--text-main); border-radius: 8px;
+            font-size: 14px; transition: all 0.3s ease;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--p-cyan);
+            box-shadow: 0 0 10px rgba(0, 255, 242, 0.2);
+        }
+
+        /* Tombol Utama */
+        .btn-main {
+            width: 100%; padding: 16px;
+            background: var(--p-cyan); color: #000;
+            border: none; border-radius: 8px;
+            font-weight: 900; font-size: 14px;
+            text-transform: uppercase; cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 5px 15px rgba(0, 255, 242, 0.3);
+        }
+        .btn-main:active { transform: scale(0.96); box-shadow: none; }
+        
+        .btn-secondary {
+            width: 100%; padding: 12px; margin-top: 10px;
+            background: transparent; color: var(--text-muted);
+            border: 1px solid var(--border-color); border-radius: 8px;
+            font-size: 12px; cursor: pointer; transition: 0.3s;
+        }
+        .btn-secondary:active { background: #222; }
+
+        /* Ikon Voice to Text (Terintegrasi) */
+        .voice-wrapper { position: relative; }
+        .btn-voice {
+            position: absolute; right: 10px; top: 10px;
+            background: rgba(0, 255, 242, 0.1); border: 1px solid var(--p-cyan);
+            color: var(--p-cyan); border-radius: 50%;
+            width: 30px; height: 30px; display: flex;
+            align-items: center; justify-content: center;
+            cursor: pointer; font-size: 14px; transition: 0.3s;
+            z-index: 5;
+        }
+        .btn-voice.recording {
+            background: var(--p-red); border-color: var(--p-red); color: white;
+            animation: pulse-recording 1s infinite;
+        }
+        @keyframes pulse-recording {
+            0% { box-shadow: 0 0 0 0 rgba(255, 0, 85, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 0, 85, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 0, 85, 0); }
+        }
+
+        /* ==========================================================================
+           [4] UI SPESIFIK (KATEGORI, RADAR, CHECKBOX CYBER, HARGA)
+           ========================================================================== */
+        
+        /* Grid Kategori */
+        .category-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .cat-card {
+            background: #111; border: 1px solid var(--border-color);
+            border-radius: 10px; padding: 20px 10px; text-align: center;
+            cursor: pointer; transition: all 0.3s;
+        }
+        .cat-card:hover { border-color: var(--text-muted); }
+        .cat-card.active {
+            border-color: var(--p-cyan); background: rgba(0, 255, 242, 0.05);
+            box-shadow: 0 0 15px rgba(0, 255, 242, 0.2);
+        }
+        .cat-icon { font-size: 30px; display: block; margin-bottom: 10px; }
+        .cat-label { font-size: 12px; font-weight: bold; color: white; }
+
+        /* Radar GPS */
+        .radar-box {
+            background: rgba(0, 255, 242, 0.02); border: 1px dashed var(--border-color);
+            border-radius: 10px; padding: 25px; text-align: center; margin-bottom: 15px;
+            cursor: pointer; transition: 0.3s;
+        }
+        .radar-box.scanning { border-color: var(--p-cyan); background: rgba(0, 255, 242, 0.05); }
+        .radar-circle {
+            width: 50px; height: 50px; border-radius: 50%;
+            border: 2px solid var(--p-cyan); margin: 0 auto 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; position: relative;
+        }
+        .radar-pulse {
+            position: absolute; width: 100%; height: 100%;
+            border: 2px solid var(--p-cyan); border-radius: 50%;
+            display: none;
+        }
+        .radar-box.scanning .radar-pulse { display: block; animation: radar-ping 1.5s infinite; }
+        @keyframes radar-ping { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
+
+        /* Cyber Checkbox Darurat */
+        .cyber-checkbox {
+            display: flex; align-items: center; gap: 15px;
+            background: rgba(255, 0, 85, 0.05); border: 1px solid var(--border-color);
+            padding: 15px; border-radius: 8px; cursor: pointer;
+            margin-bottom: 20px; transition: 0.3s;
+        }
+        .cyber-checkbox.checked {
+            border-color: var(--p-red); background: rgba(255, 0, 85, 0.15);
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.2);
+        }
+        .cyber-box {
+            width: 24px; height: 24px; border: 2px solid var(--p-red);
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 4px; font-weight: bold; color: transparent; transition: 0.3s;
+        }
+        .cyber-checkbox.checked .cyber-box { background: var(--p-red); color: white; }
+        .cyber-label { font-size: 11px; font-weight: bold; color: var(--p-red); letter-spacing: 1px; }
+
+        /* Price Grid */
+        .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .price-card {
+            background: #000; border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 15px 5px; text-align: center;
+            cursor: pointer; transition: 0.3s;
+        }
+        .price-card.active {
+            border-color: var(--p-purple); background: rgba(188, 0, 255, 0.1);
+            box-shadow: 0 0 15px rgba(188, 0, 255, 0.3);
+        }
+        .p-tier { font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 5px; font-weight: bold; }
+        .p-amount { font-size: 14px; color: white; font-weight: 900; }
+        .price-card.active .p-tier { color: var(--p-purple); }
+
+        /* Auto-complete Dropdown */
+        .autocomplete-list {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: #111; border: 1px solid var(--p-cyan); border-radius: 0 0 8px 8px;
+            max-height: 150px; overflow-y: auto; z-index: 100; display: none;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        .ac-item { padding: 12px; border-bottom: 1px solid #222; cursor: pointer; font-size: 12px; }
+        .ac-item:hover { background: #222; color: var(--p-cyan); }
+
+        /* TOAST */
+        #toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px);
+            background: var(--p-cyan); color: #000; padding: 12px 25px;
+            border-radius: 30px; font-weight: bold; font-size: 12px;
+            z-index: 9999; transition: 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: 0 5px 15px rgba(0, 255, 242, 0.4);
+        }
+        #toast.show { transform: translateX(-50%) translateY(0); }
+    </style>
+</head>
+<body>
+
+<div id="toast">Notifikasi</div>
+
+<div class="terminal-container">
+    
+    <div class="terminal-header">
+        <h1 class="main-title">PUBLISH QUEST</h1>
+        <div class="lore-text" id="loreText">Menghubungkan ke Jaringan Sovereign...</div>
+    </div>
+
+    <div id="step1" class="step-section active">
+        <h3 class="step-title">Langkah 1: Pilih Armada</h3>
+        
+        <div class="category-grid">
+            <div class="cat-card" onclick="selectCategory('motor', 1.0, this)">
+                <span class="cat-icon">🏍️</span>
+                <span class="cat-label">OJEK MOTOR</span>
+            </div>
+            <div class="cat-card" onclick="selectCategory('mobil', 1.8, this)">
+                <span class="cat-icon">🚗</span>
+                <span class="cat-label">OJEK MOBIL</span>
+            </div>
+        </div>
+        
+        <button class="btn-main" style="margin-top: 20px;" onclick="nextStep(2)">LANJUTKAN ➔</button>
+    </div>
+
+    <div id="step2" class="step-section">
+        <h3 class="step-title">Langkah 2: Lokasi Anda</h3>
+        
+        <div class="radar-box" id="btnRadar" onclick="getGPSLocation()">
+            <div class="radar-circle">📍<div class="radar-pulse"></div></div>
+            <div id="gpsResultText" style="font-weight: bold; font-size: 14px; color: var(--p-cyan);">KLIK UNTUK CARI LOKASI SAYA</div>
+            <div style="font-size: 10px; color: #888; margin-top: 5px;">Satelit akan melacak koordinat Anda</div>
+        </div>
+
+        <div style="text-align: center; margin: 15px 0; font-size: 10px; color: #555;">--- ATAU KETIK MANUAL ---</div>
+
+        <div class="input-group">
+            <label>Alamat Lengkap / Patokan Jemput</label>
+            <div class="voice-wrapper">
+                <textarea id="pickupText" rows="2" placeholder="Contoh: Depan gerbang putih no. 12..."></textarea>
+                <div class="btn-voice" onclick="startVoice('pickupText', this)">🎙️</div>
+            </div>
+            <input type="hidden" id="pickupCoords">
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button class="btn-secondary" style="flex: 1;" onclick="prevStep(1)">⬅️ KEMBALI</button>
+            <button class="btn-main" style="flex: 2; margin-top: 10px;" onclick="validateStep2()">LANJUT TUJUAN ➔</button>
+        </div>
+    </div>
+
+    <div id="step3" class="step-section">
+        <h3 class="step-title">Langkah 3: Mau Kemana?</h3>
+
+        <div class="input-group">
+            <label>Cari Desa / Daerah Tujuan</label>
+            <input type="text" id="destSearch" placeholder="Ketik nama desa..." autocomplete="off">
+            <div class="autocomplete-list" id="destAutocomplete"></div>
+        </div>
+
+        <div class="input-group" style="display: none;">
+            <label>Kecamatan Tujuan</label>
+            <select id="destKec"></select>
+        </div>
+        <div class="input-group" style="display: none;">
+            <label>Desa Tujuan</label>
+            <select id="destDesa"></select>
+        </div>
+
+        <div class="input-group">
+            <label>Detail Alamat Tujuan (Opsional)</label>
+            <div class="voice-wrapper">
+                <textarea id="destNote" rows="2" placeholder="Contoh: Samping pos kamling..."></textarea>
+                <div class="btn-voice" onclick="startVoice('destNote', this)">🎙️</div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button class="btn-secondary" style="flex: 1;" onclick="prevStep(2)">⬅️ KEMBALI</button>
+            <button class="btn-main" style="flex: 2; margin-top: 10px;" onclick="validateStep3()">HITUNG ONGKOS ➔</button>
+        </div>
+    </div>
+
+    <div id="step4" class="step-section">
+        <h3 class="step-title">Langkah 4: Kontrak & Ongkos</h3>
+
+        <div class="cyber-checkbox" id="urgentWrap" onclick="toggleUrgent()">
+            <div class="cyber-box">✔</div>
+            <input type="checkbox" id="isUrgent" style="display:none;">
+            <div class="cyber-label">NYALAKAN MODE DARURAT (PRIORITAS)</div>
+        </div>
+
+        <label style="font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 10px; font-weight: bold;">PILIH PAKET ONGKOS:</label>
+        <div class="price-grid">
+            <div class="price-card" onclick="selectPrice(this, 'HEMAT')">
+                <span class="p-tier">HEMAT</span>
+                <span class="p-amount" id="valHemat">0</span>
+            </div>
+            <div class="price-card" onclick="selectPrice(this, 'REGULER')">
+                <span class="p-tier" style="color: var(--p-purple);">BIASA</span>
+                <span class="p-amount" id="valReg">0</span>
+            </div>
+            <div class="price-card" onclick="selectPrice(this, 'EXPRESS')">
+                <span class="p-tier" style="color: var(--p-gold);">KILAT</span>
+                <span class="p-amount" id="valExp">0</span>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label>Ongkos Final (Boleh Dilebihkan / Nego)</label>
+            <input type="number" id="finalPrice" style="font-size: 20px; font-weight: 900; color: var(--p-gold); text-align: center;">
+        </div>
+
+        <div style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 8px; font-size: 11px; color: #ccc; margin-bottom: 15px; border: 1px dashed #333;">
+            <div style="margin-bottom: 5px;">📍 <b>Jarak Est:</b> <span id="sumDistance" style="color: var(--p-cyan);">0 KM</span></div>
+            <div>🏆 <b>Tier Misi:</b> <span id="sumTier" style="color: var(--p-purple);">KECIL</span></div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button class="btn-secondary" style="flex: 1;" onclick="prevStep(3)">⬅️ EDIT</button>
+            <button class="btn-main" id="btnBroadcast" style="flex: 2; margin-top: 10px; background: var(--p-purple); color: white;" onclick="submitQuest()">📡 BROADCAST MISI</button>
+        </div>
+    </div>
+
+</div>
+
+<script src="wilayah.js"></script> 
+
+<script>
+    // ==========================================================================
+    // [1] KONFIGURASI FIREBASE & STATE APLIKASI
+    // ==========================================================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyA8gSce2OvSC0hece_r_kifBKoG8mkVZBk",
+        authDomain: "ojeklokal-42b84.firebaseapp.com",
+        databaseURL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ojeklokal-42b84",
+        storageBucket: "ojeklokal-42b84.firebasestorage.app",
+        messagingSenderId: "320198748498",
+        appId: "1:320198748498:web:3e6038249edc6af20b328b"
+    };
+
+    if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.database();
+
+    // Data Simulasi Profil (Akan ditimpa oleh DB jika user login)
+    let userProfile = {
+        name: "Anonim", totalOrders: 0, cancel: 0, reputation: 0, joinDate: "Mar 2026"
+    };
+    const currentUID = localStorage.getItem('current_customer_id') || "GUEST_" + Math.floor(Math.random()*10000);
+
+    // Variabel Transaksi
+    let questState = {
+        category: "",       // motor / mobil
+        multiplier: 1.0,    // 1.0 motor, 1.8 mobil
+        origin: { lat: 0, lng: 0, name: "", note: "" },
+        dest: { lat: 0, lng: 0, name: "", note: "" },
+        distance: 0,
+        price: 0,
+        isUrgent: false
+    };
+
+    // MOCK DATA WILAYAH (Jika wilayah.js gagal dimuat)
+    if(typeof dataWilayah === 'undefined') {
+        window.dataWilayah = {
+            "Cigugur": {
+                desa: [
+                    { name: "Cigugur", lat: -6.9754, lng: 108.4594, diff: 1.0 },
+                    { name: "Cisantana", lat: -6.9542, lng: 108.4254, diff: 1.2 }
+                ]
+            },
+            "Kuningan": {
+                desa: [
+                    { name: "Purwawinangun", lat: -6.9721, lng: 108.4852, diff: 1.0 },
+                    { name: "Cijoho", lat: -6.9654, lng: 108.4832, diff: 1.0 }
+                ]
+            }
+        };
+    }
+
+    // Initialize System
+    window.onload = () => {
+        // Cek Login Asli (Mengikuti alur kode 1)
+        const realUID = localStorage.getItem('current_customer_id');
+        if(realUID) {
+            db.ref('users_customer/' + realUID).once('value', snap => {
+                if(snap.val()) userProfile = snap.val();
+            });
+        }
+        changeLoreText();
+    };
+
+    // ==========================================================================
+    // [2] GAMIFIKASI: SUARA, GETARAN, & LORE
+    // ==========================================================================
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioContext();
+
+    function playSFX(type) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        
+        if (type === 'click') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        } else if (type === 'urgent') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            if(navigator.vibrate) navigator.vibrate([100, 50, 100]); // Getaran Ganda
+        } else if (type === 'broadcast') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(1200, audioCtx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+            if(navigator.vibrate) navigator.vibrate(200); // Getaran Panjang
+        }
+    }
+
+    function triggerVibrate(ms = 50) {
+        if(navigator.vibrate) navigator.vibrate(ms);
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg; t.classList.add('show');
+        playSFX('click');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function changeLoreText() {
+        const texts = [
+            "Sistem Keamanan Gatekeeper Aktif...",
+            "Mencari Driver dengan reputasi Legend...",
+            "Tips: Harga wajar menarik Driver lebih cepat.",
+            "Sinkronisasi Satelit Guild Lokal..."
+        ];
+        let i = 0;
+        setInterval(() => {
+            i = (i + 1) % texts.length;
+            document.getElementById('loreText').innerText = texts[i];
+        }, 4000);
+    }
+
+    // ==========================================================================
+    // [3] NAVIGASI ALUR (STEP-BY-STEP)
+    // ==========================================================================
+    function nextStep(step) {
+        document.querySelectorAll('.step-section').forEach(el => el.classList.remove('active'));
+        document.getElementById('step' + step).classList.add('active');
+        playSFX('click');
+        triggerVibrate();
+        window.scrollTo(0,0);
+    }
+    
+    function prevStep(step) { nextStep(step); }
+
+    function selectCategory(cat, multiplier, el) {
+        document.querySelectorAll('.cat-card').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        questState.category = cat;
+        questState.multiplier = multiplier;
+        playSFX('click'); triggerVibrate();
+    }
+
+    // ==========================================================================
+    // [4] LOKASI & FITUR VOICE-TO-TEXT
+    // ==========================================================================
+    function getGPSLocation() {
+        const btn = document.getElementById('btnRadar');
+        const txt = document.getElementById('gpsResultText');
+        btn.classList.add('scanning');
+        txt.innerText = "SINKRONISASI SATELIT...";
+        playSFX('click');
+
+        if(navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                questState.origin.lat = pos.coords.latitude;
+                questState.origin.lng = pos.coords.longitude;
+                document.getElementById('pickupCoords').value = `${pos.coords.latitude},${pos.coords.longitude}`;
+                
+                // Reverse Geocode OpenStreetMap
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`)
+                .then(res => res.json()).then(data => {
+                    const road = data.address.road || data.address.village || "LOKASI DITEMUKAN";
+                    btn.classList.remove('scanning');
+                    txt.innerText = "📍 " + road.toUpperCase();
+                    txt.style.color = "#00ff88"; // Ubah jadi hijau sukses
+                    document.getElementById('pickupText').value = road; // Auto-fill textarea
+                    triggerVibrate([50, 50]);
+                }).catch(() => {
+                    btn.classList.remove('scanning'); txt.innerText = "LOKASI DIAMANKAN";
+                });
+            }, err => {
+                btn.classList.remove('scanning'); showToast("Gagal akses GPS. Ketik manual.");
+                txt.innerText = "KLIK UNTUK CARI LOKASI SAYA";
+            }, { enableHighAccuracy: true });
+        } else {
+            showToast("Browser tidak mendukung GPS.");
+        }
+    }
+
+    // Smart Voice to Text
+    function startVoice(targetId, btnEl) {
+        if (!('webkitSpeechRecognition' in window)) return showToast("Browser tidak mendukung Suara.");
+        const rec = new webkitSpeechRecognition();
+        rec.lang = 'id-ID';
+        
+        rec.onstart = () => { 
+            btnEl.classList.add('recording'); 
+            showToast("Mendengarkan..."); 
+            triggerVibrate(100);
+        };
+        
+        rec.onresult = (e) => {
+            const txt = e.results[0][0].transcript;
+            const input = document.getElementById(targetId);
+            input.value = input.value ? input.value + " " + txt : txt;
+        };
+        
+        rec.onend = () => { 
+            btnEl.classList.remove('recording'); 
+            playSFX('click');
+        };
+        
+        rec.start();
+    }
+
+    // ==========================================================================
+    // [5] AUTOCOMPLETE DESA TUJUAN
+    // ==========================================================================
+    const searchInput = document.getElementById('destSearch');
+    const suggestBox = document.getElementById('destAutocomplete');
+
+    searchInput.addEventListener('input', function() {
+        const val = this.value.toLowerCase();
+        suggestBox.innerHTML = '';
+        if (val.length < 2) { suggestBox.style.display = 'none'; return; }
+
+        let matches = [];
+        for (let kec in window.dataWilayah) {
+            window.dataWilayah[kec].desa.forEach((desa, idx) => {
+                if (desa.name.toLowerCase().includes(val)) {
+                    matches.push({ name: desa.name, kec: kec, lat: desa.lat, lng: desa.lng, diff: desa.diff });
+                }
+            });
+        }
+
+        if (matches.length > 0) {
+            suggestBox.style.display = 'block';
+            matches.slice(0, 5).forEach(m => {
+                const div = document.createElement('div');
+                div.className = "ac-item";
+                div.innerHTML = `<span style="color:var(--p-cyan); font-weight:bold;">${m.name.toUpperCase()}</span> <br><small>Kec. ${m.kec}</small>`;
+                div.onclick = () => {
+                    searchInput.value = m.name.toUpperCase();
+                    questState.dest.lat = m.lat;
+                    questState.dest.lng = m.lng;
+                    questState.dest.name = m.name;
+                    questState.dest.diff = m.diff || 1.0;
+                    suggestBox.style.display = 'none';
+                    playSFX('click'); triggerVibrate();
+                };
+                suggestBox.appendChild(div);
+            });
+        } else {
+            suggestBox.style.display = 'none';
+        }
+    });
+
+    // ==========================================================================
+    // [6] VALIDASI & PERHITUNGAN ONGKOS (LOGIKA HAVERSINE)
+    // ==========================================================================
+    function validateStep2() {
+        if(!questState.category) return showToast("Pilih Kendaraan dulu di Langkah 1!");
+        const pt = document.getElementById('pickupText').value;
+        if(pt.length < 5) return showToast("Alamat Jemput / Patokan terlalu singkat!");
+        questState.origin.note = pt;
+        nextStep(3);
+    }
+
+    function validateStep3() {
+        if(!questState.dest.lat) return showToast("Pilih Desa Tujuan dari daftar pencarian!");
+        questState.dest.note = document.getElementById('destNote').value;
+        
+        calculateBounty();
+        nextStep(4);
+    }
+
+    function calculateRealDistance(lat1, lon1, lat2, lon2) {
+        if(!lat1 || !lat2) return 0; // Jika manual tanpa GPS
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    function calculateBounty() {
+        const distLurus = calculateRealDistance(questState.origin.lat, questState.origin.lng, questState.dest.lat, questState.dest.lng);
+        questState.distance = (distLurus * 1.5).toFixed(1); // Jalan berkelok
+        
+        const m = questState.multiplier; // 1.0 atau 1.8
+        const diff = questState.dest.diff || 1.0;
+        const round = (num) => Math.ceil(num / 1000) * 1000;
+
+        // Base price motor: 10k, 12k, 15k. Base price dikali multiplier mobil (1.8)
+        let vHem = Math.max(10000 * m, round((questState.distance * 2000 * m) * diff));
+        let vReg = Math.max(12000 * m, round((questState.distance * 3000 * m) * diff));
+        let vExp = Math.max(15000 * m, round((questState.distance * 4000 * m) * diff));
+
+        // Update UI Card
+        document.getElementById('valHemat').innerText = vHem.toLocaleString('id-ID');
+        document.getElementById('valHemat').dataset.val = vHem;
+        
+        document.getElementById('valReg').innerText = vReg.toLocaleString('id-ID');
+        document.getElementById('valReg').dataset.val = vReg;
+        
+        document.getElementById('valExp').innerText = vExp.toLocaleString('id-ID');
+        document.getElementById('valExp').dataset.val = vExp;
+
+        // Auto Select Reguler
+        selectPrice(document.querySelectorAll('.price-card')[1], 'REGULER');
+        
+        // Update Summary Distance
+        document.getElementById('sumDistance').innerText = questState.distance > 0 ? questState.distance + " KM" : "UNTRACKED";
+    }
+
+    // ==========================================================================
+    // [7] TIER IKAN & REPUTASI
+    // ==========================================================================
+    function getFishTier(price) {
+        if (price < 15000) return "KECIL";
+        if (price < 25000) return "SEDANG";
+        if (price < 40000) return "MANTAP";
+        if (price < 60000) return "KAKAP";
+        if (price < 100000) return "HIU";
+        if (price < 200000) return "PAUS";
+        return "MEGALODON";
+    }
+
+    function getReputationLabel(profile) {
+        if (!profile) return "PENGGUNA BARU";
+        const order = profile.totalOrders || profile.misiSelesai || 0;
+        const cancel = profile.cancel || 0;
+        const rep = profile.reputation || 0;
+        
+        if (order < 5) return "PENGGUNA BARU";
+        if (cancel > 10) return "BERESIKO";
+        if (rep >= 50) return "TERPERCAYA";
+        return "NETRAL";
+    }
+
+    function toggleUrgent() {
+        const wrap = document.getElementById('urgentWrap');
+        const chk = document.getElementById('isUrgent');
+        chk.checked = !chk.checked;
+        questState.isUrgent = chk.checked;
+        wrap.classList.toggle('checked', chk.checked);
+        
+        if(chk.checked) playSFX('urgent'); else playSFX('click');
+    }
+
+    function selectPrice(el, type) {
+        document.querySelectorAll('.price-card').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        
+        const val = parseInt(el.querySelector('.p-amount').dataset.val);
+        document.getElementById('finalPrice').value = val;
+        updateFinalTier(val);
+        playSFX('click'); triggerVibrate();
+    }
+
+    document.getElementById('finalPrice').addEventListener('input', function() {
+        updateFinalTier(parseInt(this.value) || 0);
+    });
+
+    function updateFinalTier(val) {
+        questState.price = val;
+        const tier = getFishTier(val);
+        document.getElementById('sumTier').innerText = tier;
+    }
+
+    // ==========================================================================
+    // [8] PENGIRIMAN DATA (STRUKTUR KODE 1) -> LOBBY_REQUESTER
+    // ==========================================================================
+    function submitQuest() {
+        if(questState.price < 5000) return showToast("Bounty Terlalu Rendah!");
+        
+        const btn = document.getElementById('btnBroadcast');
+        btn.innerHTML = "TRANSMITTING... ⏳";
+        btn.style.pointerEvents = "none";
+        playSFX('broadcast');
+
+        // Buat ID Firebase
+        const missionRef = db.ref('missions').push();
+        const mKey = missionRef.key;
+
+        // Susun payload SAMA PERSIS dengan kode ke-1
+        const missionData = {
+            id: mKey,
+            clientId: currentUID,
+            clientName: userProfile.name || "Anonim",
+            status: "searching",
+            timestamp: firebase.database.ServerValue.TIMESTAMP,
+
+            pickupName: questState.origin.note,
+            pickupCoords: questState.origin.lat + "," + questState.origin.lng,
+            destinationName: questState.dest.name.toUpperCase(),
+            distanceEstimate: questState.distance + " KM",
+            price: questState.price,
+            note: questState.dest.note || "Tolong antar tepat waktu.",
+            
+            rank: questState.isUrgent ? "DARURAT" : "BIASA",
+            clientRankTier: getFishTier(questState.price),
+            clientReputationLabel: getReputationLabel(userProfile),
+            
+            clientStats: {
+                totalOrders: userProfile.totalOrders || userProfile.misiSelesai || 0,
+                like: userProfile.like || 0,
+                dislike: userProfile.dislike || 0,
+                cancel: userProfile.cancel || 0,
+                memberSince: userProfile.joinDate || userProfile.memberSince || "Mar 2026"
+            },
+            
+            // Tambahan info jenis kendaraan yang dipilih
+            vehicleType: questState.category
+        };
+
+        console.log("Misi Dibuat:", missionData);
+
+        // Eksekusi Simpan ke Firebase Database
+        missionRef.set(missionData)
+            .then(() => {
+                // Simpan state ID untuk digunakan di radar pencarian
+                localStorage.setItem('active_mission_id', mKey);
+                // Redirect ke Lobby Requester (Sesuai Koreksi Anda)
+                window.location.replace('lobby_requester.html');
+            })
+            .catch((err) => {
+                console.error("Gagal Firebase:", err);
+                showToast("Koneksi Server Gagal!");
+                btn.innerHTML = "📡 BROADCAST MISI";
+                btn.style.pointerEvents = "auto";
+            });
+    }
+
+</script>
+</body>
+</html>
