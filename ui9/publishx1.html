@@ -3,444 +3,432 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sovereign Guild - Quest Terminal</title>
+    <title>Sovereign - Publish Quest</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="router_lokal.js"></script>
+    <script src="clearchance.js"></script>
+
     <style>
         :root {
-            --bg-dark: #050505;
-            --panel-bg: #0f0f13;
             --primary: #ff0055;
-            --primary-glow: rgba(255, 0, 85, 0.6);
+            --primary-glow: rgba(255, 0, 85, 0.5);
             --secondary: #00f2ff;
-            --secondary-glow: rgba(0, 242, 255, 0.4);
-            --success: #00ff88;
-            --warning: #ffcc00;
-            --border: rgba(255, 255, 255, 0.08);
-            --glass: rgba(255, 255, 255, 0.03);
-            --shadow-emboss: inset 2px 2px 5px rgba(255,255,255,0.05), inset -2px -2px 5px rgba(0,0,0,0.5);
+            --bg-dark: #050505;
+            --panel: #0f0f13;
+            --border: rgba(255, 255, 255, 0.1);
+            --emboss: inset 2px 2px 5px rgba(255,255,255,0.05), inset -2px -2px 5px rgba(0,0,0,0.5);
         }
 
-        /* --- Dasar & Animasi --- */
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { 
             background: var(--bg-dark); 
-            color: #ffffff; 
-            font-family: 'Segoe UI', Roboto, sans-serif; 
-            margin: 0; 
-            padding: 15px;
-            display: flex;
-            justify-content: center;
-            min-height: 100vh;
-            overflow-x: hidden;
+            color: white; 
+            font-family: 'Segoe UI', monospace; 
+            margin: 0; padding: 15px; 
+            display: flex; justify-content: center;
         }
 
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 0, 85, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 0, 85, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 0, 85, 0); } }
-        @keyframes scan-line { 0% { top: 0%; } 100% { top: 100%; } }
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
-
-        /* --- Container Utama --- */
-        .guild-card {
-            width: 100%;
-            max-width: 480px;
-            background: var(--panel-bg);
+        .container {
+            width: 100%; max-width: 480px;
+            background: var(--panel);
             border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 25px;
-            position: relative;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
-            overflow: hidden;
-        }
-
-        .guild-card::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
-            background: linear-gradient(90deg, transparent, var(--primary), transparent);
-            animation: scan-line 3s linear infinite; opacity: 0.3;
-        }
-
-        /* --- Header Section --- */
-        .header { text-align: center; margin-bottom: 30px; }
-        .header h1 { 
-            font-size: 22px; margin: 0; color: var(--primary); 
-            text-transform: uppercase; letter-spacing: 4px;
-            text-shadow: 0 0 15px var(--primary-glow);
-        }
-        .header p { font-size: 10px; color: var(--secondary); letter-spacing: 2px; margin-top: 5px; opacity: 0.7; }
-
-        /* --- Step Page System --- */
-        .page { display: none; animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
-        .page.active { display: block; }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* --- Step 1: Kategori --- */
-        .grid-kat { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-        .kat-item {
-            background: linear-gradient(145deg, #1a1a1e, #0a0a0c);
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: 0.3s;
-            box-shadow: var(--shadow-emboss);
-        }
-        .kat-item.active { border-color: var(--primary); box-shadow: 0 0 20px var(--primary-glow); transform: scale(1.05); }
-        .kat-item.locked { opacity: 0.4; cursor: not-allowed; position: relative; }
-        .kat-item .icon { font-size: 35px; margin-bottom: 10px; display: block; }
-        .kat-item span { font-size: 12px; font-weight: bold; text-transform: uppercase; }
-
-        /* --- Step 2: Lokasi --- */
-        .instruction { font-size: 13px; color: #aaa; text-align: center; margin-bottom: 20px; }
-
-        /* Radar GPS */
-        .radar-box {
-            background: linear-gradient(145deg, #0d1a15, #050a08);
-            border: 2px solid var(--success);
             border-radius: 20px;
-            padding: 30px 20px;
+            padding: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+        }
+
+        h2.title {
+            color: var(--primary);
             text-align: center;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px var(--primary-glow);
+            margin: 10px 0 20px 0;
+            text-transform: uppercase;
+        }
+
+        /* --- Tab System --- */
+        .tab-container {
+            display: flex; gap: 5px; background: #000; padding: 5px; border-radius: 12px; margin-bottom: 20px;
+            box-shadow: var(--emboss);
+        }
+        .tab {
+            flex: 1; padding: 12px; text-align: center; cursor: pointer;
+            font-size: 11px; font-weight: bold; border-radius: 8px; color: #666; transition: 0.3s;
+        }
+        .tab.active { background: var(--primary); color: white; box-shadow: 0 0 15px var(--primary-glow); }
+
+        /* --- Section Styling --- */
+        .section-box {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            padding: 15px;
             margin-bottom: 20px;
-            box-shadow: 0 0 30px rgba(0,255,136,0.1), var(--shadow-emboss);
-            transition: 0.5s;
+            box-shadow: var(--emboss);
         }
-        .radar-box.disabled { opacity: 0.2; filter: grayscale(1); transform: scale(0.95); pointer-events: none; }
+        .section-title {
+            font-size: 11px; color: var(--secondary); font-weight: bold;
+            text-transform: uppercase; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;
+        }
+        .section-title::before { content: ''; width: 3px; height: 12px; background: var(--secondary); display: inline-block; }
+
+        /* --- GPS Display --- */
+        .gps-status {
+            background: #000; border: 1px solid #1a1a1a; padding: 15px; border-radius: 10px;
+            font-family: monospace; font-size: 12px; margin-bottom: 10px;
+            color: #00ff88; text-shadow: 0 0 5px rgba(0,255,136,0.3);
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        /* --- Inputs --- */
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 10px; color: #888; margin-bottom: 5px; text-transform: uppercase; }
         
-        .radar-icon { font-size: 40px; margin-bottom: 10px; display: block; filter: drop-shadow(0 0 10px var(--success)); }
-        .loc-main { font-size: 24px; font-weight: 900; color: var(--success); text-transform: uppercase; margin: 0; }
-        .loc-sub { font-size: 11px; color: #88ccaa; font-family: monospace; }
-
-        .btn-mode-switch {
-            width: 100%; padding: 14px; background: rgba(0, 242, 255, 0.05);
-            border: 1px solid var(--secondary); color: var(--secondary);
-            border-radius: 12px; font-weight: bold; cursor: pointer; margin-bottom: 20px;
-            box-shadow: var(--shadow-emboss); transition: 0.3s;
+        select, input, textarea {
+            width: 100%; background: #000; border: 1px solid #333; color: #fff;
+            padding: 14px; border-radius: 10px; outline: none; font-size: 14px;
+            box-shadow: var(--emboss); transition: 0.3s;
         }
-        .btn-mode-switch:active { background: var(--secondary); color: #000; }
-
-        /* Panel Manual */
-        .manual-box {
-            background: #15151b; border: 1px solid var(--border); border-radius: 20px;
-            padding: 20px; display: none; margin-bottom: 20px; box-shadow: var(--shadow-emboss);
-        }
-        .manual-box.active { display: block; }
-
-        .tab-nav { display: flex; gap: 8px; margin-bottom: 20px; background: #000; padding: 5px; border-radius: 12px; }
-        .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; color: #666; font-weight: bold; font-size: 11px; border-radius: 8px; cursor: pointer; transition: 0.3s; }
-        .tab-btn.active { background: var(--secondary); color: #000; box-shadow: 0 0 15px var(--secondary-glow); }
-
-        /* Form Inputs */
-        .field { margin-bottom: 15px; position: relative; }
-        .field label { font-size: 10px; color: var(--secondary); text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 6px; padding-left: 5px; }
+        select:focus, input:focus { border-color: var(--primary); }
         
-        input, select, textarea {
-            width: 100%; background: #0a0a0c; border: 1px solid #333; color: #fff;
-            padding: 14px; border-radius: 12px; font-size: 14px; outline: none;
-            box-shadow: var(--shadow-emboss); transition: 0.3s;
+        /* Hierarchy Hidden Logic */
+        .hidden-select { display: none; margin-top: 10px; }
+
+        /* --- AI & Voice Buttons --- */
+        .ai-tools { display: flex; gap: 8px; margin-top: 10px; }
+        .btn-tool {
+            flex: 1; padding: 10px; border-radius: 8px; border: none; font-size: 11px; font-weight: bold;
+            cursor: pointer; color: white; transition: 0.3s;
         }
-        input:focus, select:focus { border-color: var(--secondary); box-shadow: 0 0 10px var(--secondary-glow); }
+        .btn-voice { background: #444; }
+        .btn-ai { background: linear-gradient(90deg, #8a2be2, #4a00e0); }
 
-        /* Hierarchy Logic Styling */
-        .hidden-field { display: none; opacity: 0; transform: translateY(10px); transition: 0.4s; }
-        .field-visible { display: block; opacity: 1; transform: translateY(0); }
-
-        /* Locked State Opsi 2 */
-        .is-locked { border-color: var(--success) !important; color: var(--success) !important; pointer-events: none; opacity: 0.8; }
-        .reset-link { color: #ff4444; font-size: 10px; font-weight: bold; cursor: pointer; display: none; margin-top: 5px; text-align: right; }
-
-        /* --- Voice & AI --- */
-        .btn-voice {
-            background: linear-gradient(90deg, #ff0055, #ff5500);
-            border: none; color: white; padding: 12px; border-radius: 12px;
-            width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px;
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-            box-shadow: 0 5px 15px rgba(255,0,85,0.3);
+        /* --- Action Button --- */
+        .btn-publish {
+            width: 100%; padding: 18px; background: var(--primary); color: white;
+            border: none; border-radius: 15px; font-size: 16px; font-weight: bold;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 2px;
+            box-shadow: 0 10px 20px var(--primary-glow); margin-top: 10px;
         }
-        .btn-ai {
-            background: linear-gradient(90deg, #8e2de2, #4a00e0);
-            border: none; color: white; padding: 12px; border-radius: 12px;
-            width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px;
-        }
+        .btn-publish:disabled { background: #333; box-shadow: none; opacity: 0.5; }
 
-        /* --- Modal & Toast --- */
-        .toast {
+        /* --- Toast & Overlay --- */
+        #toast {
             position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
-            background: var(--primary); color: white; padding: 15px 25px;
-            border-radius: 50px; font-weight: bold; font-size: 13px; z-index: 9999;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: var(--primary); padding: 12px 25px; border-radius: 50px;
+            z-index: 1000; transition: 0.5s; font-size: 13px; font-weight: bold;
         }
-        .toast.show { top: 30px; }
-
-        .overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(5px); z-index: 9000; display: none;
-            align-items: center; justify-content: center; padding: 20px;
-        }
-        .modal {
-            background: #1a1a1e; border: 1px solid var(--primary);
-            padding: 25px; border-radius: 20px; width: 100%; max-width: 320px;
-            text-align: center; box-shadow: 0 0 30px var(--primary-glow);
-        }
-        .modal h3 { margin: 0 0 15px 0; color: var(--primary); }
-        .modal p { font-size: 14px; color: #ccc; margin-bottom: 20px; }
-        .modal-btns { display: flex; gap: 10px; }
-        .m-btn { flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
-        .m-confirm { background: var(--primary); color: white; }
-        .m-cancel { background: #333; color: white; }
-
-        /* --- Footer Button --- */
-        .btn-next {
-            width: 100%; padding: 18px; background: var(--primary);
-            color: white; border: none; border-radius: 16px; font-size: 16px;
-            font-weight: 900; text-transform: uppercase; letter-spacing: 2px;
-            cursor: pointer; box-shadow: 0 10px 20px rgba(255,0,85,0.4);
-            transition: 0.3s; margin-top: 10px;
-        }
-        .btn-next:active { transform: translateY(4px); box-shadow: 0 5px 10px var(--primary-glow); }
+        #toast.show { top: 30px; }
     </style>
 </head>
 <body>
 
-    <div id="toast" class="toast">Sinyal Terenkripsi</div>
-    <div id="overlay" class="overlay">
-        <div class="modal" id="modalReset">
-            <h3>Reset Data?</h3>
-            <p>Pilihan lokasi Anda akan dihapus secara permanen dari formulir ini.</p>
-            <div class="modal-btns">
-                <button class="m-btn m-cancel" onclick="closeModal()">BATAL</button>
-                <button class="m-btn m-confirm" onclick="confirmReset()">YA, HAPUS</button>
+<div id="toast"></div>
+
+<div class="container">
+    <h2 class="title">[ Publish Quest ]</h2>
+
+    <div class="tab-container">
+        <div class="tab active" id="tabGps" onclick="switchMode('gps')">GPS OTOMATIS</div>
+        <div class="tab" id="tabManual" onclick="switchMode('manual')">INPUT MANUAL</div>
+    </div>
+
+    <div class="section-box">
+        <div class="section-title">A. Titik Jemput (Origin)</div>
+        
+        <div id="gpsDisplay" class="gps-status">
+            <span>📡</span> <span id="gpsText">Inisialisasi Satelit...</span>
+        </div>
+
+        <div id="manualJemput" style="display: none;">
+            <div class="form-group">
+                <select id="selKecJemput" onchange="updateDesa('selKecJemput', 'selDesaJemput')">
+                    <option value="">-- Pilih Kecamatan Jemput --</option>
+                </select>
+            </div>
+            <div id="desaJemputWrapper" class="hidden-select">
+                <select id="selDesaJemput">
+                    <option value="">-- Pilih Desa Jemput --</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 10px;">
+            <input type="text" id="originDetail" placeholder="Nama Tempat / Patokan">
+        </div>
+    </div>
+
+    <div class="section-box">
+        <div class="section-title">B. Tujuan Antar (Destination)</div>
+        <div class="form-group">
+            <select id="selKecAntar" onchange="updateDesa('selKecAntar', 'selDesaAntar')">
+                <option value="">-- Pilih Kecamatan Tujuan --</option>
+            </select>
+        </div>
+        <div id="desaAntarWrapper" class="hidden-select">
+            <select id="selDesaAntar">
+                <option value="">-- Pilih Desa Tujuan --</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-top: 10px;">
+            <input type="text" id="destDetail" placeholder="Blok M, Gang Jambu, dll">
+        </div>
+    </div>
+
+    <div class="section-box">
+        <div class="section-title">C. Kompensasi & Catatan</div>
+        <div class="form-group">
+            <label>Reward (Emas / Rp):</label>
+            <input type="number" id="reward" placeholder="Contoh: 15000">
+        </div>
+        <div class="form-group">
+            <textarea id="note" rows="2" placeholder="Catatan tambahan untuk Adventurer..."></textarea>
+            <div class="ai-tools">
+                <button class="btn-tool btn-voice" onclick="startVoice()">🎤 Voice</button>
+                <button class="btn-tool btn-ai" onclick="runAIPolish()">✨ AI Polish</button>
             </div>
         </div>
     </div>
 
-    <div class="guild-card">
-        <div class="header">
-            <h1 id="dynamicTitle">Publish Quest</h1>
-            <p>Sovereign Guild Terminal v2.0</p>
-        </div>
+    <button class="btn-publish" id="btnGo" onclick="publishAction()">Sebarkan Sinyal</button>
+</div>
 
-        <div id="page1" class="page active">
-            <p class="instruction">Pilih jenis bantuan yang Anda butuhkan untuk memanggil Adventurer.</p>
-            <div class="grid-kat">
-                <div class="kat-item active" onclick="goToStep2('Motor Ride')">
-                    <span class="icon">🏍️</span><span>Motor Ride</span>
-                </div>
-                <div class="kat-item locked" onclick="lockNotice('Car Ride')">
-                    <span class="icon">🚗</span><span>Car Ride</span>
-                </div>
-                <div class="kat-item locked" onclick="lockNotice('Pick & Drop')">
-                    <span class="icon">📦</span><span>Pick & Drop</span>
-                </div>
-                <div class="kat-item locked" onclick="lockNotice('Titip Beli')">
-                    <span class="icon">🛍️</span><span>Titip Beli</span>
-                </div>
-            </div>
-        </div>
+<script>
+    // --- INITIALIZATION ---
+    const user = Clearchance.enforceIdentity() || { uid: "GUEST-" + Date.now(), nick: "Guest", zone: "KNG" };
+    let currentCoords = { lat: 0, lng: 0 };
+    let modeJemput = 'gps';
 
-        <div id="page2" class="page">
-            <p class="instruction">Langkah 1: Titik Penjemputan (Origin)</p>
-            
-            <div class="radar-box" id="radarBox">
-                <span class="radar-icon" id="gpsIcon">📡</span>
-                <p class="loc-main" id="gpsDesa">Mencari Posisi...</p>
-                <p class="loc-sub" id="gpsKec">Akurasi Tinggi Diaktifkan</p>
-            </div>
+    // --- UI UTILS ---
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
 
-            <button class="btn-mode-switch" id="btnToggle" onclick="toggleOriginMode()">Ubah Titik / Pesankan Orang Lain</button>
-
-            <div class="manual-box" id="manualBox">
-                <div class="tab-nav">
-                    <button class="tab-btn active" id="tbtn2" onclick="setTab(2)">📍 PILIH DESA</button>
-                    <button class="tab-btn" id="tbtn3" onclick="setTab(3)">✍️ KETIK BEBAS</button>
-                </div>
-
-                <div id="tabContent2">
-                    <div class="field">
-                        <label>Pencarian Cepat</label>
-                        <input type="text" id="smartInput" placeholder="Ketik nama desa (Cijoho, Cirendang...)" autocomplete="off">
-                        <div id="smartList" class="suggest-box" style="display:none; position:absolute; width:100%; background:#1a1a1e; z-index:10; border-radius:0 0 12px 12px; border:1px solid #333;"></div>
-                        <div id="resetLink" class="reset-link" onclick="openResetModal()">❌ Reset Pilihan</div>
-                    </div>
-
-                    <div class="field">
-                        <label>Kecamatan</label>
-                        <select id="selKec" onchange="handleKecChange()">
-                            <option value="">-- Pilih Kecamatan --</option>
-                        </select>
-                    </div>
-
-                    <div id="desaField" class="field hidden-field">
-                        <label>Desa / Kelurahan</label>
-                        <select id="selDesa">
-                            <option value="">-- Pilih Desa --</option>
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label>Detail Patokan</label>
-                        <input type="text" id="patokan" placeholder="Contoh: Depan SD atau Pagar Merah">
-                    </div>
-                </div>
-
-                <div id="tabContent3" style="display:none">
-                    <div class="field">
-                        <label>Alamat Lengkap</label>
-                        <textarea id="negoText" rows="4" placeholder="Sebutkan lokasi jemput Anda sejelas mungkin..."></textarea>
-                    </div>
-                    <button class="btn-voice" onclick="startVoice()">
-                        <span>🎤</span> Mulai Bicara (Voice)
-                    </button>
-                    <button class="btn-ai" onclick="runAIPolish()">
-                        ✨ Rapihkan Bahasa AI
-                    </button>
-                </div>
-            </div>
-
-            <button class="btn-next" onclick="validateStep2()">Lanjut ke Tujuan ➔</button>
-        </div>
-
-    </div>
-
-    <script>
-        // DATA DATABASE LOKAL (router_lokal.js)
-        const LOKASI_DB = {
-            "Cigugur": {
-                desa: [
-                    { name: "Kelurahan Cigugur", lat: -6.9754, lng: 108.4594 },
-                    { name: "Kelurahan Cigadung", lat: -6.9885, lng: 108.4612 },
-                    { name: "Desa Cisantana", lat: -6.9542, lng: 108.4254 }
-                ]
-            },
-            "Kuningan Kota": {
-                desa: [
-                    { name: "Kuningan", lat: -6.9765, lng: 108.4841 },
-                    { name: "Purwawinangun", lat: -6.9721, lng: 108.4852 },
-                    { name: "Cijoho", lat: -6.9654, lng: 108.4832 },
-                    { name: "Cirendang", lat: -6.9542, lng: 108.4791 }
-                ]
-            }
-        };
-
-        let currentData = { category: '', mode: 'gps', desa: '', kec: '', detail: '' };
-
-        // --- UI Utilities ---
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            t.innerText = msg; t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 3000);
-        }
-
-        function lockNotice(name) {
-            showToast("Fitur " + name + " Terkunci!");
-            const activeKat = event.currentTarget;
-            activeKat.style.animation = "shake 0.3s ease";
-            setTimeout(() => activeKat.style.animation = "", 300);
-        }
-
-        // --- Navigation ---
-        function goToStep2(cat) {
-            currentData.category = cat;
-            document.getElementById('dynamicTitle').innerText = "[" + cat + "]";
-            document.getElementById('page1').classList.remove('active');
-            document.getElementById('page2').classList.add('active');
-            initKecamatan();
-            startGPSFlow();
-        }
-
-        // --- GPS Logic (Nominatim API) ---
-        function startGPSFlow() {
-            if (!navigator.geolocation) return updateGPSUI("ERROR", "No GPS Support");
-
-            const options = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
-            
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                
-                try {
-                    // Reverse Geocoding via Nominatim (Gratis)
-                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
-                    const data = await res.json();
-                    
-                    // Ambil nama Desa/Kelurahan
-                    let desaFound = data.address.village || data.address.suburb || data.address.neighbourhood || "Desa Tak Dikenal";
-                    
-                    // Validasi ke Database Lokal untuk cari Kecamatan
-                    let kecFound = "Luar Jangkauan";
-                    for (let kec in LOKASI_DB) {
-                        if (LOKASI_DB[kec].desa.some(d => desaFound.includes(d.name) || d.name.includes(desaFound))) {
-                            kecFound = kec;
-                            break;
-                        }
-                    }
-
-                    updateGPSUI(desaFound, "Kecamatan " + kecFound);
-                    currentData.desa = desaFound;
-                    currentData.kec = kecFound;
-
-                } catch (e) {
-                    updateGPSUI("Gagal Alamat", "Cek Koneksi Internet");
-                }
-            }, (err) => {
-                updateGPSUI("GPS LEMAH", "Gunakan Mode Manual");
-            }, options);
-        }
-
-        function updateGPSUI(desa, kec) {
-            document.getElementById('gpsDesa').innerText = desa;
-            document.getElementById('gpsKec').innerText = kec;
-            document.getElementById('gpsIcon').innerText = "📍";
-        }
-
-        // --- Manual Mode & Hierarchy Logic ---
-        function toggleOriginMode() {
-            const box = document.getElementById('manualBox');
-            const radar = document.getElementById('radarBox');
-            const btn = document.getElementById('btnToggle');
-
-            if (box.classList.contains('active')) {
-                box.classList.remove('active');
-                radar.classList.remove('disabled');
-                btn.innerText = "Ubah Titik / Pesankan Orang Lain";
-                currentData.mode = 'gps';
-            } else {
-                box.classList.add('active');
-                radar.classList.add('disabled');
-                btn.innerText = "Kembali ke GPS Otomatis";
-                currentData.mode = 'manual';
-            }
-        }
-
-        function initKecamatan() {
-            const sel = document.getElementById('selKec');
-            if (sel.options.length > 1) return;
-            for (let kec in LOKASI_DB) {
+    // --- 1. HIERARCHY & DROPDOWN LOGIC ---
+    function initKecamatan() {
+        const selects = ['selKecJemput', 'selKecAntar'];
+        selects.forEach(id => {
+            const el = document.getElementById(id);
+            if(el.options.length > 1) return; // Cegah duplikasi
+            Object.keys(LOKASI_DB).forEach(kec => {
                 let opt = document.createElement('option');
                 opt.value = kec; opt.innerText = kec;
-                sel.appendChild(opt);
-            }
+                el.appendChild(opt);
+            });
+        });
+    }
+
+    function updateDesa(idKec, idDesa) {
+        const kec = document.getElementById(idKec).value;
+        const desaSelect = document.getElementById(idDesa);
+        const wrapper = idDesa === 'selDesaJemput' ? 
+                        document.getElementById('desaJemputWrapper') : 
+                        document.getElementById('desaAntarWrapper');
+
+        desaSelect.innerHTML = '<option value="">-- Pilih Desa --</option>';
+        
+        if (kec && LOKASI_DB[kec]) {
+            LOKASI_DB[kec].desa.forEach(d => {
+                let opt = document.createElement('option');
+                opt.value = d.name; opt.innerText = d.name;
+                desaSelect.appendChild(opt);
+            });
+            // Tampilkan Dropdown Desa (Hierarchy Logic)
+            wrapper.style.display = 'block';
+            wrapper.style.animation = 'fadeIn 0.3s forwards';
+        } else {
+            wrapper.style.display = 'none';
         }
+    }
 
-        function handleKecChange() {
-            const kec = document.getElementById('selKec').value;
-            const desaField = document.getElementById('desaField');
-            const selDesa = document.getElementById('selDesa');
+    // --- 2. GPS & REVERSE GEOCODING ---
+    function switchMode(mode) {
+        if (mode === 'manual' && modeJemput === 'gps') {
+            // Jika pindah ke manual, kita biarkan saja. Tapi jika reset total, gunakan confirm.
+        }
+        modeJemput = mode;
+        document.getElementById('tabGps').classList.toggle('active', mode === 'gps');
+        document.getElementById('tabManual').classList.toggle('active', mode === 'manual');
+        document.getElementById('gpsDisplay').style.display = (mode === 'gps') ? 'flex' : 'none';
+        document.getElementById('manualJemput').style.display = (mode === 'manual') ? 'block' : 'none';
+        if(mode === 'gps') startGPS();
+    }
 
-            if (kec) {
-                selDesa.innerHTML = '<option value="">-- Pilih Desa --</option>';
-                LOKASI_DB[kec].desa.forEach(d => {
-                    let opt = document.createElement('option');
-                    opt.value = d.name; opt.innerText = d.name;
-                    selDesa.appendChild(opt);
-                });
-                desaField.classList.add('field-visible');
+    function startGPS() {
+        const display = document.getElementById('gpsText');
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                currentCoords.lat = pos.coords.latitude;
+                currentCoords.lng = pos.coords.longitude;
+                
+                // Cari Desa Terdekat dari router_lokal.js
+                const loc = cariDesaTerdekat(currentCoords.lat, currentCoords.lng);
+                display.innerText = `${loc.name} (${currentCoords.lat.toFixed(5)})`;
+                display.style.color = "#00ff88";
+            }, err => {
+                display.innerText = "⚠️ GPS Gagal. Gunakan Input Manual.";
+                display.style.color = "#ff0055";
+                showToast("Sinyal GPS Lemah");
+            }, { enableHighAccuracy: true, timeout: 10000 });
+        }
+    }
+
+    function cariDesaTerdekat(lat, lng) {
+        let terdekat = { name: "Luar Jangkauan", kec: "KNG", dist: 999, diff: 1.0 };
+        for (const kec in LOKASI_DB) {
+            LOKASI_DB[kec].desa.forEach(d => {
+                // Formula jarak sederhana
+                const dist = Math.sqrt(Math.pow(lat - d.lat, 2) + Math.pow(lng - d.lng, 2));
+                if (dist < terdekat.dist) {
+                    terdekat = { name: d.name, kec: kec, dist: dist, diff: d.diff };
+                }
+            });
+        }
+        return terdekat;
+    }
+
+    // --- 3. VOICE & AI TOOLS ---
+    function startVoice() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) return showToast("Browser tidak mendukung Voice");
+
+        const rec = new SpeechRecognition();
+        rec.lang = 'id-ID';
+        showToast("🎤 Mendengarkan...");
+        rec.onresult = (e) => {
+            document.getElementById('note').value = e.results[0][0].transcript;
+            showToast("Suara berhasil diproses");
+        };
+        rec.start();
+    }
+
+    function runAIPolish() {
+        const noteEl = document.getElementById('note');
+        let val = noteEl.value;
+        if(!val) return showToast("Teks kosong!");
+        
+        showToast("✨ AI sedang bekerja...");
+        setTimeout(() => {
+            // Logic perbaikan teks manual (sebelum integrasi API AI nyata)
+            let fixed = val.replace(/\bdpn\b/gi, "Depan")
+                           .replace(/\bgk\b/gi, "Tidak")
+                           .replace(/\bsbrng\b/gi, "Seberang")
+                           .replace(/\bjln\b/gi, "Jalan")
+                           .replace(/\bdkt\b/gi, "Dekat");
+            
+            if(fixed !== val) {
+                if(confirm("Gunakan saran AI?\n\n" + fixed)) {
+                    noteEl.value = fixed;
+                }
             } else {
-                desaField.classList.remove('field-visible');
+                showToast("Teks sudah optimal");
             }
+        }, 800);
+    }
+
+    // --- 4. ACTION & FIREBASE SHARDING ---
+    async function publishAction() {
+        const btn = document.getElementById('btnGo');
+        let jemputKec, jemputDesa, jemputLat, jemputLng, diff;
+
+        // Validasi Origin
+        if (modeJemput === 'gps') {
+            if (currentCoords.lat === 0) return showToast("Menunggu GPS...");
+            const loc = cariDesaTerdekat(currentCoords.lat, currentCoords.lng);
+            jemputKec = loc.kec;
+            jemputDesa = loc.name;
+            jemputLat = currentCoords.lat;
+            jemputLng = currentCoords.lng;
+            diff = loc.diff;
+        } else {
+            jemputKec = document.getElementById('selKecJemput').value;
+            jemputDesa = document.getElementById('selDesaJemput').value;
+            if (!jemputDesa) return showToast("Lengkapi Lokasi Jemput!");
+            
+            // Ambil koordinat statis dari DB lokal
+            const d = LOKASI_DB[jemputKec].desa.find(x => x.name === jemputDesa);
+            jemputLat = d.lat; jemputLng = d.lng; diff = d.diff;
         }
 
-        // Lanjut ke Part 2 untuk Voice, AI, dan Modal Logic...
-    </script>
+        // Validasi Tujuan
+        const antarKec = document.getElementById('selKecAntar').value;
+        const antarDesa = document.getElementById('selDesaAntar').value;
+        if (!antarDesa) return showToast("Pilih Tujuan Antar!");
+        const dAntar = LOKASI_DB[antarKec].desa.find(x => x.name === antarDesa);
+
+        // Validasi Reward
+        const reward = document.getElementById('reward').value;
+        if (!reward || reward < 5000) return showToast("Reward minimal Rp 5.000");
+
+        // Proses Transmisi
+        btn.disabled = true;
+        btn.innerText = "TRANSMITTING...";
+
+        const mid = "MS-" + Date.now();
+        const shard = getShardDariKecamatan(jemputKec); // Dari terminal_router.js
+        const db1 = getTerminal('FB1_MASTER');
+        const db4 = getTerminal('FB4_BOARD');
+
+        const boardData = {
+            id_misi: mid,
+            id_requester: user.uid,
+            requester_nick: user.nick,
+            reward: parseInt(reward),
+            difficulty_rate: diff,
+            zona: jemputKec,
+            origin_name: document.getElementById('originDetail').value || "Titik Koordinat",
+            origin_desa: jemputDesa,
+            origin_coords: `${jemputLat},${jemputLng}`,
+            dest_name: document.getElementById('destDetail').value || "Detail di Catatan",
+            dest_desa: antarDesa,
+            dest_coords: `${dAntar.lat},${dAntar.lng}`,
+            catatan: document.getElementById('note').value,
+            status: "open",
+            created_at: Date.now()
+        };
+
+        try {
+            // 1. Catat di Index Master (FB1)
+            await db1.ref(`misi_index/${mid}`).set({ id_misi: mid, id_shard: shard, zona: jemputKec });
+            
+            // 2. Kirim ke Board Shard (FB4)
+            await db4.ref(`mission-${shard}/${jemputDesa}/${mid}`).set(boardData);
+            
+            // 3. Simpan Session
+            sessionStorage.setItem('active_mission_id', mid);
+            sessionStorage.setItem('active_mission_shard', shard);
+            sessionStorage.setItem('active_mission_desa', jemputDesa);
+
+            showToast("SINYAL TERSEBAR!");
+            setTimeout(() => { window.location.href = "lobby_requester.html"; }, 1500);
+        } catch (e) {
+            alert("Gagal Transmisi: " + e.message);
+            btn.disabled = false;
+            btn.innerText = "SEBARKAN SINYAL";
+        }
+    }
+
+    // RESET FUNCTION (Fitur Baru)
+    function triggerReset() {
+        if(confirm("Reset semua pilihan lokasi?")) {
+            document.getElementById('selKecJemput').value = "";
+            document.getElementById('selKecAntar').value = "";
+            updateDesa('selKecJemput', 'selDesaJemput');
+            updateDesa('selKecAntar', 'selDesaAntar');
+            showToast("Form Direset");
+        }
+    }
+
+    // RUN INITIAL
+    initKecamatan();
+    startGPS();
+
+</script>
 </body>
 </html>
