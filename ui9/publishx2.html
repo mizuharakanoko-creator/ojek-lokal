@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sovereign Guild - Terminal v3.0 PRO</title>
+    <title>Sovereign Guild Terminal v3.0 Gold</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -37,7 +37,7 @@
             overflow-x: hidden;
         }
 
-        /* --- UI Container --- */
+        /* --- Main Container --- */
         .quest-board {
             width: 100%; max-width: 480px;
             background: var(--panel-bg);
@@ -45,13 +45,25 @@
             border-radius: 24px;
             padding: 25px;
             position: relative;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+            z-index: 10;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.9);
         }
 
         .quest-board::before {
             content: ''; position: absolute; top: -50px; right: -50px;
             width: 150px; height: 150px; background: var(--primary-glow);
-            filter: blur(80px); z-index: 0; pointer-events: none;
+            filter: blur(80px); z-index: -1; pointer-events: none;
+        }
+
+        /* --- Progress Bar --- */
+        .progress-container {
+            width: 100%; height: 4px; background: rgba(255,255,255,0.05);
+            margin-bottom: 25px; border-radius: 10px; overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%; width: 25%; background: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+            transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         /* --- Header --- */
@@ -63,8 +75,8 @@
         .sub-title { font-size: 10px; color: var(--secondary); letter-spacing: 2px; opacity: 0.7; }
 
         /* --- Navigation Steps --- */
-        .step-page { display: none; animation: slideIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-        .step-page.active { display: block; }
+        .step-page { display: none; position: relative; z-index: 10; animation: slideIn 0.4s ease forwards; pointer-events: none; }
+        .step-page.active { display: block; pointer-events: auto; }
 
         @keyframes slideIn {
             from { opacity: 0; transform: translateY(20px); }
@@ -78,22 +90,20 @@
             border: 1px solid var(--border);
             border-radius: 18px; padding: 25px 10px;
             text-align: center; cursor: pointer; transition: 0.3s;
-            position: relative; overflow: hidden;
+            position: relative; z-index: 20; overflow: hidden;
         }
-        .card-kat.unlocked { border-color: var(--primary); box-shadow: 0 5px 15px rgba(255,0,85,0.1); }
-        .card-kat.locked { opacity: 0.4; filter: grayscale(1); cursor: not-allowed; }
+        .card-kat.active, .card-kat:hover { border-color: var(--primary); box-shadow: 0 5px 15px rgba(255,0,85,0.1); }
         .card-kat .icon { font-size: 40px; display: block; margin-bottom: 10px; }
         .card-kat .label { font-size: 12px; font-weight: 800; color: #eee; text-transform: uppercase; }
-        .card-kat .badge { position: absolute; top: 10px; right: 10px; font-size: 9px; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
 
-        /* --- Radar Panel (Step 2 & 3) --- */
+        /* --- Radar Panel --- */
         .radar-panel {
             background: linear-gradient(145deg, #0a1a14, #050d0a);
             border: 2px solid var(--success);
             border-radius: 20px; padding: 25px; text-align: center; margin-bottom: 20px;
             box-shadow: 0 0 20px rgba(0, 255, 136, 0.1);
         }
-        .radar-panel.disabled { opacity: 0.2; filter: blur(2px); pointer-events: none; }
+        .radar-panel.disabled { opacity: 0.2; filter: blur(2px); }
         
         .radar-circle {
             width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--success);
@@ -112,7 +122,7 @@
         /* --- Manual Panels --- */
         .btn-toggle-manual {
             width: 100%; background: transparent; border: 1px dashed var(--secondary); color: var(--secondary);
-            padding: 12px; border-radius: 12px; font-size: 12px; margin-bottom: 20px; cursor: pointer;
+            padding: 12px; border-radius: 12px; font-size: 12px; margin-bottom: 20px; cursor: pointer; position: relative; z-index: 20;
         }
 
         .manual-panel { display: none; background: #111; border: 1px solid #222; padding: 20px; border-radius: 18px; margin-bottom: 20px; }
@@ -121,7 +131,7 @@
         .tabs { display: flex; gap: 8px; margin-bottom: 15px; background: #000; padding: 5px; border-radius: 10px; }
         .tab-btn {
             flex: 1; padding: 10px; background: transparent; border: none;
-            border-radius: 8px; color: #666; font-size: 10px; font-weight: bold; cursor: pointer;
+            border-radius: 8px; color: #666; font-size: 10px; font-weight: bold; cursor: pointer; position: relative; z-index: 20;
         }
         .tab-btn.active { background: var(--secondary); color: #000; }
 
@@ -130,16 +140,17 @@
         .input-group label { display: block; font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 6px; }
         .input-group input, .input-group select, .input-group textarea {
             width: 100%; background: #0a0a0a; border: 1px solid #333;
-            border-radius: 10px; padding: 12px; color: white; font-size: 14px;
+            border-radius: 10px; padding: 12px; color: white; font-size: 14px; transition: 0.3s;
         }
-        .input-group input:focus { border-color: var(--secondary); }
+        .input-group input:focus { border-color: var(--secondary); box-shadow: 0 0 10px var(--secondary-glow); }
 
         /* Autocomplete Box */
         .suggest-box {
-            position: absolute; width: 100%; background: #1a1a1a; border: 1px solid #333;
+            position: absolute; width: 100%; background: #1a1a1a; border: 1px solid var(--secondary);
             border-radius: 10px; z-index: 1000; max-height: 150px; overflow-y: auto; display: none;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.8);
         }
-        .suggest-item { padding: 10px 15px; border-bottom: 1px solid #222; font-size: 13px; cursor: pointer; }
+        .suggest-item { padding: 10px 15px; border-bottom: 1px solid #222; font-size: 13px; cursor: pointer; color: white; }
         .suggest-item:hover { background: var(--secondary); color: #000; }
 
         /* --- Voice & AI --- */
@@ -147,7 +158,7 @@
             position: absolute; right: 10px; bottom: 10px;
             background: var(--primary); color: white; border: none;
             width: 35px; height: 35px; border-radius: 50%; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
+            display: flex; align-items: center; justify-content: center; z-index: 20;
         }
         .voice-btn.recording { animation: pulse-red 1s infinite; background: #ff4444; }
         @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); } }
@@ -155,64 +166,78 @@
         .btn-ai {
             width: 100%; background: linear-gradient(90deg, #8e2de2, #4a00e0);
             color: white; border: none; padding: 10px; border-radius: 10px;
-            font-size: 11px; font-weight: bold; cursor: pointer; margin-top: 10px;
+            font-size: 11px; font-weight: bold; cursor: pointer; margin-top: 10px; position: relative; z-index: 20;
         }
 
-        /* --- Final Action Button --- */
+        /* --- Action Buttons --- */
         .btn-main {
             width: 100%; background: var(--primary); color: white; border: none;
             padding: 18px; border-radius: 15px; font-weight: 900; font-size: 15px;
             text-transform: uppercase; cursor: pointer; box-shadow: 0 10px 20px rgba(255,0,85,0.2);
+            position: relative; z-index: 20; transition: 0.2s;
         }
-        .btn-main:disabled { opacity: 0.5; filter: grayscale(1); }
+        .btn-main:active { transform: scale(0.98); }
 
-        /* --- Toast Notification --- */
-        #toast {
+        /* --- Alerts & Toasts --- */
+        #custom-toast {
             position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
             background: var(--primary); color: white; padding: 12px 25px;
-            border-radius: 50px; font-weight: bold; z-index: 9999; transition: 0.5s;
+            border-radius: 50px; font-weight: 800; font-size: 12px; z-index: 10000;
+            box-shadow: 0 10px 30px rgba(255,0,85,0.4); transition: 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        #toast.show { top: 30px; }
-        
+        #custom-toast.show { top: 30px; }
+
+        .custom-alert-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
+            display: none; align-items: center; justify-content: center; z-index: 11000;
+        }
+        .custom-alert-box {
+            background: #111; border: 1px solid var(--primary); width: 85%; max-width: 320px;
+            border-radius: 20px; padding: 25px; text-align: center; box-shadow: 0 0 40px var(--primary-glow);
+        }
+
         /* Helper Classes */
         .locked-input { pointer-events: none; background: #05100a !important; border-color: var(--success) !important; color: var(--success) !important; }
-        .reset-link { font-size: 10px; color: #f44; cursor: pointer; text-decoration: underline; display: none; margin-top: 5px; }
-
+        .reset-link { font-size: 10px; color: #f44; cursor: pointer; text-decoration: underline; display: none; margin-top: 5px; position: relative; z-index: 20; }
     </style>
 </head>
 <body>
 
-<div id="toast">SYSTEM READY</div>
+<div id="custom-toast">SYSTEM READY</div>
+
+<div class="custom-alert-overlay" id="alertOverlay">
+    <div class="custom-alert-box">
+        <h3 style="color:var(--primary); margin-top:0;" id="alertTitle">Alert</h3>
+        <p id="alertMsg" style="font-size:13px; color:#ccc; line-height:1.5;"></p>
+        <button class="btn-main" style="padding:10px; margin-top:10px;" onclick="closeAlert()">MENGERTI</button>
+    </div>
+</div>
 
 <div class="quest-board">
+    <div class="progress-container"><div class="progress-bar" id="pBar"></div></div>
+
     <div class="terminal-header">
         <h2 class="main-title" id="displayHeader">Publish Quest</h2>
-        <span class="sub-title">Sovereign Guild Terminal v3.0 PRO</span>
+        <span class="sub-title">Sovereign Guild Terminal v3.0 Gold</span>
     </div>
 
     <div id="step1" class="step-page active">
         <p style="font-size:12px; color:#666; text-align:center; margin-bottom:20px;">Pilih tipe kontrak transmisi sinyal.</p>
         <div class="grid-kategori">
-            <div class="card-kat unlocked" onclick="navStep(2, 'Motor Ride')">
-                <span class="badge">OPEN</span><span class="icon">🏍️</span><span class="label">Motor Ride</span>
+            <div class="card-kat" onclick="navStep(2, 'Motor Ride')">
+                <span class="icon">🏍️</span><span class="label">Motor Ride</span>
             </div>
-            <div class="card-kat unlocked" onclick="navStep(2, 'Car Ride')">
-                <span class="badge">OPEN</span><span class="icon">🚗</span><span class="label">Car Ride</span>
+            <div class="card-kat" onclick="navStep(2, 'Car Ride')">
+                <span class="icon">🚗</span><span class="label">Car Ride</span>
             </div>
             
-            <div class="card-kat locked" onclick="showToast('Fitur Pick & Drop Segera Hadir')">
+            <div class="card-kat" style="opacity:0.5" onclick="showAlert('System Hold', 'Fitur Pick & Drop belum dikonfigurasi.')">
                 <span class="icon">📦</span><span class="label">Pick & Drop</span>
             </div>
             
-            <div class="card-kat locked" onclick="showToast('Fitur Titip Beli Segera Hadir')">
+            <div class="card-kat" style="opacity:0.5" onclick="showAlert('System Hold', 'Fitur Titip Beli belum dikonfigurasi.')">
                 <span class="icon">🛍️</span><span class="label">Titip Beli</span>
-            </div>
-            
-            <div class="card-kat locked" onclick="showToast('Fitur Service Segera Hadir')">
-                <span class="icon">🛠️</span><span class="label">Service</span>
-            </div>
-            <div class="card-kat locked" onclick="showToast('Update Sistem Diperlukan')">
-                <span class="icon">⏳</span><span class="label">Update</span>
             </div>
         </div>
     </div>
@@ -334,7 +359,6 @@
             <div class="input-group">
                 <label style="color:var(--gold);">Imbalan / Bounty (IDR)</label>
                 <input type="number" id="rewardInput" placeholder="Min. 5000" style="font-size: 24px; font-weight: 900; color: var(--gold); text-align: center;">
-                <p id="distEstimate" style="font-size:9px; color:#666; text-align:center; margin-top:5px;">Est. Jarak: Calculating...</p>
             </div>
 
             <div class="input-group">
@@ -351,17 +375,9 @@
             </div>
         </div>
 
-        <div id="questSummary" style="background: rgba(0, 242, 255, 0.05); border: 1px dashed var(--secondary); border-radius: 12px; padding: 15px; margin-bottom: 20px; font-size: 10px; font-family: var(--font-mono); color: #88eeff;">
-            <div style="border-bottom: 1px solid rgba(0, 242, 255, 0.2); padding-bottom: 5px; margin-bottom: 8px; font-weight: bold;">📜 PREVIEW CONTRACT:</div>
-            <div id="sumCat">CATEGORY: -</div>
-            <div id="sumOri">FROM: -</div>
-            <div id="sumDest">TO: -</div>
-            <div id="sumPrice">BOUNTY: Rp 0</div>
-        </div>
-
         <button class="btn-main" id="btnBroadcast" onclick="finalizeAndPublish()">BROADCAST QUEST 📡</button>
         
-        <p onclick="navStep(1)" style="text-align:center; color:#444; font-size:10px; margin-top:15px; cursor:pointer;">BATALKAN & RESET</p>
+        <p onclick="location.reload()" style="text-align:center; color:#444; font-size:10px; margin-top:15px; cursor:pointer; position:relative; z-index:20;">BATALKAN & RESET</p>
     </div>
 </div>
 
@@ -388,36 +404,34 @@
         status: 'open'
     };
 
-    // ==========================================
-    // 2. NAVIGATION & UI FEEDBACK
-    // ==========================================
-    function navStep(num, cat = null) {
-        if(cat) {
-            questData.category = cat;
-            document.getElementById('displayHeader').innerText = "[" + cat.toUpperCase() + "]";
-            playSfx(600, 'sine', 0.1);
-        }
-        
-        document.querySelectorAll('.step-page').forEach(p => p.classList.remove('active'));
-        document.getElementById('step' + num).classList.add('active');
-        window.scrollTo(0,0);
-
-        if(num === 2) startGPS('origin');
-        if(num === 3) initManualInputs('dest');
-        if(num === 4) calculateSummary();
+    let audioCtx = null;
+    function initAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
 
+    // ==========================================
+    // 2. UI FEEDBACK & NAVIGATION
+    // ==========================================
     function showToast(msg) {
-        const t = document.getElementById('toast');
+        const t = document.getElementById('custom-toast');
         t.innerText = msg;
         t.classList.add('show');
         setTimeout(() => t.classList.remove('show'), 3000);
         if(navigator.vibrate) navigator.vibrate(50);
     }
 
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function showAlert(title, msg) {
+        document.getElementById('alertTitle').innerText = title;
+        document.getElementById('alertMsg').innerText = msg;
+        document.getElementById('alertOverlay').style.display = 'flex';
+        playSfx(400, 'square', 0.2);
+    }
+
+    function closeAlert() { document.getElementById('alertOverlay').style.display = 'none'; }
+
     function playSfx(f, t, d) {
         try {
+            if(!audioCtx) return;
             const o = audioCtx.createOscillator();
             const g = audioCtx.createGain();
             o.type = t; o.frequency.value = f;
@@ -428,11 +442,30 @@
         } catch(e) {}
     }
 
+    function navStep(num, cat = null) {
+        initAudio();
+        if(cat) {
+            questData.category = cat;
+            document.getElementById('displayHeader').innerText = "[" + cat.toUpperCase() + "]";
+            playSfx(600, 'sine', 0.1);
+        }
+        
+        document.querySelectorAll('.step-page').forEach(p => { p.classList.remove('active'); });
+        const targetPage = document.getElementById('step' + num);
+        if(targetPage) targetPage.classList.add('active');
+        
+        document.getElementById('pBar').style.width = (num * 25) + "%";
+        window.scrollTo(0,0);
+
+        if(num === 2) startGPS('origin');
+        if(num === 3) initManualInputs('dest');
+    }
+
     // ==========================================
     // 3. LOCATION ENGINE (GPS & REVERSE GEO)
     // ==========================================
     function startGPS(type) {
-        if(!navigator.geolocation) return;
+        if(!navigator.geolocation) return showAlert("Error", "Geolokasi tidak didukung browser ini.");
         
         navigator.geolocation.getCurrentPosition(pos => {
             const lat = pos.coords.latitude;
@@ -448,8 +481,9 @@
             document.getElementById(`${type}ResDesa`).innerText = loc.name;
             document.getElementById(`${type}ResKec`).innerText = "KEC. " + loc.kec;
             playSfx(1000, 'sine', 0.1);
+            showToast("GPS Terkunci 📍");
         }, err => {
-            showToast("GPS Gagal: Gunakan Manual");
+            showAlert("GPS Gagal", "Pastikan izin lokasi aktif. Silakan gunakan opsi Input Manual.");
         });
     }
 
@@ -553,13 +587,13 @@
         if(questData[type].mode === 'gps') {
             questData[type].mode = 'manual';
             radar.classList.add('disabled');
-            panel.style.display = 'block';
+            panel.classList.add('active');
             btn.innerText = (type === 'origin') ? "Kembali ke GPS Otomatis" : "Kembali ke GPS (Titik Saya)";
             initManualInputs(type);
         } else {
             questData[type].mode = 'gps';
             radar.classList.remove('disabled');
-            panel.style.display = 'none';
+            panel.classList.remove('active');
             btn.innerText = (type === 'origin') ? "Input Manual / Nego" : "Gunakan GPS (Titik Saat Ini)";
             startGPS(type);
         }
@@ -578,7 +612,7 @@
     // ==========================================
     function startVoice(targetId, btn) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) return showToast("Browser tidak dukung Voice");
+        if (!SpeechRecognition) return showAlert("Gagal", "Browser tidak mendukung Voice-to-Text.");
 
         const recognition = new SpeechRecognition();
         recognition.lang = 'id-ID';
@@ -590,7 +624,7 @@
 
         recognition.onresult = (event) => {
             const text = event.results[0][0].transcript;
-            document.getElementById(targetId).value += text;
+            document.getElementById(targetId).value += " " + text;
             btn.classList.remove('recording');
         };
 
@@ -607,10 +641,10 @@
         
         showToast("AI Polishing...");
         setTimeout(() => {
-            // Simple Logic simulated AI polish
             val = val.replace(/\bdpn\b/gi, "Depan").replace(/\bgang\b/gi, "Gang").replace(/\bsblm\b/gi, "Sebelum");
             el.value = val.charAt(0).toUpperCase() + val.slice(1);
             playSfx(1500, 'sine', 0.2);
+            showToast("Alamat Dirapihkan ✨");
         }, 800);
     }
 
@@ -618,77 +652,69 @@
     // 6. VALIDATION & TRANSMISSION
     // ==========================================
     function validateStep2() {
-        if(questData.origin.mode === 'gps' && questData.origin.lat === 0) return showToast("Menunggu GPS...");
-        if(questData.origin.mode === 'manual' && !document.getElementById('originManDesa').value) return showToast("Pilih Desa Jemput!");
+        if(questData.origin.mode === 'gps' && questData.origin.lat === 0) return showAlert("Menunggu", "Tunggu GPS mengunci lokasi atau gunakan manual.");
+        if(questData.origin.mode === 'manual' && !document.getElementById('originManDesa').value) return showAlert("Peringatan", "Pilih Desa Jemput terlebih dahulu!");
         navStep(3);
     }
 
     function validateStep3() {
-        if(questData.dest.mode === 'manual' && !document.getElementById('destManDesa').value) return showToast("Pilih Desa Tujuan!");
+        if(questData.dest.mode === 'manual' && !document.getElementById('destManDesa').value) return showAlert("Peringatan", "Pilih Desa Tujuan terlebih dahulu!");
         navStep(4);
     }
 
-    function calculateSummary() {
-        document.getElementById('sumCat').innerText = "CATEGORY: " + questData.category;
-        
-        const oriLabel = (questData.origin.mode === 'gps') ? questData.origin.desa : document.getElementById('originManDesa').value || "Manual/Nego";
-        const destLabel = (questData.dest.mode === 'gps') ? questData.dest.desa : document.getElementById('destManDesa').value || "Manual/Nego";
-        
-        document.getElementById('sumOri').innerText = "FROM: " + oriLabel;
-        document.getElementById('sumDest').innerText = "TO: " + destLabel;
-        
-        // Est. Distance (Simplified Haversine-ish)
-        const dist = Math.sqrt(Math.pow(questData.origin.lat - questData.dest.lat, 2) + Math.pow(questData.origin.lng - questData.dest.lng, 2)) * 111;
-        document.getElementById('distEstimate').innerText = "Est. Jarak: " + dist.toFixed(2) + " KM";
-    }
-
-    document.getElementById('rewardInput').addEventListener('input', function() {
-        document.getElementById('sumPrice').innerText = "BOUNTY: Rp " + (parseInt(this.value) || 0).toLocaleString();
-    });
-
     async function finalizeAndPublish() {
         const reward = document.getElementById('rewardInput').value;
-        if(!reward || reward < 5000) return showToast("Bounty Minimal 5.000");
+        if(!reward || reward < 5000) return showAlert("Peringatan", "Bounty Minimal Rp 5.000");
 
         const btn = document.getElementById('btnBroadcast');
         btn.disabled = true;
         btn.innerText = "TRANSMITTING...";
+        btn.style.opacity = "0.5";
 
         // Collect Final Data
         questData.reward = parseInt(reward);
         questData.payMethod = document.getElementById('payMethod').value;
         questData.note = document.getElementById('finalNote').value;
-        questData.origin.detail = document.getElementById('originDetail').value;
-        questData.dest.detail = document.getElementById('destDetail').value;
+        
+        // Grab values from manual/nego inputs if they were used
+        if(questData.origin.mode === 'manual') questData.origin.detail = document.getElementById('originDetail').value;
+        if(questData.origin.mode === 'nego') questData.origin.detail = document.getElementById('originNegoText').value;
+        if(questData.dest.mode === 'manual') questData.dest.detail = document.getElementById('destDetail').value;
+        if(questData.dest.mode === 'nego') questData.dest.detail = document.getElementById('destNegoText').value;
 
-        // Firebase Sharding & Master Index (From Code 1)
-        const shard = getShardDariKecamatan ? getShardDariKecamatan(questData.origin.kec) : "MAIN";
-        const db1 = getTerminal ? getTerminal('FB1_MASTER') : null;
-        const db4 = getTerminal ? getTerminal('FB4_BOARD') : null;
+        // Internal Logic for Distance Logging (Hidden from user as requested)
+        const estDist = Math.sqrt(Math.pow(questData.origin.lat - questData.dest.lat, 2) + Math.pow(questData.origin.lng - questData.dest.lng, 2)) * 111;
+        questData.est_distance = estDist;
+
+        // Firebase Sharding & Master Index
+        const shard = typeof getShardDariKecamatan === 'function' ? getShardDariKecamatan(questData.origin.kec) : "MAIN";
+        const db1 = typeof getTerminal === 'function' ? getTerminal('FB1_MASTER') : null;
+        const db4 = typeof getTerminal === 'function' ? getTerminal('FB4_BOARD') : null;
 
         if(db1 && db4) {
             try {
+                // 1. Catat di Master Index
                 await db1.ref(`misi_index/${questData.id}`).set({ id_misi: questData.id, id_shard: shard, zona: questData.origin.kec });
+                // 2. Tulis detail di Shard spesifik
                 await db4.ref(`mission-${shard}/${questData.origin.desa}/${questData.id}`).set(questData);
                 
                 sessionStorage.setItem('active_mission_id', questData.id);
-                showToast("QUEST BROADCAST SUCCESS!");
-                setTimeout(() => window.location.href = "lobby_requester.html", 1500);
+                showAlert("Sukses", "Quest berhasil di-broadcast ke jaringan!");
+                setTimeout(() => window.location.href = "lobby_requester.html", 2500);
             } catch (e) {
-                showToast("Gagal Transmisi: " + e.message);
+                showAlert("Transmisi Gagal", e.message);
                 btn.disabled = false;
+                btn.innerText = "BROADCAST QUEST 📡";
+                btn.style.opacity = "1";
             }
         } else {
-            // Mock Success for Local Test
+            // Mock Success Local Test
             setTimeout(() => {
-                alert("MOCK SUCCESS: Data dikirim ke Shard [" + shard + "]");
-                location.reload();
-            }, 2000);
+                showAlert("Mock Success", "Data simulasi berhasil dikirim ke Shard [" + shard + "]");
+                setTimeout(() => location.reload(), 2500);
+            }, 1500);
         }
     }
-
-    // Helper functions for terminal router simulation if not present
-    function getShardDariKecamatan(kec) { return kec.substring(0,3).toUpperCase(); }
 </script>
 </body>
 </html>
