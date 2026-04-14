@@ -677,21 +677,35 @@
     });
 
     function validateStep2() {
-        if(questData.origin.mode === 'smart') {
-            const k = document.getElementById('manKec').value;
-            const dIdx = document.getElementById('manDesa').value;
-            if(!k || dIdx === "") return showToast("Pilih Desa Origin!");
-            const dData = LOKASI_DB[k].desa[dIdx];
-            questData.origin.lat = dData.lat; questData.origin.lng = dData.lng;
-            questData.origin.text = dData.name + " (" + document.getElementById('manDetail').value + ")";
-        } else if (questData.origin.mode === 'nego') {
-            const t = document.getElementById('originNegoText').value;
-            if(t.length < 5) return showToast("Deskripsi terlalu pendek!");
-            questData.origin.text = t;
-            questData.origin.lat = 0; // Nego implies no exact coordinate math
+    if(questData.origin.mode === 'smart' || questData.origin.mode === 'gps') {
+        const k = document.getElementById('manKec').value;
+        const dIdx = document.getElementById('manDesa').value;
+        
+        // Jika mode Smart/Pilih Desa, pastikan dropdown terisi
+        if(questData.origin.mode === 'smart' && (!k || dIdx === "")) {
+            return showToast("Pilih Desa Origin!");
         }
-        navStep(3);
+        
+        // Ambil data dari dropdown jika tersedia, jika tidak pakai data GPS
+        if(k && dIdx !== "") {
+            const dData = LOKASI_DB[k].desa[dIdx];
+            questData.origin.lat = dData.lat; 
+            questData.origin.lng = dData.lng;
+            questData.origin.kec = k;
+            questData.origin.desa = dData.name;
+            questData.origin.text = dData.name;
+        }
+    } else if (questData.origin.mode === 'nego') {
+        const t = document.getElementById('originNegoText').value;
+        if(t.length < 5) return showToast("Deskripsi terlalu pendek!");
+        questData.origin.text = t;
+        questData.origin.lat = 0; 
+    } else if (questData.origin.mode === 'map') {
+        if(!questData.origin.lat) return showToast("Geser peta untuk menentukan titik!");
     }
+    navStep(3);
+}
+
 
     // ==========================================================================
     // 5. STEP 3: DESTINATION & DYNAMIC FORMS
@@ -877,105 +891,110 @@
     // 7. FINALIZATION & SUBMIT
     // ==========================================================================
         async function submitMission() {
-        // 1. Validasi Dasar
-        const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
-        if(bountyAmt < 5000) return alert("Bounty terlalu rendah!");
+    // 1. Validasi Dasar
+    const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
+    if(bountyAmt < 5000) return alert("Bounty terlalu rendah!");
+    
+    const btn = document.getElementById('btnBroadcast');
+    if(btn) {
+        btn.innerText = "TRANSMITTING...";
+        btn.disabled = true;
+    }
+    
+    if(typeof playSfx === 'function') playSfx(2000, 'sine', 1, 0.5);
+
+    try {
+        // 2. Identifikasi Lokasi & Shard
+        let jemputKec, jemputDesa, diffRate;
         
-        const btn = document.getElementById('btnBroadcast');
-        if(btn) {
-            btn.innerText = "TRANSMITTING...";
-            btn.disabled = true;
+        // LOGIC GUARD: Menentukan asal data lokasi berdasarkan mode
+        if (questData.origin.mode === 'gps' || questData.origin.mode === 'map') {
+            const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
+            jemputKec = loc.kec;
+            jemputDesa = loc.name;
+            diffRate = loc.diff || 1.0;
+        } else if (questData.origin.mode === 'smart') {
+            jemputKec = document.getElementById('manKec').value;
+            const dIdx = document.getElementById('manDesa').value;
+            if(!jemputKec || dIdx === "") throw new Error("Kecamatan atau Desa belum dipilih!");
+            const dataDesa = LOKASI_DB[jemputKec].desa[dIdx];
+            jemputDesa = dataDesa.name;
+            diffRate = dataDesa.diff || 1.0;
+        } else {
+            // Mode Nego
+            jemputKec = "KNG"; // Default atau deteksi manual
+            jemputDesa = "Custom";
+            diffRate = 1.0;
         }
         
-        if(typeof playSfx === 'function') playSfx(2000, 'sine', 1, 0.5);
+        const shard = getShardDariKecamatan(jemputKec);
+        const mid = "MS-" + Date.now();
 
-        try {
-            // 2. Identifikasi Lokasi & Shard
-            let jemputKec, jemputDesa, diffRate;
+        // 3. Inisialisasi Terminal Firebase
+        const db1 = getTerminal('FB1_MASTER');
+        const db4 = getTerminal('FB4_BOARD');
+
+        // 4. Susun Payload Lengkap
+        const boardData = {
+            id_misi: mid,
+            id_requester: questData.client.id || "GUEST",
+            client_name: questData.client.name || "Anonim",
+            category: questData.category,
+            reward: bountyAmt,
+            difficulty_rate: diffRate,
+            zona: jemputKec,
+            shard_id: shard,
+            rank: questData.isUrgent ? "DARURAT" : "BIASA",
+            fish_tier: getFishTier(bountyAmt),
             
-            if (questData.origin.mode === 'gps') {
-                const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
-                jemputKec = loc.kec;
-                jemputDesa = loc.name;
-                diffRate = loc.diff || 1.0;
-            } else {
-                jemputKec = document.getElementById('manKec').value;
-                const dIdx = document.getElementById('manDesa').value;
-                const dataDesa = LOKASI_DB[jemputKec].desa[dIdx];
-                jemputDesa = dataDesa.name;
-                diffRate = dataDesa.diff || 1.0;
-            }
+            // Lokasi Origin (Jemput)
+            origin_name: questData.origin.text,
+            origin_desa: jemputDesa,
+            origin_coords: `${questData.origin.lat},${questData.origin.lng}`,
             
-            const shard = getShardDariKecamatan(jemputKec);
-            const mid = "MS-" + Date.now();
+            // Lokasi Tujuan (Antar)
+            dest_name: questData.destination.text,
+            dest_desa: questData.destination.desa || "Tujuan Khusus",
+            dest_coords: `${questData.destination.lat},${questData.destination.lng}`,
 
-            // 3. Inisialisasi Terminal Firebase
-            const db1 = getTerminal('FB1_MASTER');
-            const db4 = getTerminal('FB4_BOARD');
+            distance_est: questData.distanceEst,
+            status: "open",
+            created_at: Date.now()
+        };
 
-            // 4. Susun Payload Lengkap (Perbaikan Koma & Key di sini)
-            const boardData = {
-                id_misi: mid,
-                id_requester: questData.client.id || "GUEST",
-                client_name: questData.client.name || "Anonim",
-                category: questData.category,
-                reward: bountyAmt,
-                difficulty_rate: diffRate,
-                zona: jemputKec,
-                shard_id: shard,
-                
-                // Data tambahan yang Anda minta:
-                rank: questData.isUrgent ? "DARURAT" : "BIASA",
-                fish_tier: getFishTier(bountyAmt),
-                
-                // Lokasi Origin
-                origin_name: questData.origin.text,
-                origin_desa: jemputDesa,
-                origin_coords: `${questData.origin.lat},${questData.origin.lng}`,
-                
-                // Lokasi Tujuan
-                dest_name: questData.destination.text,
-                dest_desa: questData.destination.desa || "Custom",
-                dest_coords: `${questData.destination.lat},${questData.destination.lng}`,
-
-                // Info Tambahan
-                distance_est: questData.distanceEst,
+        // 5. Eksekusi Kirim ke Database
+        await Promise.all([
+            db1.ref(`misi_index/${mid}`).set({ 
+                id_misi: mid, 
+                id_shard: shard, 
+                zona: jemputKec, 
                 status: "open",
-                created_at: Date.now()
-            };
+                id_requester: questData.client.id
+            }),
+            db4.ref(`mission-${shard}/${jemputDesa}/${mid}`).set(boardData)
+        ]);
 
-            // 5. Eksekusi Kirim ke Database
-            await Promise.all([
-                db1.ref(`misi_index/${mid}`).set({ 
-                    id_misi: mid, 
-                    id_shard: shard, 
-                    zona: jemputKec, 
-                    status: "open",
-                    id_requester: questData.client.id
-                }),
-                db4.ref(`mission-${shard}/${jemputDesa}/${mid}`).set(boardData)
-            ]);
+        // 6. Simpan Session & Redirect (SANGAT PENTING)
+        sessionStorage.setItem('active_mission_id', mid);
+        sessionStorage.setItem('active_mission_shard', shard);
+        sessionStorage.setItem('active_mission_desa', jemputDesa);
 
-            // 6. Simpan Session & Redirect
-            sessionStorage.setItem('active_mission_id', mid);
-            sessionStorage.setItem('active_mission_shard', shard);
-            sessionStorage.setItem('active_mission_desa', jemputDesa);
+        if(typeof showToast === 'function') showToast("SINYAL TERSEBAR!");
+        
+        setTimeout(() => {
+            window.location.href = "lobby_requester.html";
+        }, 1000);
 
-            if(typeof showToast === 'function') showToast("SINYAL TERSEBAR!");
-            
-            setTimeout(() => {
-                window.location.href = "lobby_requester.html";
-            }, 1000);
-
-        } catch (e) {
-            console.error(e);
-            alert("Gagal Transmisi: " + e.message);
-            if(btn) {
-                btn.disabled = false;
-                btn.innerText = "BROADCAST 📡";
-            }
+    } catch (e) {
+        console.error(e);
+        alert("Gagal Transmisi: " + e.message);
+        if(btn) {
+            btn.disabled = false;
+            btn.innerText = "BROADCAST 📡";
         }
     }
+}
+
  
 
 
