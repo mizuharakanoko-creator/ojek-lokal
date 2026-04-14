@@ -3,14 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sovereign Guild - Quest Publisher v2.1 PRO</title>
-    
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    <script src="terminal_router.js"></script>
-    <script src="router_lokal.js"></script>
-    <script src="clearchance.js"></script>
-
+    <title>Sovereign Guild - Terminal v2.5 PRO</title>
     <style>
         :root {
             --bg-dark: #020202;
@@ -20,13 +13,12 @@
             --secondary: #00f2ff;
             --secondary-glow: rgba(0, 242, 255, 0.4);
             --success: #00ff88;
-            --gold: #ffcc00;
             --border: rgba(255, 255, 255, 0.08);
-            --font-mono: 'Fira Code', monospace;
+            --font-mono: 'Fira Code', 'Courier New', monospace;
         }
 
-        /* --- Master Reset & Layout --- */
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
         body { 
             background: var(--bg-dark); 
             color: white; 
@@ -46,441 +38,711 @@
             box-shadow: 0 30px 60px rgba(0,0,0,0.8);
         }
 
-        /* --- Header & Status --- */
-        .terminal-header { text-align: center; margin-bottom: 30px; position: relative; }
+        /* --- Header & Identity --- */
+        .terminal-header { text-align: center; margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
         .main-title { 
             font-size: 22px; font-weight: 900; letter-spacing: 4px; color: var(--primary);
-            text-transform: uppercase; margin: 0; text-shadow: 0 0 20px var(--primary-glow);
+            text-transform: uppercase; margin: 0; text-shadow: 0 0 15px var(--primary-glow);
         }
-        .status-bar {
-            display: flex; justify-content: space-between; font-size: 10px; 
-            color: var(--secondary); font-family: var(--font-mono); margin-top: 10px;
-            border-top: 1px solid var(--border); padding-top: 10px;
-        }
+        .sub-title { font-size: 10px; color: var(--secondary); letter-spacing: 2px; opacity: 0.7; }
 
-        /* --- Wizard Steps --- */
-        .step-page { display: none; animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        /* --- Global Animations --- */
+        .step-page { display: none; animation: slideIn 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards; }
         .step-page.active { display: block; }
 
         @keyframes slideIn {
-            from { opacity: 0; transform: translateX(30px); }
-            to { opacity: 1; transform: translateX(0); }
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        /* --- STEP 1: CATEGORY SELECTION --- */
-        .grid-kategori { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 10px; }
+        /* --- STEP 1: CATEGORY GRID --- */
+        .instruction { font-size: 13px; color: #888; text-align: center; margin-bottom: 20px; }
+        
+        .grid-kategori { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        
         .card-kat {
-            background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+            background: linear-gradient(145deg, #151515, #0a0a0a);
             border: 1px solid var(--border);
             border-radius: 18px; padding: 25px 10px;
             text-align: center; cursor: pointer; transition: 0.3s;
             position: relative; overflow: hidden;
         }
-        .card-kat::after {
-            content: ''; position: absolute; inset: 0; 
-            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.05));
-        }
-        .card-kat.unlocked { border-color: var(--primary); box-shadow: 0 5px 15px rgba(255,0,85,0.1); }
-        .card-kat.unlocked:active { transform: scale(0.95); background: var(--primary); }
-        .card-kat.locked { opacity: 0.3; filter: grayscale(1); cursor: not-allowed; }
+
+        .card-kat.active-node { border-color: var(--primary); box-shadow: 0 5px 15px rgba(255,0,85,0.2); }
+        .card-kat.locked-node { opacity: 0.4; filter: grayscale(1); }
         
-        .card-kat .icon { font-size: 45px; display: block; margin-bottom: 12px; transition: 0.3s; }
-        .card-kat .label { font-size: 13px; font-weight: 800; color: #eee; text-transform: uppercase; }
+        .card-kat .icon { font-size: 40px; display: block; margin-bottom: 10px; transition: 0.3s; }
+        .card-kat .label { font-size: 12px; font-weight: 800; color: #eee; text-transform: uppercase; }
         .card-kat .badge { 
             position: absolute; top: 10px; right: 10px; font-size: 9px; 
-            background: var(--primary); color: white; padding: 2px 6px; border-radius: 5px; 
+            background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;
         }
 
-        /* --- STEP 2 & 3: LOCATION & FORMS --- */
-        .instruction { font-size: 13px; color: #888; text-align: center; margin-bottom: 20px; }
+        /* Auth Panel Below Grid */
+        .auth-bridge {
+            margin-top: 25px; padding: 15px; background: rgba(255,255,255,0.03);
+            border-radius: 15px; text-align: center; border: 1px dashed #333;
+        }
+        .auth-text { font-size: 11px; color: #aaa; margin-bottom: 10px; display: block; }
+        .auth-btns { display: flex; gap: 10px; justify-content: center; }
+        .btn-auth {
+            padding: 8px 15px; border-radius: 8px; font-size: 11px; font-weight: bold;
+            text-decoration: none; border: 1px solid var(--secondary); color: var(--secondary);
+            transition: 0.3s;
+        }
+        .btn-auth.fill { background: var(--secondary); color: #000; }
+
+        /* --- MEGA MODAL ALERT --- */
+        .mega-modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+            display: none; align-items: center; justify-content: center; z-index: 10000;
+            padding: 20px; backdrop-filter: blur(10px);
+        }
+        .mega-modal.show { display: flex; animation: focalIn 0.3s ease; }
         
-        .radar-box {
-            background: #050d0a; border: 2px solid var(--success);
-            border-radius: 20px; padding: 25px; text-align: center;
-            box-shadow: inset 0 0 20px rgba(0, 255, 136, 0.1); margin-bottom: 20px;
+        .modal-content {
+            background: #1a050a; border: 2px solid var(--primary);
+            padding: 40px 20px; border-radius: 20px; text-align: center;
+            max-width: 350px; width: 100%; box-shadow: 0 0 50px var(--primary-glow);
         }
-        .loc-large { font-size: 24px; font-weight: 900; color: var(--success); text-transform: uppercase; }
-        .loc-sub { font-size: 11px; color: #6a8; font-family: var(--font-mono); }
-
-        .form-panel { background: #111; border: 1px solid var(--border); border-radius: 20px; padding: 20px; margin-bottom: 20px; }
-        .input-group { margin-bottom: 18px; position: relative; }
-        label { display: block; font-size: 10px; color: var(--secondary); margin-bottom: 8px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; }
-        
-        input, select, textarea {
-            width: 100%; background: #000; border: 1px solid #333; color: #fff;
-            padding: 15px; border-radius: 12px; font-size: 14px; transition: 0.3s;
-        }
-        input:focus { border-color: var(--secondary); box-shadow: 0 0 15px var(--secondary-glow); }
-
-        /* Hierarchy Select Logic */
-        .hidden-select { display: none; margin-top: 10px; }
-        .visible-select { display: block; animation: fadeInUp 0.3s ease forwards; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* --- Buttons --- */
-        .btn-toggle {
-            width: 100%; padding: 12px; background: rgba(0,242,255,0.05);
-            border: 1px solid var(--secondary); color: var(--secondary);
-            border-radius: 12px; font-weight: bold; cursor: pointer; margin-bottom: 20px;
-        }
-        .btn-action {
-            width: 100%; padding: 20px; background: var(--primary);
-            color: white; border: none; border-radius: 18px;
-            font-size: 18px; font-weight: 900; text-transform: uppercase;
-            letter-spacing: 2px; box-shadow: 0 10px 30px var(--primary-glow);
-            cursor: pointer; margin-top: 10px;
-        }
-        .btn-action:active { transform: translateY(4px); }
-        
-        .btn-reset-form {
-            background: #221111; color: #ff4444; border: 1px solid #ff4444;
-            width: 100%; padding: 10px; border-radius: 10px; font-size: 11px;
-            margin-bottom: 15px; cursor: pointer; display: none;
+        .modal-icon { font-size: 60px; margin-bottom: 20px; display: block; animation: shake 0.5s infinite; }
+        .modal-title { font-size: 20px; font-weight: 900; color: var(--primary); margin-bottom: 10px; text-transform: uppercase; }
+        .modal-desc { font-size: 13px; color: #ccc; line-height: 1.6; margin-bottom: 25px; }
+        .btn-close-modal {
+            background: var(--primary); color: white; border: none; padding: 12px 30px;
+            border-radius: 10px; font-weight: bold; cursor: pointer; text-transform: uppercase;
         }
 
-        /* --- Tool Bar --- */
-        .tool-bar { display: flex; gap: 10px; margin-top: 10px; }
-        .btn-tool {
-            flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #444;
-            background: #222; color: white; font-weight: bold; font-size: 12px; cursor: pointer;
+        @keyframes focalIn { from { opacity: 0; transform: scale(1.2); } to { opacity: 1; transform: scale(1); } }
+        @keyframes shake { 
+            0%, 100% { transform: rotate(0); } 
+            25% { transform: rotate(5deg); } 
+            75% { transform: rotate(-5deg); } 
         }
-        .btn-ai { background: linear-gradient(90deg, #8e2de2, #4a00e0); border: none; }
 
-        /* --- Alerts --- */
+        /* --- UTILS --- */
         #toast {
             position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
-            background: var(--primary); color: white; padding: 15px 35px;
-            border-radius: 50px; font-weight: bold; z-index: 9999; transition: 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: var(--primary); color: white; padding: 12px 30px;
+            border-radius: 50px; font-weight: bold; z-index: 11000; transition: 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
         }
-        #toast.show { top: 40px; }
-
+        #toast.show { top: 30px; }
     </style>
 </head>
 <body>
 
-<div id="toast">SYSTEM READY</div>
+<div id="toast">NOTIFIKASI</div>
+
+<div id="megaModal" class="mega-modal">
+    <div class="modal-content">
+        <span class="modal-icon">🔒</span>
+        <div class="modal-title" id="modalTitle">AKSES TERBATAS</div>
+        <p class="modal-desc" id="modalDesc">Silahkan masuk ke akun Sovereign Guild Anda untuk membuka kategori misi ini.</p>
+        <button class="btn-close-modal" onclick="closeMegaModal()">MENGERTI</button>
+    </div>
+</div>
 
 <div class="quest-board">
     <div class="terminal-header">
-        <h2 class="main-title" id="headTitle">Publish Quest</h2>
-        <div class="status-bar">
-            <span id="statTime">00:00:00</span>
-            <span id="statUser">ID: GUEST</span>
-            <span id="statZone">ZONE: KNG</span>
-        </div>
+        <h2 class="main-title" id="displayHeader">Publish Quest</h2>
+        <span class="sub-title">Sovereign Guild Terminal v2.5</span>
     </div>
 
     <div id="step1" class="step-page active">
-        <p class="instruction">Pilih tipe kontrak untuk memulai transmisi.</p>
+        <p class="instruction">Pilih tipe kontrak transmisi.</p>
         <div class="grid-kategori">
-            <div class="card-kat unlocked" onclick="navStep(2, 'Motor Ride')">
-                <span class="badge">ACTIVE</span>
-                <span class="icon">🏍️</span><span class="label">Motor Ride</span>
+            <div class="card-kat active-node" onclick="navStep(2, 'Motor Ride')">
+                <span class="badge">OPEN</span>
+                <span class="icon">🏍️</span>
+                <span class="label">Motor Ride</span>
             </div>
-            <div class="card-kat unlocked" onclick="navStep(2, 'Car Ride')">
-                <span class="icon">🚗</span><span class="label">Car Ride</span>
+            <div class="card-kat locked-node" onclick="triggerMegaAlert('login')">
+                <span class="icon">🚗</span>
+                <span class="label">Car Ride</span>
             </div>
-            <div class="card-kat unlocked" onclick="navStep(2, 'Pick & Drop')">
-                <span class="icon">📦</span><span class="label">Pick & Drop</span>
+            <div class="card-kat locked-node" onclick="triggerMegaAlert('login')">
+                <span class="icon">📦</span>
+                <span class="label">Pick & Drop</span>
             </div>
-            <div class="card-kat unlocked" onclick="navStep(2, 'Titip Beli')">
-                <span class="icon">🛍️</span><span class="label">Titip Beli</span>
+            <div class="card-kat locked-node" onclick="triggerMegaAlert('login')">
+                <span class="icon">🛍️</span>
+                <span class="label">Titip Beli</span>
             </div>
-            <div class="card-kat unlocked" onclick="navStep(2, 'Service')">
-                <span class="icon">🛠️</span><span class="label">Service</span>
+            <div class="card-kat locked-node" onclick="triggerMegaAlert('login')">
+                <span class="icon">🛠️</span>
+                <span class="label">Service</span>
             </div>
-            <div class="card-kat unlocked" onclick="navStep(2, 'Custom Quest')">
-                <span class="icon">📜</span><span class="label">Update</span>
+            <div class="card-kat locked-node" onclick="triggerMegaAlert('update')">
+                <span class="icon">⏳</span>
+                <span class="label">Update</span>
+            </div>
+        </div>
+
+        <div class="auth-bridge">
+            <span class="auth-text">Belum terverifikasi sebagai Adventurer?</span>
+            <div class="auth-btns">
+                <a href="#" class="btn-auth">DAFTAR</a>
+                <a href="#" class="btn-auth fill">LOGIN</a>
             </div>
         </div>
     </div>
 
     <div id="step2" class="step-page">
-        <p class="instruction">Tentukan lokasi jemput (Origin Point).</p>
+        </div>
+
+</div>
+
+
+    <div id="step2" class="step-page">
+        <p class="instruction">Pilih metode penentuan lokasi penjemputan.</p>
         
-        <div class="radar-box" id="gpsRadar">
-            <div class="loc-sub">MENCARI SINYAL SATELIT...</div>
-            <div class="loc-large" id="resDesa">SEARCHING...</div>
-            <div class="loc-sub" id="resKec">HIGH ACCURACY ACTIVE</div>
+        <div class="radar-panel" id="gpsRadar">
+            <div class="radar-circle">
+                <div class="radar-pulse"></div>
+                <span id="gpsIcon">📡</span>
+            </div>
+            <div class="loc-desa" id="resDesa">MENCARI SINYAL...</div>
+            <div class="loc-kec" id="resKec">High Accuracy GPS Active</div>
         </div>
 
-        <button class="btn-toggle" id="btnToggleManual" onclick="toggleManualMode()">Pesan Untuk Orang Lain / Input Manual</button>
+        <button class="btn-toggle-manual" id="btnToggle" onclick="toggleOriginMode()">Gunakan Pencarian / Input Manual</button>
 
-        <div class="form-panel" id="manualPanel" style="display:none;">
-            <button class="btn-reset-form" id="btnReset2" onclick="confirmReset()">🔄 RESET SEMUA LOKASI</button>
-            <div class="input-group">
-                <label>Kecamatan</label>
-                <select id="manKec" onchange="handleKecChange()"></select>
+        <div class="manual-panel" id="manualPanel">
+            <div class="tabs">
+                <button class="tab-btn active" id="tab2" onclick="switchTab(2)">📍 SMART SEARCH</button>
+                <button class="tab-btn" id="tab3" onclick="switchTab(3)">✍️ MODE NEGO</button>
             </div>
-            <div class="input-group hidden-select" id="desaGroup">
-                <label>Desa / Kelurahan</label>
-                <select id="manDesa"></select>
+
+            <div id="contentTab2">
+                <div class="input-group">
+                    <label>Cari Desa (Cepat)</label>
+                    <input type="text" id="smartSearch" placeholder="Ketik nama desa di Kuningan..." autocomplete="off">
+                    <div class="suggest-box" id="suggestBox"></div>
+                </div>
+                
+                <button class="btn-reset" id="btnResetLock" onclick="resetManualLock()" style="width:100%; margin-bottom:15px; background:#441111; color:#ff4444; border:1px solid #ff4444; padding:8px; border-radius:8px; font-size:10px; font-weight:bold; display:none;">
+                    🔄 RESET & BUKA KUNCI INPUT
+                </button>
+
+                <div class="input-group">
+                    <label>Kecamatan</label>
+                    <select id="manKec" onchange="handleKecChange()"></select>
+                </div>
+                
+                <div class="input-group" id="desaGroup" style="display:none;">
+                    <label>Desa / Kelurahan</label>
+                    <select id="manDesa"></select>
+                </div>
+
+                <div class="input-group">
+                    <label>Patokan / Detail Alamat</label>
+                    <input type="text" id="manDetail" placeholder="Contoh: Depan Gerbang Perumahan">
+                </div>
             </div>
-            <div class="input-group">
-                <label>Patokan Detail</label>
-                <input type="text" id="manDetail" placeholder="Misal: Depan Gerbang Hitam">
+
+            <div id="contentTab3" style="display:none">
+                <div class="input-group">
+                    <label>Alamat Bebas / Deskripsi Lokasi</label>
+                    <textarea id="negoText" rows="4" placeholder="Tulis alamat lengkap Anda di sini jika tidak ditemukan di peta..."></textarea>
+                </div>
+                <button class="btn-ai" onclick="polishWithAI()">✨ RAPIHKAN ALAMAT (AI)</button>
+                <p style="font-size:10px; color:var(--primary); text-align:center; margin-top:10px;">
+                    *Catatan: Mode ini memerlukan konfirmasi harga manual dengan Driver.
+                </p>
             </div>
         </div>
 
-        <button class="btn-action" onclick="validateStep2()">Next: Set Destination ➔</button>
+        <button class="btn-main" onclick="validateStep2()">Lanjut ke Tujuan ➔</button>
     </div>
 
-    <div id="step3" class="step-page">
-        <p class="instruction">Tentukan tujuan & kompensasi misi.</p>
-        <div class="form-panel">
+
+        <div id="step3" class="step-page">
+        <p class="instruction" id="destInstruction">Tentukan target koordinat dan detail misi.</p>
+
+        <div id="categorySpecificForm" class="form-panel" style="background: rgba(255,255,255,0.02); border-radius: 18px; padding: 5px; margin-bottom: 20px;">
+            </div>
+
+        <div class="form-panel" style="background: #111; border: 1px solid var(--border); border-radius: 18px; padding: 20px; margin-bottom: 20px;">
+            <label style="color: var(--gold); margin-bottom: 15px; display: block;">📍 Titik Tujuan (Destination)</label>
+            
             <div class="input-group">
                 <label>Kecamatan Tujuan</label>
                 <select id="destKec" onchange="handleDestKecChange()"></select>
             </div>
-            <div class="input-group hidden-select" id="destDesaGroup">
-                <label>Desa Tujuan</label>
+
+            <div class="input-group" id="destDesaGroup" style="display:none;">
+                <label>Desa / Kelurahan Tujuan</label>
                 <select id="destDesa"></select>
             </div>
+
             <div class="input-group">
-                <label>Detail Tujuan</label>
-                <input type="text" id="destDetail" placeholder="Nama gang / blok rumah">
+                <label>Detail Lokasi Tujuan</label>
+                <input type="text" id="destDetail" placeholder="Misal: Blok C No. 12 / Samping Masjid">
             </div>
         </div>
 
-        <div class="form-panel">
-            <div class="input-group">
-                <label>Reward (IDR)</label>
-                <input type="number" id="reward" placeholder="Min. 5000">
-            </div>
-            <div class="input-group">
-                <label>Catatan Tambahan</label>
-                <textarea id="note" rows="2" placeholder="Catatan untuk Adventurer..."></textarea>
-                <div class="tool-bar">
-                    <button class="btn-tool" onclick="startVoice()">🎤 Suara</button>
-                    <button class="btn-tool btn-ai" onclick="runAIPolish()">✨ AI Polish</button>
-                </div>
-            </div>
-        </div>
-
-        <button class="btn-action" onclick="publishQuest()">Sebarkan Sinyal Misi!</button>
+        <button class="btn-main" onclick="validateStep3()">Lanjut ke Kompensasi ➔</button>
     </div>
 
-</div>
+
+        <div id="step4" class="step-page">
+        <p class="instruction">Tentukan kompensasi untuk jasa Adventurer.</p>
+
+        <div class="form-panel" style="background: linear-gradient(145deg, #0d0d0d, #1a1a1a); border: 1px solid var(--gold); border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 0 20px rgba(255, 204, 0, 0.1);">
+            <label style="color: var(--gold); text-align: center; font-size: 12px; margin-bottom: 20px;">💰 BOUNTY CONFIGURATION</label>
+            
+            <div class="input-group">
+                <label>Imbalan (IDR)</label>
+                <input type="number" id="rewardInput" placeholder="Min. 5000" style="font-size: 24px; font-weight: 900; color: var(--gold); text-align: center;">
+            </div>
+
+            <div class="input-group">
+                <label>Metode Pembayaran</label>
+                <select id="payMethod">
+                    <option value="Cash">Tunai (Cash)</option>
+                    <option value="Sovereign Pay">Sovereign Pay (Saldo)</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label>Catatan Tambahan Misi</label>
+                <textarea id="finalNote" rows="3" placeholder="Contoh: Tolong bawa helm dua, atau barangnya jangan dibanting."></textarea>
+            </div>
+        </div>
+
+        <div id="questSummary" style="background: rgba(0, 242, 255, 0.05); border: 1px dashed var(--secondary); border-radius: 12px; padding: 15px; margin-bottom: 20px; font-size: 11px; font-family: var(--font-mono); color: #88eeff;">
+            <div style="border-bottom: 1px solid rgba(0, 242, 255, 0.2); padding-bottom: 5px; margin-bottom: 8px; font-weight: bold;">📜 PREVIEW CONTRACT:</div>
+            <div id="sumCat">CATEGORY: -</div>
+            <div id="sumOri">FROM: -</div>
+            <div id="sumDest">TO: -</div>
+            <div id="sumPrice">BOUNTY: -</div>
+        </div>
+
+        <button class="btn-main" id="btnBroadcast" onclick="finalizeAndPublish()" style="background: linear-gradient(45deg, var(--primary), #ff4d88); height: 70px;">
+            BROADCAST QUEST 📡
+        </button>
+        
+        <button onclick="navStep(3)" style="width: 100%; background: transparent; border: none; color: #666; font-size: 11px; margin-top: 15px; cursor: pointer;">
+            ⬅️ Kembali untuk koreksi
+        </button>
+    </div>
 
 <script>
-    // ================= CONFIG & STATE =================
-    const userIdentity = Clearchance.enforceIdentity() || { uid: "GUEST-" + Date.now(), nick: "Adventurer", zone: "KNG" };
-    let questMode = 'gps'; 
-    let currentCoords = { lat: 0, lng: 0 };
-    let activeStep = 1;
-
-    // ================= AUDIO ENGINE PRO =================
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playSfx(freq, type, duration, vol = 0.1) {
-        try {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = type; // 'sine', 'square', 'sawtooth', 'triangle'
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + duration);
-        } catch(e) { console.log("Audio Error"); }
+    // ================= BOUNTY LOGIC =================
+    function updateSummary() {
+        document.getElementById('sumCat').innerText = "CATEGORY: " + questData.category.toUpperCase();
+        
+        // Origin Summary
+        let oriTxt = questData.mode === 'nego' ? "MODE NEGO (Free Text)" : questData.origin.desa + ", " + questData.origin.kec;
+        document.getElementById('sumOri').innerText = "FROM: " + oriTxt;
+        
+        // Destination Summary
+        document.getElementById('sumDest').innerText = "TO: " + questData.destination.desa + ", " + questData.destination.kec;
+        
+        // Price
+        const price = document.getElementById('rewardInput').value || "0";
+        document.getElementById('sumPrice').innerText = "BOUNTY: Rp " + parseInt(price).toLocaleString();
     }
 
-    const sfx = {
-        beep: () => playSfx(800, 'sine', 0.1),
-        success: () => { playSfx(600, 'sine', 0.1); setTimeout(() => playSfx(900, 'sine', 0.2), 100); },
-        error: () => playSfx(150, 'sawtooth', 0.4, 0.2),
-        transition: () => playSfx(1200, 'triangle', 0.3, 0.05)
+    // Override validateStep3 untuk memicu update summary
+    const oldValidateStep3 = validateStep3;
+    validateStep3 = function() {
+        // Jalankan validasi asli
+        const dDesa = document.getElementById('destDesa').value;
+        if(!dDesa) return showToast("⚠️ Pilih Desa Tujuan!");
+
+        questData.destination = {
+            kec: document.getElementById('destKec').value,
+            desa: dDesa,
+            detail: document.getElementById('destDetail').value
+        };
+
+        // Inject data kategori spesifik (jika ada)
+        const specInputs = document.querySelectorAll('[id^="spec_"]');
+        questData.specs = {};
+        specInputs.forEach(input => {
+            questData.specs[input.id] = input.value;
+        });
+
+        // Pindah ke Step 4 & Update Visual
+        navStep(4);
+        updateSummary();
+        playSfx(1800, 'sine', 0.4);
     };
 
-    // ================= SENSOR MODULE (SHAKE TO RESET) =================
-    let lastX, lastY, lastZ;
-    let moveCounter = 0;
-    window.addEventListener('devicemotion', (e) => {
-        let acc = e.accelerationIncludingGravity;
-        if (!acc.x) return;
-        let delta = Math.abs(acc.x + acc.y + acc.z - lastX - lastY - lastZ);
-        if (delta > 25) { // Threshold guncangan
-            moveCounter++;
-            if (moveCounter > 5) {
-                triggerShakeReset();
-                moveCounter = 0;
-            }
+    // ================= FINAL PUBLISH (TO FIREBASE) =================
+    function finalizeAndPublish() {
+        const reward = document.getElementById('rewardInput').value;
+        if(!reward || reward < 5000) {
+            playSfx(100, 'sawtooth', 0.5);
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            return showToast("⚠️ Minimal Bounty Rp 5.000!");
         }
-        lastX = acc.x; lastY = acc.y; lastZ = acc.z;
-    });
 
-    function triggerShakeReset() {
-        if(activeStep > 1) {
-            playSfx(200, 'square', 0.5);
-            if(confirm("Sinyal guncangan terdeteksi! Reset form?")) {
-                location.reload();
-            }
-        }
-    }
+        // Final Object Assembly
+        const finalPackage = {
+            ...questData,
+            reward: parseInt(reward),
+            payment: document.getElementById('payMethod').value,
+            note: document.getElementById('finalNote').value,
+            timestamp: Date.now(),
+            status: "OPEN",
+            publisher: "Adventurer-01" // Nanti ambil dari auth
+        };
 
-    // ================= GPS & GEOLOCATION PRO =================
-    function startGPS() {
-        if(!navigator.geolocation) return updateGPSUI("NO GPS", "Not Supported");
+        console.log("SENDING TO GUILD BOARD:", finalPackage);
         
-        const options = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
+        // UI Interaction
+        const btn = document.getElementById('btnBroadcast');
+        btn.disabled = true;
+        btn.innerText = "TRANSMITTING...";
+        btn.style.opacity = "0.6";
         
-        navigator.geolocation.watchPosition(pos => {
-            currentCoords.lat = pos.coords.latitude;
-            currentCoords.lng = pos.coords.longitude;
-            
-            const found = reverseGeocodeLocal(currentCoords.lat, currentCoords.lng);
-            updateGPSUI(found.name, "Kec. " + found.kec);
-            
-            // Auto-lock data origin jika mode GPS
-            if(questMode === 'gps') {
-                document.getElementById('resDesa').style.color = "var(--success)";
-            }
-        }, err => {
-            updateGPSUI("SINYAL LEMAH", "Gunakan Manual");
-            showToast("⚠️ GPS Gagal Mengunci");
-        }, options);
+        playSfx(2000, 'sine', 1.0, 0.05); // Suara transmisi panjang
+
+        // Simulasi pengiriman ke Firebase
+        setTimeout(() => {
+            if (navigator.vibrate) navigator.vibrate(500);
+            alert("QUEST PUBLISHED!\nSinyal misi telah disebarkan ke semua Adventurer terdekat.");
+            location.reload(); // Reset terminal
+        }, 2000);
     }
 
-    function updateGPSUI(desa, kec) {
-        document.getElementById('resDesa').innerText = desa;
-        document.getElementById('resKec').innerText = kec;
-    }
+    // Event listener untuk update summary secara real-time saat ngetik harga
+    document.getElementById('rewardInput').addEventListener('input', updateSummary);
 
-    function reverseGeocodeLocal(lat, lng) {
-        let nearest = { name: "Luar Jangkauan", kec: "KNG", dist: 999 };
-        for (const kec in LOKASI_DB) {
-            LOKASI_DB[kec].desa.forEach(d => {
-                const dist = Math.sqrt(Math.pow(lat - d.lat, 2) + Math.pow(lng - d.lng, 2));
-                if(dist < nearest.dist) {
-                    nearest = { name: d.name, kec: kec, dist: dist };
-                }
-            });
-        }
-        return nearest;
-    }
+</script>
 
-    // ================= HIERARCHY LOGIC =================
-    function initDropdowns() {
-        const kecSelects = ['manKec', 'destKec'];
-        kecSelects.forEach(id => {
-            const el = document.getElementById(id);
-            el.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
-            Object.keys(LOKASI_DB).forEach(k => {
-                let opt = document.createElement('option');
-                opt.value = k; opt.innerText = k;
-                el.appendChild(opt);
-            });
+
+<script>
+    // ================= DYNAMIC FORM BLUEPRINT =================
+    const CATEGORY_FORMS = {
+        "Motor Ride": `
+            <div class="input-group">
+                <label>Jumlah Penumpang</label>
+                <select id="spec_passengers">
+                    <option value="1">1 Orang</option>
+                </select>
+            </div>`,
+        "Car Ride": `
+            <div class="input-group">
+                <label>Kapasitas Kursi</label>
+                <select id="spec_car_type">
+                    <option value="standard">Standard (1-4 Orang)</option>
+                    <option value="large">Large (1-6 Orang)</option>
+                </select>
+            </div>`,
+        "Pick & Drop": `
+            <div class="input-group">
+                <label>Jenis Barang</label>
+                <input type="text" id="spec_item_type" placeholder="Misal: Dokumen, Makanan, Paket">
+            </div>
+            <div class="input-group">
+                <label>Estimasi Berat (Kg)</label>
+                <input type="number" id="spec_weight" placeholder="0">
+            </div>`,
+        "Titip Beli": `
+            <div class="input-group">
+                <label>Daftar Belanjaan & Estimasi Harga</label>
+                <textarea id="spec_shopping_list" rows="4" placeholder="1. Nasi Goreng (20rb)\n2. Es Teh (5rb)"></textarea>
+            </div>`,
+        "Service": `
+            <div class="input-group">
+                <label>Deskripsi Masalah / Kerusakan</label>
+                <textarea id="spec_service_desc" rows="4" placeholder="Jelaskan apa yang perlu diperbaiki..."></textarea>
+            </div>`
+    };
+
+    // ================= DESTINATION LOGIC =================
+    function initDestDropdown() {
+        const sel = document.getElementById('destKec');
+        if(sel.options.length > 0) return;
+        sel.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+        Object.keys(LOKASI_DB).forEach(k => {
+            sel.innerHTML += `<option value="${k}">${k}</option>`;
         });
-    }
-
-    function handleKecChange() {
-        const kec = document.getElementById('manKec').value;
-        const desaGroup = document.getElementById('desaGroup');
-        const desaSelect = document.getElementById('manDesa');
-        
-        if(kec) {
-            desaSelect.innerHTML = '<option value="">-- Pilih Desa --</option>';
-            LOKASI_DB[kec].desa.forEach(d => {
-                desaSelect.innerHTML += `<option value="${d.name}">${d.name}</option>`;
-            });
-            desaGroup.className = "input-group visible-select";
-            document.getElementById('btnReset2').style.display = "block";
-            sfx.beep();
-        } else {
-            desaGroup.className = "input-group hidden-select";
-        }
     }
 
     function handleDestKecChange() {
         const kec = document.getElementById('destKec').value;
         const group = document.getElementById('destDesaGroup');
-        const sel = document.getElementById('destDesa');
-        
+        const selDesa = document.getElementById('destDesa');
+
         if(kec) {
-            sel.innerHTML = '<option value="">-- Pilih Desa --</option>';
+            selDesa.innerHTML = '<option value="">-- Pilih Desa --</option>';
             LOKASI_DB[kec].desa.forEach(d => {
-                sel.innerHTML += `<option value="${d.name}">${d.name}</option>`;
+                selDesa.innerHTML += `<option value="${d}">${d}</option>`;
             });
-            group.className = "input-group visible-select";
-            sfx.beep();
+            group.style.display = 'block';
+            playSfx(700, 'sine', 0.1);
         } else {
-            group.className = "input-group hidden-select";
+            group.style.display = 'none';
         }
     }
 
-    // ================= NAVIGATION & STEP VALIDATION =================
-    function navStep(n, title = null) {
-        if(title) {
-            document.getElementById('headTitle').innerText = "[" + title + "]";
-            sfx.success();
-        }
-        document.querySelectorAll('.step-page').forEach(p => p.classList.remove('active'));
-        document.getElementById('step' + n).classList.add('active');
-        activeStep = n;
-        
-        if(n === 2) startGPS();
-        window.scrollTo(0,0);
+    // ================= FORM INJECTION =================
+    function injectCategoryForm(cat) {
+        const container = document.getElementById('categorySpecificForm');
+        container.innerHTML = CATEGORY_FORMS[cat] || `<p style="font-size:10px; padding:10px; color:#666;">No extra requirements for this quest.</p>`;
+        initDestDropdown();
     }
 
-    function toggleManualMode() {
+    // Override NavStep untuk menyuntikkan form di Step 1
+    const originalNavStep = navStep;
+    navStep = function(num, title = null) {
+        originalNavStep(num, title);
+        if(num === 2 && title) {
+            questData.category = title;
+            injectCategoryForm(title);
+        }
+    };
+
+    // ================= VALIDATION STEP 3 =================
+    function validateStep3() {
+        const dDesa = document.getElementById('destDesa').value;
+        if(!dDesa) {
+            if (navigator.vibrate) navigator.vibrate(200);
+            playSfx(150, 'sawtooth', 0.3);
+            return showToast("⚠️ Pilih Desa Tujuan!");
+        }
+
+        // Simpan data tujuan
+        questData.destination = {
+            kec: document.getElementById('destKec').value,
+            desa: dDesa,
+            detail: document.getElementById('destDetail').value
+        };
+
+        playSfx(1200, 'sine', 0.3);
+        showToast("LOKASI TUJUAN TERKUNCI");
+        // navStep(4); // Lanjut ke Step Reward/Bounty
+    }
+</script>
+
+
+<script>
+    // ================= DATA LOKASI (DATABASE KNG) =================
+    const LOKASI_DB = {
+        "Cigugur": { desa: ["Cigugur", "Cigadung", "Cisantana", "Gunungkeling", "Panyercan"] },
+        "Kuningan": { desa: ["Kuningan", "Purwawinangun", "Cijoho", "Cirendang", "Ciporang"] },
+        "Karamatmulya": { desa: ["Cilowa", "Kalapagunung", "Cikubangsari", "Karamatmulya"] },
+        "Kadugede": { desa: ["Kadugede", "Cipado", "Sindangjawa", "Nangka"] }
+        // ... Tambahkan sesuai router_lokal.js
+    };
+
+    let questData = {
+        category: '',
+        mode: 'gps', 
+        origin: { kec: '', desa: '', detail: '', lat: 0, lng: 0 }
+    };
+
+    // ================= GPS LOGIC =================
+    function startGPS() {
+        if(!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(pos => {
+            // Simulasi Reverse Geocode sederhana (Nanti hubungkan ke router_lokal.js)
+            document.getElementById('resDesa').innerText = "KUNINGAN KOTA";
+            document.getElementById('resKec').innerText = "Kecamatan Kuningan";
+            questData.origin.lat = pos.coords.latitude;
+            questData.origin.lng = pos.coords.longitude;
+            playSfx(1000, 'sine', 0.2);
+        }, err => {
+            document.getElementById('resDesa').innerText = "OFFLINE";
+            showToast("⚠️ GPS Gagal. Gunakan Manual.");
+        }, {enableHighAccuracy: true});
+    }
+
+    // ================= MANUAL & HIERARCHY LOGIC =================
+    function toggleOriginMode() {
         const panel = document.getElementById('manualPanel');
         const radar = document.getElementById('gpsRadar');
-        const btn = document.getElementById('btnToggleManual');
+        const btn = document.getElementById('btnToggle');
 
-        if(panel.style.display === 'none') {
-            panel.style.display = 'block';
-            radar.style.opacity = '0.3';
+        if(panel.classList.contains('active')) {
+            panel.classList.remove('active');
+            radar.classList.remove('disabled');
+            btn.innerText = "Ubah Titik / Pesankan Orang Lain";
+            questData.mode = 'gps';
+        } else {
+            panel.classList.add('active');
+            radar.classList.add('disabled');
             btn.innerText = "Kembali ke GPS Otomatis";
-            questMode = 'manual';
-            initDropdowns();
-        } else {
-            panel.style.display = 'none';
-            radar.style.opacity = '1';
-            btn.innerText = "Pesan Untuk Orang Lain / Input Manual";
-            questMode = 'gps';
+            questData.mode = 'manual';
+            initKecDropdown();
         }
-        sfx.transition();
+        playSfx(400, 'sine', 0.1);
     }
 
+    function initKecDropdown() {
+        const sel = document.getElementById('manKec');
+        if(sel.options.length > 0) return;
+        sel.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+        Object.keys(LOKASI_DB).forEach(k => {
+            sel.innerHTML += `<option value="${k}">${k}</option>`;
+        });
+    }
+
+    // HIERARCHY LOCK: Desa hanya muncul jika Kecamatan diisi
+    function handleKecChange(preselectDesa = null) {
+        const kec = document.getElementById('manKec').value;
+        const group = document.getElementById('desaGroup');
+        const selDesa = document.getElementById('manDesa');
+
+        if(kec) {
+            selDesa.innerHTML = '<option value="">-- Pilih Desa --</option>';
+            LOKASI_DB[kec].desa.forEach(d => {
+                selDesa.innerHTML += `<option value="${d}">${d}</option>`;
+            });
+            group.style.display = 'block';
+            if(preselectDesa) selDesa.value = preselectDesa;
+            playSfx(600, 'sine', 0.1);
+        } else {
+            group.style.display = 'none';
+        }
+    }
+
+    // ================= AUTOCOMPLETE & LOCKING =================
+    const smartInp = document.getElementById('smartSearch');
+    const suggBox = document.getElementById('suggestBox');
+
+    smartInp.addEventListener('input', function() {
+        const val = this.value.toLowerCase();
+        suggBox.innerHTML = '';
+        if(val.length < 2) { suggBox.style.display = 'none'; return; }
+
+        let matches = [];
+        for(const kec in LOKASI_DB) {
+            LOKASI_DB[kec].desa.forEach(d => {
+                if(d.toLowerCase().includes(val)) matches.push({d, kec});
+            });
+        }
+
+        if(matches.length > 0) {
+            suggBox.style.display = 'block';
+            matches.forEach(m => {
+                const item = document.createElement('div');
+                item.className = 'suggest-item';
+                item.innerHTML = `<b>${m.d}</b> <br> <small>Kec. ${m.kec}</small>`;
+                item.onclick = () => applyLock(m.d, m.kec);
+                suggBox.appendChild(item);
+            });
+        }
+    });
+
+    function applyLock(desa, kec) {
+        document.getElementById('manKec').value = kec;
+        handleKecChange(desa);
+        smartInp.value = desa;
+        suggBox.style.display = 'none';
+
+        // LOCKING INPUTS
+        document.getElementById('manKec').style.pointerEvents = 'none';
+        document.getElementById('manKec').style.opacity = '0.5';
+        document.getElementById('manDesa').style.pointerEvents = 'none';
+        document.getElementById('manDesa').style.opacity = '0.5';
+        smartInp.readOnly = true;
+        document.getElementById('btnResetLock').style.display = 'block';
+        
+        playSfx(1200, 'sine', 0.2);
+        showToast("✅ Lokasi Terkunci");
+    }
+
+    function resetManualLock() {
+        document.getElementById('manKec').style.pointerEvents = 'auto';
+        document.getElementById('manKec').style.opacity = '1';
+        document.getElementById('manDesa').style.pointerEvents = 'auto';
+        document.getElementById('manDesa').style.opacity = '1';
+        smartInp.readOnly = false;
+        smartInp.value = '';
+        document.getElementById('btnResetLock').style.display = 'none';
+        document.getElementById('manKec').value = '';
+        handleKecChange();
+        playSfx(300, 'sine', 0.1);
+    }
+
+    function switchTab(n) {
+        document.getElementById('tab2').classList.toggle('active', n===2);
+        document.getElementById('tab3').classList.toggle('active', n===3);
+        document.getElementById('contentTab2').style.display = n===2 ? 'block' : 'none';
+        document.getElementById('contentTab3').style.display = n===3 ? 'block' : 'none';
+        questData.mode = n===2 ? 'manual' : 'nego';
+        playSfx(500, 'sine', 0.05);
+    }
+
+    // ================= VALIDATION =================
     function validateStep2() {
-        if(questMode === 'manual') {
-            const d = document.getElementById('manDesa').value;
-            if(!d) { sfx.error(); return showToast("⚠️ Pilih Desa Asal!"); }
-        } else {
-            if(document.getElementById('resDesa').innerText === "SEARCHING...") {
-                sfx.error(); return showToast("⚠️ Menunggu Sinyal GPS...");
-            }
+        // Logika pengecekan data sebelum ke Step 3
+        if(questData.mode === 'manual' && !document.getElementById('manDesa').value) {
+            return triggerMegaAlert('login'); // Contoh memicu alert jika data kosong
         }
-        navStep(3);
+        playSfx(1500, 'sine', 0.4);
+        showToast("TRANSMISI LOKASI BERHASIL");
+        // navStep(3); // Akan dilanjut ke Step Tujuan
+    }
+</script>
+
+
+<script>
+    // Audio Context Dasar untuk Feedback
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSfx(f, t, d, v=0.1) {
+        try {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = t; o.frequency.value = f;
+            g.gain.setValueAtTime(v, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + d);
+        } catch(e) {}
     }
 
-    // ================= UI UTILS =================
     function showToast(msg) {
         const t = document.getElementById('toast');
-        t.innerText = msg;
-        t.classList.add('show');
+        t.innerText = msg; t.classList.add('show');
         setTimeout(() => t.classList.remove('show'), 3000);
     }
 
-    function confirmReset() {
-        if(confirm("Hapus semua data input manual?")) {
-            document.getElementById('manKec').value = "";
-            handleKecChange();
-            sfx.transition();
+    // --- MEGA ALERT SYSTEM ---
+    function triggerMegaAlert(type) {
+        const modal = document.getElementById('megaModal');
+        const mTitle = document.getElementById('modalTitle');
+        const mDesc = document.getElementById('modalDesc');
+        const mIcon = modal.querySelector('.modal-icon');
+
+        // Vibrasi Haptic (Jika didukung)
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        playSfx(150, 'sawtooth', 0.5, 0.2);
+
+        if(type === 'login') {
+            mIcon.innerText = "🔒";
+            mTitle.innerText = "AKSES TERBATAS";
+            mDesc.innerText = "Kategori ini memerlukan otorisasi akun. Silahkan Login atau Daftar untuk melanjutkan kontrak ini.";
+        } else {
+            mIcon.innerText = "⏳";
+            mTitle.innerText = "DECRYPTING...";
+            mDesc.innerText = "Modul ini sedang dalam tahap pembaruan sistem. Silahkan tunggu transmisi berikutnya dari pusat.";
         }
+
+        modal.classList.add('show');
     }
 
-    // CLOCK RUNNER
-    setInterval(() => {
-        const d = new Date();
-        document.getElementById('statTime').innerText = d.toLocaleTimeString('en-GB');
-    }, 1000);
+    function closeMegaModal() {
+        document.getElementById('megaModal').classList.remove('show');
+        playSfx(400, 'sine', 0.1);
+    }
 
-    // INIT
-    document.getElementById('statUser').innerText = "ID: " + userIdentity.nick.toUpperCase();
-    initDropdowns();
-
+    function navStep(num, title = null) {
+        if(title) {
+            document.getElementById('displayHeader').innerText = "[" + title + "]";
+            playSfx(800, 'sine', 0.2);
+        }
+        document.querySelectorAll('.step-page').forEach(p => p.classList.remove('active'));
+        document.getElementById('step' + num).classList.add('active');
+        window.scrollTo(0,0);
+    }
 </script>
+
+
 </body>
 </html>
