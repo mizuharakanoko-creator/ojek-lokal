@@ -8,6 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="router_lokal.js"></script>
+    <script src="terminal_router.js"></script>
 
     <style>
         /* ==========================================================================
@@ -756,75 +757,83 @@
     // 7. FINALIZATION & SUBMIT
     // ==========================================================================
     async function submitMission() {
-    // Validasi Dasar
-    if(questData.reward < 5000 && questData.distanceEst > 0) return showToast("Bounty terlalu rendah!");
+    // 1. Validasi Dasar & Feedback
+    if(questData.reward < 5000) return alert("Bounty terlalu rendah!");
     
     const btn = document.getElementById('btnBroadcast');
-    btn.innerText = "TRANSMITTING...";
-    btn.disabled = true;
-    playSfx(2000, 'sine', 1, 0.5);
-
-    // 1. Identifikasi Lokasi & Shard (Gunakan data dari router_lokal.js)
-    let jemputKec, jemputDesa, shard;
-    
-    if (questData.origin.mode === 'gps') {
-        const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
-        jemputKec = loc.kec;
-        jemputDesa = loc.name;
-    } else {
-        // Ambil dari dropdown manual
-        jemputKec = document.getElementById('manKec').value;
-        const dIdx = document.getElementById('manDesa').value;
-        jemputDesa = LOKASI_DB[jemputKec].desa[dIdx].name;
+    if(btn) {
+        btn.innerText = "TRANSMITTING...";
+        btn.disabled = true;
     }
     
-    shard = getShardDariKecamatan(jemputKec);
-    const mid = "MS-" + Date.now();
-
-    // 2. Inisialisasi Terminal Database (Gunakan terminal_router.js)
-    const db1 = getTerminal('FB1_MASTER');
-    const db4 = getTerminal('FB4_BOARD');
-
-    // 3. Susun Payload Sesuai Standar Board
-    const boardData = {
-        id_misi: mid,
-        id_requester: questData.client.id,
-        category: questData.category,
-        reward: parseInt(questData.reward),
-        difficulty_rate: questData.origin.diff || 1.0,
-        zona: jemputKec,
-        shard_id: shard,
-        
-        // Origin
-        origin_name: questData.origin.text,
-        origin_desa: jemputDesa,
-        origin_coords: `${questData.origin.lat},${questData.origin.lng}`,
-        
-        // Destination
-        dest_name: questData.destination.text,
-        dest_desa: questData.destination.desa || "Custom",
-        dest_coords: `${questData.destination.lat},${questData.destination.lng}`,
-        
-        status: "open",
-        rank: questData.isUrgent ? "DARURAT" : "BIASA",
-        created_at: Date.now()
-    };
+    if(typeof playSfx === 'function') playSfx(2000, 'sine', 1, 0.5);
 
     try {
-        // 4. Proses Paralel: Simpan ke Index Master dan Board Aktif
+        // 2. Identifikasi Lokasi & Shard (Logika pemulihan data)
+        let jemputKec, jemputDesa, diffRate;
+        
+        if (questData.origin.mode === 'gps') {
+            const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
+            jemputKec = loc.kec;
+            jemputDesa = loc.name;
+            diffRate = loc.diff || 1.0;
+        } else {
+            jemputKec = document.getElementById('manKec').value;
+            const dIdx = document.getElementById('manDesa').value;
+            const dataDesa = LOKASI_DB[jemputKec].desa[dIdx];
+            jemputDesa = dataDesa.name;
+            diffRate = dataDesa.diff || 1.0;
+        }
+        
+        const shard = getShardDariKecamatan(jemputKec);
+        const mid = "MS-" + Date.now();
+
+        // 3. Inisialisasi Terminal
+        const db1 = getTerminal('FB1_MASTER');
+        const db4 = getTerminal('FB4_BOARD');
+
+        // 4. Susun Payload (Detail yang sebelumnya tertinggal dimasukkan di sini)
+        const boardData = {
+            id_misi: mid,
+            id_requester: questData.client.id || "GUEST",
+            category: questData.category,
+            reward: parseInt(questData.reward),
+            difficulty_rate: diffRate, // TERTINGGAL: Penting untuk kalkulasi driver
+            zona: jemputKec,
+            shard_id: shard, // TERTINGGAL: Untuk filter database
+            
+            origin_name: questData.origin.text,
+            origin_desa: jemputDesa,
+            origin_coords: `${questData.origin.lat},${questData.origin.lng}`,
+            
+            dest_name: questData.destination.text,
+            dest_desa: questData.destination.desa || "Custom",
+            dest_coords: `${questData.destination.lat},${questData.destination.lng}`,
+            
+            status: "open",
+            rank: questData.isUrgent ? "DARURAT" : "BIASA", // TERTINGGAL: Untuk label di Board
+            created_at: Date.now()
+        };
+
+        // 5. Eksekusi Paralel ke Multi-Database
         await Promise.all([
-            db1.ref(`misi_index/${mid}`).set({ id_misi: mid, id_shard: shard, zona: jemputKec, status: "open" }),
+            db1.ref(`misi_index/${mid}`).set({ 
+                id_misi: mid, 
+                id_shard: shard, 
+                zona: jemputKec, 
+                status: "open" 
+            }),
             db4.ref(`mission-${shard}/${jemputDesa}/${mid}`).set(boardData)
         ]);
 
-        // 5. Simpan Session untuk keperluan halaman Lobby
+        // 6. Simpan Session untuk Lobby
         sessionStorage.setItem('active_mission_id', mid);
         sessionStorage.setItem('active_mission_shard', shard);
         sessionStorage.setItem('active_mission_desa', jemputDesa);
 
-        showToast("SINYAL TERSEBAR!");
+        // 7. Pindah Halaman dengan Delay Sfx
+        if(typeof showToast === 'function') showToast("SINYAL TERSEBAR!");
         
-        // 6. Pelemparan ke Halaman Selanjutnya
         setTimeout(() => {
             window.location.href = "lobby_requester.html";
         }, 1000);
@@ -832,10 +841,13 @@
     } catch (e) {
         console.error(e);
         alert("Gagal Transmisi: " + e.message);
-        btn.disabled = false;
-        btn.innerText = "BROADCAST GAGAL";
+        if(btn) {
+            btn.disabled = false;
+            btn.innerText = "BROADCAST GAGAL";
+        }
     }
 }
+
 
 </script>
 </body>
