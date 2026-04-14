@@ -756,104 +756,107 @@
     // ==========================================================================
     // 7. FINALIZATION & SUBMIT
     // ==========================================================================
-    async function submitMission() {
-    // 1. Validasi Dasar & Feedback
-    if(questData.reward < 5000) return alert("Bounty terlalu rendah!");
-    
-    const btn = document.getElementById('btnBroadcast');
-    if(btn) {
-        btn.innerText = "TRANSMITTING...";
-        btn.disabled = true;
-    }
-    
-    if(typeof playSfx === 'function') playSfx(2000, 'sine', 1, 0.5);
-
-    try {
-        // 2. Identifikasi Lokasi & Shard (Logika pemulihan data)
-        let jemputKec, jemputDesa, diffRate;
+        async function submitMission() {
+        // 1. Validasi Dasar
+        const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
+        if(bountyAmt < 5000) return alert("Bounty terlalu rendah!");
         
-        if (questData.origin.mode === 'gps') {
-            const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
-            jemputKec = loc.kec;
-            jemputDesa = loc.name;
-            diffRate = loc.diff || 1.0;
-        } else {
-            jemputKec = document.getElementById('manKec').value;
-            const dIdx = document.getElementById('manDesa').value;
-            const dataDesa = LOKASI_DB[jemputKec].desa[dIdx];
-            jemputDesa = dataDesa.name;
-            diffRate = dataDesa.diff || 1.0;
-        }
-        
-        const shard = getShardDariKecamatan(jemputKec);
-        const mid = "MS-" + Date.now();
-
-        // 3. Inisialisasi Terminal
-        const db1 = getTerminal('FB1_MASTER');
-        const db4 = getTerminal('FB4_BOARD');
-
-        // 4. Susun Payload (Detail yang sebelumnya tertinggal dimasukkan di sini)
-        const boardData = {
-            id_misi: mid,
-            id_requester: questData.client.id || "GUEST",
-            questData.client.name || "Anonim",
-            category: questData.category,
-            reward: parseInt(questData.reward),
-            difficulty_rate: diffRate, // TERTINGGAL: Penting untuk kalkulasi driver
-            zona: jemputKec,
-            shard_id: shard, // TERTINGGAL: Untuk filter database
-
-            fish_tier: getFishTier(bountyAmt),              // Nama Ikan
-            
-            origin_name: questData.origin.text,
-            origin_desa: jemputDesa,
-            origin_coords: `${questData.origin.lat},${questData.origin.lng}`,
-            
-            dest_name: questData.destination.text,
-            dest_desa: questData.destination.desa || "Custom",
-            dest_coords: `${questData.destination.lat},${questData.destination.lng}`,
-
-            note: document.getElementById('note')?.value || "", // Catatan jika ada
-            distance_est: questData.distanceEst,
-
-            status: "open",
-            rank: questData.isUrgent ? "DARURAT" : "BIASA", // TERTINGGAL: Untuk label di Board
-            created_at: Date.now()
-        };
-
-        // 5. Eksekusi Paralel ke Multi-Database
-        await Promise.all([
-            db1.ref(`misi_index/${mid}`).set({ 
-                id_misi: mid, 
-                id_shard: shard, 
-                zona: jemputKec, 
-                status: "open",
-                id_requester: questData.client.id
-            }),
-            db4.ref(`mission-${shard}/${jemputDesa}/${mid}`).set(boardData)
-        ]);
-
-        // 6. Simpan Session untuk Lobby
-        sessionStorage.setItem('active_mission_id', mid);
-        sessionStorage.setItem('active_mission_shard', shard);
-        sessionStorage.setItem('active_mission_desa', jemputDesa);
-
-        // 7. Pindah Halaman dengan Delay Sfx
-        if(typeof showToast === 'function') showToast("SINYAL TERSEBAR!");
-        
-        setTimeout(() => {
-            window.location.href = "lobby_requester.html";
-        }, 1000);
-
-    } catch (e) {
-        console.error(e);
-        alert("Gagal Transmisi: " + e.message);
+        const btn = document.getElementById('btnBroadcast');
         if(btn) {
-            btn.disabled = false;
-            btn.innerText = "BROADCAST GAGAL";
+            btn.innerText = "TRANSMITTING...";
+            btn.disabled = true;
+        }
+        
+        if(typeof playSfx === 'function') playSfx(2000, 'sine', 1, 0.5);
+
+        try {
+            // 2. Identifikasi Lokasi & Shard
+            let jemputKec, jemputDesa, diffRate;
+            
+            if (questData.origin.mode === 'gps') {
+                const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
+                jemputKec = loc.kec;
+                jemputDesa = loc.name;
+                diffRate = loc.diff || 1.0;
+            } else {
+                jemputKec = document.getElementById('manKec').value;
+                const dIdx = document.getElementById('manDesa').value;
+                const dataDesa = LOKASI_DB[jemputKec].desa[dIdx];
+                jemputDesa = dataDesa.name;
+                diffRate = dataDesa.diff || 1.0;
+            }
+            
+            const shard = getShardDariKecamatan(jemputKec);
+            const mid = "MS-" + Date.now();
+
+            // 3. Inisialisasi Terminal Firebase
+            const db1 = getTerminal('FB1_MASTER');
+            const db4 = getTerminal('FB4_BOARD');
+
+            // 4. Susun Payload Lengkap (Perbaikan Koma & Key di sini)
+            const boardData = {
+                id_misi: mid,
+                id_requester: questData.client.id || "GUEST",
+                client_name: questData.client.name || "Anonim",
+                category: questData.category,
+                reward: bountyAmt,
+                difficulty_rate: diffRate,
+                zona: jemputKec,
+                shard_id: shard,
+                
+                // Data tambahan yang Anda minta:
+                rank: questData.isUrgent ? "DARURAT" : "BIASA",
+                fish_tier: getFishTier(bountyAmt),
+                
+                // Lokasi Origin
+                origin_name: questData.origin.text,
+                origin_desa: jemputDesa,
+                origin_coords: `${questData.origin.lat},${questData.origin.lng}`,
+                
+                // Lokasi Tujuan
+                dest_name: questData.destination.text,
+                dest_desa: questData.destination.desa || "Custom",
+                dest_coords: `${questData.destination.lat},${questData.destination.lng}`,
+
+                // Info Tambahan
+                distance_est: questData.distanceEst,
+                status: "open",
+                created_at: Date.now()
+            };
+
+            // 5. Eksekusi Kirim ke Database
+            await Promise.all([
+                db1.ref(`misi_index/${mid}`).set({ 
+                    id_misi: mid, 
+                    id_shard: shard, 
+                    zona: jemputKec, 
+                    status: "open",
+                    id_requester: questData.client.id
+                }),
+                db4.ref(`mission-${shard}/${jemputDesa}/${mid}`).set(boardData)
+            ]);
+
+            // 6. Simpan Session & Redirect
+            sessionStorage.setItem('active_mission_id', mid);
+            sessionStorage.setItem('active_mission_shard', shard);
+            sessionStorage.setItem('active_mission_desa', jemputDesa);
+
+            if(typeof showToast === 'function') showToast("SINYAL TERSEBAR!");
+            
+            setTimeout(() => {
+                window.location.href = "lobby_requester.html";
+            }, 1000);
+
+        } catch (e) {
+            console.error(e);
+            alert("Gagal Transmisi: " + e.message);
+            if(btn) {
+                btn.disabled = false;
+                btn.innerText = "BROADCAST 📡";
+            }
         }
     }
-}
+ 
 
 
     function cariDesaTerdekat(lat, lng) {
