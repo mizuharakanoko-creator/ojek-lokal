@@ -10,6 +10,10 @@
     <script src="router_lokal.js"></script>
     <script src="terminal_router.js"></script>
 
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    
     <style>
         /* ==========================================================================
            1. VARIABEL & RESET GLOBAL
@@ -156,6 +160,73 @@
         .modal-content { background: #1a050a; border: 2px solid var(--primary); padding: 30px 20px; border-radius: 20px; text-align: center; max-width: 350px; width: 100%; box-shadow: 0 0 30px rgba(255,0,85,0.3); }
         .modal-content h3 { color: var(--primary); margin: 10px 0; font-size: 18px; }
         .modal-content p { color: #aaa; font-size: 12px; margin-bottom: 20px; }
+    
+
+        /* --- UI LOCK & AI ADD-ONS --- */
+.locked { 
+    border-color: var(--success) !important; 
+    color: var(--success) !important; 
+    background: #05100a !important; 
+    pointer-events: none; 
+    opacity: 0.8;
+}
+
+.btn-reset-lock { 
+    background: #ff4444; 
+    color: #fff; 
+    border: none; 
+    padding: 8px 12px; 
+    border-radius: 8px; 
+    font-size: 10px; 
+    font-weight: bold; 
+    margin: 10px 0; 
+    cursor: pointer; 
+    display: none; /* Default tersembunyi */
+}
+
+.btn-ai {
+    margin-top: 10px;
+    background: linear-gradient(90deg, #8e2de2, #4a00e0);
+    border: none;
+    color: white;
+    padding: 12px;
+    border-radius: 12px;
+    width: 100%;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(142, 45, 226, 0.3);
+    transition: 0.3s;
+}
+
+.btn-ai:active { transform: scale(0.95); }
+
+    /* Container Peta */
+#map-container {
+    width: 100%;
+    height: 300px;
+    border-radius: 15px;
+    border: 2px solid var(--border);
+    margin-bottom: 15px;
+    position: relative;
+    overflow: hidden;
+    display: none; /* Muncul hanya saat mode peta aktif */
+}
+
+#map { width: 100%; height: 100%; }
+
+/* Penanda Tengah (Crosshair) mirip Grab */
+.map-center-mark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -100%);
+    z-index: 1000;
+    pointer-events: none;
+    font-size: 30px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+
+    
     </style>
 </head>
 <body>
@@ -222,6 +293,7 @@
                 <div class="input-group">
                     <label>Cari Desa Cepat</label>
                     <input type="text" id="smartSearch" placeholder="Ketik nama desa..." autocomplete="off">
+                    <button class="btn-reset-lock" id="btnResetLock" onclick="resetManualLock()">🔄 RESET PILIHAN</button>
                     <div class="suggest-box" id="suggestBox"></div>
                 </div>
                 <div class="input-group">
@@ -243,8 +315,23 @@
                     <label>Alamat Bebas</label>
                     <textarea id="originNegoText" rows="3" placeholder="Tulis deskripsi lokasi jemput..."></textarea>
                     <button class="btn-voice" onclick="startVoiceToText('originNegoText', this)">🎙️</button>
+                    <button class="btn-ai" onclick="polishWithAI()">✨ PERBAIKI TYPO (AI)</button>
                 </div>
             </div>
+            
+            <button class="tab-btn" id="tab4" onclick="switchTab(4)">🗺️ PILIH PETA</button>
+    <div id="contentTab4" style="display:none">
+    <div id="map-container">
+        <div id="map"></div>
+        <div class="map-center-mark">📍</div>
+    </div>
+    <div class="input-group">
+        <label>Lokasi Terpilih (Koordinat)</label>
+        <input type="text" id="mapCoords" readonly placeholder="Geser peta untuk ambil titik...">
+    </div>
+    <button class="btn-main" style="background:var(--success)" onclick="confirmMapPoint()">✅ GUNAKAN TITIK INI</button>
+</div>
+
         </div>
 
         <div style="display:flex; gap:10px; margin-top:20px;">
@@ -543,13 +630,10 @@
                     div.className = 'suggest-item';
                     div.innerHTML = `<b>${d.name}</b> <br><small>Kec. ${k}</small>`;
                     div.onclick = () => {
-                        document.getElementById('manKec').value = k;
-                        handleKecChange('manKec', 'manDesa');
-                        setTimeout(() => { document.getElementById('manDesa').value = i; }, 100);
-                        document.getElementById('smartSearch').value = d.name;
-                        box.style.display = 'none';
-                        playSfx(1200, 'sine', 0.1);
+                      applyManualLock(d.name, k, i);
+                      box.style.display = 'none';
                     };
+
                     box.appendChild(div);
                 }
             });
@@ -879,6 +963,143 @@
     }
     return terdekat;
     }
+
+
+// tambahan
+
+// 1. DAFTAR KATA KUNCI UNTUK KOREKSI TYPO
+const VALID_KEYWORDS = ["Jalan", "Depan", "Dekat", "Samping", "Gang", "Masjid", "Pasar", "Kantor", "Gerbang", "Lampu", "Rumah", "Toko", "Warung", "Gang", "Blok"];
+
+// 2. FUNGSI JARAK LEVENSHTEIN (MENGHITUNG TYPO)
+function getLevenshteinDistance(a, b) {
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) matrix[i][j] = matrix[i - 1][j - 1];
+            else matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
+// 3. FUNGSI SMART LOCK
+function applyManualLock(desaName, kecName, index) {
+    const selKec = document.getElementById('manKec');
+    const selDesa = document.getElementById('manDesa');
+    const inputSearch = document.getElementById('smartSearch');
+
+    selKec.value = kecName;
+    handleKecChange('manKec', 'manDesa'); 
+    
+    setTimeout(() => {
+        selDesa.value = index;
+        selKec.classList.add('locked');
+        selDesa.classList.add('locked');
+        inputSearch.classList.add('locked');
+        inputSearch.value = desaName;
+        document.getElementById('btnResetLock').style.display = 'block';
+        document.getElementById('suggestBox').style.display = 'none';
+        playSfx(900, 'sine', 0.1);
+    }, 50);
+}
+
+function resetManualLock() {
+    const selKec = document.getElementById('manKec');
+    const selDesa = document.getElementById('manDesa');
+    const inputSearch = document.getElementById('smartSearch');
+
+    selKec.classList.remove('locked');
+    selDesa.classList.remove('locked');
+    inputSearch.classList.remove('locked');
+    inputSearch.value = '';
+    document.getElementById('btnResetLock').style.display = 'none';
+    playSfx(300, 'sine', 0.1);
+}
+
+// 4. FUNGSI AI POLISH (TYPO CORRECTION)
+function polishWithAI() {
+    const area = document.getElementById('originNegoText');
+    if(!area.value) return showToast("Tulis alamat dulu!");
+
+    let words = area.value.split(" ");
+    let correctedWords = words.map(word => {
+        if (word.length < 3) return word;
+        let bestMatch = word;
+        let minDistance = 2; // Toleransi typo 2 karakter
+
+        VALID_KEYWORDS.forEach(validWord => {
+            let distance = getLevenshteinDistance(word.toLowerCase(), validWord.toLowerCase());
+            if (distance < minDistance) {
+                minDistance = distance;
+                bestMatch = validWord;
+            }
+        });
+        return bestMatch;
+    });
+
+    area.value = correctedWords.join(" ");
+    showToast("✨ Typo diperbaiki!");
+    playSfx(1200, 'sine', 0.2);
+}
+
+
+
+
+
+let map; 
+function initMap() {
+    if (map) return; // Jangan buat ulang jika sudah ada
+
+    // Set awal ke koordinat Kuningan (atau lokasi user jika ada)
+    const startLat = selectedData.coords.lat || -6.9765;
+    const startLng = selectedData.coords.lng || 108.4841;
+
+    map = L.map('map').setView([startLat, startLng], 16);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // Event saat peta selesai digeser
+    map.on('moveend', function() {
+        const center = map.getCenter();
+        document.getElementById('mapCoords').value = `${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}`;
+        
+        // Simpan sementara ke data koordinat
+        selectedData.coords.lat = center.lat;
+        selectedData.coords.lng = center.lng;
+    });
+}
+
+// Update fungsi switchTab Anda untuk memicu load peta
+function switchTab(n) {
+    // ... (logika tab 1, 2, 3 yang lama) ...
+    
+    document.getElementById('contentTab4').style.display = n === 4 ? 'block' : 'none';
+    document.getElementById('map-container').style.display = n === 4 ? 'block' : 'none';
+    
+    if (n === 4) {
+        setTimeout(() => {
+            initMap();
+            map.invalidateSize(); // Perbaikan agar peta tidak abu-abu saat muncul
+        }, 200);
+    }
+}
+
+function confirmMapPoint() {
+    const coords = document.getElementById('mapCoords').value;
+    if(!coords) return showToast("Geser peta dulu!");
+    
+    showToast("📍 Titik koordinat terkunci!");
+    playSfx(1500, 'sine', 0.2);
+    
+    // Logika reverse geocode sederhana (Opsional)
+    // Di sini Anda bisa memanggil fungsi untuk menebak desa berdasarkan koordinat map
+}
+
+    
 
 
 </script>
