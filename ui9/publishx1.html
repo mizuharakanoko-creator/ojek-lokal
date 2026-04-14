@@ -327,200 +327,71 @@
         </button>
     </div>
 
-<script>
-    // ================= BOUNTY LOGIC =================
-    function updateSummary() {
-        document.getElementById('sumCat').innerText = "CATEGORY: " + questData.category.toUpperCase();
-        
-        // Origin Summary
-        let oriTxt = questData.mode === 'nego' ? "MODE NEGO (Free Text)" : questData.origin.desa + ", " + questData.origin.kec;
-        document.getElementById('sumOri').innerText = "FROM: " + oriTxt;
-        
-        // Destination Summary
-        document.getElementById('sumDest').innerText = "TO: " + questData.destination.desa + ", " + questData.destination.kec;
-        
-        // Price
-        const price = document.getElementById('rewardInput').value || "0";
-        document.getElementById('sumPrice').innerText = "BOUNTY: Rp " + parseInt(price).toLocaleString();
-    }
 
-    // Override validateStep3 untuk memicu update summary
-    const oldValidateStep3 = validateStep3;
-    validateStep3 = function() {
-        // Jalankan validasi asli
-        const dDesa = document.getElementById('destDesa').value;
-        if(!dDesa) return showToast("⚠️ Pilih Desa Tujuan!");
 
-        questData.destination = {
-            kec: document.getElementById('destKec').value,
-            desa: dDesa,
-            detail: document.getElementById('destDetail').value
-        };
-
-        // Inject data kategori spesifik (jika ada)
-        const specInputs = document.querySelectorAll('[id^="spec_"]');
-        questData.specs = {};
-        specInputs.forEach(input => {
-            questData.specs[input.id] = input.value;
-        });
-
-        // Pindah ke Step 4 & Update Visual
-        navStep(4);
-        updateSummary();
-        playSfx(1800, 'sine', 0.4);
-    };
-
-    // ================= FINAL PUBLISH (TO FIREBASE) =================
-    function finalizeAndPublish() {
-        const reward = document.getElementById('rewardInput').value;
-        if(!reward || reward < 5000) {
-            playSfx(100, 'sawtooth', 0.5);
-            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-            return showToast("⚠️ Minimal Bounty Rp 5.000!");
-        }
-
-        // Final Object Assembly
-        const finalPackage = {
-            ...questData,
-            reward: parseInt(reward),
-            payment: document.getElementById('payMethod').value,
-            note: document.getElementById('finalNote').value,
-            timestamp: Date.now(),
-            status: "OPEN",
-            publisher: "Adventurer-01" // Nanti ambil dari auth
-        };
-
-        console.log("SENDING TO GUILD BOARD:", finalPackage);
-        
-        // UI Interaction
-        const btn = document.getElementById('btnBroadcast');
-        btn.disabled = true;
-        btn.innerText = "TRANSMITTING...";
-        btn.style.opacity = "0.6";
-        
-        playSfx(2000, 'sine', 1.0, 0.05); // Suara transmisi panjang
-
-        // Simulasi pengiriman ke Firebase
-        setTimeout(() => {
-            if (navigator.vibrate) navigator.vibrate(500);
-            alert("QUEST PUBLISHED!\nSinyal misi telah disebarkan ke semua Adventurer terdekat.");
-            location.reload(); // Reset terminal
-        }, 2000);
-    }
-
-    // Event listener untuk update summary secara real-time saat ngetik harga
-    document.getElementById('rewardInput').addEventListener('input', updateSummary);
-
-</script>
 
 
 <script>
-    // ================= DYNAMIC FORM BLUEPRINT =================
-    const CATEGORY_FORMS = {
-        "Motor Ride": `
-            <div class="input-group">
-                <label>Jumlah Penumpang</label>
-                <select id="spec_passengers">
-                    <option value="1">1 Orang</option>
-                </select>
-            </div>`,
-        "Car Ride": `
-            <div class="input-group">
-                <label>Kapasitas Kursi</label>
-                <select id="spec_car_type">
-                    <option value="standard">Standard (1-4 Orang)</option>
-                    <option value="large">Large (1-6 Orang)</option>
-                </select>
-            </div>`,
-        "Pick & Drop": `
-            <div class="input-group">
-                <label>Jenis Barang</label>
-                <input type="text" id="spec_item_type" placeholder="Misal: Dokumen, Makanan, Paket">
-            </div>
-            <div class="input-group">
-                <label>Estimasi Berat (Kg)</label>
-                <input type="number" id="spec_weight" placeholder="0">
-            </div>`,
-        "Titip Beli": `
-            <div class="input-group">
-                <label>Daftar Belanjaan & Estimasi Harga</label>
-                <textarea id="spec_shopping_list" rows="4" placeholder="1. Nasi Goreng (20rb)\n2. Es Teh (5rb)"></textarea>
-            </div>`,
-        "Service": `
-            <div class="input-group">
-                <label>Deskripsi Masalah / Kerusakan</label>
-                <textarea id="spec_service_desc" rows="4" placeholder="Jelaskan apa yang perlu diperbaiki..."></textarea>
-            </div>`
-    };
-
-    // ================= DESTINATION LOGIC =================
-    function initDestDropdown() {
-        const sel = document.getElementById('destKec');
-        if(sel.options.length > 0) return;
-        sel.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
-        Object.keys(LOKASI_DB).forEach(k => {
-            sel.innerHTML += `<option value="${k}">${k}</option>`;
-        });
+    // Audio Context Dasar untuk Feedback
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSfx(f, t, d, v=0.1) {
+        try {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = t; o.frequency.value = f;
+            g.gain.setValueAtTime(v, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + d);
+        } catch(e) {}
     }
 
-    function handleDestKecChange() {
-        const kec = document.getElementById('destKec').value;
-        const group = document.getElementById('destDesaGroup');
-        const selDesa = document.getElementById('destDesa');
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg; t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
 
-        if(kec) {
-            selDesa.innerHTML = '<option value="">-- Pilih Desa --</option>';
-            LOKASI_DB[kec].desa.forEach(d => {
-                selDesa.innerHTML += `<option value="${d}">${d}</option>`;
-            });
-            group.style.display = 'block';
-            playSfx(700, 'sine', 0.1);
+    // --- MEGA ALERT SYSTEM ---
+    function triggerMegaAlert(type) {
+        const modal = document.getElementById('megaModal');
+        const mTitle = document.getElementById('modalTitle');
+        const mDesc = document.getElementById('modalDesc');
+        const mIcon = modal.querySelector('.modal-icon');
+
+        // Vibrasi Haptic (Jika didukung)
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        playSfx(150, 'sawtooth', 0.5, 0.2);
+
+        if(type === 'login') {
+            mIcon.innerText = "🔒";
+            mTitle.innerText = "AKSES TERBATAS";
+            mDesc.innerText = "Kategori ini memerlukan otorisasi akun. Silahkan Login atau Daftar untuk melanjutkan kontrak ini.";
         } else {
-            group.style.display = 'none';
-        }
-    }
-
-    // ================= FORM INJECTION =================
-    function injectCategoryForm(cat) {
-        const container = document.getElementById('categorySpecificForm');
-        container.innerHTML = CATEGORY_FORMS[cat] || `<p style="font-size:10px; padding:10px; color:#666;">No extra requirements for this quest.</p>`;
-        initDestDropdown();
-    }
-
-    // Override NavStep untuk menyuntikkan form di Step 1
-    const originalNavStep = navStep;
-    navStep = function(num, title = null) {
-        originalNavStep(num, title);
-        if(num === 2 && title) {
-            questData.category = title;
-            injectCategoryForm(title);
-        }
-    };
-
-    // ================= VALIDATION STEP 3 =================
-    function validateStep3() {
-        const dDesa = document.getElementById('destDesa').value;
-        if(!dDesa) {
-            if (navigator.vibrate) navigator.vibrate(200);
-            playSfx(150, 'sawtooth', 0.3);
-            return showToast("⚠️ Pilih Desa Tujuan!");
+            mIcon.innerText = "⏳";
+            mTitle.innerText = "DECRYPTING...";
+            mDesc.innerText = "Modul ini sedang dalam tahap pembaruan sistem. Silahkan tunggu transmisi berikutnya dari pusat.";
         }
 
-        // Simpan data tujuan
-        questData.destination = {
-            kec: document.getElementById('destKec').value,
-            desa: dDesa,
-            detail: document.getElementById('destDetail').value
-        };
-
-        playSfx(1200, 'sine', 0.3);
-        showToast("LOKASI TUJUAN TERKUNCI");
-        // navStep(4); // Lanjut ke Step Reward/Bounty
+        modal.classList.add('show');
     }
-</script>
 
+    function closeMegaModal() {
+        document.getElementById('megaModal').classList.remove('show');
+        playSfx(400, 'sine', 0.1);
+    }
 
-<script>
+    function navStep(num, title = null) {
+        if(title) {
+            document.getElementById('displayHeader').innerText = "[" + title + "]";
+            playSfx(800, 'sine', 0.2);
+        }
+        document.querySelectorAll('.step-page').forEach(p => p.classList.remove('active'));
+        document.getElementById('step' + num).classList.add('active');
+        window.scrollTo(0,0);
+    }
+
+  
     // ================= DATA LOKASI (DATABASE KNG) =================
     const LOKASI_DB = {
         "Cigugur": { desa: ["Cigugur", "Cigadung", "Cisantana", "Gunungkeling", "Panyercan"] },
@@ -679,69 +550,204 @@
         showToast("TRANSMISI LOKASI BERHASIL");
         // navStep(3); // Akan dilanjut ke Step Tujuan
     }
-</script>
 
 
-<script>
-    // Audio Context Dasar untuk Feedback
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playSfx(f, t, d, v=0.1) {
-        try {
-            const o = audioCtx.createOscillator();
-            const g = audioCtx.createGain();
-            o.type = t; o.frequency.value = f;
-            g.gain.setValueAtTime(v, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
-            o.connect(g); g.connect(audioCtx.destination);
-            o.start(); o.stop(audioCtx.currentTime + d);
-        } catch(e) {}
+
+    // ================= DYNAMIC FORM BLUEPRINT =================
+    const CATEGORY_FORMS = {
+        "Motor Ride": `
+            <div class="input-group">
+                <label>Jumlah Penumpang</label>
+                <select id="spec_passengers">
+                    <option value="1">1 Orang</option>
+                </select>
+            </div>`,
+        "Car Ride": `
+            <div class="input-group">
+                <label>Kapasitas Kursi</label>
+                <select id="spec_car_type">
+                    <option value="standard">Standard (1-4 Orang)</option>
+                    <option value="large">Large (1-6 Orang)</option>
+                </select>
+            </div>`,
+        "Pick & Drop": `
+            <div class="input-group">
+                <label>Jenis Barang</label>
+                <input type="text" id="spec_item_type" placeholder="Misal: Dokumen, Makanan, Paket">
+            </div>
+            <div class="input-group">
+                <label>Estimasi Berat (Kg)</label>
+                <input type="number" id="spec_weight" placeholder="0">
+            </div>`,
+        "Titip Beli": `
+            <div class="input-group">
+                <label>Daftar Belanjaan & Estimasi Harga</label>
+                <textarea id="spec_shopping_list" rows="4" placeholder="1. Nasi Goreng (20rb)\n2. Es Teh (5rb)"></textarea>
+            </div>`,
+        "Service": `
+            <div class="input-group">
+                <label>Deskripsi Masalah / Kerusakan</label>
+                <textarea id="spec_service_desc" rows="4" placeholder="Jelaskan apa yang perlu diperbaiki..."></textarea>
+            </div>`
+    };
+
+    // ================= DESTINATION LOGIC =================
+    function initDestDropdown() {
+        const sel = document.getElementById('destKec');
+        if(sel.options.length > 0) return;
+        sel.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+        Object.keys(LOKASI_DB).forEach(k => {
+            sel.innerHTML += `<option value="${k}">${k}</option>`;
+        });
     }
 
-    function showToast(msg) {
-        const t = document.getElementById('toast');
-        t.innerText = msg; t.classList.add('show');
-        setTimeout(() => t.classList.remove('show'), 3000);
-    }
+    function handleDestKecChange() {
+        const kec = document.getElementById('destKec').value;
+        const group = document.getElementById('destDesaGroup');
+        const selDesa = document.getElementById('destDesa');
 
-    // --- MEGA ALERT SYSTEM ---
-    function triggerMegaAlert(type) {
-        const modal = document.getElementById('megaModal');
-        const mTitle = document.getElementById('modalTitle');
-        const mDesc = document.getElementById('modalDesc');
-        const mIcon = modal.querySelector('.modal-icon');
-
-        // Vibrasi Haptic (Jika didukung)
-        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-        playSfx(150, 'sawtooth', 0.5, 0.2);
-
-        if(type === 'login') {
-            mIcon.innerText = "🔒";
-            mTitle.innerText = "AKSES TERBATAS";
-            mDesc.innerText = "Kategori ini memerlukan otorisasi akun. Silahkan Login atau Daftar untuk melanjutkan kontrak ini.";
+        if(kec) {
+            selDesa.innerHTML = '<option value="">-- Pilih Desa --</option>';
+            LOKASI_DB[kec].desa.forEach(d => {
+                selDesa.innerHTML += `<option value="${d}">${d}</option>`;
+            });
+            group.style.display = 'block';
+            playSfx(700, 'sine', 0.1);
         } else {
-            mIcon.innerText = "⏳";
-            mTitle.innerText = "DECRYPTING...";
-            mDesc.innerText = "Modul ini sedang dalam tahap pembaruan sistem. Silahkan tunggu transmisi berikutnya dari pusat.";
+            group.style.display = 'none';
+        }
+    }
+
+    // ================= FORM INJECTION =================
+    function injectCategoryForm(cat) {
+        const container = document.getElementById('categorySpecificForm');
+        container.innerHTML = CATEGORY_FORMS[cat] || `<p style="font-size:10px; padding:10px; color:#666;">No extra requirements for this quest.</p>`;
+        initDestDropdown();
+    }
+
+    // Override NavStep untuk menyuntikkan form di Step 1
+    const originalNavStep = navStep;
+    navStep = function(num, title = null) {
+        originalNavStep(num, title);
+        if(num === 2 && title) {
+            questData.category = title;
+            injectCategoryForm(title);
+        }
+    };
+
+    // ================= VALIDATION STEP 3 =================
+    function validateStep3() {
+        const dDesa = document.getElementById('destDesa').value;
+        if(!dDesa) {
+            if (navigator.vibrate) navigator.vibrate(200);
+            playSfx(150, 'sawtooth', 0.3);
+            return showToast("⚠️ Pilih Desa Tujuan!");
         }
 
-        modal.classList.add('show');
+        // Simpan data tujuan
+        questData.destination = {
+            kec: document.getElementById('destKec').value,
+            desa: dDesa,
+            detail: document.getElementById('destDetail').value
+        };
+
+        playSfx(1200, 'sine', 0.3);
+        showToast("LOKASI TUJUAN TERKUNCI");
+        // navStep(4); // Lanjut ke Step Reward/Bounty
     }
 
-    function closeMegaModal() {
-        document.getElementById('megaModal').classList.remove('show');
-        playSfx(400, 'sine', 0.1);
+
+    // ================= BOUNTY LOGIC =================
+    function updateSummary() {
+        document.getElementById('sumCat').innerText = "CATEGORY: " + questData.category.toUpperCase();
+        
+        // Origin Summary
+        let oriTxt = questData.mode === 'nego' ? "MODE NEGO (Free Text)" : questData.origin.desa + ", " + questData.origin.kec;
+        document.getElementById('sumOri').innerText = "FROM: " + oriTxt;
+        
+        // Destination Summary
+        document.getElementById('sumDest').innerText = "TO: " + questData.destination.desa + ", " + questData.destination.kec;
+        
+        // Price
+        const price = document.getElementById('rewardInput').value || "0";
+        document.getElementById('sumPrice').innerText = "BOUNTY: Rp " + parseInt(price).toLocaleString();
     }
 
-    function navStep(num, title = null) {
-        if(title) {
-            document.getElementById('displayHeader').innerText = "[" + title + "]";
-            playSfx(800, 'sine', 0.2);
+    // Override validateStep3 untuk memicu update summary
+    const oldValidateStep3 = validateStep3;
+    validateStep3 = function() {
+        // Jalankan validasi asli
+        const dDesa = document.getElementById('destDesa').value;
+        if(!dDesa) return showToast("⚠️ Pilih Desa Tujuan!");
+
+        questData.destination = {
+            kec: document.getElementById('destKec').value,
+            desa: dDesa,
+            detail: document.getElementById('destDetail').value
+        };
+
+        // Inject data kategori spesifik (jika ada)
+        const specInputs = document.querySelectorAll('[id^="spec_"]');
+        questData.specs = {};
+        specInputs.forEach(input => {
+            questData.specs[input.id] = input.value;
+        });
+
+        // Pindah ke Step 4 & Update Visual
+        navStep(4);
+        updateSummary();
+        playSfx(1800, 'sine', 0.4);
+    };
+
+    // ================= FINAL PUBLISH (TO FIREBASE) =================
+    function finalizeAndPublish() {
+        const reward = document.getElementById('rewardInput').value;
+        if(!reward || reward < 5000) {
+            playSfx(100, 'sawtooth', 0.5);
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            return showToast("⚠️ Minimal Bounty Rp 5.000!");
         }
-        document.querySelectorAll('.step-page').forEach(p => p.classList.remove('active'));
-        document.getElementById('step' + num).classList.add('active');
-        window.scrollTo(0,0);
+
+        // Final Object Assembly
+        const finalPackage = {
+            ...questData,
+            reward: parseInt(reward),
+            payment: document.getElementById('payMethod').value,
+            note: document.getElementById('finalNote').value,
+            timestamp: Date.now(),
+            status: "OPEN",
+            publisher: "Adventurer-01" // Nanti ambil dari auth
+        };
+
+        console.log("SENDING TO GUILD BOARD:", finalPackage);
+        
+        // UI Interaction
+        const btn = document.getElementById('btnBroadcast');
+        btn.disabled = true;
+        btn.innerText = "TRANSMITTING...";
+        btn.style.opacity = "0.6";
+        
+        playSfx(2000, 'sine', 1.0, 0.05); // Suara transmisi panjang
+
+        // Simulasi pengiriman ke Firebase
+        setTimeout(() => {
+            if (navigator.vibrate) navigator.vibrate(500);
+            alert("QUEST PUBLISHED!\nSinyal misi telah disebarkan ke semua Adventurer terdekat.");
+            location.reload(); // Reset terminal
+        }, 2000);
     }
+
+    // Event listener untuk update summary secara real-time saat ngetik harga
+    document.getElementById('rewardInput').addEventListener('input', updateSummary);
+
 </script>
+
+
+
+
+
+
+
 
 
 </body>
