@@ -7,6 +7,8 @@
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="router_lokal.js"></script>
+    <script src="terminal_router.js"></script>
 
     <style>
         /* ==========================================================================
@@ -346,23 +348,7 @@
     // ==========================================================================
     // 1. DATA & STATE MANAGEMENT
     // ==========================================================================
-    // Mocking Data Wilayah dengan koordinat untuk Haversine
-    const LOKASI_DB = {
-        "Cigugur": {
-            desa: [
-                { name: "Cigugur", lat: -6.9754, lng: 108.4594, diff: 1.0 },
-                { name: "Cigadung", lat: -6.9885, lng: 108.4612, diff: 1.0 },
-                { name: "Cisantana", lat: -6.9542, lng: 108.4254, diff: 1.2 }
-            ]
-        },
-        "Kuningan": {
-            desa: [
-                { name: "Kuningan Kota", lat: -6.9765, lng: 108.4841, diff: 1.0 },
-                { name: "Purwawinangun", lat: -6.9721, lng: 108.4852, diff: 1.0 },
-                { name: "Cijoho", lat: -6.9654, lng: 108.4832, diff: 1.0 }
-            ]
-        }
-    };
+    
 
     // State Aplikasi
     let questData = {
@@ -679,48 +665,49 @@
     }
 
     function calculateAndDisplayBounty() {
-        const pArea = document.getElementById('priceCalculationArea');
-        const inputFinal = document.getElementById('finalPriceInput');
+    const pArea = document.getElementById('priceCalculationArea');
+    const inputFinal = document.getElementById('finalPriceInput');
 
-        // Jika mode Nego / Titip Beli / Help / Origin Manual tanpa GPS
-        if(questData.destination.mode !== 'standard' || questData.origin.lat === 0) {
-            pArea.style.display = 'none';
-            document.getElementById('labelFinalPrice').innerText = "BIAYA NEGO (Ketik Manual)";
-            inputFinal.value = "";
-            questData.distanceEst = 0;
-            updateSummaryUI();
-            return;
-        }
-
-        pArea.style.display = 'block';
-        document.getElementById('labelFinalPrice').innerText = "Atau Ketik Manual (Opsional)";
-        
-        // Kalkulasi
-        const distLurus = calculateRealDistance(questData.origin.lat, questData.origin.lng, questData.destination.lat, questData.destination.lng);
-        questData.distanceEst = (distLurus * 1.5).toFixed(1); // Road multiplier
-        
-        // Base multiplier per kategori
-        let baseK = questData.category === 'Car Ride' ? 1.8 : 1.0; 
-        // Desa diff multiplier (mocking using 1.0 for simplicity if not set)
-        let diff = 1.0; 
-
-        const round1k = (num) => Math.ceil(num / 1000) * 1000;
-        
-        // Formulasi Ojek Lokal
-        let vHemat = Math.max(10000 * baseK, round1k((questData.distanceEst * 2000 * baseK) * diff));
-        let vReg = Math.max(12000 * baseK, round1k((questData.distanceEst * 3000 * baseK) * diff));
-        let vExp = Math.max(15000 * baseK, round1k((questData.distanceEst * 4000 * baseK) * diff));
-
-        document.getElementById('valHemat').innerText = vHemat.toLocaleString('id-ID');
-        document.getElementById('valHemat').dataset.val = vHemat;
-        document.getElementById('valReguler').innerText = vReg.toLocaleString('id-ID');
-        document.getElementById('valReguler').dataset.val = vReg;
-        document.getElementById('valExpress').innerText = vExp.toLocaleString('id-ID');
-        document.getElementById('valExpress').dataset.val = vExp;
-
-        // Auto select reguler
-        selectPriceTier(document.querySelector('.price-card.active'), 'Reguler', vReg);
+    if(questData.destination.mode !== 'standard' || questData.origin.lat === 0) {
+        pArea.style.display = 'none';
+        document.getElementById('labelFinalPrice').innerText = "BIAYA NEGO (Ketik Manual)";
+        inputFinal.value = "";
+        questData.distanceEst = 0;
+        updateSummaryUI();
+        return;
     }
+
+    pArea.style.display = 'block';
+    
+    // 1. Ambil Data Detail Desa Tujuan dari router_lokal.js
+    const destKec = document.getElementById('destKec').value;
+    const destDesaName = document.getElementById('destDesa').options[document.getElementById('destDesa').selectedIndex].text;
+    const detailDesa = getDetailDesa(destKec, destDesaName);
+    
+    // 2. Gunakan variabel diff dari database (default 1.0 jika gagal)
+    let diff = detailDesa ? detailDesa.diff : 1.0;
+
+    const distLurus = calculateRealDistance(questData.origin.lat, questData.origin.lng, questData.destination.lat, questData.destination.lng);
+    questData.distanceEst = (distLurus * 1.5).toFixed(1); 
+    
+    let baseK = questData.category === 'Car Ride' ? 1.8 : 1.0; 
+    const round1k = (num) => Math.ceil(num / 1000) * 1000;
+    
+    // 3. Kalkulasi dengan pengaruh Difficulty (diff)
+    let vHemat = Math.max(10000 * baseK, round1k((questData.distanceEst * 2000 * baseK) * diff));
+    let vReg = Math.max(12000 * baseK, round1k((questData.distanceEst * 3000 * baseK) * diff));
+    let vExp = Math.max(15000 * baseK, round1k((questData.distanceEst * 4000 * baseK) * diff));
+
+    document.getElementById('valHemat').innerText = vHemat.toLocaleString('id-ID');
+    document.getElementById('valHemat').dataset.val = vHemat;
+    document.getElementById('valReguler').innerText = vReg.toLocaleString('id-ID');
+    document.getElementById('valReguler').dataset.val = vReg;
+    document.getElementById('valExpress').innerText = vExp.toLocaleString('id-ID');
+    document.getElementById('valExpress').dataset.val = vExp;
+
+    selectPriceTier(document.querySelector('.price-card.active'), 'Reguler', vReg);
+}
+
 
     function selectPriceTier(element, tierName, forcedVal = null) {
         document.querySelectorAll('.price-card').forEach(c => c.classList.remove('active'));
@@ -769,51 +756,131 @@
     // ==========================================================================
     // 7. FINALIZATION & SUBMIT
     // ==========================================================================
-    function submitMission() {
-        if(questData.reward < 5000 && questData.distanceEst > 0) return showToast("Bounty terlalu rendah!");
+        async function submitMission() {
+        // 1. Validasi Dasar
+        const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
+        if(bountyAmt < 5000) return alert("Bounty terlalu rendah!");
         
         const btn = document.getElementById('btnBroadcast');
-        btn.innerText = "TRANSMITTING...";
-        btn.style.pointerEvents = "none";
-        playSfx(2000, 'sine', 1, 0.5);
+        if(btn) {
+            btn.innerText = "TRANSMITTING...";
+            btn.disabled = true;
+        }
+        
+        if(typeof playSfx === 'function') playSfx(2000, 'sine', 1, 0.5);
 
-        // Menyatukan payload sesuai struktur Ojek Lokal
-        const payload = {
-            clientId: questData.client.id,
-            category: questData.category,
-            status: "searching",
-            rank: questData.isUrgent ? "DARURAT" : "BIASA",
-            tier: getFishTier(questData.reward),
-            reputationLabel: questData.client.reputation,
-            pickupInfo: questData.origin.text,
-            pickupCoords: questData.origin.lat + "," + questData.origin.lng,
-            destInfo: questData.destination.text,
-            destPoints: questData.destination.points, // Only array for titip beli
-            destCoords: questData.destination.lat + "," + questData.destination.lng,
-            distanceEstimate: questData.distanceEst + " KM",
-            price: questData.reward,
-            extraSpecs: questData.specs,
-            timestamp: new Date().getTime() // Mocking ServerValue.TIMESTAMP
-        };
+        try {
+            // 2. Identifikasi Lokasi & Shard
+            let jemputKec, jemputDesa, diffRate;
+            
+            if (questData.origin.mode === 'gps') {
+                const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
+                jemputKec = loc.kec;
+                jemputDesa = loc.name;
+                diffRate = loc.diff || 1.0;
+            } else {
+                jemputKec = document.getElementById('manKec').value;
+                const dIdx = document.getElementById('manDesa').value;
+                const dataDesa = LOKASI_DB[jemputKec].desa[dIdx];
+                jemputDesa = dataDesa.name;
+                diffRate = dataDesa.diff || 1.0;
+            }
+            
+            const shard = getShardDariKecamatan(jemputKec);
+            const mid = "MS-" + Date.now();
 
-        console.log("PAYLOAD TO FIREBASE:", payload);
+            // 3. Inisialisasi Terminal Firebase
+            const db1 = getTerminal('FB1_MASTER');
+            const db4 = getTerminal('FB4_BOARD');
 
-        // Simulasi network delay
-        setTimeout(() => {
-            alert("QUEST BROADCAST SUCCESSFUL!\nTier: " + payload.tier);
-            location.reload();
-        }, 1500);
+            // 4. Susun Payload Lengkap (Perbaikan Koma & Key di sini)
+            const boardData = {
+                id_misi: mid,
+                id_requester: questData.client.id || "GUEST",
+                client_name: questData.client.name || "Anonim",
+                category: questData.category,
+                reward: bountyAmt,
+                difficulty_rate: diffRate,
+                zona: jemputKec,
+                shard_id: shard,
+                
+                // Data tambahan yang Anda minta:
+                rank: questData.isUrgent ? "DARURAT" : "BIASA",
+                fish_tier: getFishTier(bountyAmt),
+                
+                // Lokasi Origin
+                origin_name: questData.origin.text,
+                origin_desa: jemputDesa,
+                origin_coords: `${questData.origin.lat},${questData.origin.lng}`,
+                
+                // Lokasi Tujuan
+                dest_name: questData.destination.text,
+                dest_desa: questData.destination.desa || "Custom",
+                dest_coords: `${questData.destination.lat},${questData.destination.lng}`,
 
-        /* UNTUK PRODUKSI (HAPUS KOMENTAR):
-        db.ref('missions').push(payload).then(() => {
-            localStorage.setItem('active_mission_id', payload.id); // Jika butuh simpan ID
-            window.location.replace('waiting-client.html');
-        }).catch(e => {
+                // Info Tambahan
+                distance_est: questData.distanceEst,
+                status: "open",
+                created_at: Date.now()
+            };
+
+            // 5. Eksekusi Kirim ke Database
+            await Promise.all([
+                db1.ref(`misi_index/${mid}`).set({ 
+                    id_misi: mid, 
+                    id_shard: shard, 
+                    zona: jemputKec, 
+                    status: "open",
+                    id_requester: questData.client.id
+                }),
+                db4.ref(`mission-${shard}/${jemputDesa}/${mid}`).set(boardData)
+            ]);
+
+            // 6. Simpan Session & Redirect
+            sessionStorage.setItem('active_mission_id', mid);
+            sessionStorage.setItem('active_mission_shard', shard);
+            sessionStorage.setItem('active_mission_desa', jemputDesa);
+
+            if(typeof showToast === 'function') showToast("SINYAL TERSEBAR!");
+            
+            setTimeout(() => {
+                window.location.href = "lobby_requester.html";
+            }, 1000);
+
+        } catch (e) {
+            console.error(e);
             alert("Gagal Transmisi: " + e.message);
-            btn.innerText = "BROADCAST GAGAL";
-        });
-        */
+            if(btn) {
+                btn.disabled = false;
+                btn.innerText = "BROADCAST 📡";
+            }
+        }
     }
+ 
+
+
+    function cariDesaTerdekat(lat, lng) {
+    let terdekat = { name: "Tidak Terdeteksi", kec: "KNG", dist: 999, diff: 1.0 };
+    
+    // Melakukan loop pada database wilayah dari router_lokal.js
+    for (const kec in LOKASI_DB) {
+        LOKASI_DB[kec].desa.forEach(d => {
+            // Rumus Pythagoras sederhana untuk mencari jarak terdekat
+            const dist = Math.sqrt(Math.pow(lat - d.lat, 2) + Math.pow(lng - d.lng, 2));
+            if (dist < terdekat.dist) {
+                terdekat = { 
+                    name: d.name, 
+                    kec: kec, 
+                    dist: dist, 
+                    diff: d.diff || 1.0 
+                };
+            }
+        });
+    }
+    return terdekat;
+    }
+
+
 </script>
 </body>
 </html>
