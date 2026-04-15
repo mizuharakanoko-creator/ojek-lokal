@@ -251,6 +251,12 @@
 </head>
 <body>
 
+<div id="strangerNotice" style="background: linear-gradient(90deg, #331111, #1a050a); border-bottom: 1px solid var(--primary); padding: 10px; display: none; text-align: center; position: sticky; top: 0; z-index: 9999;">
+    <p style="font-size: 10px; color: #ff88aa; margin-bottom: 8px;">⚠️ MODE STRANGER: Progress misi tidak akan tersimpan di profil permanen.</p>
+    <button onclick="window.location.href='login.html'" style="background: var(--primary); color: white; border: none; padding: 5px 15px; border-radius: 5px; font-size: 10px; font-weight: bold; cursor: pointer;">LOGIN / DAFTAR CITIZEN</button>
+</div>
+
+
 <div id="toast">Notifikasi</div>
 
 <div id="megaModal" class="mega-modal">
@@ -464,15 +470,21 @@
 
     // Simulasi Cek Login
     function checkUserAuth() {
-        const storedUID = localStorage.getItem('current_customer_id');
-        if(storedUID) {
-            questData.client.id = storedUID;
-            // Simulasi get profile data
-            questData.client.reputation = "TERPERCAYA"; 
-            questData.client.stats.order = 15;
-            document.getElementById('userReputationDisplay').innerText = "STATUS: " + questData.client.reputation;
-        }
+    const storedUID = localStorage.getItem('current_customer_id');
+    const noticeBar = document.getElementById('strangerNotice');
+    
+    if(storedUID && !storedUID.includes("GUEST")) {
+        questData.client.id = storedUID;
+        questData.client.reputation = "TERPERCAYA"; 
+        document.getElementById('userReputationDisplay').innerText = "STATUS: ADVENTURER";
+        noticeBar.style.display = 'none'; // Sembunyikan jika sudah login
+    } else {
+        // Mode Stranger
+        questData.client.id = "STRANGER-" + Math.floor(Math.random() * 1000);
+        document.getElementById('userReputationDisplay').innerText = "STATUS: STRANGER (GUEST)";
+        noticeBar.style.display = 'block'; // Munculkan bilah login
     }
+}
     checkUserAuth();
 
     // ==========================================================================
@@ -677,32 +689,30 @@
     });
 
     function validateStep2() {
-    if(questData.origin.mode === 'smart' || questData.origin.mode === 'gps') {
+    if(questData.origin.mode === 'smart') {
         const k = document.getElementById('manKec').value;
         const dIdx = document.getElementById('manDesa').value;
+        if(!k || dIdx === "") return showToast("⚠️ Pilih Desa Asal!");
         
-        // Jika mode Smart/Pilih Desa, pastikan dropdown terisi
-        if(questData.origin.mode === 'smart' && (!k || dIdx === "")) {
-            return showToast("Pilih Desa Origin!");
-        }
-        
-        // Ambil data dari dropdown jika tersedia, jika tidak pakai data GPS
-        if(k && dIdx !== "") {
-            const dData = LOKASI_DB[k].desa[dIdx];
-            questData.origin.lat = dData.lat; 
-            questData.origin.lng = dData.lng;
-            questData.origin.kec = k;
-            questData.origin.desa = dData.name;
-            questData.origin.text = dData.name;
-        }
-    } else if (questData.origin.mode === 'nego') {
+        const dData = LOKASI_DB[k].desa[dIdx];
+        questData.origin.lat = dData.lat; 
+        questData.origin.lng = dData.lng;
+        questData.origin.kec = k;
+        questData.origin.desa = dData.name;
+        questData.origin.text = "📍 " + dData.name;
+    } 
+    else if (questData.origin.mode === 'nego') {
         const t = document.getElementById('originNegoText').value;
-        if(t.length < 5) return showToast("Deskripsi terlalu pendek!");
-        questData.origin.text = t;
-        questData.origin.lat = 0; 
-    } else if (questData.origin.mode === 'map') {
-        if(!questData.origin.lat) return showToast("Geser peta untuk menentukan titik!");
+        if(t.length < 5) return showToast("⚠️ Alamat terlalu singkat!");
+        questData.origin.text = "✍️ " + t;
+        questData.origin.lat = 0; // Mode Nego tidak pakai koordinat
+    } 
+    else if (questData.origin.mode === 'map') {
+        if(!questData.origin.lat) return showToast("⚠️ Geser peta untuk titik!");
+        // Data sudah otomatis terisi saat map digeser (on moveend)
     }
+    // Jika mode GPS (default), data sudah terisi saat startGPS()
+    
     navStep(3);
 }
 
@@ -746,36 +756,42 @@
     }
 
     function validateStep3() {
-        questData.destination.points = [];
+    questData.destination.points = [];
 
-        if(questData.destination.mode === 'standard') {
-            const k = document.getElementById('destKec').value;
-            const dIdx = document.getElementById('destDesa').value;
-            if(!k || dIdx === "") return showToast("Pilih Desa Tujuan!");
-            const dData = LOKASI_DB[k].desa[dIdx];
-            questData.destination.lat = dData.lat;
-            questData.destination.lng = dData.lng;
-            questData.destination.text = dData.name + " (" + document.getElementById('destDetail').value + ")";
-        } 
-        else if (questData.destination.mode === 'multi') {
-            let valid = true;
-            for(let i=1; i<=4; i++) {
-                const el = document.getElementById("pointVal_" + i);
-                if(el && el.value.length > 3) questData.destination.points.push(el.value);
-                else if (el && el.value.length <= 3) valid = false;
-            }
-            if(!valid || questData.destination.points.length === 0) return showToast("Isi detail titik belanja dengan benar.");
-            questData.destination.text = questData.destination.points.length + " Titik Belanja";
+    if(questData.destination.mode === 'standard') {
+        const k = document.getElementById('destKec').value;
+        const dIdx = document.getElementById('destDesa').value;
+        if(!k || dIdx === "") return showToast("⚠️ Pilih Desa Tujuan!");
+        
+        const dData = LOKASI_DB[k].desa[dIdx];
+        questData.destination.lat = dData.lat;
+        questData.destination.lng = dData.lng;
+        // POIN KRUSIAL: Simpan nama desa murni untuk Sharding Firebase
+        questData.destination.desa = dData.name; 
+        questData.destination.text = dData.name + " (" + document.getElementById('destDetail').value + ")";
+    } 
+    else if (questData.destination.mode === 'multi') {
+        let valid = true;
+        for(let i=1; i<=4; i++) {
+            const el = document.getElementById("pointVal_" + i);
+            if(el && el.value.length > 3) questData.destination.points.push(el.value);
+            else if (el && el.value.length > 0 && el.value.length <= 3) valid = false;
         }
-        else if (questData.destination.mode === 'help') {
-            const v = document.getElementById('helpDescText').value;
-            if(v.length < 10) return showToast("Deskripsi minimal 10 karakter.");
-            questData.destination.text = "Bantuan Khusus";
-            questData.specs.helpDesc = v;
-        }
-
-        navStep(4);
+        if(!valid || questData.destination.points.length === 0) return showToast("⚠️ Isi detail titik belanja!");
+        questData.destination.text = questData.destination.points.length + " Titik Belanja";
+        questData.destination.desa = "Multi-Point"; // Penanda untuk Shard
     }
+    else if (questData.destination.mode === 'help') {
+        const v = document.getElementById('helpDescText').value;
+        if(v.length < 10) return showToast("⚠️ Deskripsi minimal 10 karakter.");
+        questData.destination.text = "Bantuan Khusus";
+        questData.destination.desa = "Service"; 
+        questData.specs.helpDesc = v;
+    }
+
+    navStep(4);
+}
+
 
     // ==========================================================================
     // 6. STEP 4: REWARD & LOGIC HAVERSINE
@@ -936,31 +952,32 @@
 
         // 4. Susun Payload Lengkap
         const boardData = {
-            id_misi: mid,
-            id_requester: questData.client.id || "GUEST",
-            client_name: questData.client.name || "Anonim",
-            category: questData.category,
-            reward: bountyAmt,
-            difficulty_rate: diffRate,
-            zona: jemputKec,
-            shard_id: shard,
-            rank: questData.isUrgent ? "DARURAT" : "BIASA",
-            fish_tier: getFishTier(bountyAmt),
-            
-            // Lokasi Origin (Jemput)
-            origin_name: questData.origin.text,
-            origin_desa: jemputDesa,
-            origin_coords: `${questData.origin.lat},${questData.origin.lng}`,
-            
-            // Lokasi Tujuan (Antar)
-            dest_name: questData.destination.text,
-            dest_desa: questData.destination.desa || "Tujuan Khusus",
-            dest_coords: `${questData.destination.lat},${questData.destination.lng}`,
+    id_misi: mid,
+    id_requester: questData.client.id,
+    client_name: questData.client.id.includes("STRANGER") ? "Stranger" : "Member",
+    category: questData.category,
+    reward: bountyAmt,
+    difficulty_rate: diffRate || 1.0,
+    zona: jemputKec || "KNG",
+    shard_id: shard || "S1",
+    rank: questData.isUrgent ? "DARURAT" : "BIASA",
+    fish_tier: getFishTier(bountyAmt),
+    
+    // Lokasi Origin (Jemput) - KEMBALIKAN origin_desa
+    origin_name: questData.origin.text,
+    origin_desa: jemputDesa, // Nama desa hasil deteksi/dropdown
+    origin_coords: questData.origin.lat ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
+    
+    // Lokasi Tujuan (Antar) - KEMBALIKAN dest_desa
+    dest_name: questData.destination.text,
+    dest_desa: questData.destination.desa || "Tujuan Khusus",
+    dest_details: document.getElementById('destDetail') ? document.getElementById('destDetail').value : "",
+    dest_coords: questData.destination.lat ? `${questData.destination.lat},${questData.destination.lng}` : "NEGO",
 
-            distance_est: questData.distanceEst,
-            status: "open",
-            created_at: Date.now()
-        };
+    distance_est: questData.distanceEst || 0,
+    status: "open",
+    created_at: Date.now()
+};
 
         // 5. Eksekusi Kirim ke Database
         await Promise.all([
@@ -1167,6 +1184,21 @@ function confirmMapPoint() {
     // Logika reverse geocode sederhana (Opsional)
     // Di sini Anda bisa memanggil fungsi untuk menebak desa berdasarkan koordinat map
 }
+
+
+
+function getDetailDesa(kec, desaName) {
+    if(!LOKASI_DB[kec]) return null;
+    return LOKASI_DB[kec].desa.find(d => d.name === desaName);
+}
+
+// Tambahkan trigger otomatis di Step 2 agar startGPS dipanggil dengan benar
+window.onload = () => {
+    checkUserAuth();
+    initDropdowns();
+};
+
+    
 
     
 
