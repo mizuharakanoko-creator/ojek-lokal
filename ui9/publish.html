@@ -336,7 +336,7 @@
 <div class="manual-panel" id="manualPanel">
     <div class="tabs">
         <button class="tab-btn active" id="tabSmart" onclick="switchOriginTab('smart')">📍 DESA</button>
-        <button class="tab-btn" id="tabNego" onclick="switchOriginTab('nego')">✍️ BEBAS</button>
+        <button class="tab-btn" id="tabNego" onclick="switchOriginTab('nego')">✍️ MANUAL</button>
         <button class="tab-btn" id="tabMap" onclick="switchOriginTab('map')">🗺️ PETA</button>
     </div>
 
@@ -359,7 +359,7 @@
 
     <div id="originNego" style="display:none;">
     <div class="input-group">
-        <label>Alamat Bebas</label>
+        <label>Masukan Detail Alamat dan Patokan nya..</label>
         <button class="btn-voice" onclick="startVoiceToText('originNegoText', this)" style="top: 25px; right: 10px;">🎙️</button>
         
         <textarea id="originNegoText" rows="3" placeholder="Tulis deskripsi lokasi jemput..."></textarea>
@@ -391,22 +391,55 @@
         
         <div id="specificFormArea" style="margin-bottom: 20px;"></div>
 
-        <div id="destStandardArea" style="background: #111; border: 1px solid var(--border); border-radius: 15px; padding: 20px; margin-bottom: 20px;">
-            <label style="color: var(--secondary); margin-bottom: 15px; display: block; font-size: 11px; font-weight: bold;">📍 TUJUAN AKHIR</label>
-            <div class="input-group">
-                <label>Kecamatan Tujuan</label>
-                <select id="destKec" onchange="handleKecChange('destKec', 'destDesa', true)"></select>
-            </div>
-            <div class="input-group">
-                <label>Desa / Kelurahan Tujuan</label>
-                <select id="destDesa" onchange="triggerPriceCalculation()"></select>
-            </div>
-            <div class="input-group">
-                <label>Detail Tujuan</label>
-                <input type="text" id="destDetail" placeholder="Misal: Samping Pos Kamling">
-            </div>
-        </div>
 
+        
+<div id="destStandardArea" style="background: #111; border: 1px solid var(--border); border-radius: 15px; padding: 20px; margin-bottom: 20px;">
+    <label style="color: var(--secondary); margin-bottom: 15px; display: block; font-size: 11px; font-weight: bold;">📍 TUJUAN AKHIR</label>
+    
+    <div class="tabs">
+        <button class="tab-btn active" id="tabDestSmart" onclick="switchDestTab('smart')">📍 DESA</button>
+        <button class="tab-btn" id="tabDestNego" onclick="switchDestTab('nego')">✍️ MANUAL</button>
+        <button class="tab-btn" id="tabDestMap" onclick="switchDestTab('map')">🗺️ PETA</button>
+    </div>
+
+    <div id="destSmart">
+        <div class="input-group">
+            <label>Kecamatan Tujuan</label>
+            <select id="destKec" onchange="handleKecChange('destKec', 'destDesa', true)"></select>
+        </div>
+        <div class="input-group">
+            <label>Desa / Kelurahan Tujuan</label>
+            <select id="destDesa" onchange="triggerPriceCalculation()"></select>
+        </div>
+    </div>
+
+    <div id="destNego" style="display:none;">
+        <div class="input-group">
+            <label>Detail Lokasi Tujuan</label>
+            <button class="btn-voice" onclick="startVoiceToText('destNegoText', this)" style="top: 25px; right: 10px;">🎙️</button>
+            <textarea id="destNegoText" rows="3" placeholder="Contoh: Depan Toko Berkah, Jl. Raya No. 10..."></textarea>
+        </div>
+    </div>
+
+    <div id="destMap" style="display:none;">
+        <div id="map-dest-container" style="width: 100%; height: 250px; border-radius: 12px; position: relative; overflow: hidden; border: 1px solid #333;">
+            <div id="mapDest" style="width: 100%; height: 100%;"></div>
+            <div class="map-center-mark">📍</div>
+        </div>
+        <div class="input-group" style="margin-top:10px;">
+            <label>Koordinat Tujuan</label>
+            <input type="text" id="mapDestCoords" readonly placeholder="Geser peta tujuan...">
+        </div>
+    </div>
+
+    <div class="input-group" id="groupDetailTambahan" style="margin-top:10px;">
+        <label>Patokan / Detail (Opsional)</label>
+        <input type="text" id="destDetail" placeholder="Misal: Samping Pos Kamling">
+    </div>
+</div>
+
+
+        
         <div id="destMultiArea" style="display:none; background: #111; border: 1px solid var(--border); border-radius: 15px; padding: 20px; margin-bottom: 20px;">
             <label style="color: var(--gold); margin-bottom: 15px; display: block; font-size: 11px; font-weight: bold;">🛍️ DAFTAR LOKASI TITIP BELI (MAX 4)</label>
             <div id="multiPointsContainer">
@@ -754,6 +787,64 @@
     // ==========================================================================
     // 5. STEP 3: DESTINATION & DYNAMIC FORMS
     // ==========================================================================
+
+// State untuk menyimpan mode tujuan
+questData.destination.mode = 'smart'; 
+
+function switchDestTab(mode) {
+    // UI Tab Toggle
+    document.getElementById('tabDestSmart').classList.remove('active');
+    document.getElementById('tabDestNego').classList.remove('active');
+    document.getElementById('tabDestMap').classList.remove('active');
+    
+    document.getElementById('destSmart').style.display = 'none';
+    document.getElementById('destNego').style.display = 'none';
+    document.getElementById('destMap').style.display = 'none';
+
+    if (mode === 'smart') {
+        document.getElementById('tabDestSmart').classList.add('active');
+        document.getElementById('destSmart').style.display = 'block';
+    } else if (mode === 'nego') {
+        document.getElementById('tabDestNego').classList.add('active');
+        document.getElementById('destNego').style.display = 'block';
+    } else if (mode === 'map') {
+        document.getElementById('tabDestMap').classList.add('active');
+        document.getElementById('destMap').style.display = 'block';
+        setTimeout(initMapDest, 300); // Inisialisasi peta khusus tujuan
+    }
+    
+    questData.destination.mode = mode;
+}
+
+let mapDest;
+function initMapDest() {
+    if (mapDest) {
+        mapDest.invalidateSize();
+        return;
+    }
+
+    const startLat = questData.origin.lat || -6.9765;
+    const startLng = questData.origin.lng || 108.4841;
+
+    mapDest = L.map('mapDest').setView([startLat, startLng], 15);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapDest);
+
+    mapDest.on('moveend', function() {
+        const center = mapDest.getCenter();
+        document.getElementById('mapDestCoords').value = `${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}`;
+        
+        const loc = cariDesaTerdekat(center.lat, center.lng);
+        questData.destination.lat = center.lat;
+        questData.destination.lng = center.lng;
+        questData.destination.desa = loc.name;
+        showToast(`📍 Tujuan: ${loc.name}`);
+    });
+}
+
+
+
+
     
     // Voice to text capability
     function startVoiceToText(targetId, btnEl) {
@@ -816,18 +907,31 @@
     function validateStep3() {
     questData.destination.points = [];
 
-    if(questData.destination.mode === 'standard') {
+    // JIKA MODE NYA BUKAN MULTI ATAU HELP, BERARTI MENGGUNAKAN SISTEM TAB (STANDARD)
+    if (questData.destination.mode === 'smart') {
         const k = document.getElementById('destKec').value;
         const dIdx = document.getElementById('destDesa').value;
-        if(!k || dIdx === "") return showToast("⚠️ Pilih Desa Tujuan!");
+        if (!k || dIdx === "") return showToast("⚠️ Pilih Desa Tujuan!");
         
         const dData = LOKASI_DB[k].desa[dIdx];
         questData.destination.lat = dData.lat;
         questData.destination.lng = dData.lng;
-        // INI BARU: Memastikan nama desa tersimpan murni tanpa embel-embel detail
         questData.destination.desa = dData.name; 
-        questData.destination.text = dData.name + " (" + document.getElementById('destDetail').value + ")";
+        questData.destination.text = dData.name + " (" + (document.getElementById('destDetail').value || "Tanpa Detail") + ")";
     } 
+    else if (questData.destination.mode === 'nego') {
+        const t = document.getElementById('destNegoText').value;
+        if (t.length < 5) return showToast("⚠️ Deskripsi tujuan terlalu singkat!");
+        questData.destination.text = "✍️ " + t;
+        questData.destination.desa = "Custom Location";
+        questData.destination.lat = 0;
+    }
+    else if (questData.destination.mode === 'map') {
+        if (!questData.destination.lat) return showToast("⚠️ Geser peta tujuan!");
+        questData.destination.text = "📍 Titik Peta (" + (document.getElementById('destDetail').value || "Tanpa Detail") + ")";
+        // questData.destination.desa sudah terisi otomatis saat moveend di mapDest
+    }
+    // LOGIKA LAMA YANG TETAP HARUS ADA:
     else if (questData.destination.mode === 'multi') {
         let valid = true;
         for(let i=1; i<=4; i++) {
@@ -836,30 +940,21 @@
             else if (el && el.value.length > 0 && el.value.length <= 3) valid = false;
         }
         if(!valid || questData.destination.points.length === 0) return showToast("⚠️ Isi detail titik belanja!");
-        
         questData.destination.text = questData.destination.points.length + " Titik Belanja";
-        
-        // --- INI PERUBAHANNYA (KODE BARU) ---
-        // Tanpa ini, Firebase akan mencatat "undefined" pada folder desa tujuan
         questData.destination.desa = "Multi-Point"; 
-        // ------------------------------------
     }
     else if (questData.destination.mode === 'help') {
         const v = document.getElementById('helpDescText').value;
         if(v.length < 10) return showToast("⚠️ Deskripsi minimal 10 karakter.");
-        
         questData.destination.text = "Bantuan Khusus";
-        
-        // --- INI PERUBAHANNYA (KODE BARU) ---
-        // Memberi label kategori agar Shard tujuan tidak error
         questData.destination.desa = "Service"; 
-        // ------------------------------------
-        
         questData.specs.helpDesc = v;
     }
 
     navStep(4);
 }
+
+
 
 
 
@@ -888,32 +983,44 @@
     const pArea = document.getElementById('priceCalculationArea');
     const inputFinal = document.getElementById('finalPriceInput');
 
-    if(questData.destination.mode !== 'standard' || questData.origin.lat === 0) {
-        pArea.style.display = 'none';
-        document.getElementById('labelFinalPrice').innerText = "BIAYA NEGO (Ketik Manual)";
-        inputFinal.value = "";
+    // KONDISI NEGO: Jika mode BEBAS, MAP, MULTI, atau HELP
+    // Atau jika koordinat asal tidak terdeteksi (lat === 0)
+    if(questData.destination.mode === 'nego' || 
+       questData.destination.mode === 'map' || 
+       questData.destination.mode === 'multi' || 
+       questData.destination.mode === 'help' || 
+       questData.origin.lat === 0) {
+        
+        pArea.style.display = 'none'; // Sembunyikan pilihan harga otomatis
+        document.getElementById('labelFinalPrice').innerText = "SISTEM KOMPENSASI: NEGO";
+        
+        inputFinal.value = 0; // Set ke 0 agar di Firebase terbaca Nego
+        inputFinal.readOnly = true; // Kunci input agar user tidak input angka manual
+        inputFinal.style.color = "#888"; // Ubah warna jadi redup
+        
         questData.distanceEst = 0;
         updateSummaryUI();
         return;
     }
 
+    // KONDISI OTOMATIS (Hanya untuk mode SMART/DESA)
     pArea.style.display = 'block';
+    inputFinal.readOnly = false; // Buka kunci input
+    inputFinal.style.color = "var(--gold)";
+    document.getElementById('labelFinalPrice').innerText = "Final Bounty (IDR)";
     
-    // 1. Ambil Data Detail Desa Tujuan dari router_lokal.js
+    // ... (Sisa kode kalkulasi tarif otomatis Anda tetap sama seperti sebelumnya) ...
     const destKec = document.getElementById('destKec').value;
     const destDesaName = document.getElementById('destDesa').options[document.getElementById('destDesa').selectedIndex].text;
     const detailDesa = getDetailDesa(destKec, destDesaName);
     
-    // 2. Gunakan variabel diff dari database (default 1.0 jika gagal)
     let diff = detailDesa ? detailDesa.diff : 1.0;
-
     const distLurus = calculateRealDistance(questData.origin.lat, questData.origin.lng, questData.destination.lat, questData.destination.lng);
     questData.distanceEst = (distLurus * 1.5).toFixed(1); 
     
     let baseK = questData.category === 'Car Ride' ? 1.8 : 1.0; 
     const round1k = (num) => Math.ceil(num / 1000) * 1000;
     
-    // 3. Kalkulasi dengan pengaruh Difficulty (diff)
     let vHemat = Math.max(10000 * baseK, round1k((questData.distanceEst * 2000 * baseK) * diff));
     let vReg = Math.max(12000 * baseK, round1k((questData.distanceEst * 3000 * baseK) * diff));
     let vExp = Math.max(15000 * baseK, round1k((questData.distanceEst * 4000 * baseK) * diff));
@@ -927,6 +1034,7 @@
 
     selectPriceTier(document.querySelector('.price-card.active'), 'Reguler', vReg);
 }
+
 
 
     function selectPriceTier(element, tierName, forcedVal = null) {
@@ -954,24 +1062,51 @@
     }
 
     function updateSummaryUI() {
-        const amt = parseInt(document.getElementById('finalPriceInput').value) || 0;
-        questData.reward = amt;
+    const amt = parseInt(document.getElementById('finalPriceInput').value) || 0;
+    questData.reward = amt;
 
-        document.getElementById('sumCat').innerText = questData.category.toUpperCase();
-        document.getElementById('sumRank').innerText = questData.isUrgent ? "DARURAT (PRIORITAS)" : "STANDAR";
-        document.getElementById('sumRank').style.color = questData.isUrgent ? "var(--primary)" : "var(--gold)";
-        
-        document.getElementById('sumDist').innerText = questData.distanceEst > 0 ? questData.distanceEst + " KM" : "UNTRACKED";
-        document.getElementById('sumOri').innerText = questData.origin.text;
-        
-        // Dest string manipulation for Titip Beli
-        let dText = questData.destination.text;
-        if(questData.destination.mode === 'multi') dText += "\n" + questData.destination.points.map(p => "- " + p).join('\n');
-        document.getElementById('sumDest').innerText = dText;
-
-        document.getElementById('sumBounty').innerText = amt > 0 ? "Rp " + amt.toLocaleString('id-ID') : "Rp NEGO";
-        document.getElementById('sumTier').innerText = "TIER: " + getFishTier(amt);
+    document.getElementById('sumCat').innerText = questData.category.toUpperCase();
+    
+    // 1. Status Urgent/Rank
+    const rankEl = document.getElementById('sumRank');
+    rankEl.innerText = questData.isUrgent ? "DARURAT (PRIORITAS)" : "STANDAR";
+    rankEl.style.color = questData.isUrgent ? "var(--primary)" : "var(--gold)";
+    
+    // 2. Jarak (Gunakan UNTRACKED jika 0)
+    document.getElementById('sumDist').innerText = questData.distanceEst > 0 ? questData.distanceEst + " KM" : "UNTRACKED";
+    
+    // 3. Lokasi Asal
+    document.getElementById('sumOri').innerText = questData.origin.text;
+    
+    // 4. Logika Teks Tujuan (Sesuai mode baru)
+    let dText = questData.destination.text;
+    
+    if (questData.destination.mode === 'multi') {
+        dText += "\n" + questData.destination.points.map(p => "- " + p).join('\n');
+    } else if (questData.destination.mode === 'nego') {
+        // Ambil teks langsung dari textarea jika mode bebas
+        const negoVal = document.getElementById('destNegoText').value;
+        dText = "✍️ " + (negoVal || "Alamat Bebas");
+    } else if (questData.destination.mode === 'map') {
+        // Tambahkan koordinat jika mode peta
+        const coords = document.getElementById('mapDestCoords').value;
+        dText = "📍 Titik Peta (" + (coords || "Geser Peta") + ")";
     }
+    document.getElementById('sumDest').innerText = dText;
+
+    // 5. Visualisasi Bounty & Tier
+    const bountyEl = document.getElementById('sumBounty');
+    if (amt > 0) {
+        bountyEl.innerText = "Rp " + amt.toLocaleString('id-ID');
+        bountyEl.style.color = "var(--gold)";
+        document.getElementById('sumTier').innerText = "TIER: " + getFishTier(amt);
+    } else {
+        bountyEl.innerText = "SISTEM NEGO";
+        bountyEl.style.color = "var(--secondary)"; // Warna biru cyan
+        document.getElementById('sumTier').innerText = "TIER: NEGO";
+    }
+}
+
 
     // ==========================================================================
     // 7. FINALIZATION & SUBMIT
@@ -979,7 +1114,9 @@
         async function submitMission() {
     // 1. Validasi Dasar
     const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
-    if(bountyAmt < 5000) return alert("Bounty terlalu rendah!");
+    if(questData.destination.mode === 'smart' && bountyAmt < 8000) {
+    return alert("Bounty minimal Rp 8.000!");
+}
     
     const btn = document.getElementById('btnBroadcast');
     if(btn) {
