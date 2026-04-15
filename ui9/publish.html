@@ -358,12 +358,15 @@
     </div>
 
     <div id="originNego" style="display:none;">
-        <div class="input-group">
-            <label>Alamat Bebas</label>
-            <textarea id="originNegoText" rows="3" placeholder="Tulis deskripsi lokasi jemput..."></textarea>
-            <button class="btn-ai" onclick="polishWithAI()">✨ PERBAIKI TYPO (AI)</button>
-        </div>
+    <div class="input-group">
+        <label>Alamat Bebas</label>
+        <button class="btn-voice" onclick="startVoiceToText('originNegoText', this)" style="top: 25px; right: 10px;">🎙️</button>
+        
+        <textarea id="originNegoText" rows="3" placeholder="Tulis deskripsi lokasi jemput..."></textarea>
+        <button class="btn-ai" onclick="polishWithAI()">✨ PERBAIKI TYPO (AI)</button>
     </div>
+</div>
+
 
     <div id="originMap" style="display:none;">
         <div id="map-container" style="display:block;"> <div id="map"></div>
@@ -754,18 +757,42 @@
     
     // Voice to text capability
     function startVoiceToText(targetId, btnEl) {
-        if (!('webkitSpeechRecognition' in window)) return showToast("Browser tidak support Voice Input.");
-        const rec = new webkitSpeechRecognition();
-        rec.lang = 'id-ID';
-        rec.onstart = () => { btnEl.classList.add('recording'); showToast("Mendengarkan..."); };
-        rec.onresult = (e) => {
-            const txt = e.results[0][0].transcript;
-            const target = document.getElementById(targetId);
-            target.value = target.value ? target.value + " " + txt : txt;
-        };
-        rec.onend = () => { btnEl.classList.remove('recording'); };
-        rec.start();
+    // Mengecek dukungan browser
+    if (!('webkitSpeechRecognition' in window) && !('speechRecognition' in window)) {
+        return showToast("Browser tidak support Voice Input.");
     }
+    
+    const SpeechRecognition = window.webkitSpeechRecognition || window.speechRecognition;
+    const rec = new SpeechRecognition();
+    
+    rec.lang = 'id-ID';
+    rec.continuous = false;
+    rec.interimResults = false;
+
+    rec.onstart = () => { 
+        btnEl.classList.add('recording'); 
+        showToast("Mendengarkan..."); 
+    };
+
+    rec.onresult = (e) => {
+        const txt = e.results[0][0].transcript;
+        const target = document.getElementById(targetId);
+        // Menambahkan teks suara ke textarea
+        target.value = target.value ? target.value + " " + txt : txt;
+    };
+
+    rec.onend = () => { 
+        btnEl.classList.remove('recording'); 
+    };
+
+    rec.onerror = (e) => {
+        btnEl.classList.remove('recording');
+        showToast("Error: " + e.error);
+    };
+
+    rec.start();
+}
+
 
     // Dynamic Multi-Points (Titip Beli)
     let pointCounter = 0;
