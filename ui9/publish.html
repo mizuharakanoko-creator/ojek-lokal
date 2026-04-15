@@ -756,32 +756,42 @@
     });
 
     function validateStep2() {
-    if(questData.origin.mode === 'smart') {
-        const k = document.getElementById('manKec').value;
-        const dIdx = document.getElementById('manDesa').value;
-        if(!k || dIdx === "") return showToast("⚠️ Pilih Desa Asal!");
-        
-        const dData = LOKASI_DB[k].desa[dIdx];
-        questData.origin.lat = dData.lat; 
-        questData.origin.lng = dData.lng;
-        questData.origin.kec = k;
-        questData.origin.desa = dData.name;
-        questData.origin.text = "📍 " + dData.name;
-    } 
-    else if (questData.origin.mode === 'nego') {
-        const t = document.getElementById('originNegoText').value;
-        if(t.length < 5) return showToast("⚠️ Alamat terlalu singkat!");
-        questData.origin.text = "✍️ " + t;
-        questData.origin.lat = 0; // Mode Nego tidak pakai koordinat
-    } 
-    else if (questData.origin.mode === 'map') {
-        if(!questData.origin.lat) return showToast("⚠️ Geser peta untuk titik!");
-        // Data sudah otomatis terisi saat map digeser (on moveend)
+    // Jika user sedang di panel manual (Mode Smart Desa atau Map)
+    const isManualPanelActive = document.getElementById('manualPanel').classList.contains('active');
+
+    if (isManualPanelActive) {
+        if (questData.origin.mode === 'smart') {
+            const k = document.getElementById('manKec').value;
+            const dIdx = document.getElementById('manDesa').value;
+            if (!k || dIdx === "") return showToast("⚠️ Pilih Desa Asal!");
+            
+            const dData = LOKASI_DB[k].desa[dIdx];
+            questData.origin.lat = dData.lat; 
+            questData.origin.lng = dData.lng;
+            questData.origin.kec = k;
+            questData.origin.desa = dData.name;
+            questData.origin.text = "📍 " + dData.name;
+        } 
+        else if (questData.origin.mode === 'map') {
+            if (!questData.origin.lat) return showToast("⚠️ Geser peta untuk titik!");
+            // Data sudah terisi otomatis di questData oleh event 'moveend' map
+        }
+        else if (questData.origin.mode === 'nego') {
+             const t = document.getElementById('originNegoText').value;
+             if (t.length < 5) return showToast("⚠️ Alamat jemput terlalu singkat!");
+             questData.origin.text = "✍️ " + t;
+             questData.origin.lat = 0; // Menandakan Nego
+        }
+    } else {
+        // Jika panel manual TIDAK aktif, gunakan hasil GPS Otomatis
+        if (!questData.origin.lat) return showToast("⚠️ Menunggu sinyal GPS...");
+        questData.origin.mode = 'gps';
+        // Teks sudah diset saat startGPS()
     }
-    // Jika mode GPS (default), data sudah terisi saat startGPS()
     
     navStep(3);
 }
+
 
 
     // ==========================================================================
@@ -792,15 +802,19 @@
 questData.destination.mode = 'smart'; 
 
 function switchDestTab(mode) {
-    // UI Tab Toggle
-    document.getElementById('tabDestSmart').classList.remove('active');
-    document.getElementById('tabDestNego').classList.remove('active');
-    document.getElementById('tabDestMap').classList.remove('active');
-    
+    // 1. Reset data koordinat & teks tujuan agar bersih
+    questData.destination.lat = 0;
+    questData.destination.lng = 0;
+    questData.destination.desa = "";
+    questData.destination.text = "";
+
+    // 2. UI Tab Toggle
+    document.querySelectorAll('[id^="tabDest"]').forEach(b => b.classList.remove('active'));
     document.getElementById('destSmart').style.display = 'none';
     document.getElementById('destNego').style.display = 'none';
     document.getElementById('destMap').style.display = 'none';
 
+    // 3. Aktifkan mode terpilih
     if (mode === 'smart') {
         document.getElementById('tabDestSmart').classList.add('active');
         document.getElementById('destSmart').style.display = 'block';
@@ -810,12 +824,13 @@ function switchDestTab(mode) {
     } else if (mode === 'map') {
         document.getElementById('tabDestMap').classList.add('active');
         document.getElementById('destMap').style.display = 'block';
-        setTimeout(initMapDest, 300); // Inisialisasi peta khusus tujuan
+        setTimeout(initMapDest, 300);
     }
 
     questData.destination.mode = mode;
-    calculateAndDisplayBounty();
+    calculateAndDisplayBounty(); // Hitung ulang harga
 }
+
 
 let mapDest;
 function initMapDest() {
@@ -980,42 +995,40 @@ function initMapDest() {
         updateSummaryUI();
     }
 
+    
     function calculateAndDisplayBounty() {
     const pArea = document.getElementById('priceCalculationArea');
     const inputFinal = document.getElementById('finalPriceInput');
 
-    // KONDISI NEGO: Jika mode BEBAS, MAP, MULTI, atau HELP
-    // Atau jika koordinat asal tidak terdeteksi (lat === 0)
-    if(questData.destination.mode === 'nego' || 
-       questData.destination.mode === 'map' || 
-       questData.destination.mode === 'multi' || 
-       questData.destination.mode === 'help' || 
-       questData.origin.lat === 0) {
-        
-        pArea.style.display = 'none'; // Sembunyikan pilihan harga otomatis
+    // IZINPublish: Map sekarang masuk ke hitungan otomatis (karena lat/lng ada)
+    const isManualMode = ['nego', 'multi', 'help'].includes(questData.destination.mode);
+
+    if (isManualMode || (questData.origin.lat === 0 && questData.origin.mode !== 'map')) {
+        pArea.style.display = 'none';
         document.getElementById('labelFinalPrice').innerText = "SISTEM KOMPENSASI: NEGO";
-        
-        inputFinal.value = 0; // Set ke 0 agar di Firebase terbaca Nego
-        inputFinal.readOnly = true; // Kunci input agar user tidak input angka manual
-        inputFinal.style.color = "#888"; // Ubah warna jadi redup
-        
+        inputFinal.value = 0;
+        inputFinal.readOnly = true;
+        inputFinal.style.color = "#888";
         questData.distanceEst = 0;
         updateSummaryUI();
         return;
     }
 
-    // KONDISI OTOMATIS (Hanya untuk mode SMART/DESA)
+    // MODE OTOMATIS (Smart Desa & Map)
     pArea.style.display = 'block';
-    inputFinal.readOnly = false; // Buka kunci input
+    inputFinal.readOnly = false;
     inputFinal.style.color = "var(--gold)";
     document.getElementById('labelFinalPrice').innerText = "Final Bounty (IDR)";
-    
-    // ... (Sisa kode kalkulasi tarif otomatis Anda tetap sama seperti sebelumnya) ...
-    const destKec = document.getElementById('destKec').value;
-    const destDesaName = document.getElementById('destDesa').options[document.getElementById('destDesa').selectedIndex].text;
-    const detailDesa = getDetailDesa(destKec, destDesaName);
-    
-    let diff = detailDesa ? detailDesa.diff : 1.0;
+
+    // Ambil detail desa untuk multiplier (diff)
+    let diff = 1.0;
+    if (questData.destination.mode === 'smart') {
+        const destKec = document.getElementById('destKec').value;
+        const destDesaName = document.getElementById('destDesa').options[document.getElementById('destDesa').selectedIndex]?.text;
+        const detailDesa = getDetailDesa(destKec, destDesaName);
+        if (detailDesa) diff = detailDesa.diff;
+    }
+
     const distLurus = calculateRealDistance(questData.origin.lat, questData.origin.lng, questData.destination.lat, questData.destination.lng);
     questData.distanceEst = (distLurus * 1.5).toFixed(1); 
     
@@ -1032,6 +1045,13 @@ function initMapDest() {
     document.getElementById('valReguler').dataset.val = vReg;
     document.getElementById('valExpress').innerText = vExp.toLocaleString('id-ID');
     document.getElementById('valExpress').dataset.val = vExp;
+
+    // Pastikan nilai terpilih masuk ke input
+    const activeCard = document.querySelector('.price-card.active');
+    if (activeCard) {
+        inputFinal.value = activeCard.querySelector('.amount').dataset.val;
+    }
+    updateSummaryUI();
 
     selectPriceTier(document.querySelector('.price-card.active'), 'Reguler', vReg);
 }
@@ -1113,24 +1133,19 @@ function initMapDest() {
     // 7. FINALIZATION & SUBMIT
     // ==========================================================================
         async function submitMission() {
-    // 1. Ambil nilai bounty
+    // 1. Validasi Bounty & Mode (Filter Awal)
     const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
 
-    // FIX: Hanya munculkan alert minimal 8000 jika mode-nya MEMANG 'smart' 
-    // DAN tujuannya bukan nego (bountyAmt > 0)
-    // Jika bountyAmt adalah 0, artinya sistem sedang dalam mode NEGO, maka lewati alert ini.
     if(questData.destination.mode === 'smart' && bountyAmt > 0 && bountyAmt < 8000) {
         return alert("Bounty minimal Rp 8.000!");
     }
     
-    // Tambahan: Pastikan jika bukan mode NEGO, harga tidak boleh 0
-    // Tapi jika mode-nya nego/map/multi/help, harga 0 diperbolehkan.
     const isNegoMode = ['nego', 'map', 'multi', 'help'].includes(questData.destination.mode);
     if(!isNegoMode && bountyAmt === 0) {
         return alert("Silahkan pilih paket harga terlebih dahulu!");
     }
 
-    
+    // 2. Persiapan UI (Broadcast Mode)
     const btn = document.getElementById('btnBroadcast');
     if(btn) {
         btn.innerText = "TRANSMITTING...";
@@ -1140,10 +1155,9 @@ function initMapDest() {
     if(typeof playSfx === 'function') playSfx(2000, 'sine', 1, 0.5);
 
     try {
-        // 2. Identifikasi Lokasi & Shard
+        // 3. Logika Fallback & Lokasi (Deteksi Shard & Folder)
         let jemputKec, jemputDesa, diffRate;
         
-        // LOGIC GUARD: Menentukan asal data lokasi berdasarkan mode
         if (questData.origin.mode === 'gps' || questData.origin.mode === 'map') {
             const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
             jemputKec = loc.kec;
@@ -1157,49 +1171,56 @@ function initMapDest() {
             jemputDesa = dataDesa.name;
             diffRate = dataDesa.diff || 1.0;
         } else {
-            // Mode Nego
-            jemputKec = "KNG"; // Default atau deteksi manual
-            jemputDesa = "Custom";
+            // MODE NEGO/MANUAL JEMPUT (Tanpa Koordinat)
+            jemputKec = "KNG"; 
+            jemputDesa = "AREA-LUAR"; // Folder khusus untuk lokasi tak terdeteksi
             diffRate = 1.0;
         }
-        
+
         const shard = getShardDariKecamatan(jemputKec);
         const mid = "MS-" + Date.now();
 
-        // 3. Inisialisasi Terminal Firebase
+        // 4. Inisialisasi Terminal Firebase
         const db1 = getTerminal('FB1_MASTER');
         const db4 = getTerminal('FB4_BOARD');
 
-        // 4. Susun Payload Lengkap
+        // 5. Susun Payload (Sesuai Struktur Kode Asli Anda + Patch)
         const boardData = {
-    id_misi: mid,
-    id_requester: questData.client.id,
-    client_name: questData.client.id.includes("STRANGER") ? "Stranger" : "Member",
-    category: questData.category,
-    reward: bountyAmt,
-    difficulty_rate: diffRate || 1.0,
-    zona: jemputKec || "KNG",
-    shard_id: shard || "S1",
-    rank: questData.isUrgent ? "DARURAT" : "BIASA",
-    fish_tier: getFishTier(bountyAmt),
-    
-    // Lokasi Origin (Jemput) - KEMBALIKAN origin_desa
-    origin_name: questData.origin.text,
-    origin_desa: jemputDesa, // Nama desa hasil deteksi/dropdown
-    origin_coords: questData.origin.lat ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
-    
-    // Lokasi Tujuan (Antar) - KEMBALIKAN dest_desa
-    dest_name: questData.destination.text,
-    dest_desa: questData.destination.desa || "Tujuan Khusus",
-    dest_details: document.getElementById('destDetail') ? document.getElementById('destDetail').value : "",
-    dest_coords: questData.destination.lat ? `${questData.destination.lat},${questData.destination.lng}` : "NEGO",
+            id_misi: mid,
+            id_requester: questData.client.id,
+            client_name: questData.client.id.includes("STRANGER") ? "Stranger" : "Member",
+            category: questData.category,
+            reward: bountyAmt,
+            difficulty_rate: diffRate || 1.0,
+            zona: jemputKec || "KNG",
+            shard_id: shard || "S1",
+            rank: questData.isUrgent ? "DARURAT" : "BIASA",
+            fish_tier: getFishTier(bountyAmt),
+            
+            // Lokasi Origin
+            origin_name: questData.origin.text,
+            origin_desa: jemputDesa, 
+            origin_coords: questData.origin.lat ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
+            
+            // Lokasi Tujuan
+            dest_name: questData.destination.text,
+            dest_desa: questData.destination.desa || "Tujuan Khusus",
+            dest_details: document.getElementById('destDetail') ? document.getElementById('destDetail').value : "",
+            dest_coords: questData.destination.lat ? `${questData.destination.lat},${questData.destination.lng}` : "NEGO",
 
-    distance_est: questData.distanceEst || 0,
-    status: "open",
-    created_at: Date.now()
-};
+            // Meta Data Tambahan (Jika ada spec barang atau deskripsi bantuan)
+            specs: {
+                barang: document.getElementById('specBarang') ? document.getElementById('specBarang').value : "",
+                bantuan: document.getElementById('helpDescText') ? document.getElementById('helpDescText').value : "",
+                multi_points: questData.destination.points || []
+            },
 
-        // 5. Eksekusi Kirim ke Database
+            distance_est: questData.distanceEst || 0,
+            status: "open",
+            created_at: Date.now()
+        };
+
+        // 6. Eksekusi Kirim ke Database
         await Promise.all([
             db1.ref(`misi_index/${mid}`).set({ 
                 id_misi: mid, 
@@ -1211,7 +1232,7 @@ function initMapDest() {
             db4.ref(`mission-${shard}/${jemputDesa}/${mid}`).set(boardData)
         ]);
 
-        // 6. Simpan Session & Redirect (SANGAT PENTING)
+        // 7. Simpan Session & Redirect
         sessionStorage.setItem('active_mission_id', mid);
         sessionStorage.setItem('active_mission_shard', shard);
         sessionStorage.setItem('active_mission_desa', jemputDesa);
