@@ -55,7 +55,7 @@
         .instruction { font-size: 12px; color: #888; text-align: center; margin-bottom: 20px; }
 
         /* Animasi Transisi Step */
-        .step-page { display: none; animation: slideIn 0.4s forwards; }
+        .step-page { display: none; animation: slideIn 0.4s forwards; padding-bottom: 80px; }
         .step-page.active { display: block; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -245,6 +245,8 @@
     font-size: 30px;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
 }
+
+        #multiPointsContainer { margin-bottom: 15px; }
 
     
     </style>
@@ -630,15 +632,21 @@
     } else if (mode === 'nego') {
         document.getElementById('tabNego').classList.add('active');
         document.getElementById('originNego').style.display = 'block';
-    } else if (mode === 'map') {
+    }     else if (mode === 'map') {
         document.getElementById('tabMap').classList.add('active');
         document.getElementById('originMap').style.display = 'block';
+        document.getElementById('map-container').style.display = 'block'; // Pastikan container muncul
         
         setTimeout(() => {
             initMap();
-            if(map) map.invalidateSize();
-        }, 200);
+            if(map) {
+                map.invalidateSize();
+                // Opsional: Fokuskan kembali ke koordinat terakhir jika sudah ada
+                if(questData.origin.lat) map.setView([questData.origin.lat, questData.origin.lng], 16);
+            }
+        }, 300);
     }
+
     questData.origin.mode = mode;
 }
 
@@ -766,7 +774,7 @@
         const dData = LOKASI_DB[k].desa[dIdx];
         questData.destination.lat = dData.lat;
         questData.destination.lng = dData.lng;
-        // POIN KRUSIAL: Simpan nama desa murni untuk Sharding Firebase
+        // INI BARU: Memastikan nama desa tersimpan murni tanpa embel-embel detail
         questData.destination.desa = dData.name; 
         questData.destination.text = dData.name + " (" + document.getElementById('destDetail').value + ")";
     } 
@@ -778,19 +786,31 @@
             else if (el && el.value.length > 0 && el.value.length <= 3) valid = false;
         }
         if(!valid || questData.destination.points.length === 0) return showToast("⚠️ Isi detail titik belanja!");
+        
         questData.destination.text = questData.destination.points.length + " Titik Belanja";
-        questData.destination.desa = "Multi-Point"; // Penanda untuk Shard
+        
+        // --- INI PERUBAHANNYA (KODE BARU) ---
+        // Tanpa ini, Firebase akan mencatat "undefined" pada folder desa tujuan
+        questData.destination.desa = "Multi-Point"; 
+        // ------------------------------------
     }
     else if (questData.destination.mode === 'help') {
         const v = document.getElementById('helpDescText').value;
         if(v.length < 10) return showToast("⚠️ Deskripsi minimal 10 karakter.");
+        
         questData.destination.text = "Bantuan Khusus";
+        
+        // --- INI PERUBAHANNYA (KODE BARU) ---
+        // Memberi label kategori agar Shard tujuan tidak error
         questData.destination.desa = "Service"; 
+        // ------------------------------------
+        
         questData.specs.helpDesc = v;
     }
 
     navStep(4);
 }
+
 
 
     // ==========================================================================
@@ -1159,20 +1179,7 @@ function initMap() {
 }
 
 
-// Update fungsi switchTab Anda untuk memicu load peta
-function switchTab(n) {
-    // ... (logika tab 1, 2, 3 yang lama) ...
-    
-    document.getElementById('contentTab4').style.display = n === 4 ? 'block' : 'none';
-    document.getElementById('map-container').style.display = n === 4 ? 'block' : 'none';
-    
-    if (n === 4) {
-        setTimeout(() => {
-            initMap();
-            map.invalidateSize(); // Perbaikan agar peta tidak abu-abu saat muncul
-        }, 200);
-    }
-}
+
 
 function confirmMapPoint() {
     const coords = document.getElementById('mapCoords').value;
@@ -1198,7 +1205,22 @@ window.onload = () => {
     initDropdowns();
 };
 
-    
+
+    function triggerPriceCalculation() {
+    // Fungsi ini memicu kalkulasi ulang bounty jika user masih di Step 3
+    // agar saat masuk ke Step 4, harga sudah siap.
+    if(questData.destination.mode === 'standard') {
+        const k = document.getElementById('destKec').value;
+        const dIdx = document.getElementById('destDesa').value;
+        if(k && dIdx !== "") {
+            const dData = LOKASI_DB[k].desa[dIdx];
+            questData.destination.lat = dData.lat;
+            questData.destination.lng = dData.lng;
+            questData.destination.desa = dData.name;
+        }
+    }
+}
+
 
     
 
