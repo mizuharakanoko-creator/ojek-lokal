@@ -659,19 +659,31 @@
     }
 
     function toggleOriginMode() {
-        const p = document.getElementById('manualPanel');
-        const r = document.getElementById('gpsRadar');
-        const b = document.getElementById('btnToggle');
-        if(p.classList.contains('active')) {
-            p.classList.remove('active'); r.classList.remove('disabled');
-            b.innerText = "Ubah Titik Manual / Orang Lain";
-            questData.origin.mode = 'gps';
-        } else {
-            p.classList.add('active'); r.classList.add('disabled');
-            b.innerText = "Kembali ke Deteksi GPS Otomatis";
-            questData.origin.mode = 'smart';
-        }
+    const p = document.getElementById('manualPanel');
+    const r = document.getElementById('gpsRadar');
+    const b = document.getElementById('btnToggle');
+
+    if(p.classList.contains('active')) {
+        // BLOK 1: User mematikan panel manual (Kembali ke GPS Otomatis)
+        p.classList.remove('active'); 
+        r.classList.remove('disabled');
+        b.innerText = "Ubah Titik Manual / Orang Lain";
+        questData.origin.mode = 'gps';
+
+        // BARIS PERBAIKAN: Reset data manual agar tidak mengontaminasi GPS
+        questData.origin.lat = 0;
+        questData.origin.lng = 0;
+        startGPS(); // Mencari posisi GPS terbaru secara otomatis
+
+    } else {
+        // BLOK 2: User mengaktifkan panel manual
+        p.classList.add('active'); 
+        r.classList.add('disabled');
+        b.innerText = "Kembali ke Deteksi GPS Otomatis";
+        questData.origin.mode = 'smart';
     }
+}
+
 
     function switchOriginTab(mode) {
     // 1. Hapus semua class 'active' dari semua tombol tab
@@ -842,7 +854,14 @@ function initMapDest() {
     const startLat = questData.origin.lat || -6.9765;
     const startLng = questData.origin.lng || 108.4841;
 
-    mapDest = L.map('mapDest').setView([startLat, startLng], 15);
+    // PERBAIKAN: Menambahkan { tap: false } agar responsif di HP
+    mapDest = L.map('mapDest', { tap: false }).setView([startLat, startLng], 15);
+
+    // PERBAIKAN: Memberi jeda agar peta muncul sempurna & mendeteksi titik tengah awal
+    setTimeout(() => { 
+        mapDest.invalidateSize(); 
+        mapDest.fire('moveend'); 
+    }, 400);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapDest);
 
@@ -854,9 +873,14 @@ function initMapDest() {
         questData.destination.lat = center.lat;
         questData.destination.lng = center.lng;
         questData.destination.desa = loc.name;
+        
+        // Tambahkan koordinat ke teks agar tidak hilang saat broadcast
+        questData.destination.text = `📍 Peta: ${loc.name} (${center.lat.toFixed(5)},${center.lng.toFixed(5)})`;
+        
         showToast(`📍 Tujuan: ${loc.name}`);
     });
 }
+
 
 
 
@@ -1365,39 +1389,40 @@ let map;
 function initMap() {
     if (map) return; 
 
-    // Ganti selectedData menjadi questData
     const startLat = questData.origin.lat || -6.9765;
     const startLng = questData.origin.lng || 108.4841;
 
-    map = L.map('map').setView([startLat, startLng], 16);
+    // BARIS PERBAIKAN: Menambahkan { tap: false }
+    map = L.map('map', { tap: false }).setView([startLat, startLng], 16);
+
+    // BARIS TAMBAHAN: Memastikan peta tidak abu-abu & mendeteksi titik awal
+    setTimeout(() => { 
+        map.invalidateSize(); 
+        map.fire('moveend'); 
+    }, 400);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
     map.on('moveend', function() {
-    const center = map.getCenter();
-    const lat = center.lat;
-    const lng = center.lng;
-    
-    // Tampilkan koordinat di input
-    document.getElementById('mapCoords').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-    
-    // INTEGRASI: Cari nama desa berdasarkan titik koordinat tersebut
-    const lokasiHasilScan = cariDesaTerdekat(lat, lng);
-    
-    // Tampilkan info desa di bawah koordinat (sebagai feedback user)
-    showToast(`📍 Terdeteksi: ${lokasiHasilScan.name}, Kec. ${lokasiHasilScan.kec}`);
-    
-    // Simpan ke data utama
-    questData.origin.lat = lat;
-    questData.origin.lng = lng;
-    questData.origin.desa = lokasiHasilScan.name; // Simpan nama desanya
-    questData.origin.kec = lokasiHasilScan.kec;   // Simpan kecamatannya
-    questData.origin.text = `Titik Peta: ${lokasiHasilScan.name} (${lat.toFixed(5)},${lng.toFixed(5)})`;
-});
-
+        const center = map.getCenter();
+        const lat = center.lat;
+        const lng = center.lng;
+        
+        document.getElementById('mapCoords').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        
+        const lokasiHasilScan = cariDesaTerdekat(lat, lng);
+        showToast(`📍 Terdeteksi: ${lokasiHasilScan.name}, Kec. ${lokasiHasilScan.kec}`);
+        
+        questData.origin.lat = lat;
+        questData.origin.lng = lng;
+        questData.origin.desa = lokasiHasilScan.name;
+        questData.origin.kec = lokasiHasilScan.kec;
+        questData.origin.text = `Titik Peta: ${lokasiHasilScan.name} (${lat.toFixed(5)},${lng.toFixed(5)})`;
+    });
 }
+
 
 
 
