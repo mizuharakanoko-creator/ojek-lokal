@@ -1127,18 +1127,22 @@ function initMapDest() {
     let dText = questData.destination.text;
     
     if (questData.destination.mode === 'multi') {
+        // Tetap pertahankan daftar titik tujuan jika mode multi
         dText += "\n" + questData.destination.points.map(p => "- " + p).join('\n');
     } else if (questData.destination.mode === 'nego') {
         // Ambil teks langsung dari textarea jika mode bebas
         const negoVal = document.getElementById('destNegoText').value;
         dText = "✍️ " + (negoVal || "Alamat Bebas");
     } else if (questData.destination.mode === 'map') {
-        // Tambahkan koordinat jika mode peta
+        // PERBAIKAN: Gabungkan Nama Desa + Koordinat agar informatif
         const coords = document.getElementById('mapDestCoords').value;
-        dText = "📍 Titik Peta (" + (coords || "Geser Peta") + ")";
+        const namaDesa = questData.destination.desa || "Titik Peta";
+        dText = `📍 ${namaDesa} (${coords || "0,0"})`;
     }
+    
     document.getElementById('sumDest').innerText = dText;
 
+        
     // 5. Visualisasi Bounty & Tier
     const bountyEl = document.getElementById('sumBounty');
     if (amt > 0) {
@@ -1180,26 +1184,24 @@ function initMapDest() {
 
     try {
         // 3. Logika Fallback & Lokasi (Deteksi Shard & Folder)
-        let jemputKec, jemputDesa, diffRate;
-        
-        if (questData.origin.mode === 'gps' || questData.origin.mode === 'map') {
-            const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
-            jemputKec = loc.kec;
-            jemputDesa = loc.name;
-            diffRate = loc.diff || 1.0;
-        } else if (questData.origin.mode === 'smart') {
-            jemputKec = document.getElementById('manKec').value;
-            const dIdx = document.getElementById('manDesa').value;
-            if(!jemputKec || dIdx === "") throw new Error("Kecamatan atau Desa belum dipilih!");
-            const dataDesa = LOKASI_DB[jemputKec].desa[dIdx];
-            jemputDesa = dataDesa.name;
-            diffRate = dataDesa.diff || 1.0;
-        } else {
-            // MODE NEGO/MANUAL JEMPUT (Tanpa Koordinat)
-            jemputKec = "KNG"; 
-            jemputDesa = "AREA-LUAR"; // Folder khusus untuk lokasi tak terdeteksi
-            diffRate = 1.0;
-        }
+        let jemputKec = questData.origin.kec || "KNG";
+let jemputDesa = questData.origin.desa || "AREA-LUAR";
+let diffRate = 1.0;
+
+if (questData.origin.mode === 'gps' || questData.origin.mode === 'map') {
+    const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
+    jemputKec = loc.kec; 
+    jemputDesa = loc.name;
+    diffRate = loc.diff || 1.0;
+} else if (questData.origin.mode === 'smart') {
+    jemputKec = document.getElementById('manKec').value;
+    const dIdx = document.getElementById('manDesa').value;
+    if(!jemputKec || dIdx === "") throw new Error("Lokasi asal tidak lengkap!");
+    const dataDesa = LOKASI_DB[jemputKec].desa[dIdx];
+    jemputDesa = dataDesa.name;
+    diffRate = dataDesa.diff || 1.0;
+}
+
 
         const shard = getShardDariKecamatan(jemputKec);
         const mid = "MS-" + Date.now();
