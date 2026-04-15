@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sovereign Guild - Terminal v2.5 PRO</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="router_lokal.js"></script>
+    <script src="terminal_router.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    
+    <style>
+        /* ==========================================================================
+           1. VARIABEL & RESET GLOBAL
+           ========================================================================== */
+        :root {
+            --bg-dark: #020202;
+            --panel: #0d0d0d;
+            --primary: #ff0055;
+            --primary-glow: rgba(255, 0, 85, 0.6);
+            --secondary: #00f2ff;
+            --secondary-glow: rgba(0, 242, 255, 0.4);
+            --gold: #ffcc00;
+            --success: #00ff88;
+            --border: rgba(255, 255, 255, 0.08);
+            --font-mono: 'Fira Code', 'Courier New', monospace;
+            --font-main: 'Segoe UI', Roboto, sans-serif;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; margin: 0; padding: 0; }
+        
+        body { 
+            background: var(--bg-dark); color: white; font-family: var(--font-main); 
+            display: flex; justify-content: center; min-height: 100vh; padding: 15px; overflow-x: hidden;
+        }
+
+        /* ==========================================================================
+           2. LAYOUT UTAMA (QUEST BOARD)
+           ========================================================================== */
+        .quest-board {
+            width: 100%; max-width: 480px; background: var(--panel);
+            border: 1px solid var(--border); border-radius: 24px; padding: 25px;
+            position: relative; box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+            margin-bottom: 20px;
+        }
+
+        .terminal-header { text-align: center; margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+        .main-title { font-size: 22px; font-weight: 900; letter-spacing: 4px; color: var(--primary); text-transform: uppercase; text-shadow: 0 0 15px var(--primary-glow); }
+        .sub-title { font-size: 10px; color: var(--secondary); letter-spacing: 2px; opacity: 0.7; }
+        .instruction { font-size: 12px; color: #888; text-align: center; margin-bottom: 20px; }
+
+        /* Animasi Transisi Step */
+        .step-page { display: none; animation: slideIn 0.4s forwards; padding-bottom: 80px; }
+        .step-page.active { display: block; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ==========================================================================
+           3. KOMPONEN INPUT & FORM
+           ========================================================================== */
+        .input-group { margin-bottom: 15px; position: relative; }
+        .input-group label { display: block; font-size: 11px; color: var(--secondary); text-transform: uppercase; margin-bottom: 8px; font-weight: bold; }
+        .input-group input, .input-group select, .input-group textarea {
+            width: 100%; background: #111; border: 1px solid #333; border-radius: 12px;
+            padding: 14px; color: white; font-size: 14px; transition: 0.3s;
+        }
+        .input-group input:focus, .input-group textarea:focus { border-color: var(--secondary); box-shadow: 0 0 10px var(--secondary-glow); }
+        .input-group input[readonly] { opacity: 0.7; pointer-events: none; }
+
+        /* Autocomplete Box */
+        .suggest-box {
+            background: #1a1a1a; border: 1px solid #333; border-radius: 12px; margin-top: 5px;
+            max-height: 150px; overflow-y: auto; display: none; position: absolute; width: 100%;
+            z-index: 100; box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        .suggest-item { padding: 12px 15px; border-bottom: 1px solid #222; cursor: pointer; font-size: 13px; }
+        .suggest-item:hover { background: #252525; color: var(--secondary); }
+
+        /* Tombol Utama */
+        .btn-main {
+            width: 100%; background: var(--primary); color: #fff; border: none; padding: 18px;
+            border-radius: 15px; font-weight: 900; font-size: 14px; text-transform: uppercase;
+            cursor: pointer; transition: 0.3s; box-shadow: 0 5px 15px var(--primary-glow);
+        }
+        .btn-main:active { transform: scale(0.98); }
+        .btn-outline { width: 100%; background: transparent; border: 1px solid var(--secondary); color: var(--secondary); padding: 12px; border-radius: 12px; font-size: 12px; cursor: pointer; transition: 0.3s; margin-top: 10px; }
+
+        /* Voice to Text Button */
+        .btn-voice {
+            position: absolute; right: 10px; top: 35px; background: rgba(0,242,255,0.1); border: 1px solid var(--secondary);
+            color: var(--secondary); border-radius: 50%; width: 35px; height: 35px; cursor: pointer;
+            display: flex; justify-content: center; align-items: center; font-size: 16px; transition: 0.3s;
+        }
+        .btn-voice.recording { background: var(--primary); border-color: var(--primary); color: white; animation: pulse 1s infinite; }
+
+        /* ==========================================================================
+           4. STEP 1: KATEGORI GRID
+           ========================================================================== */
+        .grid-kategori { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .card-kat {
+            background: linear-gradient(145deg, #151515, #0a0a0a); border: 1px solid var(--border);
+            border-radius: 18px; padding: 20px 10px; text-align: center; cursor: pointer;
+            transition: 0.3s; position: relative;
+        }
+        .card-kat:hover { border-color: #555; }
+        .card-kat.active-node { border-color: var(--primary); box-shadow: 0 5px 15px rgba(255,0,85,0.2); }
+        .card-kat.locked-node { opacity: 0.4; filter: grayscale(1); }
+        .card-kat .icon { font-size: 35px; display: block; margin-bottom: 8px; }
+        .card-kat .label { font-size: 11px; font-weight: 800; color: #eee; text-transform: uppercase; }
+        .card-kat .badge { position: absolute; top: 10px; right: 10px; font-size: 9px; background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+
+        /* ==========================================================================
+           5. STEP 2: GPS RADAR & MANUAL
+           ========================================================================== */
+        .radar-panel { background: rgba(0, 255, 136, 0.05); border: 1px solid rgba(0, 255, 136, 0.2); border-radius: 20px; padding: 25px; text-align: center; margin-bottom: 20px; transition: 0.5s; }
+        .radar-panel.disabled { opacity: 0.3; filter: blur(1px); pointer-events: none; }
+        .radar-circle { width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--success); margin: 0 auto 15px; position: relative; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .radar-pulse { position: absolute; width: 100%; height: 100%; border: 2px solid var(--success); border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { from { transform: scale(1); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+
+.tabs { 
+    display: flex; 
+    gap: 8px; 
+    margin-bottom: 15px; 
+    background: #000; 
+    padding: 5px; 
+    border-radius: 12px; 
+}
+.tab-btn { 
+    flex: 1; 
+    padding: 10px 5px; 
+    background: transparent; 
+    border: none; 
+    color: #666; 
+    font-size: 10px; /* Diperkecil agar muat 3 tab */
+    font-weight: bold; 
+    cursor: pointer; 
+    border-radius: 8px; 
+    transition: 0.3s; 
+    white-space: nowrap;
+}
+        
+        .tab-btn.active { background: var(--secondary); color: #000; }
+        .manual-panel { display: none; background: #0a0a0a; border: 1px solid #222; padding: 15px; border-radius: 15px; margin-bottom: 20px; }
+        .manual-panel.active { display: block; }
+
+        /* ==========================================================================
+           6. STEP 4: REWARD & CHECKBOX DARURAT
+           ========================================================================== */
+        .cyber-checkbox-wrapper { display: flex; align-items: center; gap: 12px; background: rgba(255, 0, 85, 0.05); padding: 15px; border: 1px solid #333; margin-bottom: 20px; cursor: pointer; border-radius: 12px; transition: 0.3s; }
+        .cyber-checkbox-wrapper.checked { border-color: var(--primary); background: rgba(255, 0, 85, 0.15); }
+        .cyber-checkbox-wrapper input { display: none; }
+        .cyber-checkbox-wrapper .box { width: 20px; height: 20px; border: 2px solid var(--primary); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: transparent; transition: 0.3s; }
+        .cyber-checkbox-wrapper.checked .box { background: var(--primary); color: white; }
+        .cyber-checkbox-wrapper .label { font-size: 11px; font-weight: bold; color: var(--primary); letter-spacing: 1px; }
+
+        .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .price-card { background: #111; border: 1px solid #333; padding: 15px 5px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; }
+        .price-card.active { border-color: var(--secondary); background: rgba(0, 242, 255, 0.1); box-shadow: 0 0 15px rgba(0, 242, 255, 0.2); }
+        .price-card .tier { font-size: 9px; color: #888; display: block; margin-bottom: 5px; font-weight: bold; }
+        .price-card .amount { font-size: 14px; color: white; font-weight: 900; }
+        .price-card.active .tier { color: var(--secondary); }
+
+        .summary-box { background: rgba(0,0,0,0.5); border: 1px dashed var(--gold); padding: 15px; border-radius: 12px; font-family: var(--font-mono); font-size: 11px; color: #ccc; margin-bottom: 20px; }
+        .summary-box div { margin-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px; }
+        .summary-box .highlight { color: var(--gold); font-weight: bold; }
+
+        /* ==========================================================================
+           7. MODALS & TOAST
+           ========================================================================== */
+        #toast { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: var(--primary); color: white; padding: 12px 30px; border-radius: 50px; font-weight: bold; z-index: 11000; transition: 0.5s; font-size: 12px; box-shadow: 0 5px 15px rgba(255,0,85,0.5); }
+        #toast.show { top: 30px; }
+
+        .mega-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 10000; padding: 20px; backdrop-filter: blur(5px); }
+        .mega-modal.show { display: flex; }
+        .modal-content { background: #1a050a; border: 2px solid var(--primary); padding: 30px 20px; border-radius: 20px; text-align: center; max-width: 350px; width: 100%; box-shadow: 0 0 30px rgba(255,0,85,0.3); }
+        .modal-content h3 { color: var(--primary); margin: 10px 0; font-size: 18px; }
+        .modal-content p { color: #aaa; font-size: 12px; margin-bottom: 20px; }
+    
+
+        /* --- UI LOCK & AI ADD-ONS --- */
+.locked { 
+    border-color: var(--success) !important; 
+    color: var(--success) !important; 
+    background: #05100a !important; 
+    pointer-events: none; 
+    opacity: 0.8;
+}
+
+.btn-reset-lock { 
+    background: #ff4444; 
+    color: #fff; 
+    border: none; 
+    padding: 8px 12px; 
+    border-radius: 8px; 
+    font-size: 10px; 
+    font-weight: bold; 
+    margin: 10px 0; 
+    cursor: pointer; 
+    display: none; /* Default tersembunyi */
+}
+
+.btn-ai {
+    margin-top: 10px;
+    background: linear-gradient(90deg, #8e2de2, #4a00e0);
+    border: none;
+    color: white;
+    padding: 12px;
+    border-radius: 12px;
+    width: 100%;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(142, 45, 226, 0.3);
+    transition: 0.3s;
+}
+
+.btn-ai:active { transform: scale(0.95); }
+
+    /* Container Peta */
+#map-container {
+    width: 100%;
+    height: 300px;
+    border-radius: 15px;
+    border: 2px solid var(--border);
+    margin-bottom: 15px;
+    position: relative;
+    overflow: hidden;
+    display: none; /* Muncul hanya saat mode peta aktif */
+}
+
+#map { width: 100%; height: 100%; }
+
+/* Penanda Tengah (Crosshair) mirip Grab */
+.map-center-mark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -100%);
+    z-index: 1000;
+    pointer-events: none;
+    font-size: 30px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+
+        #multiPointsContainer { margin-bottom: 15px; }
+
+    
+    </style>
+</head>
+<body>
+
+
+<div id="toast">Notifikasi</div>
+
+<div id="megaModal" class="mega-modal">
+    <div class="modal-content">
+        <span style="font-size:40px; display:block;">🔒</span>
+        <h3>AKSES TERBATAS</h3>
+        <p>Silahkan Login atau Upgrade akun Adventurer Anda untuk mengakses kategori ini.</p>
+        <button class="btn-main" onclick="closeMegaModal()" style="box-shadow:none;">MENGERTI</button>
+    </div>
+</div>
+
+<div class="quest-board">
+    <div class="terminal-header">
+        <h2 class="main-title" id="displayHeader">Publish Quest</h2>
+        <span class="sub-title" id="userReputationDisplay">Sovereign Guild Terminal v2.5</span>
+    </div>
+
+    <div id="step1" class="step-page active">
+        <p class="instruction">Pilih tipe kontrak transmisi.</p>
+        <div class="grid-kategori">
+            <div class="card-kat active-node" onclick="navStep(2, 'Motor Ride')">
+                <span class="badge">OPEN</span><span class="icon">🏍️</span><span class="label">Motor Ride</span>
+            </div>
+            <div class="card-kat" onclick="checkAuthAndNav(2, 'Car Ride')">
+                <span class="icon">🚗</span><span class="label">Car Ride</span>
+            </div>
+            <div class="card-kat" onclick="checkAuthAndNav(2, 'Pick & Drop')">
+                <span class="icon">📦</span><span class="label">Pick & Drop</span>
+            </div>
+            <div class="card-kat" onclick="checkAuthAndNav(2, 'Titip Beli')">
+                <span class="icon">🛍️</span><span class="label">Titip Beli</span>
+            </div>
+            <div class="card-kat" onclick="checkAuthAndNav(2, 'Help')">
+                <span class="icon">🛠️</span><span class="label">Help/Service</span>
+            </div>
+            <div class="card-kat locked-node" onclick="showToast('Fitur dalam tahap update.')">
+                <span class="icon">⏳</span><span class="label">Update</span>
+            </div>
+        </div>
+
+        <div id="strangerAlert" style="
+    background: linear-gradient(45deg, #ff0055, #880022);
+    border-radius: 12px;
+    padding: 15px;
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.2);
+">
+    <div style="flex: 1;">
+        <h5 style="color: #fff; margin: 0; font-size: 14px;">⚠️ MODE STRANGER</h5>
+        <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 11px;">Progress tidak tersimpan secara permanen.</p>
+    </div>
+    <button onclick="location.href='login.html'" style="
+        background: #fff;
+        color: #ff0055;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 12px;
+        cursor: pointer;
+    ">LOGIN / DAFTAR</button>
+</div>
+    </div>
+
+    <div id="step2" class="step-page">
+        <p class="instruction">Penentuan koordinat awal (Origin).</p>
+        
+        <div class="radar-panel" id="gpsRadar">
+            <div class="radar-circle"><div class="radar-pulse"></div><span id="gpsIcon">📡</span></div>
+            <div id="resDesa" style="font-weight:900; color:var(--success); font-size:18px;">MENCARI SINYAL...</div>
+            <div id="resKec" style="font-size:11px; opacity:0.7; font-family:var(--font-mono); margin-top:5px;">High Accuracy GPS Active</div>
+        </div>
+
+        <button class="btn-outline" id="btnToggle" onclick="toggleOriginMode()">Ubah Titik Manual / Pesan Untuk Orang Lain</button>
+
+<div class="manual-panel" id="manualPanel">
+    <div class="tabs">
+        <button class="tab-btn active" id="tabSmart" onclick="switchOriginTab('smart')">📍 DESA</button>
+        <button class="tab-btn" id="tabNego" onclick="switchOriginTab('nego')">✍️ MANUAL</button>
+        <button class="tab-btn" id="tabMap" onclick="switchOriginTab('map')">🗺️ PETA</button>
+    </div>
+
+    <div id="originSmart">
+        <div class="input-group">
+            <label>Cari Desa Cepat</label>
+            <input type="text" id="smartSearch" placeholder="Ketik nama desa..." autocomplete="off">
+            <button class="btn-reset-lock" id="btnResetLock" onclick="resetManualLock()">🔄 RESET</button>
+            <div class="suggest-box" id="suggestBox"></div>
+        </div>
+        <div class="input-group">
+            <label>Kecamatan</label>
+            <select id="manKec" onchange="handleKecChange('manKec', 'manDesa')"></select>
+        </div>
+        <div class="input-group">
+            <label>Desa / Area</label>
+            <select id="manDesa"></select>
+        </div>
+    </div>
+
+    <div id="originNego" style="display:none;">
+    <div class="input-group">
+        <label>Masukan Detail Alamat dan Patokan nya..</label>
+        <button class="btn-voice" onclick="startVoiceToText('originNegoText', this)" style="top: 25px; right: 10px;">🎙️</button>
+        
+        <textarea id="originNegoText" rows="3" placeholder="Tulis deskripsi lokasi jemput..."></textarea>
+        <button class="btn-ai" onclick="polishWithAI()">✨ PERBAIKI TYPO (AI)</button>
+    </div>
+</div>
+
+
+    <div id="originMap" style="display:none;">
+        <div id="map-container" style="display:block;"> <div id="map"></div>
+            <div class="map-center-mark">📍</div>
+        </div>
+        <div class="input-group">
+            <label>Koordinat Terpilih</label>
+            <input type="text" id="mapCoords" readonly placeholder="Geser peta...">
+        </div>
+    </div>
+</div>
+
+
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="btn-outline" style="width:30%; margin-top:0;" onclick="navStep(1)">⬅️ KEMBALI</button>
+            <button class="btn-main" style="width:70%;" onclick="validateStep2()">LANJUT TUJUAN ➔</button>
+        </div>
+    </div>
+
+    <div id="step3" class="step-page">
+        <p class="instruction" id="step3Instruction">Tentukan target koordinat misi.</p>
+        
+        <div id="specificFormArea" style="margin-bottom: 20px;"></div>
+
+
+        
+<div id="destStandardArea" style="background: #111; border: 1px solid var(--border); border-radius: 15px; padding: 20px; margin-bottom: 20px;">
+    <label style="color: var(--secondary); margin-bottom: 15px; display: block; font-size: 11px; font-weight: bold;">📍 TUJUAN AKHIR</label>
+    
+    <div class="tabs">
+        <button class="tab-btn active" id="tabDestSmart" onclick="switchDestTab('smart')">📍 DESA</button>
+        <button class="tab-btn" id="tabDestNego" onclick="switchDestTab('nego')">✍️ MANUAL</button>
+        <button class="tab-btn" id="tabDestMap" onclick="switchDestTab('map')">🗺️ PETA</button>
+    </div>
+
+    <div id="destSmart">
+        <div class="input-group">
+            <label>Kecamatan Tujuan</label>
+            <select id="destKec" onchange="handleKecChange('destKec', 'destDesa', true)"></select>
+        </div>
+        <div class="input-group">
+            <label>Desa / Kelurahan Tujuan</label>
+            <select id="destDesa" onchange="triggerPriceCalculation()"></select>
+        </div>
+    </div>
+
+    <div id="destNego" style="display:none;">
+        <div class="input-group">
+            <label>Detail Lokasi Tujuan</label>
+            <button class="btn-voice" onclick="startVoiceToText('destNegoText', this)" style="top: 25px; right: 10px;">🎙️</button>
+            <textarea id="destNegoText" rows="3" placeholder="Contoh: Depan Toko Berkah, Jl. Raya No. 10..."></textarea>
+        </div>
+    </div>
+
+    <div id="destMap" style="display:none;">
+        <div id="map-dest-container" style="width: 100%; height: 250px; border-radius: 12px; position: relative; overflow: hidden; border: 1px solid #333;">
+            <div id="mapDest" style="width: 100%; height: 100%;"></div>
+            <div class="map-center-mark">📍</div>
+        </div>
+        <div class="input-group" style="margin-top:10px;">
+            <label>Koordinat Tujuan</label>
+            <input type="text" id="mapDestCoords" readonly placeholder="Geser peta tujuan...">
+        </div>
+    </div>
+
+    <div class="input-group" id="groupDetailTambahan" style="margin-top:10px;">
+        <label>Patokan / Detail (Opsional)</label>
+        <input type="text" id="destDetail" placeholder="Misal: Samping Pos Kamling">
+    </div>
+</div>
+
+
+        
+        <div id="destMultiArea" style="display:none; background: #111; border: 1px solid var(--border); border-radius: 15px; padding: 20px; margin-bottom: 20px;">
+            <label style="color: var(--gold); margin-bottom: 15px; display: block; font-size: 11px; font-weight: bold;">🛍️ DAFTAR LOKASI TITIP BELI (MAX 4)</label>
+            <div id="multiPointsContainer">
+                </div>
+            <button class="btn-outline" id="btnAddPoint" onclick="addTitipPoint()">[+] TAMBAH TITIK BELANJA</button>
+        </div>
+
+        <div id="destHelpArea" style="display:none; background: #111; border: 1px solid var(--border); border-radius: 15px; padding: 20px; margin-bottom: 20px;">
+            <div class="input-group">
+                <label>Deskripsi Bantuan</label>
+                <textarea id="helpDescText" rows="4" placeholder="Jelaskan bantuan yang dibutuhkan..."></textarea>
+                <button class="btn-voice" onclick="startVoiceToText('helpDescText', this)">🎙️</button>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+            <button class="btn-outline" style="width:30%; margin-top:0;" onclick="navStep(2)">⬅️ KEMBALI</button>
+            <button class="btn-main" style="width:70%;" onclick="validateStep3()">CEK BOUNTY ➔</button>
+        </div>
+    </div>
+
+    <div id="step4" class="step-page">
+        <p class="instruction">Konfigurasi Kompensasi & Kontrak.</p>
+
+        <div class="cyber-checkbox-wrapper" id="urgentWrapper" onclick="toggleUrgent()">
+            <div class="box">✔</div>
+            <input type="checkbox" id="urgentCheck">
+            <span class="label">AKTIFKAN MODE DARURAT (PRIORITAS)</span>
+        </div>
+
+        <div id="priceCalculationArea">
+            <label style="font-size: 11px; color: #888; margin-bottom:10px; display:block;">SARAN KOMPENSASI (PILIH SALAH SATU)</label>
+            <div class="price-grid" id="priceGrid">
+                <div class="price-card" onclick="selectPriceTier(this, 'Hemat')">
+                    <span class="tier">HEMAT</span><span class="amount" id="valHemat">0</span>
+                </div>
+                <div class="price-card active" onclick="selectPriceTier(this, 'Reguler')">
+                    <span class="tier">REGULER</span><span class="amount" id="valReguler">0</span>
+                </div>
+                <div class="price-card" onclick="selectPriceTier(this, 'Express')">
+                    <span class="tier">EXPRESS</span><span class="amount" id="valExpress">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label id="labelFinalPrice">Final Bounty (IDR)</label>
+            <input type="number" id="finalPriceInput" placeholder="Min. 5000" style="font-size: 20px; font-weight: 900; color: var(--gold); text-align: center;">
+        </div>
+
+        <div class="summary-box">
+            <div style="text-align:center; color:white; font-weight:bold; margin-bottom:10px;">=== KONTRAK MISI ===</div>
+            <div>Kategori : <span id="sumCat" class="highlight">-</span></div>
+            <div>Rank Misi: <span id="sumRank" class="highlight">BIASA</span></div>
+            <div>Jarak Est: <span id="sumDist" class="highlight">0 KM</span></div>
+            <div>Origin   : <span id="sumOri" style="color:#fff;">-</span></div>
+            <div>Tujuan   : <span id="sumDest" style="color:#fff;">-</span></div>
+            <div style="border-bottom:none; margin-top:10px; text-align:center; font-size:14px;">
+                BOUNTY: <span id="sumBounty" class="highlight" style="font-size:16px;">Rp 0</span>
+                <br><span id="sumTier" style="font-size:9px; color:#888;">TIER: -</span>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+            <button class="btn-outline" style="width:30%; margin-top:0;" onclick="navStep(3)">⬅️ EDIT</button>
+            <button class="btn-main" id="btnBroadcast" onclick="submitMission()" style="width:70%; background: linear-gradient(45deg, var(--primary), #bc00ff);">BROADCAST 📡</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================================================
+    // 1. DATA & STATE MANAGEMENT
+    // ==========================================================================
+    
+
+    // State Aplikasi
+    let questData = {
+        category: '',
+        client: { id: "GUEST-123", name: "Anonim", reputation: "PENGGUNA BARU", stats: { order: 0, cancel: 0 } },
+        origin: { mode: 'gps', text: '', lat: 0, lng: 0, kec: '', desa: '' },
+        destination: { mode: 'standard', points: [], text: '', lat: 0, lng: 0, kec: '', desa: '' },
+        specs: {},
+        isUrgent: false,
+        distanceEst: 0,
+        reward: 0
+    };
+
+    // Simulasi Cek Login
+    function checkUserAuth() {
+    const storedUID = localStorage.getItem('current_customer_id');
+    const noticeContainer = document.getElementById('strangerNotice'); // Pastikan ID ini ada di pembungkus banner
+    
+    if(storedUID && !storedUID.includes("GUEST")) {
+        questData.client.id = storedUID;
+        questData.client.reputation = "TERPERCAYA"; 
+        document.getElementById('userReputationDisplay').innerText = "STATUS: CITIZEN";
+        if(noticeContainer) noticeContainer.style.display = 'none'; 
+    } else {
+        questData.client.id = "STRANGER-" + Math.floor(Math.random() * 1000);
+        const display = document.getElementById('userReputationDisplay');
+        display.innerHTML = "STATUS: <span style='color:var(--primary)'>STRANGER (TAMU)</span>";
+        if(noticeContainer) noticeContainer.style.display = 'block';
+    }
+}
+
+    checkUserAuth();
+
+    // ==========================================================================
+    // 2. AUDIO & UI HELPERS
+    // ==========================================================================
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSfx(f, t, d, v=0.1) {
+        try {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = t; o.frequency.value = f;
+            g.gain.setValueAtTime(v, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + d);
+        } catch(e) {}
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg; t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function checkAuthAndNav(step, category) {
+        if(questData.client.id.includes("GUEST")) {
+            document.getElementById('megaModal').classList.add('show');
+            playSfx(150, 'sawtooth', 0.4);
+        } else {
+            navStep(step, category);
+        }
+    }
+    function closeMegaModal() { document.getElementById('megaModal').classList.remove('show'); }
+
+    // ==========================================================================
+    // 3. NAVIGATION & CATEGORY SETUP
+    // ==========================================================================
+    function navStep(num, categoryName = null) {
+        if(categoryName) {
+            questData.category = categoryName;
+            document.getElementById('displayHeader').innerText = "[" + categoryName.toUpperCase() + "]";
+            setupCategorySpecifics(categoryName);
+            playSfx(800, 'sine', 0.2);
+        }
+
+        document.querySelectorAll('.step-page').forEach(p => p.classList.remove('active'));
+        document.getElementById('step' + num).classList.add('active');
+
+        if(num === 2 && questData.origin.lat === 0) startGPS();
+        if(num === 4) calculateAndDisplayBounty();
+        
+        window.scrollTo(0,0);
+    }
+
+    function setupCategorySpecifics(cat) {
+        const specArea = document.getElementById('specificFormArea');
+        const destStand = document.getElementById('destStandardArea');
+        const destMulti = document.getElementById('destMultiArea');
+        const destHelp = document.getElementById('destHelpArea');
+        
+        // Reset Views
+        specArea.innerHTML = ""; destStand.style.display = 'none'; destMulti.style.display = 'none'; destHelp.style.display = 'none';
+        questData.destination.mode = 'standard';
+
+        if(cat === 'Motor Ride' || cat === 'Car Ride') {
+            destStand.style.display = 'block';
+        } 
+        else if (cat === 'Pick & Drop') {
+            destStand.style.display = 'block';
+            specArea.innerHTML = `
+                <div class="input-group"><label>Jenis Barang</label><input type="text" id="specBarang" placeholder="Misal: Dokumen Penting"></div>
+            `;
+        }
+        else if (cat === 'Titip Beli') {
+            questData.destination.mode = 'multi';
+            destMulti.style.display = 'block';
+            if(document.getElementById('multiPointsContainer').children.length === 0) addTitipPoint(); // Add 1st point default
+        }
+        else if (cat === 'Help') {
+            questData.destination.mode = 'help';
+            destHelp.style.display = 'block';
+        }
+    }
+
+    // ==========================================================================
+    // 4. STEP 2: ORIGIN LOGIC (GPS, MANUAL, AUTOCOMPLETE)
+    // ==========================================================================
+    function startGPS() {
+        if(!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(pos => {
+            questData.origin.lat = pos.coords.latitude;
+            questData.origin.lng = pos.coords.longitude;
+            
+            // Mock Reverse Geocode (Mencari desa terdekat)
+            let nearest = { name: "LOKASI DITEMUKAN", kec: "KNG", dist: 999 };
+            for(let k in LOKASI_DB) {
+                LOKASI_DB[k].desa.forEach(d => {
+                    const dist = Math.sqrt(Math.pow(pos.coords.latitude - d.lat, 2) + Math.pow(pos.coords.longitude - d.lng, 2));
+                    if(dist < nearest.dist) nearest = { name: d.name, kec: k, dist: dist };
+                });
+            }
+
+            document.getElementById('resDesa').innerText = nearest.name.toUpperCase();
+            document.getElementById('resKec').innerText = "Kec. " + nearest.kec;
+            questData.origin.desa = nearest.name;
+            questData.origin.text = nearest.name;
+            questData.origin.mode = 'gps';
+            playSfx(1000, 'sine', 0.2);
+            initDropdowns(); // Prepare manual if needed
+        });
+    }
+
+    function toggleOriginMode() {
+    const p = document.getElementById('manualPanel');
+    const r = document.getElementById('gpsRadar');
+    const b = document.getElementById('btnToggle');
+
+    if(p.classList.contains('active')) {
+        // BLOK 1: User mematikan panel manual (Kembali ke GPS Otomatis)
+        p.classList.remove('active'); 
+        r.classList.remove('disabled');
+        b.innerText = "Ubah Titik Manual / Orang Lain";
+        questData.origin.mode = 'gps';
+
+        // BARIS PERBAIKAN: Reset data manual agar tidak mengontaminasi GPS
+        questData.origin.lat = 0;
+        questData.origin.lng = 0;
+        startGPS(); // Mencari posisi GPS terbaru secara otomatis
+
+    } else {
+        // BLOK 2: User mengaktifkan panel manual
+        p.classList.add('active'); 
+        r.classList.add('disabled');
+        b.innerText = "Kembali ke Deteksi GPS Otomatis";
+        questData.origin.mode = 'smart';
+    }
+}
+
+
+    function switchOriginTab(mode) {
+    // 1. Hapus semua class 'active' dari semua tombol tab
+    document.getElementById('tabSmart').classList.remove('active');
+    document.getElementById('tabNego').classList.remove('active');
+    document.getElementById('tabMap').classList.remove('active');
+
+    // 2. Sembunyikan semua kontainer konten
+    document.getElementById('originSmart').style.display = 'none';
+    document.getElementById('originNego').style.display = 'none';
+    document.getElementById('originMap').style.display = 'none';
+
+    // 3. Hanya aktifkan yang diklik
+    if (mode === 'smart') {
+        document.getElementById('tabSmart').classList.add('active');
+        document.getElementById('originSmart').style.display = 'block';
+    } else if (mode === 'nego') {
+        document.getElementById('tabNego').classList.add('active');
+        document.getElementById('originNego').style.display = 'block';
+    }     else if (mode === 'map') {
+        document.getElementById('tabMap').classList.add('active');
+        document.getElementById('originMap').style.display = 'block';
+        document.getElementById('map-container').style.display = 'block'; // Pastikan container muncul
+        
+        setTimeout(() => {
+            initMap();
+            if(map) {
+                map.invalidateSize();
+                // Opsional: Fokuskan kembali ke koordinat terakhir jika sudah ada
+                if(questData.origin.lat) map.setView([questData.origin.lat, questData.origin.lng], 16);
+            }
+        }, 300);
+    }
+
+    questData.origin.mode = mode;
+}
+
+
+    function initDropdowns() {
+        const selects = ['manKec', 'destKec'];
+        selects.forEach(id => {
+            const el = document.getElementById(id);
+            if(el.options.length > 0) return;
+            el.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+            Object.keys(LOKASI_DB).forEach(k => el.innerHTML += `<option value="${k}">${k}</option>`);
+        });
+    }
+
+    function handleKecChange(kecId, desaId, isDest = false) {
+        const k = document.getElementById(kecId).value;
+        const s = document.getElementById(desaId);
+        s.innerHTML = '<option value="">-- Pilih Desa --</option>';
+        if(k && LOKASI_DB[k]) {
+            LOKASI_DB[k].desa.forEach((d, i) => s.innerHTML += `<option value="${i}">${d.name}</option>`);
+        }
+        if(isDest) triggerPriceCalculation();
+    }
+
+    // Autocomplete Origin
+    document.getElementById('smartSearch').addEventListener('input', function() {
+        const val = this.value.toLowerCase();
+        const box = document.getElementById('suggestBox');
+        box.innerHTML = '';
+        if(val.length < 2) { box.style.display = 'none'; return; }
+        
+        box.style.display = 'block';
+        for(let k in LOKASI_DB) {
+            LOKASI_DB[k].desa.forEach((d, i) => {
+                if(d.name.toLowerCase().includes(val)) {
+                    let div = document.createElement('div');
+                    div.className = 'suggest-item';
+                    div.innerHTML = `<b>${d.name}</b> <br><small>Kec. ${k}</small>`;
+                    div.onclick = () => {
+                      applyManualLock(d.name, k, i);
+                      box.style.display = 'none';
+                    };
+
+                    box.appendChild(div);
+                }
+            });
+        }
+    });
+
+    function validateStep2() {
+    // Jika user sedang di panel manual (Mode Smart Desa atau Map)
+    const isManualPanelActive = document.getElementById('manualPanel').classList.contains('active');
+
+    if (isManualPanelActive) {
+        if (questData.origin.mode === 'smart') {
+            const k = document.getElementById('manKec').value;
+            const dIdx = document.getElementById('manDesa').value;
+            if (!k || dIdx === "") return showToast("⚠️ Pilih Desa Asal!");
+            
+            const dData = LOKASI_DB[k].desa[dIdx];
+            questData.origin.lat = dData.lat; 
+            questData.origin.lng = dData.lng;
+            questData.origin.kec = k;
+            questData.origin.desa = dData.name;
+            questData.origin.text = "📍 " + dData.name;
+        } 
+        else if (questData.origin.mode === 'map') {
+            if (!questData.origin.lat) return showToast("⚠️ Geser peta untuk titik!");
+            // Data sudah terisi otomatis di questData oleh event 'moveend' map
+        }
+        else if (questData.origin.mode === 'nego') {
+             const t = document.getElementById('originNegoText').value;
+             if (t.length < 5) return showToast("⚠️ Alamat jemput terlalu singkat!");
+             questData.origin.text = "✍️ " + t;
+             questData.origin.lat = 0; // Menandakan Nego
+        }
+    } else {
+        // Jika panel manual TIDAK aktif, gunakan hasil GPS Otomatis
+        if (!questData.origin.lat) return showToast("⚠️ Menunggu sinyal GPS...");
+        questData.origin.mode = 'gps';
+        // Teks sudah diset saat startGPS()
+    }
+    
+    navStep(3);
+}
+
+
+
+    // ==========================================================================
+    // 5. STEP 3: DESTINATION & DYNAMIC FORMS
+    // ==========================================================================
+
+// State untuk menyimpan mode tujuan
+questData.destination.mode = 'smart'; 
+
+function switchDestTab(mode) {
+    // 1. Reset data koordinat & teks tujuan agar bersih
+    questData.destination.lat = 0;
+    questData.destination.lng = 0;
+    questData.destination.desa = "";
+    questData.destination.text = "";
+
+    // 2. UI Tab Toggle
+    document.querySelectorAll('[id^="tabDest"]').forEach(b => b.classList.remove('active'));
+    document.getElementById('destSmart').style.display = 'none';
+    document.getElementById('destNego').style.display = 'none';
+    document.getElementById('destMap').style.display = 'none';
+
+    // 3. Aktifkan mode terpilih
+    if (mode === 'smart') {
+        document.getElementById('tabDestSmart').classList.add('active');
+        document.getElementById('destSmart').style.display = 'block';
+    } else if (mode === 'nego') {
+        document.getElementById('tabDestNego').classList.add('active');
+        document.getElementById('destNego').style.display = 'block';
+    } else if (mode === 'map') {
+        document.getElementById('tabDestMap').classList.add('active');
+        document.getElementById('destMap').style.display = 'block';
+        setTimeout(initMapDest, 300);
+    }
+
+    questData.destination.mode = mode;
+    calculateAndDisplayBounty(); // Hitung ulang harga
+}
+
+
+let mapDest;
+function initMapDest() {
+    if (mapDest) {
+        mapDest.invalidateSize();
+        return;
+    }
+
+    const startLat = questData.origin.lat || -6.9765;
+    const startLng = questData.origin.lng || 108.4841;
+
+    // PERBAIKAN: Menambahkan { tap: false } agar responsif di HP
+    mapDest = L.map('mapDest', { tap: false }).setView([startLat, startLng], 15);
+
+    // PERBAIKAN: Memberi jeda agar peta muncul sempurna & mendeteksi titik tengah awal
+    setTimeout(() => { 
+        mapDest.invalidateSize(); 
+        mapDest.fire('moveend'); 
+    }, 400);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapDest);
+
+    mapDest.on('moveend', function() {
+        const center = mapDest.getCenter();
+        document.getElementById('mapDestCoords').value = `${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}`;
+        
+        const loc = cariDesaTerdekat(center.lat, center.lng);
+        questData.destination.lat = center.lat;
+        questData.destination.lng = center.lng;
+        questData.destination.desa = loc.name;
+        
+        // Tambahkan koordinat ke teks agar tidak hilang saat broadcast
+        questData.destination.text = `📍 Peta: ${loc.name} (${center.lat.toFixed(5)},${center.lng.toFixed(5)})`;
+        
+        showToast(`📍 Tujuan: ${loc.name}`);
+    });
+}
+
+
+
+
+
+    
+    // Voice to text capability
+    function startVoiceToText(targetId, btnEl) {
+    // Mengecek dukungan browser
+    if (!('webkitSpeechRecognition' in window) && !('speechRecognition' in window)) {
+        return showToast("Browser tidak support Voice Input.");
+    }
+    
+    const SpeechRecognition = window.webkitSpeechRecognition || window.speechRecognition;
+    const rec = new SpeechRecognition();
+    
+    rec.lang = 'id-ID';
+    rec.continuous = false;
+    rec.interimResults = false;
+
+    rec.onstart = () => { 
+        btnEl.classList.add('recording'); 
+        showToast("Mendengarkan..."); 
+    };
+
+    rec.onresult = (e) => {
+        const txt = e.results[0][0].transcript;
+        const target = document.getElementById(targetId);
+        // Menambahkan teks suara ke textarea
+        target.value = target.value ? target.value + " " + txt : txt;
+    };
+
+    rec.onend = () => { 
+        btnEl.classList.remove('recording'); 
+    };
+
+    rec.onerror = (e) => {
+        btnEl.classList.remove('recording');
+        showToast("Error: " + e.error);
+    };
+
+    rec.start();
+}
+
+
+    // Dynamic Multi-Points (Titip Beli)
+    let pointCounter = 0;
+    function addTitipPoint() {
+        if(pointCounter >= 4) return showToast("Maksimal 4 titik belanja!");
+        pointCounter++;
+        const div = document.createElement('div');
+        div.className = "input-group";
+        div.id = "pointGroup_" + pointCounter;
+        div.innerHTML = `
+            <label>Lokasi & Catatan ${pointCounter}</label>
+            <div style="display:flex; gap:10px;">
+                <textarea id="pointVal_${pointCounter}" rows="2" style="flex:1;" placeholder="Misal: Indomaret Cijoho, beli Air Mineral 2"></textarea>
+                <button class="btn-outline" style="width:40px; margin:0; padding:0; border-color:var(--primary); color:var(--primary);" onclick="this.parentElement.parentElement.remove(); pointCounter--;">-</button>
+            </div>
+            <button class="btn-voice" style="top:25px; right:60px;" onclick="startVoiceToText('pointVal_${pointCounter}', this)">🎙️</button>
+        `;
+        document.getElementById('multiPointsContainer').appendChild(div);
+    }
+
+    function validateStep3() {
+    questData.destination.points = [];
+
+    // JIKA MODE NYA BUKAN MULTI ATAU HELP, BERARTI MENGGUNAKAN SISTEM TAB (STANDARD)
+    if (questData.destination.mode === 'smart') {
+        const k = document.getElementById('destKec').value;
+        const dIdx = document.getElementById('destDesa').value;
+        if (!k || dIdx === "") return showToast("⚠️ Pilih Desa Tujuan!");
+        
+        const dData = LOKASI_DB[k].desa[dIdx];
+        questData.destination.lat = dData.lat;
+        questData.destination.lng = dData.lng;
+        questData.destination.desa = dData.name; 
+        questData.destination.text = dData.name + " (" + (document.getElementById('destDetail').value || "Tanpa Detail") + ")";
+    } 
+    else if (questData.destination.mode === 'nego') {
+        const t = document.getElementById('destNegoText').value;
+        if (t.length < 5) return showToast("⚠️ Deskripsi tujuan terlalu singkat!");
+        questData.destination.text = "✍️ " + t;
+        questData.destination.desa = "Custom Location";
+        questData.destination.lat = 0;
+    }
+    else if (questData.destination.mode === 'map') {
+        if (!questData.destination.lat) return showToast("⚠️ Geser peta tujuan!");
+        questData.destination.text = "📍 Titik Peta (" + (document.getElementById('destDetail').value || "Tanpa Detail") + ")";
+        // questData.destination.desa sudah terisi otomatis saat moveend di mapDest
+    }
+    // LOGIKA LAMA YANG TETAP HARUS ADA:
+    else if (questData.destination.mode === 'multi') {
+        let valid = true;
+        for(let i=1; i<=4; i++) {
+            const el = document.getElementById("pointVal_" + i);
+            if(el && el.value.length > 3) questData.destination.points.push(el.value);
+            else if (el && el.value.length > 0 && el.value.length <= 3) valid = false;
+        }
+        if(!valid || questData.destination.points.length === 0) return showToast("⚠️ Isi detail titik belanja!");
+        questData.destination.text = questData.destination.points.length + " Titik Belanja";
+        questData.destination.desa = "Multi-Point"; 
+    }
+    else if (questData.destination.mode === 'help') {
+        const v = document.getElementById('helpDescText').value;
+        if(v.length < 10) return showToast("⚠️ Deskripsi minimal 10 karakter.");
+        questData.destination.text = "Bantuan Khusus";
+        questData.destination.desa = "Service"; 
+        questData.specs.helpDesc = v;
+    }
+
+    navStep(4);
+}
+
+
+
+
+
+    // ==========================================================================
+    // 6. STEP 4: REWARD & LOGIC HAVERSINE
+    // ==========================================================================
+    function calculateRealDistance(lat1, lon1, lat2, lon2) {
+        if(lat1 === 0 || lat2 === 0) return 0; // Nego mode
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    function toggleUrgent() {
+        const wrap = document.getElementById('urgentWrapper');
+        const chk = document.getElementById('urgentCheck');
+        chk.checked = !chk.checked;
+        questData.isUrgent = chk.checked;
+        wrap.classList.toggle('checked', chk.checked);
+        updateSummaryUI();
+    }
+
+    
+    function calculateAndDisplayBounty() {
+    const pArea = document.getElementById('priceCalculationArea');
+    const inputFinal = document.getElementById('finalPriceInput');
+
+    // IZINPublish: Map sekarang masuk ke hitungan otomatis (karena lat/lng ada)
+    const isManualMode = ['nego', 'multi', 'help'].includes(questData.destination.mode);
+
+    if (isManualMode || (questData.origin.lat === 0 && questData.origin.mode !== 'map')) {
+        pArea.style.display = 'none';
+        document.getElementById('labelFinalPrice').innerText = "SISTEM KOMPENSASI: NEGO";
+        inputFinal.value = 0;
+        inputFinal.readOnly = true;
+        inputFinal.style.color = "#888";
+        questData.distanceEst = 0;
+        updateSummaryUI();
+        return;
+    }
+
+    // MODE OTOMATIS (Smart Desa & Map)
+    pArea.style.display = 'block';
+    inputFinal.readOnly = false;
+    inputFinal.style.color = "var(--gold)";
+    document.getElementById('labelFinalPrice').innerText = "Final Bounty (IDR)";
+
+    // Ambil detail desa untuk multiplier (diff)
+    let diff = 1.0;
+    if (questData.destination.mode === 'smart') {
+        const destKec = document.getElementById('destKec').value;
+        const destDesaName = document.getElementById('destDesa').options[document.getElementById('destDesa').selectedIndex]?.text;
+        const detailDesa = getDetailDesa(destKec, destDesaName);
+        if (detailDesa) diff = detailDesa.diff;
+    }
+
+    const distLurus = calculateRealDistance(questData.origin.lat, questData.origin.lng, questData.destination.lat, questData.destination.lng);
+    questData.distanceEst = (distLurus * 1.5).toFixed(1); 
+    
+    let baseK = questData.category === 'Car Ride' ? 1.8 : 1.0; 
+    const round1k = (num) => Math.ceil(num / 1000) * 1000;
+    
+    let vHemat = Math.max(10000 * baseK, round1k((questData.distanceEst * 2000 * baseK) * diff));
+    let vReg = Math.max(12000 * baseK, round1k((questData.distanceEst * 3000 * baseK) * diff));
+    let vExp = Math.max(15000 * baseK, round1k((questData.distanceEst * 4000 * baseK) * diff));
+
+    document.getElementById('valHemat').innerText = vHemat.toLocaleString('id-ID');
+    document.getElementById('valHemat').dataset.val = vHemat;
+    document.getElementById('valReguler').innerText = vReg.toLocaleString('id-ID');
+    document.getElementById('valReguler').dataset.val = vReg;
+    document.getElementById('valExpress').innerText = vExp.toLocaleString('id-ID');
+    document.getElementById('valExpress').dataset.val = vExp;
+
+    // Pastikan nilai terpilih masuk ke input
+    const activeCard = document.querySelector('.price-card.active');
+    if (activeCard) {
+        inputFinal.value = activeCard.querySelector('.amount').dataset.val;
+    }
+    updateSummaryUI();
+
+    selectPriceTier(document.querySelector('.price-card.active'), 'Reguler', vReg);
+}
+
+
+
+    function selectPriceTier(element, tierName, forcedVal = null) {
+        document.querySelectorAll('.price-card').forEach(c => c.classList.remove('active'));
+        if(element) element.classList.add('active');
+        
+        let val = forcedVal || parseInt(element.querySelector('.amount').dataset.val);
+        document.getElementById('finalPriceInput').value = val;
+        updateSummaryUI();
+    }
+
+    // Auto update summary if manual input changes
+    document.getElementById('finalPriceInput').addEventListener('input', updateSummaryUI);
+
+    // Ikan Tier Logic
+    function getFishTier(price) {
+        if(price === 0) return "NEGO";
+        if (price < 15000) return "KECIL";
+        if (price < 25000) return "SEDANG";
+        if (price < 40000) return "MANTAP";
+        if (price < 60000) return "KAKAP";
+        if (price < 100000) return "HIU";
+        if (price < 200000) return "PAUS";
+        return "MEGALODON";
+    }
+
+    function updateSummaryUI() {
+    const amt = parseInt(document.getElementById('finalPriceInput').value) || 0;
+    questData.reward = amt;
+
+    document.getElementById('sumCat').innerText = questData.category.toUpperCase();
+    
+    // 1. Status Urgent/Rank
+    const rankEl = document.getElementById('sumRank');
+    rankEl.innerText = questData.isUrgent ? "DARURAT (PRIORITAS)" : "STANDAR";
+    rankEl.style.color = questData.isUrgent ? "var(--primary)" : "var(--gold)";
+    
+    // 2. Jarak (Gunakan UNTRACKED jika 0)
+    document.getElementById('sumDist').innerText = questData.distanceEst > 0 ? questData.distanceEst + " KM" : "UNTRACKED";
+    
+    // 3. Lokasi Asal
+    document.getElementById('sumOri').innerText = questData.origin.text;
+    
+    // 4. Logika Teks Tujuan (Sesuai mode baru)
+    let dText = questData.destination.text;
+    
+    if (questData.destination.mode === 'multi') {
+        dText += "\n" + questData.destination.points.map(p => "- " + p).join('\n');
+    } else if (questData.destination.mode === 'nego') {
+        // Ambil teks langsung dari textarea jika mode bebas
+        const negoVal = document.getElementById('destNegoText').value;
+        dText = "✍️ " + (negoVal || "Alamat Bebas");
+    } else if (questData.destination.mode === 'map') {
+        // Tambahkan koordinat jika mode peta
+        const coords = document.getElementById('mapDestCoords').value;
+        dText = "📍 Titik Peta (" + (coords || "Geser Peta") + ")";
+    }
+    document.getElementById('sumDest').innerText = dText;
+
+    // 5. Visualisasi Bounty & Tier
+    const bountyEl = document.getElementById('sumBounty');
+    if (amt > 0) {
+        bountyEl.innerText = "Rp " + amt.toLocaleString('id-ID');
+        bountyEl.style.color = "var(--gold)";
+        document.getElementById('sumTier').innerText = "TIER: " + getFishTier(amt);
+    } else {
+        bountyEl.innerText = "SISTEM NEGO";
+        bountyEl.style.color = "var(--secondary)"; // Warna biru cyan
+        document.getElementById('sumTier').innerText = "TIER: NEGO";
+    }
+}
+
+
+    // ==========================================================================
+    // 7. FINALIZATION & SUBMIT
+    // ==========================================================================
+        async function submitMission() {
+    // 1. Validasi Bounty & Mode (Filter Awal)
+    const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
+
+    if(questData.destination.mode === 'smart' && bountyAmt > 0 && bountyAmt < 8000) {
+        return alert("Bounty minimal Rp 8.000!");
+    }
+    
+    const isNegoMode = ['nego', 'map', 'multi', 'help'].includes(questData.destination.mode);
+    if(!isNegoMode && bountyAmt === 0) {
+        return alert("Silahkan pilih paket harga terlebih dahulu!");
+    }
+
+    // 2. Persiapan UI (Broadcast Mode)
+    const btn = document.getElementById('btnBroadcast');
+    if(btn) {
+        btn.innerText = "TRANSMITTING...";
+        btn.disabled = true;
+    }
+    
+    if(typeof playSfx === 'function') playSfx(2000, 'sine', 1, 0.5);
+
+    try {
+        // 3. Logika Fallback & Lokasi (Deteksi Shard & Folder)
+        let jemputKec, jemputDesa, diffRate;
+        
+        if (questData.origin.mode === 'gps' || questData.origin.mode === 'map') {
+            const loc = cariDesaTerdekat(questData.origin.lat, questData.origin.lng);
+            jemputKec = loc.kec;
+            jemputDesa = loc.name;
+            diffRate = loc.diff || 1.0;
+        } else if (questData.origin.mode === 'smart') {
+            jemputKec = document.getElementById('manKec').value;
+            const dIdx = document.getElementById('manDesa').value;
+            if(!jemputKec || dIdx === "") throw new Error("Kecamatan atau Desa belum dipilih!");
+            const dataDesa = LOKASI_DB[jemputKec].desa[dIdx];
+            jemputDesa = dataDesa.name;
+            diffRate = dataDesa.diff || 1.0;
+        } else {
+            // MODE NEGO/MANUAL JEMPUT (Tanpa Koordinat)
+            jemputKec = "KNG"; 
+            jemputDesa = "AREA-LUAR"; // Folder khusus untuk lokasi tak terdeteksi
+            diffRate = 1.0;
+        }
+
+        const shard = getShardDariKecamatan(jemputKec);
+        const mid = "MS-" + Date.now();
+
+        // 4. Inisialisasi Terminal Firebase
+        const db1 = getTerminal('FB1_MASTER');
+        const db4 = getTerminal('FB4_BOARD');
+
+        // 5. Susun Payload (Sesuai Struktur Kode Asli Anda + Patch)
+        const boardData = {
+            id_misi: mid,
+            id_requester: questData.client.id,
+            client_name: questData.client.id.includes("STRANGER") ? "Stranger" : "Member",
+            category: questData.category,
+            reward: bountyAmt,
+            difficulty_rate: diffRate || 1.0,
+            zona: jemputKec || "KNG",
+            shard_id: shard || "S1",
+            rank: questData.isUrgent ? "DARURAT" : "BIASA",
+            fish_tier: getFishTier(bountyAmt),
+            
+            // Lokasi Origin
+            origin_name: questData.origin.text,
+            origin_desa: jemputDesa, 
+            origin_coords: questData.origin.lat ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
+            
+            // Lokasi Tujuan
+            dest_name: questData.destination.text,
+            dest_desa: questData.destination.desa || "Tujuan Khusus",
+            dest_details: document.getElementById('destDetail') ? document.getElementById('destDetail').value : "",
+            dest_coords: questData.destination.lat ? `${questData.destination.lat},${questData.destination.lng}` : "NEGO",
+
+            // Meta Data Tambahan (Jika ada spec barang atau deskripsi bantuan)
+            specs: {
+                barang: document.getElementById('specBarang') ? document.getElementById('specBarang').value : "",
+                bantuan: document.getElementById('helpDescText') ? document.getElementById('helpDescText').value : "",
+                multi_points: questData.destination.points || []
+            },
+
+            distance_est: questData.distanceEst || 0,
+            status: "open",
+            created_at: Date.now()
+        };
+
+        // 6. Eksekusi Kirim ke Database
+        await Promise.all([
+            db1.ref(`misi_index/${mid}`).set({ 
+                id_misi: mid, 
+                id_shard: shard, 
+                zona: jemputKec, 
+                status: "open",
+                id_requester: questData.client.id
+            }),
+            db4.ref(`mission-${shard}/${jemputDesa}/${mid}`).set(boardData)
+        ]);
+
+        // 7. Simpan Session & Redirect
+        sessionStorage.setItem('active_mission_id', mid);
+        sessionStorage.setItem('active_mission_shard', shard);
+        sessionStorage.setItem('active_mission_desa', jemputDesa);
+
+        if(typeof showToast === 'function') showToast("SINYAL TERSEBAR!");
+        
+        setTimeout(() => {
+            window.location.href = "lobby_requester.html";
+        }, 1000);
+
+    } catch (e) {
+        console.error(e);
+        alert("Gagal Transmisi: " + e.message);
+        if(btn) {
+            btn.disabled = false;
+            btn.innerText = "BROADCAST 📡";
+        }
+    }
+}
+
+ 
+
+
+    function cariDesaTerdekat(lat, lng) {
+    let terdekat = { name: "Tidak Terdeteksi", kec: "KNG", dist: 999, diff: 1.0 };
+    
+    // Melakukan loop pada database wilayah dari router_lokal.js
+    for (const kec in LOKASI_DB) {
+        LOKASI_DB[kec].desa.forEach(d => {
+            // Rumus Pythagoras sederhana untuk mencari jarak terdekat
+            const dist = Math.sqrt(Math.pow(lat - d.lat, 2) + Math.pow(lng - d.lng, 2));
+            if (dist < terdekat.dist) {
+                terdekat = { 
+                    name: d.name, 
+                    kec: kec, 
+                    dist: dist, 
+                    diff: d.diff || 1.0 
+                };
+            }
+        });
+    }
+    return terdekat;
+    }
+
+
+// tambahan
+
+// 1. DAFTAR KATA KUNCI UNTUK KOREKSI TYPO
+const VALID_KEYWORDS = ["Jalan", "Depan", "Dekat", "Samping", "Gang", "Masjid", "Pasar", "Kantor", "Gerbang", "Lampu", "Rumah", "Toko", "Warung", "Gang", "Blok"];
+
+// 2. FUNGSI JARAK LEVENSHTEIN (MENGHITUNG TYPO)
+function getLevenshteinDistance(a, b) {
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) matrix[i][j] = matrix[i - 1][j - 1];
+            else matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
+// 3. FUNGSI SMART LOCK
+function applyManualLock(desaName, kecName, index) {
+    const selKec = document.getElementById('manKec');
+    const selDesa = document.getElementById('manDesa');
+    const inputSearch = document.getElementById('smartSearch');
+
+    selKec.value = kecName;
+    handleKecChange('manKec', 'manDesa'); 
+    
+    setTimeout(() => {
+        selDesa.value = index;
+        selKec.classList.add('locked');
+        selDesa.classList.add('locked');
+        inputSearch.classList.add('locked');
+        inputSearch.value = desaName;
+        document.getElementById('btnResetLock').style.display = 'block';
+        document.getElementById('suggestBox').style.display = 'none';
+        playSfx(900, 'sine', 0.1);
+    }, 50);
+}
+
+function resetManualLock() {
+    const selKec = document.getElementById('manKec');
+    const selDesa = document.getElementById('manDesa');
+    const inputSearch = document.getElementById('smartSearch');
+
+    selKec.classList.remove('locked');
+    selDesa.classList.remove('locked');
+    inputSearch.classList.remove('locked');
+    inputSearch.value = '';
+    document.getElementById('btnResetLock').style.display = 'none';
+    playSfx(300, 'sine', 0.1);
+}
+
+// 4. FUNGSI AI POLISH (TYPO CORRECTION)
+function polishWithAI() {
+    const area = document.getElementById('originNegoText');
+    if(!area.value) return showToast("Tulis alamat dulu!");
+
+    let words = area.value.split(" ");
+    let correctedWords = words.map(word => {
+        if (word.length < 3) return word;
+        let bestMatch = word;
+        let minDistance = 2; // Toleransi typo 2 karakter
+
+        VALID_KEYWORDS.forEach(validWord => {
+            let distance = getLevenshteinDistance(word.toLowerCase(), validWord.toLowerCase());
+            if (distance < minDistance) {
+                minDistance = distance;
+                bestMatch = validWord;
+            }
+        });
+        return bestMatch;
+    });
+
+    area.value = correctedWords.join(" ");
+    showToast("✨ Typo diperbaiki!");
+    playSfx(1200, 'sine', 0.2);
+}
+
+
+
+
+
+let map; 
+function initMap() {
+    if (map) return; 
+
+    const startLat = questData.origin.lat || -6.9765;
+    const startLng = questData.origin.lng || 108.4841;
+
+    // BARIS PERBAIKAN: Menambahkan { tap: false }
+    map = L.map('map', { tap: false }).setView([startLat, startLng], 16);
+
+    // BARIS TAMBAHAN: Memastikan peta tidak abu-abu & mendeteksi titik awal
+    setTimeout(() => { 
+        map.invalidateSize(); 
+        map.fire('moveend'); 
+    }, 400);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    map.on('moveend', function() {
+        const center = map.getCenter();
+        const lat = center.lat;
+        const lng = center.lng;
+        
+        document.getElementById('mapCoords').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        
+        const lokasiHasilScan = cariDesaTerdekat(lat, lng);
+        showToast(`📍 Terdeteksi: ${lokasiHasilScan.name}, Kec. ${lokasiHasilScan.kec}`);
+        
+        questData.origin.lat = lat;
+        questData.origin.lng = lng;
+        questData.origin.desa = lokasiHasilScan.name;
+        questData.origin.kec = lokasiHasilScan.kec;
+        questData.origin.text = `Titik Peta: ${lokasiHasilScan.name} (${lat.toFixed(5)},${lng.toFixed(5)})`;
+    });
+}
+
+
+
+
+
+function confirmMapPoint() {
+    const coords = document.getElementById('mapCoords').value;
+    if(!coords) return showToast("Geser peta dulu!");
+    
+    showToast("📍 Titik koordinat terkunci!");
+    playSfx(1500, 'sine', 0.2);
+    
+    // Logika reverse geocode sederhana (Opsional)
+    // Di sini Anda bisa memanggil fungsi untuk menebak desa berdasarkan koordinat map
+}
+
+
+
+function getDetailDesa(kec, desaName) {
+    if(!LOKASI_DB[kec]) return null;
+    return LOKASI_DB[kec].desa.find(d => d.name === desaName);
+}
+
+// Tambahkan trigger otomatis di Step 2 agar startGPS dipanggil dengan benar
+window.onload = () => {
+    checkUserAuth();
+    initDropdowns();
+};
+
+
+    function triggerPriceCalculation() {
+    // Fungsi ini memicu kalkulasi ulang bounty jika user masih di Step 3
+    // agar saat masuk ke Step 4, harga sudah siap.
+    if(questData.destination.mode === 'standard') {
+        const k = document.getElementById('destKec').value;
+        const dIdx = document.getElementById('destDesa').value;
+        if(k && dIdx !== "") {
+            const dData = LOKASI_DB[k].desa[dIdx];
+            questData.destination.lat = dData.lat;
+            questData.destination.lng = dData.lng;
+            questData.destination.desa = dData.name;
+        }
+    }
+}
+
+
+    
+
+
+</script>
+</body>
+</html>
