@@ -812,8 +812,9 @@ function switchDestTab(mode) {
         document.getElementById('destMap').style.display = 'block';
         setTimeout(initMapDest, 300); // Inisialisasi peta khusus tujuan
     }
-    
+
     questData.destination.mode = mode;
+    calculateAndDisplayBounty();
 }
 
 let mapDest;
@@ -1112,11 +1113,23 @@ function initMapDest() {
     // 7. FINALIZATION & SUBMIT
     // ==========================================================================
         async function submitMission() {
-    // 1. Validasi Dasar
+    // 1. Ambil nilai bounty
     const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
-    if(questData.destination.mode === 'smart' && bountyAmt < 8000) {
-    return alert("Bounty minimal Rp 8.000!");
-}
+
+    // FIX: Hanya munculkan alert minimal 8000 jika mode-nya MEMANG 'smart' 
+    // DAN tujuannya bukan nego (bountyAmt > 0)
+    // Jika bountyAmt adalah 0, artinya sistem sedang dalam mode NEGO, maka lewati alert ini.
+    if(questData.destination.mode === 'smart' && bountyAmt > 0 && bountyAmt < 8000) {
+        return alert("Bounty minimal Rp 8.000!");
+    }
+    
+    // Tambahan: Pastikan jika bukan mode NEGO, harga tidak boleh 0
+    // Tapi jika mode-nya nego/map/multi/help, harga 0 diperbolehkan.
+    const isNegoMode = ['nego', 'map', 'multi', 'help'].includes(questData.destination.mode);
+    if(!isNegoMode && bountyAmt === 0) {
+        return alert("Silahkan pilih paket harga terlebih dahulu!");
+    }
+
     
     const btn = document.getElementById('btnBroadcast');
     if(btn) {
