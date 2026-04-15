@@ -1123,23 +1123,27 @@ function initMapDest() {
     // 3. Lokasi Asal
     document.getElementById('sumOri').innerText = questData.origin.text;
     
-    // 4. Logika Teks Tujuan (Sesuai mode baru)
-    let dText = questData.destination.text;
-    
-    if (questData.destination.mode === 'multi') {
-        // Tetap pertahankan daftar titik tujuan jika mode multi
-        dText += "\n" + questData.destination.points.map(p => "- " + p).join('\n');
-    } else if (questData.destination.mode === 'nego') {
-        // Ambil teks langsung dari textarea jika mode bebas
-        const negoVal = document.getElementById('destNegoText').value;
-        dText = "✍️ " + (negoVal || "Alamat Bebas");
-    } else if (questData.destination.mode === 'map') {
-        // PERBAIKAN: Gabungkan Nama Desa + Koordinat agar informatif
+    // 4. Logika Teks Tujuan (Optimasi: Prioritaskan mode aktif)
+    let dText = ""; 
+
+    if (questData.destination.mode === 'map') {
+        // Jika mode peta, ambil langsung dari koordinat dan desa yang terdeteksi
         const coords = document.getElementById('mapDestCoords').value;
         const namaDesa = questData.destination.desa || "Titik Peta";
         dText = `📍 ${namaDesa} (${coords || "0,0"})`;
+    } else if (questData.destination.mode === 'nego') {
+        const negoVal = document.getElementById('destNegoText').value;
+        dText = "✍️ " + (negoVal || "Alamat Bebas");
+    } else if (questData.destination.mode === 'multi') {
+        dText = (questData.destination.text || "Multi-Point") + "\n" + 
+                questData.destination.points.map(p => "- " + p).join('\n');
+    } else {
+        // Fallback terakhir jika semua mode kosong
+        dText = questData.destination.text || "Belum ditentukan";
     }
     
+    // Pastikan dText disimpan kembali ke data utama agar saat Broadcast tidak kosong
+    questData.destination.text = dText;
     document.getElementById('sumDest').innerText = dText;
 
         
