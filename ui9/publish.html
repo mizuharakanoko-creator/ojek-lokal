@@ -460,13 +460,15 @@
             <button class="btn-outline" id="btnAddPoint" onclick="addTitipPoint()">[+] TAMBAH TITIK BELANJA</button>
         </div>
 
-        <div id="destHelpArea" style="display:none; background: #111; border: 1px solid var(--border); border-radius: 15px; padding: 20px; margin-bottom: 20px;">
-            <div class="input-group">
-                <label>Deskripsi Bantuan</label>
-                <textarea id="helpDescText" rows="4" placeholder="Jelaskan bantuan yang dibutuhkan..."></textarea>
-                <button class="btn-voice" onclick="startVoiceToText('helpDescText', this)">🎙️</button>
-            </div>
-        </div>
+<div id="destHelpArea" style="display:none; background: #111; border: 1px solid var(--border); border-radius: 15px; padding: 20px; margin-bottom: 20px;">
+    <div class="input-group">
+        <label>Deskripsi Bantuan</label>
+        <textarea id="helpDescText" rows="4" placeholder="Jelaskan bantuan yang dibutuhkan..."></textarea>
+        <button class="btn-voice" onclick="startVoiceToText('helpDescText', this)">🎙️</button>
+        <button class="btn-ai" onclick="polishHelpWithAI()">✨ PERBAIKI INSTRUKSI (AI)</button>
+    </div>
+</div>
+
 
         <div style="display:flex; gap:10px;">
             <button class="btn-outline" style="width:30%; margin-top:0;" onclick="navStep(2)">⬅️ KEMBALI</button>
@@ -864,6 +866,60 @@ function resetDestLock() {
 }
 
 
+    function polishHelpWithAI() {
+    const area = document.getElementById('helpDescText');
+    if(!area.value) return showToast("Tulis deskripsi bantuan dulu!");
+
+    let words = area.value.split(" ");
+    let correctedWords = words.map(word => {
+        // Abaikan kata yang sangat pendek
+        if (word.length < 3) return word;
+        
+        let bestMatch = word;
+        let minDistance = 2; // Toleransi typo 2 karakter
+
+        VALID_KEYWORDS.forEach(validWord => {
+            let distance = getLevenshteinDistance(word.toLowerCase(), validWord.toLowerCase());
+            if (distance < minDistance) {
+                minDistance = distance;
+                bestMatch = validWord;
+            }
+        });
+        return bestMatch;
+    });
+
+    area.value = correctedWords.join(" ");
+    showToast("✨ Deskripsi instruksi diperbaiki!");
+    playSfx(1200, 'sine', 0.2);
+}
+
+
+    function polishPointWithAI(id) {
+    const area = document.getElementById('pointVal_' + id);
+    if(!area.value) return showToast("Isi daftar belanja dulu!");
+
+    let words = area.value.split(" ");
+    let correctedWords = words.map(word => {
+        if (word.length < 3) return word;
+        let bestMatch = word;
+        let minDistance = 2;
+
+        VALID_KEYWORDS.forEach(validWord => {
+            let distance = getLevenshteinDistance(word.toLowerCase(), validWord.toLowerCase());
+            if (distance < minDistance) {
+                minDistance = distance;
+                bestMatch = validWord;
+            }
+        });
+        return bestMatch;
+    });
+
+    area.value = correctedWords.join(" ");
+    showToast(`✨ List belanja #${id} dirapikan!`);
+    playSfx(1200, 'sine', 0.2);
+}
+
+
     function validateStep2() {
     // Jika user sedang di panel manual (Mode Smart Desa atau Map)
     const isManualPanelActive = document.getElementById('manualPanel').classList.contains('active');
@@ -1028,21 +1084,30 @@ function initMapDest() {
     // Dynamic Multi-Points (Titip Beli)
     let pointCounter = 0;
     function addTitipPoint() {
-        if(pointCounter >= 4) return showToast("Maksimal 4 titik belanja!");
-        pointCounter++;
-        const div = document.createElement('div');
-        div.className = "input-group";
-        div.id = "pointGroup_" + pointCounter;
-        div.innerHTML = `
-            <label>Lokasi & Catatan ${pointCounter}</label>
-            <div style="display:flex; gap:10px;">
-                <textarea id="pointVal_${pointCounter}" rows="2" style="flex:1;" placeholder="Misal: Indomaret Cijoho, beli Air Mineral 2"></textarea>
-                <button class="btn-outline" style="width:40px; margin:0; padding:0; border-color:var(--primary); color:var(--primary);" onclick="this.parentElement.parentElement.remove(); pointCounter--;">-</button>
+    if(pointCounter >= 4) return showToast("Maksimal 4 titik belanja!");
+    pointCounter++;
+    const div = document.createElement('div');
+    div.className = "input-group";
+    div.id = "pointGroup_" + pointCounter;
+    div.innerHTML = `
+        <label>Lokasi & Daftar Belanja ${pointCounter}</label>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="position:relative;">
+                <textarea id="pointVal_${pointCounter}" rows="5" 
+                    placeholder="Contoh: Indomaret Cijoho\n- Air Mineral 1 Galon\n- Beras 5kg\n- Sabun Cuci" 
+                    style="padding-right: 45px;"></textarea>
+                <button class="btn-voice" style="top:10px; right:10px;" onclick="startVoiceToText('pointVal_${pointCounter}', this)">🎙️</button>
             </div>
-            <button class="btn-voice" style="top:25px; right:60px;" onclick="startVoiceToText('pointVal_${pointCounter}', this)">🎙️</button>
-        `;
-        document.getElementById('multiPointsContainer').appendChild(div);
-    }
+            
+            <div style="display:flex; gap:10px;">
+                <button class="btn-ai" style="flex:1; margin-top:0;" onclick="polishPointWithAI(${pointCounter})">✨ RAPIKAN LIST (AI)</button>
+                <button class="btn-outline" style="width:50px; margin:0; border-color:var(--primary); color:var(--primary);" onclick="this.parentElement.parentElement.parentElement.remove(); pointCounter--;">🗑️</button>
+            </div>
+        </div>
+    `;
+    document.getElementById('multiPointsContainer').appendChild(div);
+}
+
 
     function validateStep3() {
     questData.destination.points = [];
@@ -1412,7 +1477,9 @@ if (questData.origin.mode === 'gps' || questData.origin.mode === 'map') {
 // tambahan
 
 // 1. DAFTAR KATA KUNCI UNTUK KOREKSI TYPO
-const VALID_KEYWORDS = ["Jalan", "Depan", "Dekat", "Samping", "Gang", "Masjid", "Pasar", "Kantor", "Gerbang", "Lampu", "Rumah", "Toko", "Warung", "Gang", "Blok"];
+const VALID_KEYWORDS = ["Jalan", "Depan", "Dekat", "Samping", "Gang", "Masjid", "Pasar", "Kantor", "Gerbang", "Lampu", "Rumah", "Toko", "Warung", "Gang", "Blok",
+    "Bantu", "Tolong", "Perbaiki", "Bersihkan", "Angkut", "Antar", "Belikan", 
+    "Pasang", "Cuci", "Servis", "Ganti", "Bawa"];
 
 // 2. FUNGSI JARAK LEVENSHTEIN (MENGHITUNG TYPO)
 function getLevenshteinDistance(a, b) {
