@@ -1876,23 +1876,15 @@ window.onload = () => {
     function openPicker(title, items, targetId) {
     document.getElementById('sheetTitle').innerText = title;
     const list = document.getElementById('sheetList');
-    list.innerHTML = ''; // Bersihkan list lama
+    list.innerHTML = ''; 
 
-    items.forEach(item => {
+    items.forEach((item, index) => {
         const div = document.createElement('div');
         div.className = 'sheet-item';
         div.innerText = item;
         div.onclick = () => {
-            // Isi nilai ke input hidden
-            document.getElementById(targetId).value = item;
-            // Ubah tampilan teks di tombol pemicu
-            const displayId = targetId.replace('reg', 'picker'); 
-            const displayEl = document.getElementById(displayId);
-            if(displayEl) {
-                displayEl.innerText = item;
-                displayEl.style.opacity = '1';
-                displayEl.style.color = '#00f2ff';
-            }
+            // Logika baru: Panggil fungsi pemroses pilihan
+            selectItem(item, targetId, index);
             closePicker();
         };
         list.appendChild(div);
@@ -1902,12 +1894,73 @@ window.onload = () => {
     setTimeout(() => document.getElementById('bottomSheet').classList.add('active'), 10);
 }
 
-function closePicker() {
-    document.getElementById('bottomSheet').classList.remove('active');
-    setTimeout(() => document.getElementById('sheetOverlay').style.display = 'none', 400);
+// Fungsi ini untuk menangani apa yang terjadi SETELAH item dipilih di picker
+function selectItem(val, targetId, index) {
+    playSfx(1000, 'sine', 0.1);
+    
+    // 1. Simpan nilai ke hidden input
+    const inputEl = document.getElementById(targetId);
+    inputEl.value = (targetId.includes('Desa')) ? index : val; 
+
+    // 2. Update tampilan teks pada tombol pemicu (div)
+    const displayId = "picker" + targetId.charAt(0).toUpperCase() + targetId.slice(1);
+    const displayEl = document.getElementById(displayId);
+    if(displayEl) {
+        displayEl.innerText = val;
+        displayEl.style.color = 'var(--secondary)';
+    }
+
+    // 3. Logika Rantai (Cascading)
+    if(targetId === 'manKec') { // Jika ganti kecamatan asal
+        document.getElementById('manDesa').value = '';
+        document.getElementById('pickerManDesa').innerText = 'SELECT VILLAGE...';
+    }
+    
+    if(targetId === 'destKec') { // Jika ganti kecamatan tujuan
+        document.getElementById('destDesa').value = '';
+        document.getElementById('pickerDestDesa').innerText = 'SELECT VILLAGE...';
+    }
+
+    if(targetId === 'destDesa') { // Jika desa tujuan dipilih
+        triggerPriceCalculation();
+    }
 }
 
 
+    // --- FUNGSI PICKER UNTUK ASAL (STEP 2) ---
+
+function handleManKecClick() {
+    const listKecamatan = Object.keys(LOKASI_DB);
+    openPicker('SELECT DISTRICT', listKecamatan, 'manKec');
+}
+
+function handleManDesaClick() {
+    const kec = document.getElementById('manKec').value;
+    if(!kec) return showToast("Pilih Kecamatan dahulu!");
+    
+    const listDesa = LOKASI_DB[kec].desa.map(d => d.name);
+    openPicker('SELECT VILLAGE', listDesa, 'manDesa');
+}
+
+    // --- FUNGSI PICKER UNTUK TUJUAN (STEP 3) ---
+
+function handleDestKecClick() {
+    // Ambil daftar nama kecamatan dari LOKASI_DB
+    const listKecamatan = Object.keys(LOKASI_DB); 
+    openPicker('SELECT DISTRICT', listKecamatan, 'destKec');
+}
+
+function handleDestDesaClick() {
+    const kec = document.getElementById('destKec').value;
+    if(!kec) return showToast("Pilih Kecamatan Tujuan dahulu!");
+    
+    // Ambil daftar nama desa berdasarkan kecamatan yang dipilih
+    const listDesa = LOKASI_DB[kec].desa.map(d => d.name);
+    openPicker('SELECT VILLAGE', listDesa, 'destDesa');
+}
+
+
+    
 
     
 
