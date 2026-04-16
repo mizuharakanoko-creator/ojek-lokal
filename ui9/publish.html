@@ -1499,6 +1499,10 @@ function initMapDest() {
     const amt = parseInt(document.getElementById('finalPriceInput').value) || 0;
     questData.reward = amt;
 
+    // Ambil input detail tambahan (patokan/catatan lokasi)
+    const oriDetail = document.getElementById('originDetail').value || "";
+    const destDetail = document.getElementById('destDetail').value || "";
+
     document.getElementById('sumCat').innerText = questData.category.toUpperCase();
     
     // 1. Status Urgent/Rank
@@ -1506,17 +1510,19 @@ function initMapDest() {
     rankEl.innerText = questData.isUrgent ? "DARURAT (PRIORITAS)" : "STANDAR";
     rankEl.style.color = questData.isUrgent ? "var(--primary)" : "var(--gold)";
     
-    // 2. Jarak (Gunakan UNTRACKED jika 0)
+    // 2. Jarak
     document.getElementById('sumDist').innerText = questData.distanceEst > 0 ? questData.distanceEst + " KM" : "UNTRACKED";
     
-    // 3. Lokasi Asal
-    document.getElementById('sumOri').innerText = questData.origin.text;
+    // 3. Lokasi Asal + Detail Patokan
+    // Menampilkan: "Nama Lokasi (Patokan)"
+    document.getElementById('sumOri').innerText = oriDetail ? 
+        `${questData.origin.text} (${oriDetail})` : 
+        questData.origin.text;
     
-    // 4. Logika Teks Tujuan (Optimasi: Prioritaskan mode aktif)
+    // 4. Logika Teks Tujuan
     let dText = ""; 
 
     if (questData.destination.mode === 'map') {
-        // Jika mode peta, ambil langsung dari koordinat dan desa yang terdeteksi
         const coords = document.getElementById('mapDestCoords').value;
         const namaDesa = questData.destination.desa || "Titik Peta";
         dText = `📍 ${namaDesa} (${coords || "0,0"})`;
@@ -1527,15 +1533,15 @@ function initMapDest() {
         dText = (questData.destination.text || "Multi-Point") + "\n" + 
                 questData.destination.points.map(p => "- " + p).join('\n');
     } else {
-        // Fallback terakhir jika semua mode kosong
         dText = questData.destination.text || "Belum ditentukan";
     }
     
-    // Pastikan dText disimpan kembali ke data utama agar saat Broadcast tidak kosong
-    questData.destination.text = dText;
-    document.getElementById('sumDest').innerText = dText;
+    // Tambahkan detail patokan ke tujuan jika ada
+    const finalDestText = destDetail ? `${dText} \nPatokan: ${destDetail}` : dText;
+    
+    questData.destination.text = finalDestText; // Simpan untuk broadcast
+    document.getElementById('sumDest').innerText = finalDestText;
 
-        
     // 5. Visualisasi Bounty & Tier
     const bountyEl = document.getElementById('sumBounty');
     if (amt > 0) {
@@ -1544,8 +1550,15 @@ function initMapDest() {
         document.getElementById('sumTier').innerText = "TIER: " + getFishTier(amt);
     } else {
         bountyEl.innerText = "SISTEM NEGO";
-        bountyEl.style.color = "var(--secondary)"; // Warna biru cyan
+        bountyEl.style.color = "var(--secondary)";
         document.getElementById('sumTier').innerText = "TIER: NEGO";
+    }
+
+    // 6. Estimasi Waktu Kadaluarsa (Tambahan yang sering tertinggal)
+    const expEl = document.getElementById('sumExpired');
+    if (expEl) {
+        const duration = document.getElementById('questDuration').value || 60;
+        expEl.innerText = `KADALUARSA DALAM: ${duration} MENIT`;
     }
 }
 
@@ -1853,7 +1866,12 @@ function getDetailDesa(kec, desaName) {
 window.onload = () => {
     checkUserAuth();
     initDropdowns();
+    
+    // Letakkan di sini
+    document.getElementById('destDetail').addEventListener('input', updateSummaryUI);
+    document.getElementById('originDetail').addEventListener('input', updateSummaryUI);
 };
+
 
 
     function triggerPriceCalculation() {
