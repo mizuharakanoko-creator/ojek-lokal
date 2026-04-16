@@ -1503,7 +1503,7 @@ function initMapDest() {
     const oriDetail = document.getElementById('originDetail').value || "";
     const destDetail = document.getElementById('destDetail').value || "";
 
-    document.getElementById('sumCat').innerText = questData.category.toUpperCase();
+    document.getElementById('sumCat').innerText = (questData.category || "Umum").toUpperCase();
     
     // 1. Status Urgent/Rank
     const rankEl = document.getElementById('sumRank');
@@ -1514,53 +1514,62 @@ function initMapDest() {
     document.getElementById('sumDist').innerText = questData.distanceEst > 0 ? questData.distanceEst + " KM" : "UNTRACKED";
     
     // 3. Lokasi Asal + Detail Patokan
-    // Menampilkan: "Nama Lokasi (Patokan)"
     document.getElementById('sumOri').innerText = oriDetail ? 
         `${questData.origin.text} (${oriDetail})` : 
         questData.origin.text;
     
-    // 4. Logika Teks Tujuan
+    // 4. Logika Teks Tujuan (PERBAIKAN UTAMA)
     let dText = ""; 
+    const currentMode = questData.destination.mode;
 
-    if (questData.destination.mode === 'map') {
+    if (currentMode === 'map') {
         const coords = document.getElementById('mapDestCoords').value;
         const namaDesa = questData.destination.desa || "Titik Peta";
         dText = `📍 ${namaDesa} (${coords || "0,0"})`;
-    } else if (questData.destination.mode === 'nego') {
+    } 
+    else if (currentMode === 'nego') {
         const negoVal = document.getElementById('destNegoText').value;
         dText = "✍️ " + (negoVal || "Alamat Bebas");
-    } else if (questData.destination.mode === 'multi') {
-        dText = (questData.destination.text || "Multi-Point") + "\n" + 
-                questData.destination.points.map(p => "- " + p).join('\n');
-    } else {
-        dText = questData.destination.text || "Belum ditentukan";
+    } 
+    else if (currentMode === 'multi') {
+        dText = (questData.destination.text || "Multi-Point");
+    } 
+    else {
+        // Logika Dropdown/Manual: Ambil value dari element dropdown Anda
+        // Ganti 'destSelect' dengan ID dropdown tujuan Anda
+        const dropDownEl = document.getElementById('destSelect');
+        const manualVal = dropDownEl ? dropDownEl.value : "";
+        dText = manualVal || questData.destination.text || "Belum ditentukan";
     }
     
-    // Tambahkan detail patokan ke tujuan jika ada
-    const finalDestText = destDetail ? `${dText} \nPatokan: ${destDetail}` : dText;
+    // Gabungkan dengan Patokan untuk tampilan UI
+    const finalDestDisplay = destDetail ? `${dText}\nPatokan: ${destDetail}` : dText;
     
-    questData.destination.text = finalDestText; // Simpan untuk broadcast
-    document.getElementById('sumDest').innerText = finalDestText;
+    // Simpan dText (tanpa patokan) ke data utama agar bersih saat diproses backend
+    // Tapi update UI dengan finalDestDisplay
+    document.getElementById('sumDest').innerText = finalDestDisplay;
 
     // 5. Visualisasi Bounty & Tier
     const bountyEl = document.getElementById('sumBounty');
     if (amt > 0) {
         bountyEl.innerText = "Rp " + amt.toLocaleString('id-ID');
         bountyEl.style.color = "var(--gold)";
-        document.getElementById('sumTier').innerText = "TIER: " + getFishTier(amt);
+        document.getElementById('sumTier').innerText = "TIER: " + (typeof getFishTier === 'function' ? getFishTier(amt) : "CALCULATING");
     } else {
         bountyEl.innerText = "SISTEM NEGO";
         bountyEl.style.color = "var(--secondary)";
         document.getElementById('sumTier').innerText = "TIER: NEGO";
     }
 
-    // 6. Estimasi Waktu Kadaluarsa (Tambahan yang sering tertinggal)
+    // 6. Estimasi Waktu Kadaluarsa
     const expEl = document.getElementById('sumExpired');
     if (expEl) {
-        const duration = document.getElementById('questDuration').value || 60;
+        const durationEl = document.getElementById('questDuration');
+        const duration = durationEl ? durationEl.value : 60;
         expEl.innerText = `KADALUARSA DALAM: ${duration} MENIT`;
     }
 }
+
 
 
     // ==========================================================================
@@ -1867,10 +1876,28 @@ window.onload = () => {
     checkUserAuth();
     initDropdowns();
     
-    // Letakkan di sini
-    document.getElementById('destDetail').addEventListener('input', updateSummaryUI);
-    document.getElementById('originDetail').addEventListener('input', updateSummaryUI);
+    // 1. Ambil elemen dropdown
+    const destSelect = document.getElementById('destSelect');
+    
+    if (destSelect) {
+        destSelect.addEventListener('change', (e) => {
+            // PAKSA mode kembali ke 'default' agar updateSummaryUI tidak membaca mode 'map'
+            questData.destination.mode = 'default'; 
+            questData.destination.text = e.target.value;
+            
+            // Jalankan update UI
+            updateSummaryUI();
+        });
+    }
+
+    // 2. Listener untuk input patokan (agar real-time saat diketik)
+    const dDetail = document.getElementById('destDetail');
+    const oDetail = document.getElementById('originDetail');
+
+    if (dDetail) dDetail.addEventListener('input', updateSummaryUI);
+    if (oDetail) oDetail.addEventListener('input', updateSummaryUI);
 };
+
 
 
 
