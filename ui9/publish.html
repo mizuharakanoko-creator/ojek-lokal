@@ -345,6 +345,54 @@ select option {
     letter-spacing: 0.5px;
 }
 
+/* Custom Picker / Bottom Sheet */
+.bottom-sheet {
+    position: fixed; bottom: -100%; left: 0; width: 100%; height: 60%;
+    background: #0a0a0a; border-top: 2px solid #00f2ff; /* Neon Cyan */
+    z-index: 100000; transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex; flex-direction: column; padding: 20px; border-radius: 20px 20px 0 0;
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+}
+.bottom-sheet.active { bottom: 0; }
+.sheet-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85); z-index: 99999; display: none;
+}
+.sheet-list { overflow-y: auto; flex: 1; margin-top: 15px; }
+.sheet-item { 
+    padding: 18px; border-bottom: 1px solid #222; 
+    color: #fff; font-family: 'Courier New', monospace; 
+    text-transform: uppercase; font-size: 13px;
+}
+.sheet-item:active { background: rgba(0, 242, 255, 0.1); }
+
+
+        .input-field {
+    background: #121212;
+    border: 1px solid #333;
+    padding: 12px 15px;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    min-height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.3s ease;
+}
+
+.input-field:active {
+    background: #1a1a1a;
+    border-color: var(--neon-cyan);
+}
+
+/* Tambahkan ikon panah kecil di dalam div agar user tahu itu bisa diklik */
+.dropdown-wrapper .input-field::after {
+    content: '▼';
+    font-size: 10px;
+    color: var(--neon-cyan);
+    margin-left: 10px;
+}
 
     
     </style>
@@ -458,14 +506,19 @@ select option {
 
     <div class="input-group dropdown-wrapper">
         <label>Kecamatan</label>
-        <select id="manKec" onchange="handleKecChange('manKec', 'manDesa')"></select>
+        <div id="pickerManKec" class="input-field" style="cursor:pointer;" 
+             onclick="handleManKecClick()">SELECT DISTRICT...</div>
+        <input type="hidden" id="manKec">
     </div>
 
     <div class="input-group dropdown-wrapper">
         <label>Desa / Area</label>
-        <select id="manDesa"></select>
+        <div id="pickerManDesa" class="input-field" style="cursor:pointer;" 
+             onclick="handleManDesaClick()">SELECT VILLAGE...</div>
+        <input type="hidden" id="manDesa">
     </div>
 </div>
+
 
 
     <div id="originNego" style="display:none;">
@@ -530,14 +583,19 @@ select option {
     
     <div class="input-group dropdown-wrapper">
         <label>Kecamatan Tujuan</label>
-        <select id="destKec" onchange="handleKecChange('destKec', 'destDesa', true)"></select>
+        <div id="pickerDestKec" class="input-field" style="cursor:pointer;" 
+             onclick="handleDestKecClick()">SELECT DISTRICT...</div>
+        <input type="hidden" id="destKec">
     </div>
     
     <div class="input-group dropdown-wrapper">
         <label>Desa / Kelurahan Tujuan</label>
-        <select id="destDesa" onchange="triggerPriceCalculation()"></select>
+        <div id="pickerDestDesa" class="input-field" style="cursor:pointer;" 
+             onclick="handleDestDesaClick()">SELECT VILLAGE...</div>
+        <input type="hidden" id="destDesa">
     </div>
 </div>
+
 
 
 <div id="destNego" style="display:none;">
@@ -642,6 +700,19 @@ select option {
     </div>
 </div>
 
+
+<div class="sheet-overlay" id="sheetOverlay" onclick="closePicker()"></div>
+
+<div class="bottom-sheet" id="bottomSheet">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
+        <h3 id="sheetTitle" class="text-neon-cyan" style="font-size:14px; margin:0; letter-spacing:2px;">SELECT DATA</h3>
+        <span onclick="closePicker()" style="color:var(--neon-pink); font-size:12px; font-weight:bold; cursor:pointer;">[ CLOSE ]</span>
+    </div>
+    <div class="sheet-list" id="sheetList"></div>
+</div>
+
+
+    
 <script>
     // ==========================================================================
     // 1. DATA & STATE MANAGEMENT
@@ -1799,6 +1870,43 @@ window.onload = () => {
         }
     }
 }
+
+
+
+    function openPicker(title, items, targetId) {
+    document.getElementById('sheetTitle').innerText = title;
+    const list = document.getElementById('sheetList');
+    list.innerHTML = ''; // Bersihkan list lama
+
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'sheet-item';
+        div.innerText = item;
+        div.onclick = () => {
+            // Isi nilai ke input hidden
+            document.getElementById(targetId).value = item;
+            // Ubah tampilan teks di tombol pemicu
+            const displayId = targetId.replace('reg', 'picker'); 
+            const displayEl = document.getElementById(displayId);
+            if(displayEl) {
+                displayEl.innerText = item;
+                displayEl.style.opacity = '1';
+                displayEl.style.color = '#00f2ff';
+            }
+            closePicker();
+        };
+        list.appendChild(div);
+    });
+
+    document.getElementById('sheetOverlay').style.display = 'block';
+    setTimeout(() => document.getElementById('bottomSheet').classList.add('active'), 10);
+}
+
+function closePicker() {
+    document.getElementById('bottomSheet').classList.remove('active');
+    setTimeout(() => document.getElementById('sheetOverlay').style.display = 'none', 400);
+}
+
 
 
     
