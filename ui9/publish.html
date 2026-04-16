@@ -283,6 +283,16 @@
 
 <div id="toast">Notifikasi</div>
 
+<div id="cyberAlert" class="mega-modal">
+    <div class="modal-content" style="border-color: var(--secondary); background: #050f12;">
+        <span id="alertIcon" style="font-size:40px; display:block; margin-bottom:10px;">⚠️</span>
+        <h3 id="alertTitle" style="color: var(--secondary); letter-spacing: 2px;">SYSTEM NOTICE</h3>
+        <p id="alertMessage" style="color: #eee; line-height: 1.6; margin: 15px 0;"></p>
+        <button class="btn-main" onclick="closeCyberAlert()" style="background: var(--secondary); color: #000; box-shadow: 0 0 15px var(--secondary-glow);">ACKNOWLEDGE</button>
+    </div>
+</div>
+
+
 <div id="megaModal" class="mega-modal">
     <div class="modal-content">
         <span style="font-size:40px; display:block;">🔒</span>
@@ -559,7 +569,12 @@
     // ==========================================================================
     // 1. DATA & STATE MANAGEMENT
     // ==========================================================================
-    
+
+    // Membajak fungsi alert bawaan browser
+window.alert = function(message) {
+    showCyberAlert(message);
+};
+
 
     // State Aplikasi
     let questData = {
@@ -592,6 +607,37 @@
 }
 
     checkUserAuth();
+
+
+
+
+    function showCyberAlert(message, type = 'warning') {
+    const modal = document.getElementById('cyberAlert');
+    const msgEl = document.getElementById('alertMessage');
+    const titleEl = document.getElementById('alertTitle');
+    const iconEl = document.getElementById('alertIcon');
+
+    // Kustomisasi berdasarkan tipe
+    if (type === 'error') {
+        titleEl.innerText = "CRITICAL ERROR";
+        titleEl.style.color = "var(--primary)";
+        iconEl.innerText = "🚫";
+        playSfx(150, 'sawtooth', 0.5); // Bunyi gagal
+    } else {
+        titleEl.innerText = "SYSTEM NOTICE";
+        titleEl.style.color = "var(--secondary)";
+        iconEl.innerText = "⚠️";
+        playSfx(600, 'sine', 0.2); // Bunyi notif standar
+    }
+
+    msgEl.innerText = message;
+    modal.classList.add('show');
+}
+
+function closeCyberAlert() {
+    document.getElementById('cyberAlert').classList.remove('show');
+    playSfx(1000, 'sine', 0.1);
+}
 
     // ==========================================================================
     // 2. AUDIO & UI HELPERS
@@ -1364,12 +1410,12 @@ function initMapDest() {
     const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
 
     if(questData.destination.mode === 'smart' && bountyAmt > 0 && bountyAmt < 8000) {
-        return alert("Bounty minimal Rp 8.000!");
+        return showCyberAlert("Bounty minimal Rp 8.000!");
     }
     
     const isNegoMode = ['nego', 'map', 'multi', 'help'].includes(questData.destination.mode);
     if(!isNegoMode && bountyAmt === 0) {
-        return alert("Silahkan pilih paket harga terlebih dahulu!");
+        return showCyberAlert("Silahkan pilih paket harga terlebih dahulu!");
     }
 
     // 2. Persiapan UI (Broadcast Mode)
@@ -1471,7 +1517,7 @@ if (questData.origin.mode === 'gps' || questData.origin.mode === 'map') {
 
     } catch (e) {
         console.error(e);
-        alert("Gagal Transmisi: " + e.message);
+        showCyberAlert("Gagal Transmisi: " + e.message);
         if(btn) {
             btn.disabled = false;
             btn.innerText = "BROADCAST 📡";
