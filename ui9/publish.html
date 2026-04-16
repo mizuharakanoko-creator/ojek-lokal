@@ -1568,6 +1568,24 @@ function initMapDest() {
         const duration = durationEl ? durationEl.value : 60;
         expEl.innerText = `KADALUARSA DALAM: ${duration} MENIT`;
     }
+
+    const rpg = calculateRPGStats(
+        questData.reward, 
+        questData.distanceEst, 
+        questData.category, 
+        questData.isUrgent
+    );
+
+    // Simpan hasil ke questData agar bisa dikirim ke Firebase
+    questData.rpgStats = rpg;
+
+    // Update tampilan (Opsional: Jika Anda punya elemen UI untuk ini)
+    // Contoh jika Anda punya element dengan id 'sumExp', 'sumStamina', dll.
+    if(document.getElementById('sumExp')) {
+        document.getElementById('sumExp').innerText = `+${rpg.exp} EXP`;
+        document.getElementById('sumStamina').innerText = `${rpg.stamina} STAMINA`;
+        document.getElementById('sumStone').innerText = `${rpg.greenStone} GREEN STONE`;
+    }
 }
 
 
@@ -2028,7 +2046,46 @@ function closePicker() {
     playSfx(300, 'sine', 0.1);
 }
 
+
+
+    function calculateRPGStats(bounty, distance, category, isUrgent) {
+    // 1. Definisi Multiplier Kategori
+    const catWeights = {
+        "survey": 0.8, "pesan": 0.8,
+        "dokumen": 1.0, "pulsa": 1.0,
+        "makanan": 1.5, "belanja": 1.5,
+        "barang_berat": 2.5, "galon": 2.5,
+        "pindahan": 4.0, "tenaga": 4.0
+    };
+
+    // Ambil weight berdasarkan kategori (default ke 1.0 jika tidak ditemukan)
+    const multiplier = catWeights[category.toLowerCase()] || 1.0;
+
+    // 2. Hitung Stamina
+    const baseDistanceStamina = 10 + (distance * 5);
+    let totalStamina = baseDistanceStamina * multiplier;
+    if (isUrgent) totalStamina *= 1.2;
+
+    // 3. Hitung EXP
+    const expReward = (bounty / 1000) * 10;
+
+    // 4. Hitung Green Stone berdasarkan Tier
+    const tier = getFishTier(bounty); // Menggunakan fungsi tier yang sudah Anda punya
+    let tierMultiplier = 1;
     
+    if (tier === "SILVER") tierMultiplier = 1.2;
+    else if (tier === "GOLD") tierMultiplier = 1.5;
+    else if (tier === "MYTHIC") tierMultiplier = 2.0;
+
+    const greenStoneReward = (bounty / 1000) * tierMultiplier;
+
+    return {
+        stamina: Math.round(totalStamina),
+        exp: Math.round(expReward),
+        greenStone: Math.round(greenStoneReward)
+    };
+}
+
 
     
 
