@@ -356,7 +356,7 @@ select option {
 .bottom-sheet.active { bottom: 0; }
 .sheet-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.85); z-index: 99999; display: none;
+    background: rgba(0,0,0,0.85); z-index: 99998; display: none;
 }
 .sheet-list { overflow-y: auto; flex: 1; margin-top: 15px; }
 .sheet-item { 
@@ -1882,49 +1882,59 @@ window.onload = () => {
         const div = document.createElement('div');
         div.className = 'sheet-item';
         div.innerText = item;
-        div.onclick = () => {
-            // Logika baru: Panggil fungsi pemroses pilihan
+        
+        // Perbaikan utama: pastikan urutan klik benar
+        div.onclick = function(e) {
+            e.preventDefault();
             selectItem(item, targetId, index);
-            closePicker();
         };
+        
         list.appendChild(div);
     });
 
     document.getElementById('sheetOverlay').style.display = 'block';
-    setTimeout(() => document.getElementById('bottomSheet').classList.add('active'), 10);
+    setTimeout(() => {
+        document.getElementById('bottomSheet').classList.add('active');
+    }, 10);
 }
 
-// Fungsi ini untuk menangani apa yang terjadi SETELAH item dipilih di picker
+
 function selectItem(val, targetId, index) {
     playSfx(1000, 'sine', 0.1);
     
-    // 1. Simpan nilai ke hidden input
+    // 1. Simpan nilai ke input hidden (id asli seperti manKec atau destDesa)
     const inputEl = document.getElementById(targetId);
-    inputEl.value = (targetId.includes('Desa')) ? index : val; 
+    if (inputEl) {
+        inputEl.value = (targetId.includes('Desa')) ? index : val; 
+    }
 
-    // 2. Update tampilan teks pada tombol pemicu (div)
+    // 2. Ubah teks di tombol pemicu agar berubah dari "SELECT..." menjadi nama desa/kec yang dipilih
     const displayId = "picker" + targetId.charAt(0).toUpperCase() + targetId.slice(1);
     const displayEl = document.getElementById(displayId);
     if(displayEl) {
         displayEl.innerText = val;
-        displayEl.style.color = 'var(--secondary)';
+        displayEl.style.color = 'var(--secondary)'; // Memberi warna cyan saat terpilih
     }
 
-    // 3. Logika Rantai (Cascading)
-    if(targetId === 'manKec') { // Jika ganti kecamatan asal
-        document.getElementById('manDesa').value = '';
-        document.getElementById('pickerManDesa').innerText = 'SELECT VILLAGE...';
-    }
-    
-    if(targetId === 'destKec') { // Jika ganti kecamatan tujuan
-        document.getElementById('destDesa').value = '';
-        document.getElementById('pickerDestDesa').innerText = 'SELECT VILLAGE...';
+    // 3. Logika Reset (Jika pilih kecamatan, desanya harus reset)
+    if(targetId === 'manKec' || targetId === 'destKec') {
+        const desaId = targetId.includes('man') ? 'manDesa' : 'destDesa';
+        const desaPickerId = targetId.includes('man') ? 'pickerManDesa' : 'pickerDestDesa';
+        
+        document.getElementById(desaId).value = '';
+        document.getElementById(desaPickerId).innerText = 'SELECT VILLAGE...';
+        document.getElementById(desaPickerId).style.color = '#666'; 
     }
 
-    if(targetId === 'destDesa') { // Jika desa tujuan dipilih
+    // 4. Hitung harga otomatis jika yang dipilih adalah area tujuan
+    if(targetId === 'destDesa' || targetId === 'destKec') {
         triggerPriceCalculation();
     }
+
+    // 5. Tutup dropdown otomatis setelah memilih
+    closePicker();
 }
+
 
 
     // --- FUNGSI PICKER UNTUK ASAL (STEP 2) ---
@@ -1959,6 +1969,19 @@ function handleDestDesaClick() {
     openPicker('SELECT VILLAGE', listDesa, 'destDesa');
 }
 
+
+function closePicker() {
+    const sheet = document.getElementById('bottomSheet');
+    const overlay = document.getElementById('sheetOverlay');
+    
+    sheet.classList.remove('active');
+    // Menunggu 300ms (durasi animasi slide down) baru menyembunyikan overlay
+    setTimeout(() => {
+        overlay.style.display = 'none';
+    }, 300);
+    
+    playSfx(300, 'sine', 0.1);
+}
 
     
 
