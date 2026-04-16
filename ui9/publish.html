@@ -379,6 +379,12 @@
     </div>
 </div>
 
+<div class="input-group" id="groupDetailJemput" style="margin-top:10px;">
+    <label>Patokan Jemput (Opsional)</label>
+    <input type="text" id="originDetail" placeholder="Misal: Pagar hitam / depan warung">
+</div>
+
+
 
         <div style="display:flex; gap:10px; margin-top:20px;">
             <button class="btn-outline" style="width:30%; margin-top:0;" onclick="navStep(1)">⬅️ KEMBALI</button>
@@ -402,24 +408,31 @@
         <button class="tab-btn" id="tabDestMap" onclick="switchDestTab('map')">🗺️ PETA</button>
     </div>
 
-    <div id="destSmart">
-        <div class="input-group">
-            <label>Kecamatan Tujuan</label>
-            <select id="destKec" onchange="handleKecChange('destKec', 'destDesa', true)"></select>
-        </div>
-        <div class="input-group">
-            <label>Desa / Kelurahan Tujuan</label>
-            <select id="destDesa" onchange="triggerPriceCalculation()"></select>
-        </div>
+<div id="destSmart">
+    <div class="input-group">
+        <label>Cari Desa Tujuan Cepat</label>
+        <input type="text" id="smartSearchDest" placeholder="Ketik nama desa tujuan..." autocomplete="off">
+        <button class="btn-reset-lock" id="btnResetLockDest" onclick="resetDestLock()">🔄 RESET</button>
+        <div class="suggest-box" id="suggestBoxDest"></div>
     </div>
+    <div class="input-group">
+        <label>Kecamatan Tujuan</label>
+        <select id="destKec" onchange="handleKecChange('destKec', 'destDesa', true)"></select>
+    </div>
+    <div class="input-group">
+        <label>Desa / Kelurahan Tujuan</label>
+        <select id="destDesa" onchange="triggerPriceCalculation()"></select>
+    </div>
+</div>
 
-    <div id="destNego" style="display:none;">
-        <div class="input-group">
-            <label>Detail Lokasi Tujuan</label>
-            <button class="btn-voice" onclick="startVoiceToText('destNegoText', this)" style="top: 25px; right: 10px;">🎙️</button>
-            <textarea id="destNegoText" rows="3" placeholder="Contoh: Depan Toko Berkah, Jl. Raya No. 10..."></textarea>
-        </div>
-    </div>
+<div id="destNego" style="display:none;">
+    <div class="input-group">
+        <label>Detail Lokasi Tujuan</label>
+        <button class="btn-voice" onclick="startVoiceToText('destNegoText', this)" style="top: 25px; right: 10px;">🎙️</button>
+        <textarea id="destNegoText" rows="3" placeholder="Contoh: Depan Toko Berkah, Jl. Raya No. 10..."></textarea>
+        <button class="btn-ai" onclick="polishDestWithAI()">✨ PERBAIKI TYPO (AI)</button> </div>
+</div>
+
 
     <div id="destMap" style="display:none;">
         <div id="map-dest-container" style="width: 100%; height: 250px; border-radius: 12px; position: relative; overflow: hidden; border: 1px solid #333;">
@@ -767,10 +780,95 @@
         }
     });
 
+
+    // Autocomplete untuk Tujuan
+document.getElementById('smartSearchDest').addEventListener('input', function() {
+    const val = this.value.toLowerCase();
+    const box = document.getElementById('suggestBoxDest');
+    box.innerHTML = '';
+    if(val.length < 2) { box.style.display = 'none'; return; }
+    
+    box.style.display = 'block';
+    for(let k in LOKASI_DB) {
+        LOKASI_DB[k].desa.forEach((d, i) => {
+            if(d.name.toLowerCase().includes(val)) {
+                let div = document.createElement('div');
+                div.className = 'suggest-item';
+                div.innerHTML = `<b>${d.name}</b> <br><small>Kec. ${k}</small>`;
+                div.onclick = () => {
+                    applyDestLock(d.name, k, i);
+                    box.style.display = 'none';
+                };
+                box.appendChild(div);
+            }
+        });
+    }
+});
+
+function applyDestLock(desaName, kecName, index) {
+    const selKec = document.getElementById('destKec');
+    const selDesa = document.getElementById('destDesa');
+    const inputSearch = document.getElementById('smartSearchDest');
+
+    selKec.value = kecName;
+    handleKecChange('destKec', 'destDesa', true); 
+    
+    setTimeout(() => {
+        selDesa.value = index;
+        selKec.classList.add('locked');
+        selDesa.classList.add('locked');
+        inputSearch.classList.add('locked');
+        inputSearch.value = desaName;
+        document.getElementById('btnResetLockDest').style.display = 'block';
+        triggerPriceCalculation(); // Langsung hitung harga
+        playSfx(900, 'sine', 0.1);
+    }, 50);
+}
+
+function resetDestLock() {
+    const selKec = document.getElementById('destKec');
+    const selDesa = document.getElementById('destDesa');
+    const inputSearch = document.getElementById('smartSearchDest');
+
+    selKec.classList.remove('locked');
+    selDesa.classList.remove('locked');
+    inputSearch.classList.remove('locked');
+    inputSearch.value = '';
+    document.getElementById('btnResetLockDest').style.display = 'none';
+    playSfx(300, 'sine', 0.1);
+}
+
+    function polishDestWithAI() {
+    const area = document.getElementById('destNegoText');
+    if(!area.value) return showToast("Tulis alamat tujuan dulu!");
+
+    let words = area.value.split(" ");
+    let correctedWords = words.map(word => {
+        if (word.length < 3) return word;
+        let bestMatch = word;
+        let minDistance = 2;
+
+        VALID_KEYWORDS.forEach(validWord => {
+            let distance = getLevenshteinDistance(word.toLowerCase(), validWord.toLowerCase());
+            if (distance < minDistance) {
+                minDistance = distance;
+                bestMatch = validWord;
+            }
+        });
+        return bestMatch;
+    });
+
+    area.value = correctedWords.join(" ");
+    showToast("✨ Alamat tujuan diperbaiki!");
+    playSfx(1200, 'sine', 0.2);
+}
+
+
     function validateStep2() {
     // Jika user sedang di panel manual (Mode Smart Desa atau Map)
     const isManualPanelActive = document.getElementById('manualPanel').classList.contains('active');
-
+    const patokanJemput = document.getElementById('originDetail').value;
+        
     if (isManualPanelActive) {
         if (questData.origin.mode === 'smart') {
             const k = document.getElementById('manKec').value;
@@ -782,11 +880,12 @@
             questData.origin.lng = dData.lng;
             questData.origin.kec = k;
             questData.origin.desa = dData.name;
-            questData.origin.text = "📍 " + dData.name;
+            questData.origin.text = "📍 " + dData.name + (patokanJemput ? ` (${patokanJemput})` : "");
         } 
         else if (questData.origin.mode === 'map') {
             if (!questData.origin.lat) return showToast("⚠️ Geser peta untuk titik!");
             // Data sudah terisi otomatis di questData oleh event 'moveend' map
+            questData.origin.text = `Titik Peta: ${questData.origin.desa}` + (patokanJemput ? ` (${patokanJemput})` : "");
         }
         else if (questData.origin.mode === 'nego') {
              const t = document.getElementById('originNegoText').value;
@@ -799,6 +898,7 @@
         if (!questData.origin.lat) return showToast("⚠️ Menunggu sinyal GPS...");
         questData.origin.mode = 'gps';
         // Teks sudah diset saat startGPS()
+        questData.origin.text = questData.origin.desa + (patokanJemput ? ` (${patokanJemput})` : "");
     }
     
     navStep(3);
@@ -1230,6 +1330,7 @@ if (questData.origin.mode === 'gps' || questData.origin.mode === 'map') {
             // Lokasi Origin
             origin_name: questData.origin.text,
             origin_desa: jemputDesa, 
+            origin_details: document.getElementById('originDetail').value || "",
             origin_coords: questData.origin.lat ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
             
             // Lokasi Tujuan
