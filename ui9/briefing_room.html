@@ -13,13 +13,18 @@
         body { background: #050505; color: #e0e0e0; font-family: 'Courier New', Courier, monospace; padding: 10px; margin: 0; }
         .container { max-width: 600px; margin: auto; }
         
+        /* === CONNECTION STATUS === */
+        #connStatus { text-align: center; font-size: 10px; padding: 5px; background: #ffaa00; color: #000; font-weight: bold; display: none; margin-bottom: 10px; animation: blink 1s infinite; }
+        
         /* === ASSISTANT SECTION === */
-        .assistant-box { background: #111; border: 1px solid #333; display: flex; padding: 10px; margin-bottom: 15px; border-radius: 4px; align-items: center; position: relative; overflow: hidden; }
+        .assistant-box { background: #111; border: 1px solid #333; display: flex; padding: 10px; margin-bottom: 15px; border-radius: 4px; align-items: center; position: relative; overflow: hidden; transition: 0.3s; }
         .assistant-box::before { content: "COMM-LINK ACTIVE"; position: absolute; top: 2px; right: 5px; font-size: 8px; color: #00ffff; }
-        .assistant-img { width: 70px; height: 70px; border: 2px solid #00ffff; background: #222; image-rendering: pixelated; margin-right: 15px; }
+        .assistant-img { width: 70px; height: 70px; border: 2px solid #00ffff; background: #222; image-rendering: pixelated; margin-right: 15px; transition: filter 0.3s; }
         .assistant-chat { flex-grow: 1; }
         .assistant-name { font-weight: bold; color: #00ffff; font-size: 12px; margin-bottom: 4px; display: block; }
         .assistant-msg { font-size: 11px; line-height: 1.4; color: #ccc; }
+        .offline-mode .assistant-img { filter: grayscale(100%) contrast(200%); border-color: #ff4444; }
+        .offline-mode::before { content: "COMM-LINK LOST"; color: #ff4444; }
 
         /* === CONTRACT CARD === */
         .contract-card { background: #0a0a0a; border: 1px solid #333; border-top: 3px solid #00ffff; padding: 15px; position: relative; box-shadow: 0 0 20px rgba(0, 255, 255, 0.05); }
@@ -40,19 +45,26 @@
         
         .btn-action { width: 100%; padding: 15px; font-weight: bold; cursor: pointer; border: none; text-transform: uppercase; letter-spacing: 2px; margin-top: 10px; transition: 0.3s; }
         .btn-wait { background: #222; color: #666; cursor: not-allowed; border: 1px solid #333; }
-        .btn-start { background: #00ffff; color: #000; box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); }
+        .btn-start { background: #00ff00; color: #000; box-shadow: 0 0 15px rgba(0, 255, 0, 0.2); }
+        .btn-start:hover { background: #00cc00; }
+        .btn-track { background: #00ffff; color: #000; box-shadow: 0 0 15px rgba(0, 255, 255, 0.2); }
+        .btn-disabled { background: #444; color: #888; cursor: wait; pointer-events: none; }
         
-        /* Tombol Emergency */
         .btn-destroy { background: transparent; color: #444; border: 1px solid #222; padding: 8px; font-size: 10px; width: 100%; margin-top: 20px; cursor: pointer; transition: 0.3s; }
         .btn-destroy:hover { color: #ff4444; border-color: #ff4444; background: rgba(255,0,0,0.05); }
 
-        /* === MODALS === */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 20px; }
-        .modal-box { background: #0a0a0a; border: 1px solid #333; padding: 20px; width: 100%; max-width: 350px; text-align: center; }
-        .modal-box.danger { border-color: #ff4444; }
-        .modal-btn { padding: 10px 20px; border: none; font-family: monospace; cursor: pointer; font-weight: bold; margin: 5px; }
-        .btn-confirm { background: #ff4444; color: #fff; }
-        .btn-cancel { background: #333; color: #ccc; }
+        /* === CUSTOM MODAL === */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 9999; padding: 20px; backdrop-filter: blur(3px); }
+        .modal-box { background: #0a0a0a; border: 1px solid #00ffff; padding: 20px; width: 100%; max-width: 350px; text-align: center; box-shadow: 0 0 20px rgba(0,255,255,0.1); }
+        .modal-box.danger { border-color: #ff4444; box-shadow: 0 0 20px rgba(255,0,0,0.1); }
+        .modal-title { font-size: 16px; font-weight: bold; margin-top: 0; margin-bottom: 10px; color: #00ffff; }
+        .modal-box.danger .modal-title { color: #ff4444; }
+        .modal-msg { font-size: 12px; color: #ccc; margin-bottom: 20px; line-height: 1.5; }
+        .modal-btn-group { display: flex; gap: 10px; justify-content: center; }
+        .modal-btn { padding: 10px; flex: 1; border: none; font-family: monospace; cursor: pointer; font-weight: bold; text-transform: uppercase; }
+        .btn-confirm-danger { background: #ff4444; color: #fff; }
+        .btn-confirm-safe { background: #00ffff; color: #000; }
+        .btn-cancel { background: #222; color: #888; border: 1px solid #444; }
 
         @keyframes blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
     </style>
@@ -60,11 +72,13 @@
 <body>
 
 <div class="container">
-    <div class="assistant-box">
+    <div id="connStatus">Sinyal Terputus. Menunggu Sambungan...</div>
+
+    <div class="assistant-box" id="assistantBox">
         <img id="asisImg" src="" class="assistant-img" alt="Assistant">
         <div class="assistant-chat">
             <span class="assistant-name" id="asisName">LOADING...</span>
-            <div class="assistant-msg" id="asisMsg">Menghubungkan ke pusat informasi guild...</div>
+            <div class="assistant-msg" id="asisMsg">Menganalisis frekuensi sinyal...</div>
         </div>
     </div>
 
@@ -73,120 +87,246 @@
         <h2 class="mission-title" id="displayTitle">MEMUAT DATA...</h2>
         
         <div class="data-grid">
+            <div class="data-item"><span>REQUESTER</span><b id="displayReq">-</b></div>
             <div class="data-item"><span>ADVENTURER</span><b id="displayAdven">-</b></div>
             <div class="data-item"><span>REWARD</span><b id="displayReward" style="color:#00ff00;">Rp 0</b></div>
             <div class="data-item"><span>LOKASI ASAL</span><b id="displayOrigin">-</b></div>
             <div class="data-item"><span>LOKASI TUJUAN</span><b id="displayDest">-</b></div>
+            <div class="data-item"><span>PERAN ANDA</span><b id="displayRole" style="color:#ffaa00;">-</b></div>
         </div>
 
         <div class="disclaimer-box">
-            <b>PROTOKOL KEAMANAN:</b> Kontrak ini dibuat secara otomatis berdasarkan kesepakatan pelelangan sinyal. 
-            Aplikasi <b>Sovereign Guild</b> bertindak murni sebagai penyedia papan informasi dan sistem broadcasting. 
-            Segala bentuk risiko, kerusakan fisik/materi, atau kegagalan dalam pelaksanaan misi di lapangan adalah 
-            <b>tanggung jawab sepenuhnya</b> antara Requester dan Adventurer. Sistem tidak menjamin kompensasi di luar sistem deposit yang disepakati.
+            <b>PROTOKOL KEAMANAN:</b> Kontrak ini otomatis terbentuk dari pelelangan. Sistem murni penyedia komunikasi. Risiko fisik/materi di lapangan adalah <b>tanggung jawab sepenuhnya</b> antara pihak Requester dan Adventurer.
         </div>
 
         <div class="status-panel">
-            <div id="statusIndicator"><span class="pulse-dot"></span> <small id="statusText">MENUNGGU KONFIRMASI ADVENTURER...</small></div>
-            <button id="btnStart" class="btn-action btn-wait" disabled>MEMPERSIAPKAN BRIEFING</button>
+            <div id="statusIndicator"><span class="pulse-dot"></span> <small id="statusText">SINKRONISASI DATA...</small></div>
+            <div id="actionArea">
+                </div>
         </div>
-
-        <button class="btn-destroy" onclick="reqDestroyContract()">[ EMERGENCY: HANCURKAN KONTRAK ]</button>
     </div>
 </div>
 
-<div id="modalConfirm" class="modal-overlay">
-    <div class="modal-box danger">
-        <h3 style="color:#ff4444; margin-top:0;">HANCURKAN KONTRAK?</h3>
-        <p style="font-size:12px; color:#888;">Gunakan hanya jika sistem Adventurer hang/error. Tindakan ini akan menghapus seluruh data kontrak saat ini.</p>
-        <button class="modal-btn btn-confirm" onclick="executeDestroy()">HANCURKAN SEKARANG</button>
-        <button class="modal-btn btn-cancel" onclick="closeModal()">BATAL</button>
+<div id="sysModal" class="modal-overlay">
+    <div class="modal-box" id="modalBox">
+        <h3 class="modal-title" id="modalTitle">SISTEM</h3>
+        <p class="modal-msg" id="modalMsg">Pesan sistem...</p>
+        <div class="modal-btn-group">
+            <button class="modal-btn btn-cancel" id="btnModalCancel" style="display:none;" onclick="closeModal()">BATAL</button>
+            <button class="modal-btn btn-confirm-safe" id="btnModalOk" onclick="closeModal()">MENGERTI</button>
+        </div>
     </div>
 </div>
 
 <script>
-    // === 1. KONFIGURASI ASISTEN (PIXEL ART PLACEHOLDERS) ===
-    const assistants = [
-        { name: "AMY", shift: "04-08", msg: "Selamat pagi. Saya Amy, akan memandu persiapan stamina Anda hari ini.", img: "https://via.placeholder.com/70/111/00ffff?text=AMY" },
-        { name: "ALDIS", shift: "08-12", msg: "Aldis di sini. Pastikan poin-poin disclaimer sudah Anda pahami dengan benar.", img: "https://via.placeholder.com/70/111/00ffff?text=ALDIS" },
-        { name: "RUBY", shift: "12-16", msg: "Panas sekali ya? Saya Ruby. Jangan biarkan Adventurer menunggu terlalu lama!", img: "https://via.placeholder.com/70/111/00ffff?text=RUBY" },
-        { name: "ARIA", shift: "16-20", msg: "Sore yang tenang. Saya Aria, sedang memantau koordinat desa tujuan Anda.", img: "https://via.placeholder.com/70/111/00ffff?text=ARIA" },
-        { name: "TESSIA", shift: "20-00", msg: "Malam adalah waktu sensitif. Saya Tessia, siap membantu teknis kontrak Anda.", img: "https://via.placeholder.com/70/111/00ffff?text=TESSIA" },
-        { name: "IRENE", shift: "00-04", msg: "Masih terjaga? Irene di sini. Hati-hati dengan risiko misi di jam gelap ini.", img: "https://via.placeholder.com/70/111/00ffff?text=IRENE" }
-    ];
+    // === 1. SISTEM MODAL CUSTOM ===
+    let confirmActionCallback = null;
 
-    function setAssistant() {
-        const hour = new Date().getHours();
-        let active = assistants[0];
-        if (hour >= 4 && hour < 8) active = assistants[0];
-        else if (hour >= 8 && hour < 12) active = assistants[1];
-        else if (hour >= 12 && hour < 16) active = assistants[2];
-        else if (hour >= 16 && hour < 20) active = assistants[3];
-        else if (hour >= 20 || hour < 0) active = assistants[4];
-        else active = assistants[5];
+    function showModal(title, message, isDanger = false, isConfirm = false, onConfirm = null) {
+        document.getElementById('sysModal').style.display = 'flex';
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalMsg').innerText = message;
+        
+        const box = document.getElementById('modalBox');
+        const btnOk = document.getElementById('btnModalOk');
+        const btnCancel = document.getElementById('btnModalCancel');
 
-        document.getElementById('asisName').innerText = active.name;
-        document.getElementById('asisMsg').innerText = active.msg;
-        document.getElementById('asisImg').src = active.img;
-    }
-
-    // === 2. INISIALISASI FIREBASE ===
-    const user = Clearchance.enforceIdentity();
-    const activeCid = sessionStorage.getItem('active_contract_id');
-    const db4 = getTerminal('FB4_BOARD');
-
-    if (!activeCid) {
-        alert("ID Kontrak tidak ditemukan.");
-        window.location.href = "publish.html";
-    }
-
-    // === 3. MONITOR KONTRAK SECARA REALTIME ===
-    db4.ref(`kontrak_mission/${activeCid}`).on('value', snap => {
-        if (!snap.exists()) {
-            alert("Kontrak telah dihapus atau berakhir.");
-            window.location.href = "publish.html";
-            return;
-        }
-
-        const c = snap.val();
-        document.getElementById('displayCid').innerText = `CONTRACT ID: ${c.id_kontrak}`;
-        document.getElementById('displayTitle').innerText = c.full_mission_data.id_misi;
-        document.getElementById('displayAdven').innerText = c.adventurer_nick;
-        document.getElementById('displayReward').innerText = `Rp ${c.reward.toLocaleString()}`;
-        document.getElementById('displayOrigin').innerText = c.full_mission_data.origin_name;
-        document.getElementById('displayDest').innerText = c.full_mission_data.dest_name;
-
-        // Logika Status: Jika Adventurer sudah siap (misal is_started = true)
-        const btn = document.getElementById('btnStart');
-        if (c.is_started) {
-            document.getElementById('statusText').innerText = "MISI SEDANG BERJALAN (IN PROGRESS)";
-            document.getElementById('statusText').style.color = "#00ff00";
-            btn.innerText = "PANTAU PERJALANAN";
-            btn.className = "btn-action btn-start";
-            btn.disabled = false;
-            btn.onclick = () => window.location.href = "tracking.html";
+        if (isDanger) {
+            box.className = 'modal-box danger';
+            btnOk.className = 'modal-btn btn-confirm-danger';
         } else {
-            // Jika status masih briefing, menunggu start dari salah satu pihak (logika sesuai aplikasi anda)
-            document.getElementById('statusText').innerText = "MENUNGGU ADVENTURER MEMULAI...";
+            box.className = 'modal-box';
+            btnOk.className = 'modal-btn btn-confirm-safe';
         }
-    });
 
-    // === 4. EMERGENCY FUNCTIONS ===
-    function reqDestroyContract() {
-        document.getElementById('modalConfirm').style.display = 'flex';
+        if (isConfirm) {
+            btnCancel.style.display = 'block';
+            btnOk.innerText = "EKSEKUSI";
+            confirmActionCallback = onConfirm;
+            btnOk.onclick = () => { closeModal(); if(confirmActionCallback) confirmActionCallback(); };
+        } else {
+            btnCancel.style.display = 'none';
+            btnOk.innerText = "MENGERTI";
+            btnOk.onclick = () => { closeModal(); if(onConfirm) onConfirm(); };
+        }
     }
 
     function closeModal() {
-        document.getElementById('modalConfirm').style.display = 'none';
+        document.getElementById('sysModal').style.display = 'none';
+        confirmActionCallback = null;
+    }
+
+    // === 2. INISIALISASI DASAR ===
+    const user = Clearchance.enforceIdentity();
+    const activeCid = sessionStorage.getItem('active_contract_id');
+    const db4 = getTerminal('FB4_BOARD');
+    
+    let isInitialLoad = true;
+    let currentContractData = null;
+    let userRole = null;
+
+    if (!activeCid) {
+        showModal("AKSES ILEGAL", "ID Kontrak tidak ditemukan di memori lokal.", true, false, () => {
+            window.location.href = "index.html"; // Balik ke base
+        });
+    }
+
+    // === 3. MONITOR KONEKSI OFFLINE/ONLINE ===
+    const connectedRef = firebase.database().ref(".info/connected");
+    connectedRef.on("value", (snap) => {
+        const isConnected = snap.val() === true;
+        const connBadge = document.getElementById('connStatus');
+        const asisBox = document.getElementById('assistantBox');
+        
+        if (isConnected) {
+            connBadge.style.display = 'none';
+            asisBox.classList.remove('offline-mode');
+        } else {
+            connBadge.style.display = 'block';
+            asisBox.classList.add('offline-mode');
+            document.getElementById('asisMsg').innerText = "Sistem gagal menjangkau server Firebase. Misi tidak bisa diinteraksi.";
+        }
+    });
+
+    // === 4. ASISTEN CONTEXT-AWARE ===
+    const assistants = [
+        { name: "AMY", img: "https://via.placeholder.com/70/111/00ffff?text=AMY" },
+        { name: "ALDIS", img: "https://via.placeholder.com/70/111/00ffff?text=ALDIS" },
+        { name: "RUBY", img: "https://via.placeholder.com/70/111/00ffff?text=RUBY" },
+        { name: "ARIA", img: "https://via.placeholder.com/70/111/00ffff?text=ARIA" },
+        { name: "TESSIA", img: "https://via.placeholder.com/70/111/00ffff?text=TESSIA" },
+        { name: "IRENE", img: "https://via.placeholder.com/70/111/00ffff?text=IRENE" }
+    ];
+
+    function updateAssistant(roleText) {
+        const hour = new Date().getHours();
+        let active = assistants[Math.floor(hour / 4) % 6]; 
+
+        let msg = `Saya ${active.name}. `;
+        if (roleText === 'adventurer') {
+            msg += "Sinyal Anda terverifikasi. Jika siap, silakan eksekusi kontrak ini untuk mulai perekaman waktu.";
+        } else if (roleText === 'requester') {
+            msg += "Jalur komunikasi terbuka. Kita menunggu Adventurer untuk menekan tombol Eksekusi.";
+        }
+
+        document.getElementById('asisName').innerText = active.name;
+        document.getElementById('asisMsg').innerText = msg;
+        document.getElementById('asisImg').src = active.img;
+    }
+
+    // === 5. MONITOR KONTRAK (INTI LOGIKA LAMA) ===
+    const contractRef = db4.ref(`kontrak_mission/${activeCid}`);
+
+    contractRef.on('value', snap => {
+        if (!snap.exists()) {
+            if (isInitialLoad) { isInitialLoad = false; return; }
+            showModal("KONTRAK DIHANCURKAN", "Misi ini telah dibatalkan atau ditarik kembali oleh sistem/Requester.", true, false, () => {
+                window.location.href = "index.html";
+            });
+            return;
+        }
+
+        isInitialLoad = false;
+        const c = snap.val();
+        currentContractData = c;
+
+        // FILTER IDENTITAS KETAT
+        if (user.uid === c.id_requester) {
+            userRole = 'requester';
+        } else if (user.uid === c.id_adventurer) {
+            userRole = 'adventurer';
+        } else {
+            showModal("AKSES DITOLAK", "Identitas Anda tidak terkait dengan kontrak ini.", true, false, () => {
+                window.location.href = "index.html";
+            });
+            return;
+        }
+
+        if (c.full_mission_data) {
+            sessionStorage.setItem('current_mission_full', JSON.stringify(c.full_mission_data));
+        }
+
+        renderUI(c, userRole);
+    });
+
+    // === 6. RENDER UI BERDASARKAN PERAN ===
+    function renderUI(c, role) {
+        document.getElementById('displayCid').innerText = `CONTRACT ID: ${c.id_kontrak}`;
+        document.getElementById('displayTitle').innerText = c.full_mission_data.id_misi || "MISI KONTRAK";
+        document.getElementById('displayReq').innerText = c.requester_nick;
+        document.getElementById('displayAdven').innerText = c.adventurer_nick;
+        document.getElementById('displayReward').innerText = `Rp ${(c.reward || 0).toLocaleString()}`;
+        document.getElementById('displayOrigin').innerText = c.full_mission_data.origin_name || "-";
+        document.getElementById('displayDest').innerText = c.full_mission_data.dest_name || "-";
+        document.getElementById('displayRole').innerText = role.toUpperCase();
+
+        updateAssistant(role);
+
+        const statusText = document.getElementById('statusText');
+        const actionArea = document.getElementById('actionArea');
+        actionArea.innerHTML = "";
+
+        if (c.is_started === true) {
+            // MISI SUDAH BERJALAN: Dua-duanya pindah halaman
+            contractRef.off(); // Matikan listener
+            window.location.href = "mission_progress.html"; // Atau tracking.html
+            return;
+        }
+
+        // MISI BELUM BERJALAN: Tampilan Berbeda
+        if (role === 'adventurer') {
+            statusText.innerText = "KONTRAK SIAP. MENUNGGU EKSEKUSI ANDA.";
+            statusText.style.color = "#00ff00";
+            actionArea.innerHTML = `<button id="btnExe" class="btn-action btn-start" onclick="reqStartMission()">MULAI MISI SEKARANG</button>`;
+        } else { // Requester
+            statusText.innerText = "MENUNGGU ADVENTURER MEMULAI...";
+            statusText.style.color = "#ffaa00";
+            actionArea.innerHTML = `
+                <button class="btn-action btn-wait" disabled>MEMANTAU PERGERAKAN</button>
+                <button class="btn-destroy" onclick="reqDestroyContract()">[ EMERGENCY: BATALKAN & HANCURKAN KONTRAK ]</button>
+            `;
+        }
+    }
+
+    // === 7. FUNGSI ADVENTURER (START) ===
+    function reqStartMission() {
+        showModal("MULAI PERJALANAN?", "Sistem akan mulai merekam waktu dan menaikkan status misi di papan utama. Pastikan persiapan Anda selesai.", false, true, executeStart);
+    }
+
+    async function executeStart() {
+        const btn = document.getElementById('btnExe');
+        btn.disabled = true;
+        btn.innerText = "EXECUTING...";
+        btn.classList.add('btn-disabled');
+
+        try {
+            const c = currentContractData;
+            // 1. Update Kontrak (Memicu transisi halaman otomatis)
+            await contractRef.update({ is_started: true, start_time: Date.now() });
+            
+            // 2. Sinkronisasi Status Mission Board
+            if(c.id_shard && c.id_desa && c.id_misi) {
+                await db4.ref(`mission-${c.id_shard}/${c.id_desa}/${c.id_misi}`).update({ status: 'on-going' });
+            }
+        } catch (e) {
+            btn.disabled = false;
+            btn.innerText = "MULAI MISI SEKARANG";
+            btn.classList.remove('btn-disabled');
+            showModal("GAGAL", "Gagal memulai misi: " + e.message, true);
+        }
+    }
+
+    // === 8. FUNGSI REQUESTER (DESTROY) ===
+    function reqDestroyContract() {
+        showModal("HANCURKAN KONTRAK?", "Tindakan ini akan mengembalikan misi ke status OPEN di papan misi dan membatalkan kontrak sepihak. Lanjutkan?", true, true, executeDestroy);
     }
 
     async function executeDestroy() {
         try {
-            // Ambil data kontrak dulu untuk tahu Mid (Mission ID) agar bisa balikin status misi
-            const snap = await db4.ref(`kontrak_mission/${activeCid}`).once('value');
-            if (snap.exists()) {
-                const c = snap.val();
-                // 1. Balikkan status misi di board agar bisa diambil lagi atau dipublish ulang
+            const c = currentContractData;
+            
+            // 1. Rollback ke Mission Board (Misi jadi OPEN lagi)
+            if(c.id_shard && c.id_desa && c.id_misi) {
                 await db4.ref(`mission-${c.id_shard}/${c.id_desa}/${c.id_misi}`).update({
                     status: 'open',
                     active_contract_id: null,
@@ -194,19 +334,22 @@
                 });
             }
 
-            // 2. Hapus Kontrak
-            await db4.ref(`kontrak_mission/${activeCid}`).remove();
+            // 2. Bersihkan Bids (seperti kode lama)
+            if(c.id_misi) {
+                await db4.ref(`bids/${c.id_misi}`).remove();
+            }
+
+            // 3. Hapus Kontrak Utama
+            await contractRef.remove();
             
             sessionStorage.removeItem('active_contract_id');
-            alert("Kontrak berhasil dihancurkan secara paksa.");
-            window.location.href = "publish.html";
+            showModal("SUKSES", "Kontrak dihancurkan. Anda akan dikembalikan ke Lobby.", false, false, () => {
+                window.location.href = "index.html"; // Atau lobby_requester.html
+            });
         } catch (e) {
-            alert("Gagal menghancurkan kontrak: " + e.message);
+            showModal("GAGAL", "Gagal menghancurkan kontrak: " + e.message, true);
         }
     }
-
-    // Jalankan asisten
-    setAssistant();
 </script>
 
 </body>
