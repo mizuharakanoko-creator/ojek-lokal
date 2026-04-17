@@ -119,11 +119,15 @@
 </div>
 
 <script>
-    // === 1. SISTEM MODAL CUSTOM ===
+           
+
+        // === 1. SISTEM MODAL CUSTOM ===
     let confirmActionCallback = null;
 
     function showModal(title, message, isDanger = false, isConfirm = false, onConfirm = null) {
-        document.getElementById('sysModal').style.display = 'flex';
+        const modal = document.getElementById('sysModal');
+        if (!modal) return;
+        modal.style.display = 'flex';
         document.getElementById('modalTitle').innerText = title;
         document.getElementById('modalMsg').innerText = message;
         
@@ -131,13 +135,8 @@
         const btnOk = document.getElementById('btnModalOk');
         const btnCancel = document.getElementById('btnModalCancel');
 
-        if (isDanger) {
-            box.className = 'modal-box danger';
-            btnOk.className = 'modal-btn btn-confirm-danger';
-        } else {
-            box.className = 'modal-box';
-            btnOk.className = 'modal-btn btn-confirm-safe';
-        }
+        box.className = isDanger ? 'modal-box danger' : 'modal-box';
+        btnOk.className = isDanger ? 'modal-btn btn-confirm-danger' : 'modal-btn btn-confirm-safe';
 
         if (isConfirm) {
             btnCancel.style.display = 'block';
@@ -157,38 +156,35 @@
     }
 
     // === 2. INISIALISASI DASAR ===
-    const user = Clearchance.enforceIdentity();
+    // Pastikan Clearchance dan Terminal Router sudah terload
+    const user = typeof Clearchance !== 'undefined' ? Clearchance.enforceIdentity() : { uid: null };
     const activeCid = sessionStorage.getItem('active_contract_id');
-    const db4 = getTerminal('FB4_BOARD');
+    const db4 = typeof getTerminal !== 'undefined' ? getTerminal('FB4_BOARD') : null;
     
     let isInitialLoad = true;
     let currentContractData = null;
     let userRole = null;
 
-    if (!activeCid) {
-        showModal("AKSES ILEGAL", "ID Kontrak tidak ditemukan di memori lokal.", true, false, () => {
-            window.location.href = "index.html"; // Balik ke base
+    if (!activeCid || !db4) {
+        setTimeout(() => {
+            showModal("SYSTEM ERROR", "Koneksi Terminal atau ID Kontrak hilang.", true, false, () => {
+                window.location.href = "index.html";
+            });
+        }, 500);
+    }
+
+    // === 3. MONITOR KONEKSI ===
+    if (db4) {
+        firebase.database().ref(".info/connected").on("value", (snap) => {
+            const isConnected = snap.val() === true;
+            const connBadge = document.getElementById('connStatus');
+            const asisBox = document.getElementById('assistantBox');
+            if (connBadge) connBadge.style.display = isConnected ? 'none' : 'block';
+            if (asisBox) isConnected ? asisBox.classList.remove('offline-mode') : asisBox.classList.add('offline-mode');
         });
     }
 
-    // === 3. MONITOR KONEKSI OFFLINE/ONLINE ===
-    const connectedRef = firebase.database().ref(".info/connected");
-    connectedRef.on("value", (snap) => {
-        const isConnected = snap.val() === true;
-        const connBadge = document.getElementById('connStatus');
-        const asisBox = document.getElementById('assistantBox');
-        
-        if (isConnected) {
-            connBadge.style.display = 'none';
-            asisBox.classList.remove('offline-mode');
-        } else {
-            connBadge.style.display = 'block';
-            asisBox.classList.add('offline-mode');
-            document.getElementById('asisMsg').innerText = "Sistem gagal menjangkau server Firebase. Misi tidak bisa diinteraksi.";
-        }
-    });
-
-    // === 4. ASISTEN CONTEXT-AWARE ===
+    // === 4. ASISTEN ===
     const assistants = [
         { name: "AMY", img: "https://via.placeholder.com/70/111/00ffff?text=AMY" },
         { name: "ALDIS", img: "https://via.placeholder.com/70/111/00ffff?text=ALDIS" },
@@ -201,120 +197,127 @@
     function updateAssistant(roleText) {
         const hour = new Date().getHours();
         let active = assistants[Math.floor(hour / 4) % 6]; 
-
-        let msg = `Saya ${active.name}. `;
-        if (roleText === 'adventurer') {
-            msg += "Sinyal Anda terverifikasi. Jika siap, silakan eksekusi kontrak ini untuk mulai perekaman waktu.";
-        } else if (roleText === 'requester') {
-            msg += "Jalur komunikasi terbuka. Kita menunggu Adventurer untuk menekan tombol Eksekusi.";
-        }
-
+        let msg = `Saya ${active.name}. ` + (roleText === 'adventurer' ? 
+            "Sinyal terverifikasi. Silakan eksekusi kontrak." : 
+            "Jalur terbuka. Menunggu Adventurer memulai.");
+        
         document.getElementById('asisName').innerText = active.name;
         document.getElementById('asisMsg').innerText = msg;
         document.getElementById('asisImg').src = active.img;
     }
 
-    // === 5. MONITOR KONTRAK (INTI LOGIKA LAMA) ===
-    const contractRef = db4.ref(`kontrak_mission/${activeCid}`);
+    // === 5. MONITOR KONTRAK (LOGIKA UTAMA) ===
+    if (db4 && activeCid) {
+        const contractRef = db4.ref(`kontrak_mission/${activeCid}`);
+        contractRef.on('value', snap => {
+            const c = snap.val();
+            if (!c) {
+                if (isInitialLoad) { isInitialLoad = false; return; }
+                showModal("DISKONEKSI", "Kontrak tidak ditemukan atau telah dihapus.", true, false, () => {
+                    window.location.href = "index.html";
+                });
+                return;
+            }
 
-    contractRef.on('value', snap => {
-        if (!snap.exists()) {
-            if (isInitialLoad) { isInitialLoad = false; return; }
-            showModal("KONTRAK DIHANCURKAN", "Misi ini telah dibatalkan atau ditarik kembali oleh sistem/Requester.", true, false, () => {
-                window.location.href = "index.html";
-            });
-            return;
-        }
+            isInitialLoad = false;
+            currentContractData = c;
 
-        isInitialLoad = false;
-        const c = snap.val();
-        currentContractData = c;
+            // VERIFIKASI PERAN (FAIL-SAFE)
+            if (user.uid === c.id_requester) userRole = 'requester';
+            else if (user.uid === c.id_adventurer) userRole = 'adventurer';
+            else {
+                showModal("AKSES DITOLAK", "UID Anda tidak terdaftar dalam kontrak ini.", true, false, () => {
+                    window.location.href = "index.html";
+                });
+                return;
+            }
 
-        // FILTER IDENTITAS KETAT
-        if (user.uid === c.id_requester) {
-            userRole = 'requester';
-        } else if (user.uid === c.id_adventurer) {
-            userRole = 'adventurer';
-        } else {
-            showModal("AKSES DITOLAK", "Identitas Anda tidak terkait dengan kontrak ini.", true, false, () => {
-                window.location.href = "index.html";
-            });
-            return;
-        }
+            if (c.full_mission_data) {
+                sessionStorage.setItem('current_mission_full', JSON.stringify(c.full_mission_data));
+            }
 
-        if (c.full_mission_data) {
-            sessionStorage.setItem('current_mission_full', JSON.stringify(c.full_mission_data));
-        }
+            renderUI(c, userRole);
+        });
+    }
 
-        renderUI(c, userRole);
-    });
-
-    // === 6. RENDER UI BERDASARKAN PERAN ===
+    // === 6. RENDER UI (FIXED: NO MORE STUCK) ===
     function renderUI(c, role) {
-        document.getElementById('displayCid').innerText = `CONTRACT ID: ${c.id_kontrak}`;
-        document.getElementById('displayTitle').innerText = c.full_mission_data.id_misi || "MISI KONTRAK";
-        document.getElementById('displayReq').innerText = c.requester_nick;
-        document.getElementById('displayAdven').innerText = c.adventurer_nick;
+        // Gunakan Optional Chaining agar tidak error jika data mission belum lengkap
+        const mData = c.full_mission_data || {};
+        
+        document.getElementById('displayCid').innerText = `CONTRACT ID: ${c.id_kontrak || "???"}`;
+        document.getElementById('displayTitle').innerText = mData.id_misi || "MISI TANPA NAMA";
+        document.getElementById('displayReq').innerText = c.requester_nick || "-";
+        document.getElementById('displayAdven').innerText = c.adventurer_nick || "-";
         document.getElementById('displayReward').innerText = `Rp ${(c.reward || 0).toLocaleString()}`;
-        document.getElementById('displayOrigin').innerText = c.full_mission_data.origin_name || "-";
-        document.getElementById('displayDest').innerText = c.full_mission_data.dest_name || "-";
-        document.getElementById('displayRole').innerText = role.toUpperCase();
+        document.getElementById('displayOrigin').innerText = mData.origin_name || "-";
+        document.getElementById('displayDest').innerText = mData.dest_name || "-";
+        document.getElementById('displayRole').innerText = (role || "GUEST").toUpperCase();
 
         updateAssistant(role);
 
         const statusText = document.getElementById('statusText');
         const actionArea = document.getElementById('actionArea');
-        actionArea.innerHTML = "";
-
+        
         if (c.is_started === true) {
-            // MISI SUDAH BERJALAN: Dua-duanya pindah halaman
-            contractRef.off(); // Matikan listener
-            window.location.href = "mission_progress.html"; // Atau tracking.html
+            window.location.href = "mission_progress.html";
             return;
         }
 
-        // MISI BELUM BERJALAN: Tampilan Berbeda
         if (role === 'adventurer') {
-            statusText.innerText = "KONTRAK SIAP. MENUNGGU EKSEKUSI ANDA.";
+            statusText.innerText = "KONTRAK SIAP. SILAKAN EKSEKUSI.";
             statusText.style.color = "#00ff00";
             actionArea.innerHTML = `<button id="btnExe" class="btn-action btn-start" onclick="reqStartMission()">MULAI MISI SEKARANG</button>`;
-        } else { // Requester
+        } else {
             statusText.innerText = "MENUNGGU ADVENTURER MEMULAI...";
             statusText.style.color = "#ffaa00";
             actionArea.innerHTML = `
-                <button class="btn-action btn-wait" disabled>MEMANTAU PERGERAKAN</button>
-                <button class="btn-destroy" onclick="reqDestroyContract()">[ EMERGENCY: BATALKAN & HANCURKAN KONTRAK ]</button>
+                <button class="btn-action btn-wait" disabled>MEMANTAU...</button>
+                <button class="btn-destroy" onclick="reqDestroyContract()">[ EMERGENCY: BATALKAN KONTRAK ]</button>
             `;
         }
     }
 
-    // === 7. FUNGSI ADVENTURER (START) ===
+    // === 7. ACTIONS ===
     function reqStartMission() {
-        showModal("MULAI PERJALANAN?", "Sistem akan mulai merekam waktu dan menaikkan status misi di papan utama. Pastikan persiapan Anda selesai.", false, true, executeStart);
+        showModal("KONFIRMASI", "Mulai pengerjaan misi sekarang?", false, true, executeStart);
     }
 
     async function executeStart() {
         const btn = document.getElementById('btnExe');
-        btn.disabled = true;
-        btn.innerText = "EXECUTING...";
-        btn.classList.add('btn-disabled');
-
+        if (btn) { btn.disabled = true; btn.innerText = "STARTING..."; }
         try {
             const c = currentContractData;
-            // 1. Update Kontrak (Memicu transisi halaman otomatis)
-            await contractRef.update({ is_started: true, start_time: Date.now() });
-            
-            // 2. Sinkronisasi Status Mission Board
+            await db4.ref(`kontrak_mission/${activeCid}`).update({ is_started: true, start_time: Date.now() });
             if(c.id_shard && c.id_desa && c.id_misi) {
                 await db4.ref(`mission-${c.id_shard}/${c.id_desa}/${c.id_misi}`).update({ status: 'on-going' });
             }
         } catch (e) {
-            btn.disabled = false;
-            btn.innerText = "MULAI MISI SEKARANG";
-            btn.classList.remove('btn-disabled');
-            showModal("GAGAL", "Gagal memulai misi: " + e.message, true);
+            showModal("ERROR", e.message, true);
         }
     }
+
+    function reqDestroyContract() {
+        showModal("HANCURKAN?", "Batalkan kontrak dan kembalikan misi ke Board?", true, true, executeDestroy);
+    }
+
+    async function executeDestroy() {
+        try {
+            const c = currentContractData;
+            if(c.id_shard && c.id_desa && c.id_misi) {
+                await db4.ref(`mission-${c.id_shard}/${c.id_desa}/${c.id_misi}`).update({
+                    status: 'open', active_contract_id: null, adventurer_id: null
+                });
+                await db4.ref(`bids/${c.id_misi}`).remove();
+            }
+            await db4.ref(`kontrak_mission/${activeCid}`).remove();
+            sessionStorage.removeItem('active_contract_id');
+            window.location.href = "index.html";
+        } catch (e) {
+            showModal("ERROR", e.message, true);
+        }
+    }
+
 
     // === 8. FUNGSI REQUESTER (DESTROY) ===
     function reqDestroyContract() {
