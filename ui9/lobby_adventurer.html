@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Adventurer Radar</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="router_lokal.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        /* === BASE THEME === */
+        body { background: #050505; color: white; font-family: 'Courier New', monospace; padding: 15px; margin: 0; }
+        
+        /* === RADAR VISUALS === */
+        .radar-box { border: 1px solid #222; background: #0a0a0a; padding: 15px; border-radius: 4px; position: relative; overflow: hidden; }
+        .radar-box::before { content: ""; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(from 0deg, transparent, rgba(0, 255, 0, 0.05), transparent 30%); animation: rotateRadar 4s linear infinite; pointer-events: none; }
+        
+        .status-bar { font-size: 11px; color: #666; border-bottom: 1px solid #222; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; position: relative; z-index: 2; }
+        .location-tag { color: #00ff00; font-weight: bold; text-shadow: 0 0 5px #00ff00; }
+        
+        #radarPulse { font-size: 10px; color: #00ffff; margin-bottom: 15px; letter-spacing: 2px; text-transform: uppercase; animation: pulse 2s infinite; }
+
+        /* === MISSION CARDS === */
+        .mission-card { background: #111; border: 1px solid #333; padding: 15px; margin-bottom: 12px; border-left: 4px solid #ffaa00; position: relative; z-index: 2; transition: 0.3s; }
+        .mission-card:hover { border-color: #ffaa00; background: #151515; }
+        .m-header { display: flex; justify-content: space-between; font-size: 10px; color: #555; }
+        .m-title { color: #fff; font-weight: bold; margin: 8px 0; font-size: 16px; letter-spacing: 1px; }
+        .m-reward { color: #00ff00; font-size: 18px; font-weight: bold; margin-top: 5px; }
+        .difficulty-tag { padding: 2px 6px; border-radius: 2px; font-size: 9px; font-weight: bold; }
+
+        /* === BUTTONS === */
+        .btn-bid { width: 100%; padding: 12px; background: #ffaa00; color: #000; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .btn-expand { width: 100%; padding: 10px; background: transparent; color: #00ffff; border: 1px solid #00ffff; cursor: pointer; font-size: 11px; margin-bottom: 20px; transition: 0.3s; }
+        .btn-expand:hover { background: rgba(0, 255, 255, 0.1); box-shadow: 0 0 10px #00ffff; }
+
+        /* === SOVEREIGN MODAL === */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 999; }
+        .modal-box { background: #0a0a0a; border: 1px solid #ffaa00; padding: 20px; width: 85%; max-width: 350px; box-shadow: 0 0 30px rgba(255, 170, 0, 0.2); }
+        .input-bid { width: 100%; padding: 12px; margin: 15px 0; background: #000; color: #00ff00; border: 1px solid #333; font-family: monospace; font-size: 20px; text-align: center; border-radius: 4px; }
+        
+        /* === ANIMATIONS === */
+        @keyframes rotateRadar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+        #emptyState { text-align: center; color: #333; padding: 40px 0; font-style: italic; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="radar-box">
+    <div class="status-bar">
+        <span>RADAR: <span id="locName" class="location-tag">INITIALIZING...</span></span>
+        <span>ZONE: <b id="taskZone" style="color:#fff;">-</b></span>
+    </div>
+    <div id="radarPulse">[ SCANNING FOR NEARBY SIGNALS... ]</div>
+    
+    <button class="btn-expand" id="btnExpand" onclick="perluasRadar()">+ PERLUAS JANGKAUAN SINYAL (SHARD SCAN)</button>
+
+    <div id="missionList">
+        <div id="emptyState">Memindai koordinat area...</div>
+    </div>
+</div>
+
+<div id="sovBidModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="color:#ffaa00; margin:0 0 10px 0; letter-spacing:2px;">KIRIM SINYAL PENAWARAN</h3>
+        <p id="bidInfo" style="font-size:12px; color:#888; line-height:1.4; border-bottom:1px solid #222; padding-bottom:10px;"></p>
+        
+        <div style="margin-top:15px;">
+            <label style="font-size:10px; color:#555; text-transform:uppercase;">Nominal Penawaran (IDR)</label>
+            <input type="number" id="bidAmount" class="input-bid">
+        </div>
+
+        <button class="btn-bid" onclick="submitBid()">PANCARKAN TAWARAN</button>
+        <button onclick="closeModal()" style="width:100%; background:none; color:#555; border:none; margin-top:15px; cursor:pointer; font-size:11px;">[ BATALKAN SINYAL ]</button>
+    </div>
+</div>
+
+<script>
+    // Audio Context untuk efek sonar
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSonar() {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+    }
+
+    const user = Clearchance.enforceIdentity();
+    let currentLoc = { desa: "", kec: "", shard: "", lat: 0, lng: 0 };
+    let areaTugas = ""; 
+    let selectedMid = "";
+    let isExpanded = false;
+
+    const db1 = getTerminal('FB1_MASTER');
+    const db4 = getTerminal('FB4_BOARD');
+
+    async function initAdventurer() {
+        try {
+            const userSnap = await db1.ref(`users/${user.uid}`).once('value');
+            const data = userSnap.val();
+            areaTugas = data?.area_tugas || user.zone || "KNG";
+            document.getElementById('taskZone').innerText = areaTugas;
+            
+            // Simpan Rank Adventurer untuk bidding nanti
+            user.rank = data?.rank || "F"; 
+
+            startGPS();
+            listenToContracts(); 
+        } catch (e) {
+            console.error("Gagal init:", e);
+        }
+    }
+
+    function startGPS() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                currentLoc.lat = pos.coords.latitude;
+                currentLoc.lng = pos.coords.longitude;
+                
+                // Integrasi router_lokal
+                const hasil = cariDesaTerdekat(currentLoc.lat, currentLoc.lng); 
+                currentLoc.desa = hasil.name;
+                currentLoc.kec = hasil.kec;
+                currentLoc.shard = getShardDariKecamatan(hasil.kec);
+
+                document.getElementById('locName').innerText = `${currentLoc.desa} (${currentLoc.kec})`;
+                startRadar();
+            }, null, { enableHighAccuracy: true });
+        }
+    }
+
+    function startRadar() {
+        const listDiv = document.getElementById('missionList');
+        const shard = getShardDariKecamatan(areaTugas);
+        const scanPath = isExpanded ? `mission-${shard}` : `mission-${shard}/${currentLoc.desa}`;
+
+        db4.ref(scanPath).on('value', snap => {
+            listDiv.innerHTML = "";
+            if (!snap.exists()) {
+                listDiv.innerHTML = '<div id="emptyState">Sinyal tidak terdeteksi di koordinat ini.</div>';
+                return;
+            }
+
+            playSonar(); // Efek suara saat data masuk
+
+            if (isExpanded) {
+                snap.forEach(desaSnap => {
+                    desaSnap.forEach(misiSnap => renderMisi(misiSnap.val()));
+                });
+            } else {
+                snap.forEach(misiSnap => renderMisi(misiSnap.val()));
+            }
+        });
+    }
+
+    function renderMisi(m) {
+        if (m.status !== 'open') return;
+        
+        // Color coding untuk difficulty
+        let diffColor = "#4ade80"; // Hijau
+        if (m.difficulty_rate > 1.5) diffColor = "#fbbf24"; // Kuning
+        if (m.difficulty_rate > 2.0) diffColor = "#f87171"; // Merah
+
+        const div = document.createElement('div');
+        div.className = 'mission-card';
+        div.innerHTML = `
+            <div class="m-header">
+                <span>ID: ${m.id_misi}</span>
+                <span class="difficulty-tag" style="background:${diffColor}; color:#000;">DIFF: ${m.difficulty_rate}x</span>
+            </div>
+            <div class="m-title">TUJUAN: ${m.dest_desa.toUpperCase()}</div>
+            <div style="font-size:11px; color:#888;">
+                <span style="color:#ffaa00;">●</span> Penjemputan: ${m.origin_desa} (${m.origin_name})
+            </div>
+            <div class="m-reward">Rp ${m.reward.toLocaleString()}</div>
+            <button class="btn-bid" onclick="openBidModal('${m.id_misi}', ${m.reward})">KIRIM SINYAL TAWARAN</button>
+        `;
+        document.getElementById('missionList').appendChild(div);
+    }
+
+    function perluasRadar() {
+        isExpanded = true;
+        document.getElementById('btnExpand').style.display = 'none';
+        document.getElementById('radarPulse').innerText = "[ DEEP SCANNING: SELURUH SHARD DIJANGKAU ]";
+        document.getElementById('radarPulse').style.color = "#ff4444";
+        startRadar();
+    }
+
+    function openBidModal(mid, reward) {
+        selectedMid = mid;
+        document.getElementById('sovBidModal').style.display = 'flex';
+        document.getElementById('bidInfo').innerText = `Target: ${mid}\nReward Dasar: Rp ${reward.toLocaleString()}\n\nStatus: Penawaran akan dikirimkan dengan identitas Rank [${user.rank}] Anda.`;
+        document.getElementById('bidAmount').value = reward;
+    }
+
+    async function submitBid() {
+        const amount = document.getElementById('bidAmount').value;
+        if (!amount || amount < 1000) {
+            alert("Nominal Sinyal Tidak Valid!");
+            return;
+        }
+
+        try {
+            await db4.ref(`bids/${selectedMid}/${user.uid}`).set({
+                adventurer_id: user.uid,
+                adventurer_nick: user.nick,
+                rank: user.rank, // Tambahan Rank
+                offer_price: parseInt(amount),
+                timestamp: Date.now()
+            });
+            alert("SINYAL TERPANCAR! Menunggu respon Requester di Briefing Room.");
+            closeModal();
+        } catch (e) {
+            alert("Gagal memancarkan sinyal: " + e.message);
+        }
+    }
+
+    function listenToContracts() {
+        db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(user.uid).on('child_added', snap => {
+            const k = snap.val();
+            if (k.status === 'briefing') {
+                // Gunakan alert kustom jika perlu, di sini pakai standar dulu untuk fungsionalitas
+                alert(`KONTRAK MASUK!\nID: ${k.id_misi}\n\nMenuju Briefing Room...`);
+                sessionStorage.setItem('active_contract_id', k.id_kontrak);
+                window.location.href = "briefing_room.html";
+            }
+        });
+    }
+
+    function closeModal() { document.getElementById('sovBidModal').style.display = 'none'; }
+    initAdventurer();
+</script>
+</body>
+</html>
