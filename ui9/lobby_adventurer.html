@@ -243,6 +243,31 @@
     pointer-events: none;
 }
 
+/* Kotak Utama Rincian (Sesuai Kotak Deskripsi) */
+.special-detail-box {
+    background: #111; /* Warna gelap sama dengan kotak deskripsi */
+    border: 1px solid #333;
+    padding: 12px;
+    margin: 10px 0;
+    font-size: 12px;
+    color: #ccc; /* Tidak mencolok */
+    font-family: var(--font-sans); /* Pakai font bersih */
+    border-radius: 4px;
+    text-align: left;
+    font-weight: normal; /* Pastikan tidak bold */
+}
+
+/* Item Titik di dalamnya */
+.titik-item {
+    padding: 8px 0;
+    border-bottom: 1px solid #222; /* Garis pemisah antar titik */
+    line-height: 1.5;
+}
+
+.titik-item:last-child {
+    border-bottom: none; /* Titik terakhir tidak pakai garis */
+}
+
 
     </style>
 </head>
@@ -677,37 +702,36 @@
                 const isNew = !App.State.renderedMissions.has(m.id_misi) && !isApplied;
                 if(isNew) App.State.renderedMissions.add(m.id_misi);
 
-                const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || m.dest_name === 'multi-point');
+                const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || m.dest_name.includes('[TITIK'));
                 
                 const div = document.createElement('div');
                 div.className = `mission-card ${isNew ? 'flash' : ''} ${isApplied ? 'applied-locked' : ''}`;
                 
-                // PENGAMAN TOMBOL: Mengubah teks panjang menjadi format yang aman untuk atribut HTML
+                // LOGIKA PEMISAH TITIK: Memecah teks berdasarkan karakter '|'
+                let formattedDest = m.dest_name;
+                if(isSpecial && m.dest_name.includes('|')) {
+                    formattedDest = m.dest_name.split('|').map(t => `<div class="titik-item">${t.trim()}</div>`).join('');
+                }
+
                 const safeDest = m.dest_name ? m.dest_name.replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ") : "";
                 const safeNote = m.note ? m.note.replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ") : "";
 
                 div.innerHTML = `
                     <div class="m-header">
                         <span>ID: ${m.id_misi.slice(-6)}</span>
-                        ${isApplied ? 
-                            '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
-                            `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
-                        }
+                        ${isApplied ? '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`}
                     </div>
 
-                    <div class="m-title" style="${isApplied ? 'color:#555;' : ''}">
+                    <div class="m-title">
                         ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + m.dest_desa.toUpperCase()}
                     </div>
 
                     ${isSpecial ? `
-                        <div class="special-detail-box" style="text-align: left; ${isApplied ? 'opacity:0.4; border-color:#222; color:#555;' : ''}">
-                            ${m.dest_name}
-                        </div>
-                        <div style="font-size:10px; color:#666; margin-bottom:10px; font-family:var(--font-terminal);">
-                            📍 ASAL: ${m.origin_name}
+                        <div class="special-detail-box">
+                            ${formattedDest}
                         </div>
                     ` : `
-                        <div class="m-route" style="${isApplied ? 'opacity:0.4;' : ''}">
+                        <div class="m-route">
                             <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
                             <div style="font-size:10px; color:#666;">Tujuan: ${m.dest_desa}</div>
                         </div>
@@ -723,12 +747,13 @@
                     </div>
                     
                     ${isApplied ? 
-                        `<button class="btn-bid-card" style="background:#1a1a1a; color:#444; border:1px solid #333; cursor:not-allowed;" disabled>KONTRAK DALAM TINJAUAN</button>` :
+                        `<button class="btn-bid-card" disabled>KONTRAK DALAM TINJAUAN</button>` :
                         `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}')">LIHAT DETAIL / NEGO</button>`
                     }
                 `;
                 container.appendChild(div);
             },
+
 
 
 
