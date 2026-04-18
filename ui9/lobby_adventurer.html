@@ -485,17 +485,17 @@
                 App.BiddingData.currentPrice = App.BiddingData.basePrice;
                 document.getElementById('bidAmount').value = App.BiddingData.currentPrice.toLocaleString('id-ID');
             },
-                        submit: async function() {
+            submit: async function() {
                 const { mid, currentPrice } = App.BiddingData;
                 const r = App.State.rpg;
 
-                // VALIDASI RPG
+                // Proteksi: Cek Limit & Stamina
                 if (r.stm < 10) {
-                    App.UI.showAlert("LELAH", "Stamina tidak cukup untuk melamar misi (Butuh 10 STM).");
+                    App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
                     return;
                 }
                 if (r.limit >= r.limitMax) {
-                    App.UI.showAlert("LIMIT TERCAPAI", "Anda sudah mencapai batas maksimal kontrak hari ini.");
+                    App.UI.showAlert("LIMIT HABIS", `Jatah harian (${r.limitMax}) sudah tercapai.`);
                     return;
                 }
 
@@ -503,16 +503,16 @@
                 btn.innerText = "TRANSMISI..."; btn.disabled = true;
 
                 try {
-                    // 1. Kirim Bid
+                    // STEP 1: Kirim Bid ke FB4 (Board Misi)
                     await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
                         adventurer_id: App.user.uid,
-                        adventurer_nick: App.user.nick,
-                        rank: App.user.rank,
+                        adventurer_nick: App.user.nick || "Adventurer",
+                        rank: App.State.rank, // Ambil dari State yang sudah sinkron dengan FB1
                         offer_price: currentPrice,
                         timestamp: Date.now()
                     });
 
-                    // 2. Kurangi Stamina & Update Limit di Master (FB1)
+                    // STEP 2: Kurangi Stamina & Tambah Limit di FB1 (Master)
                     const newStm = r.stm - 10;
                     const newLimit = r.limit + 1;
                     
@@ -521,15 +521,15 @@
                         limit_harian: newLimit
                     });
 
-                    // 3. Update Local State
+                    // Update UI Lokal agar tidak perlu refresh
                     App.State.rpg.stm = newStm;
                     App.State.rpg.limit = newLimit;
                     App.UI.updateRPG();
 
                     App.UI.closeModal();
-                    App.UI.showAlert("BERHASIL", "Sinyal terkirim. Stamina berkurang 10.");
+                    App.UI.showAlert("BERHASIL", "Sinyal bid terkirim ke Requester.");
                 } catch (e) {
-                    App.UI.showAlert("ERROR", e.message);
+                    App.UI.showAlert("ERROR", "Gagal transmisi: " + e.message);
                 } finally {
                     btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false;
                 }
