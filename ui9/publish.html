@@ -1336,7 +1336,7 @@ function initMapDest() {
     function validateStep3() {
     questData.destination.points = [];
 
-    // JIKA MODE NYA BUKAN MULTI ATAU HELP, BERARTI MENGGUNAKAN SISTEM TAB (STANDARD)
+    // --- MODE: SMART DESA ---
     if (questData.destination.mode === 'smart') {
         const k = document.getElementById('destKec').value;
         const dIdx = document.getElementById('destDesa').value;
@@ -1348,6 +1348,7 @@ function initMapDest() {
         questData.destination.desa = dData.name; 
         questData.destination.text = dData.name + " (" + (document.getElementById('destDetail').value || "Tanpa Detail") + ")";
     } 
+    // --- MODE: NEGO / MANUAL ---
     else if (questData.destination.mode === 'nego') {
         const t = document.getElementById('destNegoText').value;
         if (t.length < 5) return showToast("⚠️ Deskripsi tujuan terlalu singkat!");
@@ -1355,33 +1356,41 @@ function initMapDest() {
         questData.destination.desa = "Custom Location";
         questData.destination.lat = 0;
     }
+    // --- MODE: MAP ---
     else if (questData.destination.mode === 'map') {
         if (!questData.destination.lat) return showToast("⚠️ Geser peta tujuan!");
         questData.destination.text = "📍 Titik Peta (" + (document.getElementById('destDetail').value || "Tanpa Detail") + ")";
-        // questData.destination.desa sudah terisi otomatis saat moveend di mapDest
     }
-    // LOGIKA LAMA YANG TETAP HARUS ADA:
+    // --- PERBAIKAN: MODE TITIP BELI (MULTI) ---
     else if (questData.destination.mode === 'multi') {
-        let valid = true;
+        let combinedText = "";
         for(let i=1; i<=4; i++) {
             const el = document.getElementById("pointVal_" + i);
-            if(el && el.value.length > 3) questData.destination.points.push(el.value);
-            else if (el && el.value.length > 0 && el.value.length <= 3) valid = false;
+            if(el && el.value.trim().length > 3) {
+                questData.destination.points.push(el.value.trim());
+                combinedText += `[Titik ${i}]: ${el.value.trim()} | `;
+            }
         }
-        if(!valid || questData.destination.points.length === 0) return showToast("⚠️ Isi detail titik belanja!");
-        questData.destination.text = questData.destination.points.length + " Titik Belanja";
+        if(questData.destination.points.length === 0) return showToast("⚠️ Isi detail titik belanja!");
+        
+        // PENTING: Simpan teks belanja ke .text agar muncul di Database
+        questData.destination.text = combinedText; 
         questData.destination.desa = "Multi-Point"; 
     }
+    // --- PERBAIKAN: MODE HELP / SERVICE ---
     else if (questData.destination.mode === 'help') {
         const v = document.getElementById('helpDescText').value;
         if(v.length < 10) return showToast("⚠️ Deskripsi minimal 10 karakter.");
-        questData.destination.text = "Bantuan Khusus";
+        
+        // PENTING: Masukkan deskripsi bantuan ke .text
+        questData.destination.text = "Bantuan: " + v; 
         questData.destination.desa = "Service"; 
         questData.specs.helpDesc = v;
     }
 
     navStep(4);
 }
+
 
 
 
@@ -1684,7 +1693,7 @@ const currentRpg = calculateRPGStats(
             specs: {
                 barang: document.getElementById('specBarang') ? document.getElementById('specBarang').value : "",
                 bantuan: document.getElementById('helpDescText') ? document.getElementById('helpDescText').value : "",
-                multi_points: questData.destination.points || []
+                multi_points: questData.destination.points || [] // Data dari loop validateStep3
             },
 
             distance_est: questData.distanceEst || 0,
