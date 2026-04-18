@@ -804,9 +804,21 @@
                 const isNew = !App.State.renderedMissions.has(m.id_misi) && !isApplied;
                 if(isNew) App.State.renderedMissions.add(m.id_misi);
 
+                // Deteksi kategori khusus
+                const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || m.dest_name.includes('[TITIK'));
+                
                 const div = document.createElement('div');
                 div.className = `mission-card ${isNew ? 'flash' : ''} ${isApplied ? 'applied-locked' : ''}`;
                 
+                // LOGIKA PEMISAH TITIK: Memecah teks berdasarkan karakter '|' agar rapi kebawah
+                let formattedDest = m.dest_name;
+                if(isSpecial && m.dest_name.includes('|')) {
+                    formattedDest = m.dest_name.split('|')
+                        .map(t => `<div class="titik-item">${t.trim()}</div>`)
+                        .join('');
+                }
+
+                // Sanitasi untuk modal agar tidak error saat diklik
                 const safeDest = m.dest_name ? m.dest_name.replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ") : "";
                 const safeNote = m.note ? m.note.replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ") : "";
 
@@ -815,15 +827,31 @@
                         <span>ID: ${m.id_misi.slice(-6)}</span>
                         ${isApplied ? '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`}
                     </div>
-                    <div class="m-title" style="${isApplied ? 'color:#555;' : ''}">KE: ${m.dest_desa.toUpperCase()}</div>
-                    <div class="m-route" style="${isApplied ? 'opacity:0.4;' : ''}">
-                        <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
-                        <div style="font-size:10px; color:#666;">Kategori: ${m.category || 'Reguler'}</div>
+
+                    <div class="m-title">
+                        ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + m.dest_desa.toUpperCase()}
                     </div>
-                    <div class="m-reward" style="${isApplied ? 'color:#222;' : ''}">
+
+                    ${isSpecial ? `
+                        <div class="special-detail-box">
+                            ${formattedDest}
+                        </div>
+                    ` : `
+                        <div class="m-route">
+                            <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
+                            <div style="font-size:10px; color:#666;">Tujuan: ${m.dest_desa}</div>
+                        </div>
+                    `}
+
+                    <div style="font-size:10px; color:var(--theme-color); margin-bottom:8px; font-family:var(--font-terminal); font-weight:bold;">
+                        KATEGORI: ${m.category || 'Reguler'}
+                    </div>
+
+                    <div class="m-reward">
                         <span class="m-dist">${jarakTeks}</span>
                         <span>Rp ${m.reward.toLocaleString('id-ID')}</span>
                     </div>
+                    
                     ${isApplied ? 
                         `<button class="btn-bid-card" disabled>KONTRAK DALAM TINJAUAN</button>` :
                         `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}')">LIHAT DETAIL / NEGO</button>`
@@ -831,6 +859,7 @@
                 `;
                 container.appendChild(div);
             },
+
 
 
 
