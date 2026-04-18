@@ -421,65 +421,100 @@
         },
 
         Core: {
-            startGPS: function() {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(pos => {
-                        const lat = pos.coords.latitude;
-                        const lng = pos.coords.longitude;
-                        
-                        // Integrasi router_lokal.js
-                        const hasil = cariDesaTerdekat(lat, lng); 
-                        
-                        App.State.loc = { 
-                            lat: lat, lng: lng, 
-                            desa: hasil.name, kec: hasil.kec, 
-                            shard: getShardDariKecamatan(hasil.kec) 
-                        };
+startGPS: function() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            // PERBAIKAN: Pastikan mengambil lat & lng dengan benar dari objek 'pos'
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            
+            // Integrasi router_lokal.js
+            // Gunakan variabel 'lat' dan 'lng' yang baru diambil
+            const hasil = cariDesaTerdekat(lat, lng); 
+            
+            App.State.loc = { 
+                lat: lat, lng: lng, 
+                desa: hasil.name, // Ini akan berisi "Kelurahan Cigugur" dsb
+                kec: hasil.kec, 
+                shard: getShardDariKecamatan(hasil.kec) 
+            };
 
-                        document.getElementById('locName').innerText = `${App.State.loc.desa.toUpperCase()}`;
-                        this.startRadar();
-                    }, () => {
-                        App.UI.showAlert("GPS MATI", "Kami tidak bisa mendeteksi lokasi Anda. Harap aktifkan GPS perangkat.");
-                    }, { enableHighAccuracy: true });
-                }
-            },
+            document.getElementById('locName').innerText = `${App.State.loc.desa.toUpperCase()}`;
+            this.startRadar(); // Jalankan radar setelah koordinat aman
+        }, (err) => {
+            console.error("GPS Error:", err);
+            App.UI.showAlert("GPS MATI", "Kami tidak bisa mendeteksi lokasi Anda.");
+        }, { enableHighAccuracy: true });
+    }
+}
+
 
             startRadar: function() {
                 const s = App.State;
-                const scanPath = s.isExpanded ? `mission-${s.loc.shard}` : `mission-${s.loc.shard}/${s.loc.desa}`;
+                
+                // Mendapatkan Shard ID yang benar (Misal: Kuningan Kota -> KNG)
+                // Kita cek dulu di ZONA_MAP, jika tidak ada pakai s.areaTugas langsung
+                const currentShard = getShardDariKecamatan(ZONA_MAP[s.areaTugas] || s.areaTugas);
+                
+                // Menentukan jalur pemindaian: Shard penuh atau per Desa
+                const scanPath = s.isExpanded ? 
+                    `mission-${currentShard}` : 
+                    `mission-${currentShard}/${s.loc.desa}`;
 
-                // MATIKAN LISTENER LAMA AGAR TIDAK DOUBLE RENDER
+                // Update teks di layar agar user tahu lokasi pindaian (Edukasi Visual)
+                const pulseText = document.getElementById('radarPulse');
+                if (pulseText) {
+                    pulseText.innerText = s.isExpanded ? 
+                        `[ DEEP SCAN: SHARD ${currentShard} ]` : 
+                        `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
+                }
+
+                // MATIKAN LISTENER LAMA AGAR TIDAK DOUBLE RENDER (Penting!)
                 if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
                 s.currentScanPath = scanPath;
 
+                // Mulai Mendengarkan Sinyal dari Database
                 App.db4.ref(scanPath).on('value', snap => {
                     const listDiv = document.getElementById('missionList');
                     listDiv.innerHTML = "";
                     let found = false;
 
                     if (!snap.exists()) {
-                        listDiv.innerHTML = '<div id="emptyState">Sinyal kosong. Tidak ada misi terbuka di area ini.</div>';
+                        listDiv.innerHTML = `
+                            <div id="emptyState">
+                                <span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>
+                                Tidak ada misi terbuka di ${s.isExpanded ? 'Shard ' + currentShard : s.loc.desa}.
+                            </div>`;
                         return;
                     }
 
+                    // Efek suara sonar setiap kali data diperbarui
                     AudioEngine.play('sonar');
 
                     const processMission = (m) => {
+                        // Hanya tampilkan misi yang statusnya masih 'open'
                         if (m && m.status === 'open') {
                             found = true;
                             this.renderMisi(m, listDiv);
                         }
                     };
 
+                    // Logika Loop Data: Jika Expanded (Shard) ada 2 level, jika Lokal 1 level
                     if (s.isExpanded) {
-                        snap.forEach(desaSnap => desaSnap.forEach(misiSnap => processMission(misiSnap.val())));
+                        snap.forEach(desaSnap => {
+                            desaSnap.forEach(misiSnap => processMission(misiSnap.val()));
+                        });
                     } else {
                         snap.forEach(misiSnap => processMission(misiSnap.val()));
                     }
 
-                    if(!found) listDiv.innerHTML = '<div id="emptyState">Semua misi di area ini sudah diambil Adventurer lain.</div>';
+                    // Jika ada data tapi statusnya sudah 'taken' atau 'closed' semua
+                    if(!found) {
+                        listDiv.innerHTML = '<div id="emptyState">Sinyal terdeteksi, namun kontrak telah diamankan Adventurer lain.</div>';
+                    }
                 });
             },
+
 
             calcDist: function(lat1, lon1, lat2, lon2) {
                 if(!lat1 || !lat2) return 0;
