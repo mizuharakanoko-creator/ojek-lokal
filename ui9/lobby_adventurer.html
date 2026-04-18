@@ -448,35 +448,26 @@
             }
         },
 
+
+
                 Core: {
             startGPS: function() {
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(pos => {
-                        // Perbaikan: Ambil koordinat langsung dari objek 'pos'
                         const lat = pos.coords.latitude;
                         const lng = pos.coords.longitude;
-                        
-                        // Gunakan fungsi cariDesaTerdekat dari router_lokal.js
                         const hasil = cariDesaTerdekat(lat, lng); 
-                        
-                        // Update State utama aplikasi
                         App.State.loc = { 
-                            lat: lat, 
-                            lng: lng, 
-                            desa: hasil.name, 
-                            kec: hasil.kec, 
+                            lat: lat, lng: lng, 
+                            desa: hasil.name, kec: hasil.kec, 
                             shard: getShardDariKecamatan(hasil.kec) 
                         };
-
-                        // Update tampilan lokasi di Header
                         const locEl = document.getElementById('locName');
                         if(locEl) locEl.innerText = `${App.State.loc.desa.toUpperCase()}`;
-
-                        // Trigger radar setelah lokasi didapat
                         App.Core.startRadar(); 
                     }, (err) => {
                         console.error("GPS Error:", err);
-                        App.UI.showAlert("GPS MATI", "Aktifkan lokasi agar radar bisa mendeteksi misi di sekitar Anda.");
+                        App.UI.showAlert("GPS MATI", "Aktifkan lokasi agar radar bisa mendeteksi misi.");
                     }, { enableHighAccuracy: true });
                 } else {
                     App.UI.showAlert("SENSOR ERROR", "Perangkat tidak mendukung GPS.");
@@ -485,53 +476,30 @@
 
             startRadar: function() {
                 const s = App.State;
-                
-                // 1. Tentukan Shard ID berdasarkan Area Tugas
                 const currentShard = getShardDariKecamatan(ZONA_MAP[s.areaTugas] || s.areaTugas);
-                
-                // 2. Tentukan Path Firebase: mission-SHARD atau mission-SHARD/DESA
-                const scanPath = s.isExpanded ? 
-                    `mission-${currentShard}` : 
-                    `mission-${currentShard}/${s.loc.desa}`;
-
-                // 3. Update Visual Radar Pulse
+                const scanPath = s.isExpanded ? `mission-${currentShard}` : `mission-${currentShard}/${s.loc.desa}`;
                 const pulseText = document.getElementById('radarPulse');
                 if (pulseText) {
-                    pulseText.innerText = s.isExpanded ? 
-                        `[ DEEP SCAN: SHARD ${currentShard} ]` : 
-                        `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
+                    pulseText.innerText = s.isExpanded ? `[ DEEP SCAN: SHARD ${currentShard} ]` : `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
                 }
-
-                // 4. Manajemen Listener (Matikan yang lama agar tidak tumpang tindih)
                 if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
                 s.currentScanPath = scanPath;
 
-                // 5. Jalankan Listener Firebase Realtime
                 App.db4.ref(scanPath).on('value', snap => {
                     const listDiv = document.getElementById('missionList');
                     listDiv.innerHTML = "";
                     let found = false;
-
                     if (!snap.exists()) {
-                        listDiv.innerHTML = `
-                            <div id="emptyState">
-                                <span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>
-                                Tidak ada misi terbuka di ${s.isExpanded ? 'Shard ' + currentShard : s.loc.desa}.
-                            </div>`;
+                        listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi terbuka.</div>`;
                         return;
                     }
-
                     AudioEngine.play('sonar');
-
                     const processMission = (m) => {
-                        // Hanya tampilkan misi yang statusnya 'open'
                         if (m && m.status === 'open') {
                             found = true;
                             App.Core.renderMisi(m, listDiv);
                         }
                     };
-
-                    // 6. Loop Data: Mode Shard (2 level) vs Mode Desa (1 level)
                     if (s.isExpanded) {
                         snap.forEach(desaSnap => {
                             desaSnap.forEach(misiSnap => processMission(misiSnap.val()));
@@ -539,15 +507,9 @@
                     } else {
                         snap.forEach(misiSnap => processMission(misiSnap.val()));
                     }
-
-                    if(!found) {
-                        listDiv.innerHTML = '<div id="emptyState">Sinyal terdeteksi, namun kontrak sudah diamankan Adventurer lain.</div>';
-                    }
+                    if(!found) listDiv.innerHTML = '<div id="emptyState">Sinyal terdeteksi, namun kontrak sudah penuh.</div>';
                 });
             },
-
-
-
 
             calcDist: function(lat1, lon1, lat2, lon2) {
                 if(!lat1 || !lat2) return 0;
@@ -557,7 +519,6 @@
             },
 
             renderMisi: function(m, container) {
-                // Perhitungan Jarak (Gunakan data LOKASI_DB jika m.lat tidak ada)
                 let mLat = m.lat, mLng = m.lng;
                 if(!mLat) {
                     const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
@@ -565,51 +526,46 @@
                 }
                 const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
                 const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
-
-                // Logika Difficulty Color (Core Logic)
-                let diffColor = "#4ade80"; let diffTeks = "NORMAL";
-                if (m.difficulty_rate > 1.5) { diffColor = "#facc15"; diffTeks = "HARD"; }
-                if (m.difficulty_rate > 2.0) { diffColor = "#f87171"; diffTeks = "EXTREME"; }
+                let diffColor = "#4ade80";
+                if (m.difficulty_rate > 1.5) diffColor = "#facc15";
+                if (m.difficulty_rate > 2.0) diffColor = "#f87171";
 
                 const isNew = !App.State.renderedMissions.has(m.id_misi);
                 if(isNew) App.State.renderedMissions.add(m.id_misi);
 
                 const div = document.createElement('div');
                 div.className = `mission-card ${isNew ? 'flash' : ''}`;
-                
                 div.innerHTML = `
-                <div class="m-header">
-                    <span>ID: ${m.id_misi.slice(-6)}</span>
-                    <span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>
-                </div>
-                <div class="m-title">KE: ${m.dest_desa.toUpperCase()}</div>
-                <div class="m-route">
-                    <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
-                    <div style="font-size:10px; color:#666;">Kategori: ${m.category || 'Reguler'}</div>
-                </div>
-                <div class="m-reward">
-                    <span class="m-dist">${jarakTeks}</span>
-                    <span>Rp ${m.reward.toLocaleString('id-ID')}</span>
-                </div>
-                <button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${m.note || ''}', '${m.category || ''}', '${m.origin_name}', '${m.dest_desa}')">LIHAT DETAIL / NEGO</button>
-            `;
+                    <div class="m-header">
+                        <span>ID: ${m.id_misi.slice(-6)}</span>
+                        <span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>
+                    </div>
+                    <div class="m-title">KE: ${m.dest_desa.toUpperCase()}</div>
+                    <div class="m-route">
+                        <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
+                        <div style="font-size:10px; color:#666;">Kategori: ${m.category || 'Reguler'}</div>
+                    </div>
+                    <div class="m-reward">
+                        <span class="m-dist">${jarakTeks}</span>
+                        <span>Rp ${m.reward.toLocaleString('id-ID')}</span>
+                    </div>
+                    <button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${m.note || ''}', '${m.category || ''}', '${m.origin_name}', '${m.dest_desa}')">LIHAT DETAIL / NEGO</button>
+                `;
+                container.appendChild(div);
+            },
 
             listenToContracts: function() {
                 App.db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(App.user.uid).on('child_added', snap => {
                     const k = snap.val();
                     if (k.status === 'briefing') {
                         AudioEngine.play('alert');
-                        if(navigator.vibrate) navigator.vibrate([500, 200, 500]);
-                        
                         document.getElementById('alTitle').innerText = "KONTRAK DISETUJUI!";
-                        document.getElementById('alMsg').innerText = "Requester telah memilih Anda. Segera pindah ke ruang pengarahan (Briefing Room).";
-                        
+                        document.getElementById('alMsg').innerText = "Requester telah memilih Anda. Segera pindah ke ruang pengarahan.";
                         const alertBox = document.querySelector('#alertOverlay .alert-box');
                         alertBox.style.borderColor = "#00ff00";
                         const btn = alertBox.querySelector('button');
                         btn.innerText = "MASUK BRIEFING ROOM";
                         btn.style.background = "#00ff00";
-                        
                         btn.onclick = () => {
                             sessionStorage.setItem('active_contract_id', k.id_kontrak);
                             window.location.href = "briefing_room.html";
@@ -618,11 +574,12 @@
                     }
                 });
             }
-        }
-    };
+        } // Tutup Core
+    }; // Tutup App
 
-    // Jalankan sistem saat halaman siap
     window.onload = () => App.init();
 </script>
+
+        
 </body>
 </html>
