@@ -420,48 +420,53 @@
             }
         },
 
-        Core: {
-startGPS: function() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            // PERBAIKAN: Pastikan mengambil lat & lng dengan benar dari objek 'pos'
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            
-            // Integrasi router_lokal.js
-            // Gunakan variabel 'lat' dan 'lng' yang baru diambil
-            const hasil = cariDesaTerdekat(lat, lng); 
-            
-            App.State.loc = { 
-                lat: lat, lng: lng, 
-                desa: hasil.name, // Ini akan berisi "Kelurahan Cigugur" dsb
-                kec: hasil.kec, 
-                shard: getShardDariKecamatan(hasil.kec) 
-            };
+                Core: {
+            startGPS: function() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(pos => {
+                        // Perbaikan: Ambil koordinat langsung dari objek 'pos'
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        
+                        // Gunakan fungsi cariDesaTerdekat dari router_lokal.js
+                        const hasil = cariDesaTerdekat(lat, lng); 
+                        
+                        // Update State utama aplikasi
+                        App.State.loc = { 
+                            lat: lat, 
+                            lng: lng, 
+                            desa: hasil.name, 
+                            kec: hasil.kec, 
+                            shard: getShardDariKecamatan(hasil.kec) 
+                        };
 
-            document.getElementById('locName').innerText = `${App.State.loc.desa.toUpperCase()}`;
-            this.startRadar(); // Jalankan radar setelah koordinat aman
-        }, (err) => {
-            console.error("GPS Error:", err);
-            App.UI.showAlert("GPS MATI", "Kami tidak bisa mendeteksi lokasi Anda.");
-        }, { enableHighAccuracy: true });
-    }
-}
+                        // Update tampilan lokasi di Header
+                        const locEl = document.getElementById('locName');
+                        if(locEl) locEl.innerText = `${App.State.loc.desa.toUpperCase()}`;
 
+                        // Trigger radar setelah lokasi didapat
+                        App.Core.startRadar(); 
+                    }, (err) => {
+                        console.error("GPS Error:", err);
+                        App.UI.showAlert("GPS MATI", "Aktifkan lokasi agar radar bisa mendeteksi misi di sekitar Anda.");
+                    }, { enableHighAccuracy: true });
+                } else {
+                    App.UI.showAlert("SENSOR ERROR", "Perangkat tidak mendukung GPS.");
+                }
+            },
 
             startRadar: function() {
                 const s = App.State;
                 
-                // Mendapatkan Shard ID yang benar (Misal: Kuningan Kota -> KNG)
-                // Kita cek dulu di ZONA_MAP, jika tidak ada pakai s.areaTugas langsung
+                // 1. Tentukan Shard ID berdasarkan Area Tugas
                 const currentShard = getShardDariKecamatan(ZONA_MAP[s.areaTugas] || s.areaTugas);
                 
-                // Menentukan jalur pemindaian: Shard penuh atau per Desa
+                // 2. Tentukan Path Firebase: mission-SHARD atau mission-SHARD/DESA
                 const scanPath = s.isExpanded ? 
                     `mission-${currentShard}` : 
                     `mission-${currentShard}/${s.loc.desa}`;
 
-                // Update teks di layar agar user tahu lokasi pindaian (Edukasi Visual)
+                // 3. Update Visual Radar Pulse
                 const pulseText = document.getElementById('radarPulse');
                 if (pulseText) {
                     pulseText.innerText = s.isExpanded ? 
@@ -469,11 +474,11 @@ startGPS: function() {
                         `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
                 }
 
-                // MATIKAN LISTENER LAMA AGAR TIDAK DOUBLE RENDER (Penting!)
+                // 4. Manajemen Listener (Matikan yang lama agar tidak tumpang tindih)
                 if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
                 s.currentScanPath = scanPath;
 
-                // Mulai Mendengarkan Sinyal dari Database
+                // 5. Jalankan Listener Firebase Realtime
                 App.db4.ref(scanPath).on('value', snap => {
                     const listDiv = document.getElementById('missionList');
                     listDiv.innerHTML = "";
@@ -488,18 +493,17 @@ startGPS: function() {
                         return;
                     }
 
-                    // Efek suara sonar setiap kali data diperbarui
                     AudioEngine.play('sonar');
 
                     const processMission = (m) => {
-                        // Hanya tampilkan misi yang statusnya masih 'open'
+                        // Hanya tampilkan misi yang statusnya 'open'
                         if (m && m.status === 'open') {
                             found = true;
-                            this.renderMisi(m, listDiv);
+                            App.Core.renderMisi(m, listDiv);
                         }
                     };
 
-                    // Logika Loop Data: Jika Expanded (Shard) ada 2 level, jika Lokal 1 level
+                    // 6. Loop Data: Mode Shard (2 level) vs Mode Desa (1 level)
                     if (s.isExpanded) {
                         snap.forEach(desaSnap => {
                             desaSnap.forEach(misiSnap => processMission(misiSnap.val()));
@@ -508,12 +512,13 @@ startGPS: function() {
                         snap.forEach(misiSnap => processMission(misiSnap.val()));
                     }
 
-                    // Jika ada data tapi statusnya sudah 'taken' atau 'closed' semua
                     if(!found) {
-                        listDiv.innerHTML = '<div id="emptyState">Sinyal terdeteksi, namun kontrak telah diamankan Adventurer lain.</div>';
+                        listDiv.innerHTML = '<div id="emptyState">Sinyal terdeteksi, namun kontrak sudah diamankan Adventurer lain.</div>';
                     }
                 });
             },
+
+
 
 
             calcDist: function(lat1, lon1, lat2, lon2) {
