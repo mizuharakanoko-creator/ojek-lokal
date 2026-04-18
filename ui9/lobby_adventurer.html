@@ -185,6 +185,25 @@
         @keyframes pulseRed { 0% { box-shadow: inset 0 0 20px rgba(248, 113, 113, 0.2); } 50% { box-shadow: inset 0 0 50px rgba(248, 113, 113, 0.6); } 100% { box-shadow: inset 0 0 20px rgba(248, 113, 113, 0.2); } }
         @keyframes burnAnim { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         @keyframes flashSpawn { 0% { background: #333; box-shadow: 0 0 20px var(--theme-color); transform: scale(1.02); } 100% { background: #111; transform: scale(1); } }
+    
+
+                /* RPG Status Bar */
+        .status-rpg-container {
+            background: #000; padding: 5px 15px;
+            display: flex; flex-direction: column; gap: 4px;
+            border-bottom: 1px solid #222;
+        }
+        .rpg-row { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-terminal); font-size: 10px; }
+        .bar-outer { flex: 1; height: 4px; background: #222; margin: 0 8px; border-radius: 2px; overflow: hidden; }
+        .bar-inner { height: 100%; width: 0%; transition: width 0.5s ease; }
+        
+        #staminaBar { background: #4ade80; box-shadow: 0 0 5px #4ade80; }
+        #expBar { background: #60a5fa; box-shadow: 0 0 5px #60a5fa; }
+        
+        .stat-val { color: var(--theme-color); font-weight: bold; min-width: 35px; text-align: right; }
+        .limit-tag { font-size: 9px; color: #f87171; font-weight: bold; }
+
+    
     </style>
 </head>
 <body>
@@ -205,6 +224,24 @@
         Menghubungkan ke satelit Sovereign Guild...
     </div>
 </header>
+
+<div class="status-rpg-container">
+    <div class="rpg-row">
+        <span>LVL.<span id="dispLvl">1</span></span>
+        <div class="bar-outer"><div id="expBar" class="bar-inner"></div></div>
+        <span class="stat-val" id="dispExp">0/0</span>
+    </div>
+    <div class="rpg-row">
+        <span>STM</span>
+        <div class="bar-outer"><div id="staminaBar" class="bar-inner"></div></div>
+        <span class="stat-val" id="dispStm">0/0</span>
+    </div>
+    <div class="rpg-row" style="margin-top: 2px; border-top: 1px solid #111; padding-top: 2px;">
+        <span style="color:#666">LIMIT HARIAN</span>
+        <span class="limit-tag" id="dispLimit">CONTRACTS: 0/0</span>
+    </div>
+</div>
+
 
 <div class="radar-container">
     <div class="radar-box">
@@ -295,13 +332,15 @@
             loc: { lat: 0, lng: 0, desa: "", kec: "", shard: "" },
             areaTugas: "", rank: "Trainer",
             isExpanded: false, currentScanPath: null,
-            renderedMissions: new Set()
+            renderedMissions: new Set(),
+            // Data RPG Baru
+            rpg: { lvl: 1, exp: 0, expNext: 100, stm: 100, stmMax: 100, limit: 0, limitMax: 5 }
         },
+
         BiddingData: { mid: "", basePrice: 0, currentPrice: 0 },
 
         init: async function() {
             try {
-                // Integrasi Clearchance & Terminal Router
                 this.user = Clearchance.enforceIdentity();
                 this.db1 = getTerminal('FB1_MASTER');
                 this.db4 = getTerminal('FB4_BOARD');
@@ -309,22 +348,31 @@
                 const userSnap = await this.db1.ref(`users/${this.user.uid}`).once('value');
                 const data = userSnap.val() || {};
                 
+                // Load data profil & RPG
                 this.State.areaTugas = data.area_tugas || this.user.zone || "KNG";
                 this.State.rank = data.rank || "Trainer";
-                this.user.rank = this.State.rank; 
+                this.State.rpg = {
+                    lvl: data.level || 1,
+                    exp: data.exp || 0,
+                    expNext: (data.level || 1) * 100,
+                    stm: data.stamina || 100,
+                    stmMax: 100,
+                    limit: data.limit_harian || 0,
+                    limitMax: data.max_limit || 5
+                };
 
-                // Setup UI Awal
+                this.UI.updateRPG(); // Update tampilan bar
+                
+                // ... (sisanya sama seperti init sebelumnya)
                 document.getElementById('dispNick').innerText = this.user.nick || "ADVENTURER";
                 document.getElementById('dispZone').innerText = this.State.areaTugas;
                 document.getElementById('dispRank').innerText = this.State.rank;
-                
                 this.UI.applyRankTheme(this.State.rank);
                 this.UI.startEduRotary();
-
                 this.Core.startGPS();
                 this.Core.listenToContracts();
             } catch (e) {
-                this.UI.showAlert("KONEKSI GAGAL", "Gagal memuat profil: " + e.message);
+                this.UI.showAlert("KONEKSI GAGAL", e.message);
             }
         },
 
@@ -348,6 +396,18 @@
                         panel.style.opacity = 1;
                     }, 300);
                 }, 8000);
+            },
+
+            updateRPG: function() {
+                const r = App.State.rpg;
+                document.getElementById('dispLvl').innerText = r.lvl;
+                document.getElementById('dispExp').innerText = `${r.exp}/${r.expNext}`;
+                document.getElementById('expBar').style.width = (r.exp / r.expNext * 100) + "%";
+                
+                document.getElementById('dispStm').innerText = `${r.stm}/${r.stmMax}`;
+                document.getElementById('staminaBar').style.width = (r.stm / r.stmMax * 100) + "%";
+                
+                document.getElementById('dispLimit').innerText = `CONTRACTS: ${r.limit}/${r.limitMax}`;
             },
 
             applyRankTheme: function(rank) {
@@ -425,12 +485,25 @@
                 App.BiddingData.currentPrice = App.BiddingData.basePrice;
                 document.getElementById('bidAmount').value = App.BiddingData.currentPrice.toLocaleString('id-ID');
             },
-            submit: async function() {
+                        submit: async function() {
                 const { mid, currentPrice } = App.BiddingData;
+                const r = App.State.rpg;
+
+                // VALIDASI RPG
+                if (r.stm < 10) {
+                    App.UI.showAlert("LELAH", "Stamina tidak cukup untuk melamar misi (Butuh 10 STM).");
+                    return;
+                }
+                if (r.limit >= r.limitMax) {
+                    App.UI.showAlert("LIMIT TERCAPAI", "Anda sudah mencapai batas maksimal kontrak hari ini.");
+                    return;
+                }
+
                 const btn = document.querySelector('.btn-confirm');
-                btn.innerText = "MEMANCARKAN..."; btn.disabled = true;
+                btn.innerText = "TRANSMISI..."; btn.disabled = true;
 
                 try {
+                    // 1. Kirim Bid
                     await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
                         adventurer_id: App.user.uid,
                         adventurer_nick: App.user.nick,
@@ -438,14 +511,30 @@
                         offer_price: currentPrice,
                         timestamp: Date.now()
                     });
+
+                    // 2. Kurangi Stamina & Update Limit di Master (FB1)
+                    const newStm = r.stm - 10;
+                    const newLimit = r.limit + 1;
+                    
+                    await App.db1.ref(`users/${App.user.uid}`).update({
+                        stamina: newStm,
+                        limit_harian: newLimit
+                    });
+
+                    // 3. Update Local State
+                    App.State.rpg.stm = newStm;
+                    App.State.rpg.limit = newLimit;
+                    App.UI.updateRPG();
+
                     App.UI.closeModal();
-                    App.UI.showAlert("BERHASIL", "Sinyal penawaran telah aktif di radar Requester.");
+                    App.UI.showAlert("BERHASIL", "Sinyal terkirim. Stamina berkurang 10.");
                 } catch (e) {
                     App.UI.showAlert("ERROR", e.message);
                 } finally {
                     btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false;
                 }
             }
+
         },
 
 
