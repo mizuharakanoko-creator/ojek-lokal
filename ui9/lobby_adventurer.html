@@ -658,6 +658,7 @@
                 const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
                 return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             },
+                    
 
             renderMisi: function(m, container) {
                 // 1. Perhitungan Jarak & Koordinat
@@ -669,24 +670,25 @@
                 const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
                 const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
                 
-                // 2. Penentuan Warna Kesulitan
                 let diffColor = "#4ade80";
                 if (m.difficulty_rate > 1.5) diffColor = "#facc15";
                 if (m.difficulty_rate > 2.0) diffColor = "#f87171";
 
-                // 3. Cek Status (Apakah Baru atau Sudah Dilamar)
                 const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
                 const isNew = !App.State.renderedMissions.has(m.id_misi) && !isApplied;
                 if(isNew) App.State.renderedMissions.add(m.id_misi);
 
-                // 4. Cek Kategori Khusus (Untuk Tampilan Teks Panjang)
                 const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || m.dest_name === 'multi-point');
                 
                 const div = document.createElement('div');
                 div.className = `mission-card ${isNew ? 'flash' : ''} ${isApplied ? 'applied-locked' : ''}`;
                 
+                // Sanitasi data dest_name untuk onclick (Mencegah tombol mati karena tanda petik/enter)
+                const safeDestName = m.dest_name ? m.dest_name.replace(/'/g, "\\'").replace(/\n/g, " ") : "";
+                const safeNote = m.note ? m.note.replace(/'/g, "\\'").replace(/\n/g, " ") : "";
+
                 div.innerHTML = `
-                    <div class="m-header">
+                    <div class="m-header" style="justify-content: flex-start; gap: 10px;">
                         <span>ID: ${m.id_misi.slice(-6)}</span>
                         ${isApplied ? 
                             '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
@@ -694,40 +696,41 @@
                         }
                     </div>
 
-                    <div class="m-title" style="${isApplied ? 'color:#555;' : ''}">
+                    <div class="m-title" style="text-align: left; ${isApplied ? 'color:#555;' : ''}">
                         ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + m.dest_desa.toUpperCase()}
                     </div>
 
                     ${isSpecial ? `
-                        <div class="special-detail-box" style="${isApplied ? 'opacity:0.4; border-color:#222; color:#555;' : ''}">
+                        <div class="special-detail-box" style="text-align: left; ${isApplied ? 'opacity:0.4; border-color:#222; color:#555;' : ''}">
                             ${m.dest_name}
                         </div>
-                        <div style="font-size:10px; color:#666; margin-bottom:10px; font-family:var(--font-terminal);">
+                        <div style="font-size:10px; color:#666; margin-bottom:10px; font-family:var(--font-terminal); text-align: left;">
                             📍 ASAL: ${m.origin_name}
                         </div>
                     ` : `
-                        <div class="m-route" style="${isApplied ? 'opacity:0.4;' : ''}">
+                        <div class="m-route" style="text-align: left; ${isApplied ? 'opacity:0.4;' : ''}">
                             <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
                             <div style="font-size:10px; color:#666;">Tujuan: ${m.dest_desa}</div>
                         </div>
                     `}
 
-                    <div style="font-size:10px; color:var(--theme-color); margin-bottom:8px; font-family:var(--font-terminal); font-weight:bold;">
+                    <div style="font-size:10px; color:var(--theme-color); margin-bottom:8px; font-family:var(--font-terminal); font-weight:bold; text-align: left;">
                         KATEGORI: ${m.category || 'Reguler'}
                     </div>
 
-                    <div class="m-reward" style="${isApplied ? 'color:#222;' : ''}">
+                    <div class="m-reward" style="justify-content: space-between;">
                         <span class="m-dist">${jarakTeks}</span>
                         <span>Rp ${m.reward.toLocaleString('id-ID')}</span>
                     </div>
                     
                     ${isApplied ? 
                         `<button class="btn-bid-card" style="background:#1a1a1a; color:#444; border:1px solid #333; cursor:not-allowed;" disabled>KONTRAK DALAM TINJAUAN</button>` :
-                        `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${m.note || ''}', '${m.category || ''}', '${m.origin_name}', '${m.dest_name}')">LIHAT DETAIL / NEGO</button>`
+                        `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDestName}')">LIHAT DETAIL / NEGO</button>`
                     }
                 `;
                 container.appendChild(div);
             },
+
 
 
             listenToContracts: function() {
