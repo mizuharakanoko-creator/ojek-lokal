@@ -551,69 +551,83 @@ body.saver-mode .rank-badge {
 
         BiddingData: { mid: "", basePrice: 0, currentPrice: 0 },
 
-init: async function() {
-        try {
-            this.user = Clearchance.enforceIdentity();
-            this.db1 = getTerminal('FB1_MASTER');
-            this.db4 = getTerminal('FB4_BOARD');
+Init: async function() {
+    try {
+        // Tampilkan loading atau status awal
+        console.log("Sovereign System: Initializing...");
+        
+        this.user = Clearchance.enforceIdentity();
+        this.db1 = getTerminal('FB1_MASTER');
+        this.db4 = getTerminal('FB4_BOARD');
 
-            // 1. Ambil Index dari FB1
-            const indexSnap = await this.db1.ref(`adventurer_index/${this.user.uid}`).once('value');
-            const indexData = indexSnap.val() || {};
-            
-            // Simpan Nickname ke State agar bisa dipakai di mana saja
-            this.State.nickname = indexData.nickname || "ADVENTURER";
-            this.State.areaTugas = indexData.area_tugas || "KNG";
-            const shardTarget = indexData.shard_id || "FB2_RUNNER";
-            
+        // 1. Ambil Index dari FB1 (Data Master)
+        const indexSnap = await this.db1.ref(`adventurer_index/${this.user.uid}`).once('value');
+        const indexData = indexSnap.val() || {};
+        
+        // Simpan ke State (Ini kunci agar nickname ngga hilang)
+        this.State.nickname = (indexData.nickname || "ADVENTURER").toUpperCase();
+        this.State.areaTugas = indexData.area_tugas || "KNG";
+        const shardTarget = indexData.shard_id || "FB2_RUNNER";
+        
+        if(document.getElementById('dispZone')) {
             document.getElementById('dispZone').innerText = this.State.areaTugas;
-
-            // 2. Koneksi ke Shard (FB2)
-            const dbShard = getTerminal(shardTarget);
-
-            // 3. Listener Profil & Gelar
-            dbShard.ref(`adventurer-${this.State.areaTugas}/adventurer_profile/${this.user.uid}`).on('value', snap => {
-                const p = snap.val() || {};
-                const gelar = p.gelar || "Novice Traveler";
-                
-                // Gabungkan Nickname dari State + Gelar dari Shard
-                const combinedName = `${this.State.nickname.toUpperCase()} , ${gelar}`;
-                document.getElementById('dispNick').innerText = combinedName.length > 22 
-                    ? `${this.State.nickname.toUpperCase()} , ${gelar.substring(0, 10)}...` 
-                    : combinedName;
-
-                this.State.rank = p.rank || "F";
-                this.State.rpg.lvl = p.level || 1;
-                document.getElementById('dispRank').innerText = this.State.rank;
-                document.getElementById('dispLvl').innerText = this.State.rpg.lvl;
-                
-                this.UI.applyRankTheme(this.State.rank);
-                this.UI.updateRPG();
-            });
-
-            // 4. Listener Experience
-            dbShard.ref(`adventurer-${this.State.areaTugas}/adventurer_experience/${this.user.uid}`).on('value', snap => {
-                const e = snap.val() || {};
-                this.State.rpg.exp = e.exp || 0;
-                this.State.rpg.stm = e.current_stamina || 0;
-                this.State.rpg.stmMax = e.max_stamina || 100;
-                this.State.rpg.limit = Number(e.limit_harian || 0);
-                this.State.rpg.limitMax = Number(e.max_limit || 10);
-                this.UI.updateRPG();
-            });
-
-            // 5. Fitur Lain
-            await this.Core.checkDailyLogin();
-            this.UI.loadSaverSettings();
-            this.UI.startEduRotary(); // Panggil ini agar tips jalan
-            this.Core.startGPS();
-            this.Core.listenToContracts();
-
-        } catch (e) {
-            console.error("Critical Init Error:", e);
-            this.UI.showAlert("KONEKSI GAGAL", "Cek koneksi internet atau database.");
         }
-    },
+
+        // 2. Koneksi ke Shard (Data Dinamis RPG)
+        const dbShard = getTerminal(shardTarget);
+
+        // 3. Listener Profil & Gelar (Real-time dari FB2)
+        dbShard.ref(`adventurer-${this.State.areaTugas}/adventurer_profile/${this.user.uid}`).on('value', snap => {
+            const p = snap.val() || {};
+            const gelar = p.gelar || "Novice Traveler";
+            
+            // Gabungkan Nama + Gelar
+            const nick = this.State.nickname;
+            const fullTitle = `${nick} , ${gelar}`;
+            
+            const nickEl = document.getElementById('dispNick');
+            if(nickEl) {
+                // Potong teks jika kepanjangan agar UI ngga hancur
+                nickEl.innerText = fullTitle.length > 22 
+                    ? `${nick} , ${gelar.substring(0, 10)}...` 
+                    : fullTitle;
+            }
+
+            this.State.rank = p.rank || "F";
+            this.State.rpg.lvl = p.level || 1;
+            
+            if(document.getElementById('dispRank')) document.getElementById('dispRank').innerText = this.State.rank;
+            if(document.getElementById('dispLvl')) document.getElementById('dispLvl').innerText = this.State.rpg.lvl;
+            
+            this.UI.applyRankTheme(this.State.rank);
+            this.UI.updateRPG();
+        });
+
+        // 4. Listener Experience & Stamina
+        dbShard.ref(`adventurer-${this.State.areaTugas}/adventurer_experience/${this.user.uid}`).on('value', snap => {
+            const e = snap.val() || {};
+            this.State.rpg.exp = e.exp || 0;
+            this.State.rpg.stm = e.current_stamina || 0;
+            this.State.rpg.stmMax = e.max_stamina || 100;
+            this.State.rpg.limit = Number(e.limit_harian || 0);
+            this.State.rpg.limitMax = Number(e.max_limit || 10);
+            this.UI.updateRPG();
+        });
+
+        // 5. Eksekusi Fitur Pendukung
+        await this.Core.checkDailyLogin();
+        this.UI.loadSaverSettings();
+        this.UI.startEduRotary(); 
+        this.Core.startGPS();
+        this.Core.listenToContracts();
+
+    } catch (e) {
+        console.error("Critical Init Error:", e);
+        if(this.UI.showAlert) {
+            this.UI.showAlert("KONEKSI GAGAL", "Gagal memuat data Master Adventurer.");
+        }
+    }
+},
 
 
 
@@ -807,79 +821,81 @@ updateRPG: function() {
             },
             
             submit: async function() {
-                const { mid, currentPrice } = App.BiddingData;
-                const r = App.State.rpg;
-                const db2 = getTerminal('FB2_RUNNER');
-                const btn = document.querySelector('.btn-confirm');
+    const { mid, currentPrice } = App.BiddingData;
+    const r = App.State.rpg;
+    // Gunakan shard_id dari State agar tidak hardcode ke RUNNER saja
+    const shardTarget = App.State.shard || 'FB2_RUNNER'; 
+    const dbShard = getTerminal(shardTarget); 
+    const btn = document.querySelector('.btn-confirm');
 
-                // 1. VALIDASI LIMIT & STAMINA
-                if (r.limit >= r.limitMax) {
-                    App.UI.showAlert("LIMIT TERCAPAI", `Jatah harian (${r.limitMax}) sudah habis.`);
-                    return;
-                }
-                if (r.stm < 10) {
-                    App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
-                    return;
-                }
+    // 1. VALIDASI LIMIT & STAMINA
+    if (r.limit >= r.limitMax) {
+        App.UI.showAlert("LIMIT TERCAPAI", `Jatah harian (${r.limitMax}) sudah habis.`);
+        return;
+    }
+    if (r.stm < 10) {
+        App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
+        return;
+    }
 
-                // 2. KLASIFIKASI KONTRAK
-                let tipeKontrak, contractKey;
-                if (currentPrice <= 10000) { 
-                    tipeKontrak = "Kontrak Lusuh"; contractKey = "kontrak_lusuh"; 
-                } else if (currentPrice <= 30000) { 
-                    tipeKontrak = "Kontrak Normal"; contractKey = "kontrak_normal"; 
-                } else if (currentPrice <= 60000) { 
-                    tipeKontrak = "Kontrak Medium"; contractKey = "kontrak_medium"; 
-                } else { 
-                    tipeKontrak = "Kontrak Premium"; contractKey = "kontrak_premium"; 
-                }
+    // 2. KLASIFIKASI KONTRAK
+    let tipeKontrak, contractKey;
+    if (currentPrice <= 10000) { 
+        tipeKontrak = "Kontrak Lusuh"; contractKey = "kontrak_lusuh"; 
+    } else if (currentPrice <= 30000) { 
+        tipeKontrak = "Kontrak Normal"; contractKey = "kontrak_normal"; 
+    } else if (currentPrice <= 60000) { 
+        tipeKontrak = "Kontrak Medium"; contractKey = "kontrak_medium"; 
+    } else { 
+        tipeKontrak = "Kontrak Premium"; contractKey = "kontrak_premium"; 
+    }
 
-                if(btn) { btn.innerText = "MENGECEK DATA..."; btn.disabled = true; }
+    if(btn) { btn.innerText = "MENGECEK DATA..."; btn.disabled = true; }
 
-                try {
-                    // 3. VALIDASI STOK REAL-TIME
-                    const contractSnap = await db2.ref(`adventurer_contracts/${App.user.uid}/${contractKey}`).once('value');
-                    const currentStock = Number(contractSnap.val() || 0);
+    try {
+        // 3. VALIDASI STOK REAL-TIME (Ambil dari Shard yang sesuai area_tugas)
+        const contractSnap = await dbShard.ref(`adventurer-${App.State.areaTugas}/adventurer_contracts/${App.user.uid}/${contractKey}`).once('value');
+        const currentStock = Number(contractSnap.val() || 0);
 
-                    if (currentStock <= 0) {
-                        App.UI.showAlert("GAGAL", `Stok [${tipeKontrak.toUpperCase()}] habis!`);
-                        if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
-                        return;
-                    }
+        if (currentStock <= 0) {
+            App.UI.showAlert("GAGAL", `Stok [${tipeKontrak.toUpperCase()}] habis!`);
+            return; 
+        }
 
-                    if(btn) btn.innerText = "TRANSMISI SINYAL...";
+        if(btn) btn.innerText = "TRANSMISI SINYAL...";
 
-                    // 4. EKSEKUSI UPDATE (MULTI-WRITE)
-                    const updates = {};
-                    updates[`adventurer_contracts/${App.user.uid}/${contractKey}`] = currentStock - 1;
-                    updates[`adventurer_experience/${App.user.uid}/current_stamina`] = r.stm - 10;
-                    updates[`adventurer_experience/${App.user.uid}/limit_harian`] = r.limit + 1;
+        // 4. EKSEKUSI UPDATE (MULTI-WRITE di Shard)
+        const updates = {};
+        const basePath = `adventurer-${App.State.areaTugas}`;
+        updates[`${basePath}/adventurer_contracts/${App.user.uid}/${contractKey}`] = currentStock - 1;
+        updates[`${basePath}/adventurer_experience/${App.user.uid}/current_stamina`] = r.stm - 10;
+        updates[`${basePath}/adventurer_experience/${App.user.uid}/limit_harian`] = r.limit + 1;
 
-                    await db2.ref().update(updates);
+        await dbShard.ref().update(updates);
 
-                    // 5. KIRIM KE BOARD (FB4)
-                    await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
-                        adventurer_id: App.user.uid,
-                        adventurer_nick: document.getElementById('dispNick').innerText,
-                        rank: App.State.rank,
-                        offer_price: currentPrice,
-                        contract_item: tipeKontrak,
-                        timestamp: Date.now()
-                    });
+        // 5. KIRIM KE BOARD (FB4)
+        await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
+            adventurer_id: App.user.uid,
+            adventurer_nick: App.State.nickname, // PAKAI STATE (Nama Lengkap)
+            rank: App.State.rank,
+            offer_price: currentPrice,
+            contract_item: tipeKontrak,
+            timestamp: Date.now()
+        });
 
-                    // 6. FINISHING
-                    App.State.renderedMissions.add(mid + "_applied");
-                    App.UI.closeModal();
-                    App.UI.showAlert("BERHASIL", `Sinyal terbit! Menggunakan 1 ${tipeKontrak}. Stamina -10.`);
-                    
-                } catch (e) {
-                    console.error("Bidding Error:", e);
-                    App.UI.showAlert("ERROR", "Transmisi gagal: " + e.message);
-                } finally {
-                    if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
-                }
-            }
-        },
+        // 6. FINISHING
+        App.State.renderedMissions.add(mid + "_applied");
+        App.UI.closeModal();
+        App.UI.showAlert("BERHASIL", `Sinyal terbit! Menggunakan 1 ${tipeKontrak}. Stamina -10.`);
+        
+    } catch (e) {
+        console.error("Bidding Error:", e);
+        App.UI.showAlert("ERROR", "Transmisi gagal: " + e.message);
+    } finally {
+        if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
+    }
+}
+
 
 
         Core: {
