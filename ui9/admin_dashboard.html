@@ -58,6 +58,7 @@
     const db4 = getTerminal('FB4_BOARD');
     const db5 = getTerminal('FB5_DEAL');
 
+    // MENDENGARKAN ANTREAN PENDAFTARAN
     db1.ref('register_pending').on('value', snap => {
         const list = document.getElementById('pendingList');
         list.innerHTML = "";
@@ -74,22 +75,21 @@
                     <b>${u.nickname}</b> [${u.id_adv}]<br>
                     Role: ${u.role} | Domisili: ${u.domisili}
                 </div>
-                <button class="btn-verify" onclick="verifikasiUser('${u.id_adv}')">TERIMA & AKTIFKAN (8 TABEL FB2)</button>
+                <button class="btn-verify" onclick="verifikasiUser('${u.id_adv}')">TERIMA & AKTIFKAN (9 TABEL FB2)</button>
             `;
             list.appendChild(div);
         });
     });
 
     async function verifikasiUser(idAdv) {
-        if (!confirm("Aktifkan user? Data lama dipertahankan + 7 tabel baru dibuat.")) return;
+        if (!confirm("Aktifkan user? Sistem akan menginisialisasi 9 Tabel Gamifikasi di FB2.")) return;
         
         try {
             const snap = await db1.ref(`register_pending/${idAdv}`).once('value');
             const data = snap.val();
             if (!data) return;
 
-            // --- TABEL 1 (DATA LAMA/IDENTITAS) ---
-            // Sesuai kode awal Anda: disimpan di path adventurer-(domisili)/Umum/id_adv
+            // --- 1. TABEL IDENTITAS DASAR (FB2) ---
             const identitasLama = {
                 id_adv: data.id_adv,
                 nickname: data.nickname,
@@ -100,41 +100,95 @@
                 create_at: data.created_at
             };
 
-            // --- 7 TABEL BARU (GAMIFIKASI) ---
-            const t_profile = { id_adventurer: idAdv, gelar: "Novice Traveler", level: 1, rank: "F" };
-            const t_experience = {
-                id_adventurer: idAdv, exp: 0, max_exp: 100, current_stamina: 100, max_stamina: 100,
-                last_stamina_update: Date.now(), limit_harian: 10
-            };
-            const t_reputation = {
-                id_adventurer: idAdv, reputation_score: 0, star_5: 0, star_4: 0, star_3: 0, star_2: 0, star_1: 0,
-                total_mission_completed: 0, total_mission_canceled: 0
-            };
-            const t_judge = { id_adventurer: idAdv, is_suspended: false, suspension_lift_time: 0 };
-            const t_inventory = {
-                id_adventurer: idAdv, small_stamina_potion: 3, medium_stamina_potion: 0, large_stamina_potion: 0,
-                energy_charm: 0, elixir_of_endurance: 0, scholars_scroll: 0, badge_of_honor: 0, perfume_of_charm: 0,
-                eagle_eye_lens: 0, stealth_cloak: 0, priority_ticket: 0, rank_advancement_stone: 0, smoke_bomb: 0
-            };
-            const t_coxin = { id_adventurer: idAdv, green_stone: 10, white_stone: 0, red_stone: 0, purple_stone: 0 };
-            const t_diagram = {
-                id_adventurer: idAdv, nilai_kecerdasan: 10, nilai_kepercayaan: 10, nilai_keamanan: 10, nilai_keramahan: 10, nilai_penampilan: 10
+            // --- 2. SEMBILAN TABEL GAMIFIKASI (FB2) ---
+            
+            const t_profile = { 
+                id_adventurer: idAdv, 
+                gelar: "Novice Traveler", 
+                level: 1, 
+                rank: "F" 
             };
 
-            // --- TABEL FB1 (INDEX LOGIN) ---
+            const t_experience = {
+                id_adventurer: idAdv, 
+                exp: 0, 
+                max_exp: 100, 
+                current_stamina: 100, 
+                max_stamina: 100,
+                last_stamina_update: Date.now(), 
+                limit_harian: 0,
+                max_limit: 10
+            };
+
+            const t_reputation = {
+                id_adventurer: idAdv, 
+                reputation_score: 0, 
+                star_5: 0, star_4: 0, star_3: 0, star_2: 0, star_1: 0,
+                total_mission_completed: 0, 
+                total_mission_canceled: 0
+            };
+
+            const t_judge = { 
+                id_adventurer: idAdv, 
+                is_suspended: false, 
+                suspension_lift_time: 0 
+            };
+
+            const t_inventory = {
+                id_adventurer: idAdv, 
+                small_stamina_potion: 3, 
+                medium_stamina_potion: 0, 
+                large_stamina_potion: 0,
+                priority_ticket: 0, 
+                smoke_bomb: 0
+            };
+
+            const t_coxin = { 
+                id_adventurer: idAdv, 
+                green_stone: 10, 
+                white_stone: 0, 
+                red_stone: 0, 
+                purple_stone: 0 
+            };
+
+            const t_diagram = {
+                id_adventurer: idAdv, 
+                nilai_kecerdasan: 10, 
+                nilai_kepercayaan: 10, 
+                nilai_keamanan: 10, 
+                nilai_keramahan: 10, 
+                nilai_penampilan: 10
+            };
+
+            // TABEL ITEM KONTRAK (PENTING: UNTUK BIDDING)
+            const t_contracts = {
+                id_adventurer: idAdv,
+                kontrak_lusuh: 10,
+                kontrak_normal: 5,
+                kontrak_medium: 1,
+                kontrak_premium: 0,
+                kontrak_emas: 0
+            };
+
+            // --- 3. INDEX LOGIN (FB1) ---
             const targetIndex = (data.role === 'adventurer') ? 'adventurer_index' : 'requester_index';
             const indexData = {
-                id_adv: data.id_adv, nickname: data.nickname, password: data.password,
-                role: data.role, kategori: data.kategori, area_tugas: data.domisili, shard_id: "FB2_RUNNER"
+                id_adv: data.id_adv, 
+                nickname: data.nickname, 
+                password: data.password,
+                role: data.role, 
+                kategori: data.kategori, 
+                area_tugas: data.domisili, 
+                shard_id: "FB2_RUNNER"
             };
 
-            // EKSEKUSI SEMUA (1 di FB1, 8 di FB2)
+            // EKSEKUSI SEMUA TRANSMISI (FB1 & FB2)
             await Promise.all([
-                // FB1
+                // Update Index di FB1
                 db1.ref(`${targetIndex}/${idAdv}`).set(indexData),
-                // FB2 - Tabel Identitas Lama
+                
+                // Buat 9 Tabel di FB2
                 db2.ref(`adventurer-${data.domisili}/Umum/${idAdv}`).set(identitasLama),
-                // FB2 - 7 Tabel Baru
                 db2.ref(`adventurer_profile/${idAdv}`).set(t_profile),
                 db2.ref(`adventurer_experience/${idAdv}`).set(t_experience),
                 db2.ref(`adventurer_reputation/${idAdv}`).set(t_reputation),
@@ -142,19 +196,27 @@
                 db2.ref(`adventurer_inventory/${idAdv}`).set(t_inventory),
                 db2.ref(`adventurer_coxin/${idAdv}`).set(t_coxin),
                 db2.ref(`adventurer_diagram/${idAdv}`).set(t_diagram),
-                // Hapus antrean
+                db2.ref(`adventurer_contracts/${idAdv}`).set(t_contracts),
+                
+                // Hapus dari antrean pending
                 db1.ref(`register_pending/${idAdv}`).remove()
             ]);
 
-            alert(`Sukses! ${data.nickname} aktif dengan total 8 tabel di FB2.`);
-        } catch (e) { console.error(e); alert("Gagal sinkronisasi database."); }
+            alert(`BERHASIL! Karakter ${data.nickname} telah bangkit dengan 9 tabel gamifikasi di FB2.`);
+        } catch (e) { 
+            console.error(e); 
+            alert("GAGAL KRITIKAL: Terjadi kesalahan sinkronisasi database."); 
+        }
     }
 
-    // Fungsi Dashboard tetap sama...
+    // --- FUNGSI MAINTENANCE & SCANNER ---
+
     async function scanSystem() {
         try {
             const [sMisi, sBids, sKontrak] = await Promise.all([
-                db1.ref('misi_index').once('value'), db4.ref('bids').once('value'), db5.ref('kontrak_detail').once('value')
+                db1.ref('misi_index').once('value'), 
+                db4.ref('bids').once('value'), 
+                db5.ref('kontrak_detail').once('value')
             ]);
             document.getElementById('valMisi').innerText = sMisi.numChildren() || 0;
             document.getElementById('valBids').innerText = sBids.numChildren() || 0;
@@ -163,23 +225,26 @@
     }
 
     async function cleanOrphanBids() {
-        if (!confirm("Sapu bids residu?")) return;
+        if (!confirm("Sapu bersih sinyal bids tanpa misi induk?")) return;
         const bidsSnap = await db4.ref('bids').once('value');
         if (!bidsSnap.exists()) return alert("Radar bersih.");
         let count = 0;
         for (let mid in bidsSnap.val()) {
             const idx = await db1.ref(`misi_index/${mid}`).once('value');
-            if (!idx.exists()) { await db4.ref(`bids/${mid}`).remove(); count++; }
+            if (!idx.exists()) { 
+                await db4.ref(`bids/${mid}`).remove(); 
+                count++; 
+            }
         }
-        alert(`Pembersihan selesai: ${count} residu.`);
+        alert(`Pembersihan residu selesai: ${count} sinyal dihapus.`);
         scanSystem();
     }
 
     async function banUser() {
         const uid = document.getElementById('targetUid').value.trim();
-        if (!uid) return;
+        if (!uid) return alert("Masukkan ID User!");
         await db1.ref(`adventurer_index/${uid}`).update({ is_banned: true });
-        alert("User dibanned.");
+        alert(`User ${uid} telah di-Banned dari sistem.`);
     }
 
     async function toggleMaintenance() {
@@ -189,10 +254,13 @@
         location.reload();
     }
 
+    // Inisialisasi status Maintenance saat load
     db1.ref('system_config/is_maintenance').once('value').then(snap => {
         const btn = document.getElementById('btnMaint');
         if (snap.val()) {
-            btn.innerText = "MODE PERBAIKAN: ON"; btn.style.background = "#ff4444"; btn.style.color = "white";
+            btn.innerText = "MODE PERBAIKAN: ON"; 
+            btn.style.background = "#ff4444"; 
+            btn.style.color = "white";
         }
     });
 </script>
