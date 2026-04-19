@@ -555,43 +555,50 @@ init: async function() {
         this.db4 = getTerminal('FB4_BOARD');
         const db2 = getTerminal('FB2_RUNNER');
 
-        // 1. Ambil Data Statis (Nickname & Zone) - Sekali saja
-        const userSnap = await this.db1.ref(`users/${this.user.uid}`).once('value');
-        const dataMaster = userSnap.val() || {};
+        // 1. Ambil Data Dasar (Nickname & Zona) dari folder "Umum"
+        // Di foto Abang path-nya: Umum/adv-kng-xxx/nickname
+        const umumSnap = await this.db1.ref(`Umum/${this.user.uid}`).once('value');
+        const dataUmum = umumSnap.val() || {};
         
-        document.getElementById('dispNick').innerText = dataMaster.nickname || "ADVENTURER";
-        document.getElementById('dispZone').innerText = dataMaster.area_tugas || "KNG";
-        this.State.areaTugas = dataMaster.area_tugas || "KNG";
+        this.State.areaTugas = dataUmum.area_tugas || "KNG";
+        document.getElementById('dispZone').innerText = this.State.areaTugas;
 
-        // 2. Listener Real-Time untuk Rank & Level (adventurer_profile)
+        // 2. Listener Real-Time Profil (Gelar, Rank, Level)
+        // Path: adventurer_profile/adv-kng-xxx/gelar
         db2.ref(`adventurer_profile/${this.user.uid}`).on('value', snap => {
             const p = snap.val() || {};
-            this.State.rank = p.rank || "Trainer";
+            const nick = dataUmum.nickname || "ADVENTURER";
+            const gelar = p.gelar || "Novice";
+            
+            // Set Nama dan Gelar di UI
+            document.getElementById('dispNick').innerText = `${nick.toUpperCase()} , ${gelar}`;
+            
+            this.State.rank = p.rank || "F";
             this.State.rpg.lvl = p.level || 1;
-            this.State.rpg.expNext = (p.level || 1) * 100; // Formula EXP per Level
+            this.State.rpg.expNext = (p.level || 1) * 100;
             
             document.getElementById('dispRank').innerText = this.State.rank;
             document.getElementById('dispLvl').innerText = this.State.rpg.lvl;
+            
             this.UI.applyRankTheme(this.State.rank);
             this.UI.updateRPG();
         });
 
-        // 3. Listener Real-Time untuk Stamina, EXP, & Limit (adventurer_experience)
-        // Ini kuncinya agar saat submit bid, data di layar langsung berubah otomatis
+        // 3. Listener Real-Time Status Bar (Stamina, EXP, Limit)
+        // Path: adventurer_experience/adv-kng-xxx/current_stamina
         db2.ref(`adventurer_experience/${this.user.uid}`).on('value', snap => {
             const e = snap.val() || {};
             
             this.State.rpg.exp = e.exp || 0;
             this.State.rpg.stm = e.current_stamina || 0;
-            this.State.rpg.stmMax = 100; // Bisa diganti e.max_stamina jika ada di DB
+            this.State.rpg.stmMax = e.max_stamina || 100; 
             this.State.rpg.limit = Number(e.limit_harian || 0);
-            this.State.rpg.limitMax = Number(e.max_limit || 10); // Menangkap nilai 10 dari DB
+            this.State.rpg.limitMax = Number(e.max_limit || 10);
 
-            // Update Tampilan RPG Bar
             this.UI.updateRPG();
         });
 
-        // 4. Jalankan Fitur Lainnya
+        // 4. Jalankan Fitur Pendukung
         await this.Core.checkDailyLogin();
         this.UI.loadSaverSettings();
         this.UI.startEduRotary();
@@ -600,7 +607,7 @@ init: async function() {
 
     } catch (e) {
         console.error("Critical Init Error:", e);
-        this.UI.showAlert("KONEKSI GAGAL", "Gagal sinkronisasi data karakter.");
+        this.UI.showAlert("KONEKSI GAGAL", "Data karakter tidak ditemukan.");
     }
 },
 
@@ -630,18 +637,44 @@ init: async function() {
             },
 
             updateRPG: function() {
-                const r = App.State.rpg;
-                if(!document.getElementById('dispLvl')) return;
-                
-                document.getElementById('dispLvl').innerText = r.lvl;
-                document.getElementById('dispExp').innerText = `${r.exp}/${r.expNext}`;
-                document.getElementById('expBar').style.width = (r.exp / r.expNext * 100) + "%";
-                
-                document.getElementById('dispStm').innerText = `${r.stm}/${r.stmMax}`;
-                document.getElementById('staminaBar').style.width = (r.stm / r.stmMax * 100) + "%";
-                
-                document.getElementById('dispLimit').innerText = `CONTRACTS: ${r.limit}/${r.limitMax}`;
-            },
+    const r = App.State.rpg;
+    
+    // 1. SAFETY CHECK: Pastikan elemen-elemen kritikal ada di HTML
+    const lvlEl = document.getElementById('dispLvl');
+    const stmBar = document.getElementById('staminaBar');
+    if (!lvlEl || !stmBar) return; // Berhenti jika UI belum siap
+
+    // 2. LOGIKA LVL & EXP
+    // Gunakan Math.max agar tidak terjadi pembagian dengan angka 0
+    const expNext = r.expNext || 100; 
+    const expPercent = Math.min((r.exp / expNext) * 100, 100);
+    
+    lvlEl.innerText = r.lvl || 1;
+    document.getElementById('dispExp').innerText = `${r.exp || 0}/${expNext}`;
+    document.getElementById('expBar').style.width = expPercent + "%";
+
+    // 3. LOGIKA STAMINA (Kunci agar Bar tidak kosong)
+    const stmMax = r.stmMax || 100;
+    const stmPercent = Math.min((r.stm / stmMax) * 100, 100);
+    
+    document.getElementById('dispStm').innerText = `${r.stm || 0}/${stmMax}`;
+    stmBar.style.width = stmPercent + "%";
+
+    // 4. LOGIKA LIMIT KONTRAK
+    // Pastikan limitMax diambil dari database (max_limit: 10 di foto Abang)
+    const lCurrent = r.limit || 0;
+    const lMax = r.limitMax || 10;
+    document.getElementById('dispLimit').innerText = `CONTRACTS: ${lCurrent}/${lMax}`;
+
+    // 5. AUTO-COLOR STAMINA (Opsional tapi keren)
+    // Jika stamina kritis (di bawah 20%), warna bar berubah jadi merah
+    if (stmPercent < 20) {
+        stmBar.style.background = "#f87171";
+    } else {
+        stmBar.style.background = "#4ade80";
+    }
+},
+
 
             applyRankTheme: function(rank) {
                 const r = rank.toLowerCase().replace('+', '-plus');
