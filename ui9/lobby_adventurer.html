@@ -548,66 +548,62 @@ body.saver-mode .rank-badge {
 
         BiddingData: { mid: "", basePrice: 0, currentPrice: 0 },
 
-        init: async function() {
+init: async function() {
     try {
         this.user = Clearchance.enforceIdentity();
         this.db1 = getTerminal('FB1_MASTER');
         this.db4 = getTerminal('FB4_BOARD');
-        
-        // --- TAMBAHAN: Tarik koneksi ke FB2 ---
         const db2 = getTerminal('FB2_RUNNER');
 
-        // 1. Ambil data dasar dari FB1 (Area Tugas & Password/Auth)
+        // 1. Ambil Data Statis (Nickname & Zone) - Sekali saja
         const userSnap = await this.db1.ref(`users/${this.user.uid}`).once('value');
         const dataMaster = userSnap.val() || {};
-
-        // 2. Ambil data RPG dari FB2 (Experience & Profile)
-        const [snapExp, snapProfile] = await Promise.all([
-            db2.ref(`adventurer_experience/${this.user.uid}`).once('value'),
-            db2.ref(`adventurer_profile/${this.user.uid}`).once('value')
-        ]);
-
-        const dataExp = snapExp.val() || {};
-        const dataProf = snapProfile.val() || {};
         
-        // Load ke State App
-        this.State.areaTugas = dataMaster.area_tugas || this.user.zone || "KNG";
-        
-        // Ambil Rank dari adventurer_profile
-        this.State.rank = dataProf.rank || "Trainer"; 
-        
-        this.State.rpg = {
-            // Level dari profile
-            lvl: dataProf.level || 1, 
-            // EXP dan Stamina dari experience
-            exp: dataExp.exp || 0,
-            expNext: (dataProf.level || 1) * 100,
-            stm: dataExp.current_stamina || 100, // Sesuai nama field di foto FB2 Abang
-            stmMax: 100,
-            // Limit Harian dari experience
-            limit: dataExp.limit_harian || 0,
-            limitMax: dataExp.max_limit || 5
-        };
+        document.getElementById('dispNick').innerText = dataMaster.nickname || "ADVENTURER";
+        document.getElementById('dispZone').innerText = dataMaster.area_tugas || "KNG";
+        this.State.areaTugas = dataMaster.area_tugas || "KNG";
 
-        // Render UI
-        this.UI.updateRPG(); 
+        // 2. Listener Real-Time untuk Rank & Level (adventurer_profile)
+        db2.ref(`adventurer_profile/${this.user.uid}`).on('value', snap => {
+            const p = snap.val() || {};
+            this.State.rank = p.rank || "Trainer";
+            this.State.rpg.lvl = p.level || 1;
+            this.State.rpg.expNext = (p.level || 1) * 100; // Formula EXP per Level
+            
+            document.getElementById('dispRank').innerText = this.State.rank;
+            document.getElementById('dispLvl').innerText = this.State.rpg.lvl;
+            this.UI.applyRankTheme(this.State.rank);
+            this.UI.updateRPG();
+        });
+
+        // 3. Listener Real-Time untuk Stamina, EXP, & Limit (adventurer_experience)
+        // Ini kuncinya agar saat submit bid, data di layar langsung berubah otomatis
+        db2.ref(`adventurer_experience/${this.user.uid}`).on('value', snap => {
+            const e = snap.val() || {};
+            
+            this.State.rpg.exp = e.exp || 0;
+            this.State.rpg.stm = e.current_stamina || 0;
+            this.State.rpg.stmMax = 100; // Bisa diganti e.max_stamina jika ada di DB
+            this.State.rpg.limit = Number(e.limit_harian || 0);
+            this.State.rpg.limitMax = Number(e.max_limit || 10); // Menangkap nilai 10 dari DB
+
+            // Update Tampilan RPG Bar
+            this.UI.updateRPG();
+        });
+
+        // 4. Jalankan Fitur Lainnya
         await this.Core.checkDailyLogin();
         this.UI.loadSaverSettings();
-        
-        document.getElementById('dispNick').innerText = dataMaster.nickname || this.user.nick || "ADVENTURER";
-        document.getElementById('dispZone').innerText = this.State.areaTugas;
-        document.getElementById('dispRank').innerText = this.State.rank;
-        
-        this.UI.applyRankTheme(this.State.rank);
         this.UI.startEduRotary();
         this.Core.startGPS();
         this.Core.listenToContracts();
 
     } catch (e) {
-        console.error(e);
+        console.error("Critical Init Error:", e);
         this.UI.showAlert("KONEKSI GAGAL", "Gagal sinkronisasi data karakter.");
     }
 },
+
 
 
         UI: {
@@ -835,27 +831,78 @@ Bidding: {
             await db2.ref(`adventurer_contracts/${App.user.uid}/${contractKey}`).set(currentStock - 1);
 
             // C. Potong Stamina & Tambah Limit di FB2 (adventurer_experience)
-            const newStm = r.stm - 10;
-            const newLimit = r.limit + 1;
-            await db2.ref(`adventurer_experience/${App.user.uid}`).update({
-                current_stamina: newStm,
-                limit_harian: newLimit
-            });
+submit: async function() {
+    const { mid, currentPrice } = App.BiddingData;
+    const r = App.State.rpg;
+    const db2 = getTerminal('FB2_RUNNER');
 
-            // 5. UPDATE STATE LOCAL & UI
-            App.State.rpg.stm = newStm;
-            App.State.rpg.limit = newLimit;
-            App.UI.updateRPG();
-            App.State.renderedMissions.add(mid + "_applied");
+    // 1. VALIDASI LIMIT (Hanya blokir jika limit_harian >= max_limit)
+    if (r.limit >= r.limitMax) {
+        App.UI.showAlert("LIMIT TERCAPAI", `Anda sudah mencapai batas ${r.limitMax} kontrak hari ini.`);
+        return;
+    }
 
-            App.UI.closeModal();
-            App.UI.showAlert("BERHASIL", `Sinyal terbit! [${tipeKontrak}] digunakan. Stamina -10.`);
-            
-            // Refresh radar untuk mengunci kartu yang baru saja dilamar
-            App.Core.startRadar(); 
+    if (r.stm < 10) {
+        App.UI.showAlert("STAMINA RENDAH", "Butuh minimal 10 Stamina.");
+        return;
+    }
 
-        } catch (e) {
-            console.error("Bidding Error:", e);
+    // 2. PENENTUAN ITEM KONTRAK
+    let tipeKontrak = "Kontrak Normal";
+    let contractKey = "kontrak_normal";
+
+    if (currentPrice <= 10000) { 
+        tipeKontrak = "Kontrak Lusuh"; contractKey = "kontrak_lusuh"; 
+    } else if (currentPrice <= 30000) { 
+        tipeKontrak = "Kontrak Normal"; contractKey = "kontrak_normal"; 
+    } else if (currentPrice <= 60000) { 
+        tipeKontrak = "Kontrak Medium"; contractKey = "kontrak_medium"; 
+    } else { 
+        tipeKontrak = "Kontrak Premium"; contractKey = "kontrak_premium"; 
+    }
+
+    try {
+        // 3. CEK STOK DI DATABASE SECARA REALTIME
+        const contractSnap = await db2.ref(`adventurer_contracts/${App.user.uid}/${contractKey}`).once('value');
+        // Gunakan Number() untuk antisipasi data tersimpan sebagai string di Firebase
+        const currentStock = Number(contractSnap.val() || 0);
+
+        if (currentStock <= 0) {
+            App.UI.showAlert("STOK HABIS", `Anda tidak memiliki [${tipeKontrak}]. Silakan beli atau gunakan tipe kontrak lain.`);
+            return;
+        }
+
+        // 4. EKSEKUSI (Update Firebase)
+        const updates = {};
+        // Kurangi stok kontrak
+        updates[`adventurer_contracts/${App.user.uid}/${contractKey}`] = currentStock - 1;
+        // Potong stamina & tambah limit_harian (+1)
+        updates[`adventurer_experience/${App.user.uid}/current_stamina`] = r.stm - 10;
+        updates[`adventurer_experience/${App.user.uid}/limit_harian`] = r.limit + 1;
+
+        await db2.ref().update(updates);
+
+        // Kirim penawaran ke Board
+        await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
+            adventurer_id: App.user.uid,
+            adventurer_nick: document.getElementById('dispNick').innerText,
+            offer_price: currentPrice,
+            timestamp: Date.now()
+        });
+
+        // Update UI Lokal
+        App.State.rpg.stm -= 10;
+        App.State.rpg.limit += 1;
+        App.UI.updateRPG();
+        
+        App.UI.closeModal();
+        App.UI.showAlert("BERHASIL", `Kontrak terbit! Stok ${tipeKontrak} tersisa: ${currentStock - 1}`);
+
+    } catch (e) {
+        App.UI.showAlert("SYSTEM ERROR", "Gagal menghubungi database.");
+    }
+}
+error("Bidding Error:", e);
             App.UI.showAlert("ERROR", "Gagal transmisi sinyal: " + e.message);
         } finally {
             if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
