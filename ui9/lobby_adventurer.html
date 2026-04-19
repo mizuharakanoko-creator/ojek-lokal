@@ -602,62 +602,39 @@ body.saver-mode .rank-badge {
 
         BiddingData: { mid: "", basePrice: 0, currentPrice: 0 },
 
+
+        
 init: async function() {
     try {
         // 1. Inisialisasi Terminal Utama
         this.db1 = getTerminal('FB1_MASTER');
         this.db4 = getTerminal('FB4_BOARD');
         
-        // Cek apakah user sudah login (menggunakan nickname dari Clearchance)
+        // 2. Cek Identitas
         this.user = Clearchance.enforceIdentity();
-        const nickname = this.user.nick || "nezza"; //
+        const nickname = this.user.nick || "nezza"; 
 
-        // 2. Cari ID_ADV dan Shard di Index Master
+        // 3. Cari ID_ADV di Index Master
         const idAdvClean = await this.Core.getIdAdvByNickname(nickname);
-        if(!idAdvClean) throw new Error("ID Adventurer tidak ditemukan di index Master (FB1).");
+        if(!idAdvClean) throw new Error("ID Adventurer tidak ditemukan di Master.");
 
-        // Ambil info shard dari index untuk koneksi ke database shard (FB2)
-const indexSnap = await this.db1.ref(`adventurer_index/${idAdvClean}`).once('value');
-const indexData = indexSnap.val();
+        // 4. Ambil Info Shard & Zona dari Index
+        const indexSnap = await this.db1.ref(`adventurer_index/${idAdvClean}`).once('value');
+        const indexData = indexSnap.val();
+        if (!indexData) throw new Error("Data Index Kosong.");
 
-if (indexData) {
-    // 1. Identifikasi Lokasi & Terjemahkan Nama Zona
-    const kodeZona = indexData.area_tugas || "KNG"; 
-    const namaPanjangZona = ZONA_MAP[kodeZona] || kodeZona;
+        // LOGIKA BARU: Terjemahkan Zona & Hubungkan Shard
+        const kodeZona = indexData.area_tugas || "KNG"; 
+        const namaPanjangZona = ZONA_MAP[kodeZona] || kodeZona;
+        const shardID = indexData.shard_id || "FB2_RUNNER"; 
+        const dbShard = getTerminal(shardID); 
 
-    // 2. Hubungkan ke Shard (Database Regional)
-    // shard_id ditarik dari indexData (misal: "FB2_RUNNER")
-    const shardID = indexData.shard_id; 
-    const dbShard = getTerminal(shardID); 
+        // 5. Simpan ke State Global
+        this.State.idAdv = idAdvClean;
+        this.State.zone = kodeZona;
+        this.State.namaZona = namaPanjangZona;
 
-    // 3. Simpan Identitas ke State Internal
-    this.State.zone = kodeZona;
-    this.State.namaZona = namaPanjangZona;
-    this.State.idAdv = indexData.id_adv; // Simpan ID asli untuk referensi update
-
-    // 4. Update Tampilan Nama Zona di UI
-    const zoneElement = document.getElementById('dispZone');
-    if(zoneElement) {
-        zoneElement.innerText = `Zona ${this.State.namaZona}`; 
-    }
-
-    // 5. AMBIL DATA RPG (Stamina, Exp, Limit) DARI SHARD
-    const expSnap = await dbShard.ref(`adventurer_experience/${this.State.idAdv}`).once('value');
-    const xpData = expSnap.val() || {};
-
-    // 6. Jalankan Logika Reset & Sinkronisasi
-    // Kita kirim dbShard agar fungsi Core bisa melakukan update jika sudah lewat jam 00.00
-    await this.Core.syncRPGStats(this.State.idAdv, dbShard, xpData);
-    
-    console.log(`[System] Koneksi Shard: ${shardID} | Lokasi: ${namaPanjangZona}`);
-}
-
-        
-        
-        const shardTarget = indexData.shard_id || "FB2_RUNNER"; //
-        const dbShard = getTerminal(shardTarget);
-
-        // 3. Tarik Data Profil & Experience dari Shard
+        // 6. Tarik Data Profil & Experience dari Shard (Paralel)
         const [profSnap, expSnap] = await Promise.all([
             dbShard.ref(`adventurer_profile/${idAdvClean}`).once('value'),
             dbShard.ref(`adventurer_experience/${idAdvClean}`).once('value')
@@ -666,20 +643,21 @@ if (indexData) {
         const prof = profSnap.val() || {};
         const xp = expSnap.val() || {};
 
-        // 4. Set State Global
+        // 7. Sinkronisasi Rank & RPG Stats
         this.State.rank = prof.rank || "Trainer";
         this.State.gelar = prof.gelar || "Newbie";
-        this.State.areaTugas = indexData.area_tugas || "KNG";
+        
+        // Kirim dbShard ke sync agar bisa update last_stamina_update
+        await this.Core.syncRPGStats(idAdvClean, shardID, xp);
 
-        // 5. Jalankan Sinkronisasi RPG (Stamina, EXP, Limit)
-        await this.Core.syncRPGStats(idAdvClean, shardTarget, xp);
-
-        // 6. Update Visual UI
+        // 8. Update Visual UI
         document.getElementById('dispNick').innerText = nickname;
-        document.getElementById('dispZone').innerText = this.State.areaTugas;
+        document.getElementById('dispZone').innerText = `Zona ${this.State.namaZona}`;
         document.getElementById('dispRank').innerText = this.State.rank;
         this.UI.applyRankTheme(this.State.rank);
         
+        // Load Settings & Jalankan Service
+        this.UI.loadSaverSettings(); // Tambahkan ini agar setting battery saver termuat
         this.UI.startEduRotary();
         this.Core.startGPS();
         this.Core.listenToContracts();
@@ -689,6 +667,7 @@ if (indexData) {
         this.UI.showAlert("KONEKSI GAGAL", e.message);
     }
 },
+
 
 
 
