@@ -811,27 +811,41 @@ Bidding: {
 
                 Core: {
     startGPS: function() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(pos => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                const hasil = cariDesaTerdekat(lat, lng); 
-                App.State.loc = { 
-                    lat: lat, lng: lng, 
-                    desa: hasil.name, kec: hasil.kec, 
-                    shard: getShardDariKecamatan(hasil.kec) 
-                };
-                const locEl = document.getElementById('locName');
-                if(locEl) locEl.innerText = `${App.State.loc.desa.toUpperCase()}`;
-                App.Core.startRadar(); 
-            }, (err) => {
-                console.error("GPS Error:", err);
-                App.UI.showAlert("GPS MATI", "Aktifkan lokasi agar radar bisa mendeteksi misi.");
-            }, { enableHighAccuracy: true });
-        } else {
-            App.UI.showAlert("SENSOR ERROR", "Perangkat tidak mendukung GPS.");
-        }
-    },
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            currentLoc.lat = pos.coords.latitude;
+            currentLoc.lng = pos.coords.longitude;
+            
+            // Reverse Geocoding Lokal
+            const hasil = cariDesaTerdekat(currentLoc.lat, currentLoc.lng); 
+            currentLoc.desa = hasil.name;
+            currentLoc.kec = hasil.kec;
+            currentLoc.shard = getShardDariKecamatan(hasil.kec);
+
+            document.getElementById('locName').innerText = `${currentLoc.desa} (${currentLoc.kec})`;
+
+            // --- LOGIKA CEK AREA TUGAS ---
+            // Kita bandingkan Shard lokasi sekarang dengan Shard Area Tugas
+            const shardTugas = getShardDariKecamatan(ZONA_MAP[areaTugas] || areaTugas);
+            
+            if (currentLoc.shard !== shardTugas) {
+                // USER DI LUAR AREA TUGAS
+                App.UI.showAlert(
+                    "DI LUAR AREA TUGAS", 
+                    `Anda berada di ${currentLoc.kec}. Radar dialihkan ke mode LUAR AREA (Hanya menampilkan level Kecamatan).`
+                );
+                // Otomatis aktifkan mode "Expanded" (setara perluas jangkauan)
+                isExpanded = true; 
+                document.getElementById('btnExpand').style.display = 'none';
+            }
+
+            startRadar();
+        }, (err) => {
+            App.UI.showAlert("GPS ERROR", "Gagal mengunci lokasi.");
+        }, { enableHighAccuracy: true });
+    }
+},
+
 
     setFilter: function(cat, btn) {
         App.State.currentFilter = cat;
@@ -844,62 +858,61 @@ Bidding: {
     },
 
     startRadar: function() {
-        const s = App.State;
-        const currentShard = getShardDariKecamatan(ZONA_MAP[s.areaTugas] || s.areaTugas);
-        const scanPath = s.isExpanded ? `mission-${currentShard}` : `mission-${currentShard}/${s.loc.desa}`;
+    const listDiv = document.getElementById('missionList');
+    const shardTugas = getShardDariKecamatan(ZONA_MAP[areaTugas] || areaTugas);
+    
+    let scanPath = "";
+
+    // LOGIKA PATH:
+    // 1. Jika mode perluas AKTIF (atau di luar area), scan seluruh Shard Area Tugas
+    // 2. Jika mode perluas MATI, scan spesifik Desa lokasi user di dalam Shard Area Tugas
+    if (isExpanded) {
+        scanPath = `mission-${shardTugas}`;
+        document.getElementById('radarPulse').innerText = `[ DEEP SCAN: SHARD ${shardTugas} ]`;
+    } else {
+        scanPath = `mission-${shardTugas}/${currentLoc.desa}`;
+        document.getElementById('radarPulse').innerText = `[ LOCAL SCAN: ${currentLoc.desa.toUpperCase()} ]`;
+    }
+
+    // Bersihkan listener lama jika ada
+    db4.ref(scanPath).off();
+
+    db4.ref(scanPath).on('value', snap => {
+        listDiv.innerHTML = "";
         
-        const pulseText = document.getElementById('radarPulse');
-        if (pulseText) {
-            pulseText.innerText = s.isExpanded ? `[ DEEP SCAN: SHARD ${currentShard} ]` : `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
+        if (!snap.exists()) {
+            listDiv.innerHTML = '<div id="emptyState">Tidak ada sinyal aktif di koordinat ini.</div>';
+            return;
         }
 
-        if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
-        s.currentScanPath = scanPath;
-
-        App.db4.ref(scanPath).on('value', snap => {
-            const listDiv = document.getElementById('missionList');
-            if(!listDiv) return;
-            listDiv.innerHTML = "";
-            
-            if (!snap.exists()) {
-                listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi terbuka di area ini.</div>`;
-                return;
-            }
-
-            let allMissions = [];
-            const now = Date.now();
-            const oneHour = 60 * 60 * 1000;
-
-            const collect = (m) => {
-                if (m && m.status === 'open') {
-                    const diffTime = now - (m.timestamp || 0);
-                    const isExpired = (m.category !== 'Help' && diffTime > oneHour);
-                    const matchFilter = (s.currentFilter === 'All' || m.category === s.currentFilter);
-                    if (!isExpired && matchFilter) {
-                        allMissions.push(m);
-                    }
-                }
-            };
-
-            if (s.isExpanded) {
-                snap.forEach(desaSnap => {
-                    desaSnap.forEach(misiSnap => collect(misiSnap.val()));
+        if (isExpanded) {
+            // Loop melalui tiap desa di dalam Shard
+            snap.forEach(desaSnap => {
+                desaSnap.forEach(misiSnap => {
+                    renderMisi(misiSnap.val());
                 });
-            } else {
-                snap.forEach(misiSnap => collect(misiSnap.val()));
-            }
+            });
+        } else {
+            // Langsung loop misi di desa tersebut
+            snap.forEach(misiSnap => {
+                renderMisi(misiSnap.val());
+            });
+        }
+    });
+},
 
-            allMissions.sort(() => Math.random() - 0.5);
-            const finalMissions = allMissions.slice(0, 10);
-            
-            if(finalMissions.length === 0) {
-                listDiv.innerHTML = `<div id="emptyState">Sinyal terdeteksi, namun kontrak sudah kadaluwarsa atau tidak sesuai filter.</div>`;
-            } else {
-                AudioEngine.play('sonar');
-                finalMissions.forEach(m => this.renderMisi(m, listDiv));
-            }
-        });
-    },
+perluasRadar: function() {
+    AudioEngine.play('click');
+    isExpanded = true;
+    document.getElementById('btnExpand').style.display = 'none';
+    
+    // Refresh Radar
+    startRadar();
+    
+    // Opsional: Beri getaran atau notif kecil
+    if(navigator.vibrate) navigator.vibrate(100);
+},
+
 
     calcDist: function(lat1, lon1, lat2, lon2) {
         if(!lat1 || !lat2) return 0;
