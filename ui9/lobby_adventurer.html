@@ -410,6 +410,14 @@
         <button class="btn-expand" id="btnExpand" onclick="App.UI.toggleRadar()">+ PERLUAS RADAR KE SELURUH KABUPATEN</button>
     </div>
 
+<div class="filter-bar" style="display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px;">
+    <button class="btn-mini active" onclick="App.Core.setFilter('All', this)">ALL</button>
+    <button class="btn-mini" onclick="App.Core.setFilter('Reguler', this)">REGULER</button>
+    <button class="btn-mini" onclick="App.Core.setFilter('Titip Beli', this)">BELANJA</button>
+    <button class="btn-mini" onclick="App.Core.setFilter('Help', this)">HELP</button>
+</div>
+
+
     <div id="missionList">
         <div id="emptyState">Memindai koordinat area. Pastikan GPS/Lokasi perangkat Anda aktif...</div>
     </div>
@@ -760,42 +768,84 @@
                 }
             },
 
+            setFilter: function(cat, btn) {
+                App.State.currentFilter = cat;
+                // Update UI Visual Tombol
+                document.querySelectorAll('.filter-bar .btn-mini').forEach(b => b.classList.remove('active'));
+                if(btn) btn.classList.add('active');
+                
+                AudioEngine.play('click');
+                this.startRadar(); // Refresh radar dengan filter baru
+            },
+
+
             startRadar: function() {
                 const s = App.State;
                 const currentShard = getShardDariKecamatan(ZONA_MAP[s.areaTugas] || s.areaTugas);
                 const scanPath = s.isExpanded ? `mission-${currentShard}` : `mission-${currentShard}/${s.loc.desa}`;
+                
                 const pulseText = document.getElementById('radarPulse');
                 if (pulseText) {
                     pulseText.innerText = s.isExpanded ? `[ DEEP SCAN: SHARD ${currentShard} ]` : `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
                 }
+
                 if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
                 s.currentScanPath = scanPath;
 
                 App.db4.ref(scanPath).on('value', snap => {
                     const listDiv = document.getElementById('missionList');
                     listDiv.innerHTML = "";
-                    let found = false;
+                    
                     if (!snap.exists()) {
-                        listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi terbuka.</div>`;
+                        listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi terbuka di area ini.</div>`;
                         return;
                     }
-                    AudioEngine.play('sonar');
-                    const processMission = (m) => {
+
+                    let allMissions = [];
+                    const now = Date.now();
+                    const oneHour = 60 * 60 * 1000; // 3.600.000 ms
+
+                    // 1. Kumpulkan Data & Filter Sisi Client
+                    const collect = (m) => {
                         if (m && m.status === 'open') {
-                            found = true;
-                            App.Core.renderMisi(m, listDiv);
+                            const diffTime = now - (m.timestamp || 0);
+                            
+                            // Logika Waktu: Jika bukan 'Help', maksimal umur misi 1 jam
+                            const isExpired = (m.category !== 'Help' && diffTime > oneHour);
+                            
+                            // Logika Filter Kategori
+                            const matchFilter = (s.currentFilter === 'All' || m.category === s.currentFilter);
+
+                            if (!isExpired && matchFilter) {
+                                allMissions.push(m);
+                            }
                         }
                     };
+
+                    // Iterasi Shard atau Desa
                     if (s.isExpanded) {
                         snap.forEach(desaSnap => {
-                            desaSnap.forEach(misiSnap => processMission(misiSnap.val()));
+                            desaSnap.forEach(misiSnap => collect(misiSnap.val()));
                         });
                     } else {
-                        snap.forEach(misiSnap => processMission(misiSnap.val()));
+                        snap.forEach(misiSnap => collect(misiSnap.val()));
                     }
-                    if(!found) listDiv.innerHTML = '<div id="emptyState">Sinyal terdeteksi, namun kontrak sudah penuh.</div>';
+
+                    // 2. Acak Urutan (Randomize) agar adil
+                    allMissions.sort(() => Math.random() - 0.5);
+
+                    // 3. Ambil 10 Teratas
+                    const finalMissions = allMissions.slice(0, 10);
+                    
+                    if(finalMissions.length === 0) {
+                        listDiv.innerHTML = `<div id="emptyState">Sinyal terdeteksi, namun kontrak sudah kadaluwarsa atau tidak sesuai filter.</div>`;
+                    } else {
+                        AudioEngine.play('sonar');
+                        finalMissions.forEach(m => this.renderMisi(m, listDiv));
+                    }
                 });
             },
+
 
             calcDist: function(lat1, lon1, lat2, lon2) {
                 if(!lat1 || !lat2) return 0;
@@ -806,53 +856,62 @@
                     
 
             renderMisi: function(m, container) {
+                // Hitung Jarak
                 let mLat = m.lat, mLng = m.lng;
-                if(!mLat) {
+                if(!mLat && m.origin_desa) {
                     const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
                     if(detailAsal) { mLat = detailAsal.lat; mLng = detailAsal.lng; }
                 }
                 const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
                 const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
                 
+                // Tema Warna Kesulitan
                 let diffColor = "#4ade80";
                 if (m.difficulty_rate > 1.5) diffColor = "#facc15";
                 if (m.difficulty_rate > 2.0) diffColor = "#f87171";
 
+                // Status Apply
                 const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
-                const isNew = !App.State.renderedMissions.has(m.id_misi) && !isApplied;
-                if(isNew) App.State.renderedMissions.add(m.id_misi);
+                
+                // Deteksi Kontrak Khusus
+                const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || (m.dest_name && m.dest_name.includes('[TITIK')));
+                
+                // --- LOGIKA HARGA 0 => NEGO ---
+                const rewardDisplay = (m.reward === 0 || !m.reward) ? 
+                    '<span style="color:#facc15; font-weight:bold;">NEGO</span>' : 
+                    `Rp ${m.reward.toLocaleString('id-ID')}`;
 
-                // Deteksi kategori khusus
-                const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || m.dest_name.includes('[TITIK'));
-                
                 const div = document.createElement('div');
-                div.className = `mission-card ${isNew ? 'flash' : ''} ${isApplied ? 'applied-locked' : ''}`;
+                div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
                 
-                // LOGIKA PEMISAH TITIK: Memecah teks berdasarkan karakter '|' agar rapi kebawah
-                let formattedDest = m.dest_name;
-                if(isSpecial && m.dest_name.includes('|')) {
-                    formattedDest = m.dest_name.split('|')
+                // Formatter untuk Titik Belanja/Banyak (Pemisah '|')
+                let formattedDest = m.dest_name || "";
+                if(isSpecial && formattedDest.includes('|')) {
+                    formattedDest = formattedDest.split('|')
                         .map(t => `<div class="titik-item">${t.trim()}</div>`)
                         .join('');
                 }
 
-                // Sanitasi untuk modal agar tidak error saat diklik
-                const safeDest = m.dest_name ? m.dest_name.replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ") : "";
-                const safeNote = m.note ? m.note.replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ") : "";
+                // Proteksi karakter kutip agar tidak merusak fungsi onclick
+                const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
+                const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
 
                 div.innerHTML = `
                     <div class="m-header">
-                        <span>ID: ${m.id_misi.slice(-6)}</span>
-                        ${isApplied ? '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`}
+                        <span>ID: ${m.id_misi.slice(-6).toUpperCase()}</span>
+                        ${isApplied ? 
+                            '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
+                            `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
+                        }
                     </div>
 
                     <div class="m-title">
-                        ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + m.dest_desa.toUpperCase()}
+                        ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + (m.dest_desa || 'TUJUAN').toUpperCase()}
                     </div>
 
                     ${isSpecial ? `
                         <div class="special-detail-box">
-                            ${formattedDest}
+                            ${formattedDest || 'Tidak ada rincian data.'}
                         </div>
                     ` : `
                         <div class="m-route">
@@ -862,12 +921,12 @@
                     `}
 
                     <div style="font-size:10px; color:var(--theme-color); margin-bottom:8px; font-family:var(--font-terminal); font-weight:bold;">
-                        KATEGORI: ${m.category || 'Reguler'}
+                        KATEGORI: ${m.category || 'REGULER'}
                     </div>
 
                     <div class="m-reward">
                         <span class="m-dist">${jarakTeks}</span>
-                        <span>Rp ${m.reward.toLocaleString('id-ID')}</span>
+                        <span>${rewardDisplay}</span>
                     </div>
                     
                     ${isApplied ? 
@@ -877,7 +936,6 @@
                 `;
                 container.appendChild(div);
             },
-
 
 
 
