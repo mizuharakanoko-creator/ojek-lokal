@@ -898,87 +898,101 @@ updateRPG: function() {
 
 
 
-        Core: {
-        startGPS: function() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-                    
-                    // Pastikan fungsi cariDesaTerdekat ada di router_lokal.js
-                    const hasil = cariDesaTerdekat(lat, lng); 
-                    App.State.loc = { 
-                        lat: lat, lng: lng, 
-                        desa: hasil.name, kec: hasil.kec, 
-                        shard: getShardDariKecamatan(hasil.kec) 
-                    };
-                    
-                    document.getElementById('locName').innerText = App.State.loc.desa.toUpperCase();
-                    App.Core.startRadar(); 
-                }, (err) => {
-                    App.UI.showAlert("GPS ERROR", "Aktifkan lokasi agar radar berjalan.");
-                });
-            }
-        },
-
-        startRadar: function() {
-            const s = App.State;
-            const zone = s.areaTugas || "KNG";
-            
-            // Perbaikan Path: Gunakan shard asli dari ZONA_MAP
-            const shardId = getShardDariKecamatan(ZONA_MAP[zone] || zone);
-            
-            if (!s.isExpanded && !s.loc.desa) return;
-
-            // Pastikan path sesuai database: mission-FB2/NamaDesa
-            const scanPath = s.isExpanded ? `mission-${shardId}` : `mission-${shardId}/${s.loc.desa}`;
-            
-            if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
-            s.currentScanPath = scanPath;
-
-            App.db4.ref(scanPath).on('value', snap => {
-                const listDiv = document.getElementById('missionList');
-                if(!listDiv) return;
-                listDiv.innerHTML = "";
+                Core: {
+            // Filter kategori misi
+            setFilter: function(category, btn) {
+                AudioEngine.play('click');
+                // UI Toggle Active Class
+                document.querySelectorAll('.filter-bar .btn-mini').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
                 
-                let allMissions = [];
-                if (s.isExpanded) {
-                    snap.forEach(desaSnap => {
-                        desaSnap.forEach(misiSnap => {
-                            const m = misiSnap.val();
-                            if(m.status === 'open') allMissions.push(m);
+                // Simpan filter ke state (Opsional jika ingin filter di sisi client)
+                this.currentFilter = category;
+                this.startRadar(); // Refresh radar dengan filter baru
+            },
+
+            startGPS: function() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(pos => {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        
+                        const hasil = cariDesaTerdekat(lat, lng); 
+                        App.State.loc = { 
+                            lat: lat, lng: lng, 
+                            desa: hasil.name, kec: hasil.kec, 
+                            shard: getShardDariKecamatan(hasil.kec) 
+                        };
+                        
+                        document.getElementById('locName').innerText = App.State.loc.desa.toUpperCase();
+                        App.Core.startRadar(); 
+                    }, (err) => {
+                        App.UI.showAlert("GPS ERROR", "Aktifkan lokasi agar radar berjalan.");
+                    });
+                }
+            },
+
+            startRadar: function() {
+                const s = App.State;
+                const zone = s.areaTugas || "KNG";
+                const shardId = getShardDariKecamatan(ZONA_MAP[zone] || zone);
+                
+                if (!s.isExpanded && !s.loc.desa) return;
+
+                const scanPath = s.isExpanded ? `mission-${shardId}` : `mission-${shardId}/${s.loc.desa}`;
+                
+                if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
+                s.currentScanPath = scanPath;
+
+                App.db4.ref(scanPath).on('value', snap => {
+                    const listDiv = document.getElementById('missionList');
+                    if(!listDiv) return;
+                    listDiv.innerHTML = "";
+                    
+                    let allMissions = [];
+                    if (s.isExpanded) {
+                        snap.forEach(desaSnap => {
+                            desaSnap.forEach(misiSnap => {
+                                const m = misiSnap.val();
+                                if(m.status === 'open') {
+                                    // Logika Filter
+                                    if(!this.currentFilter || this.currentFilter === 'All' || m.category === this.currentFilter) {
+                                        allMissions.push(m);
+                                    }
+                                }
+                            });
                         });
-                    });
-                } else {
-                    snap.forEach(misiSnap => {
-                        const m = misiSnap.val();
-                        if(m.status === 'open') allMissions.push(m);
-                    });
-                }
+                    } else {
+                        snap.forEach(misiSnap => {
+                            const m = misiSnap.val();
+                            if(m.status === 'open') {
+                                if(!this.currentFilter || this.currentFilter === 'All' || m.category === this.currentFilter) {
+                                    allMissions.push(m);
+                                }
+                            }
+                        });
+                    }
 
-                if(allMissions.length === 0) {
-                    listDiv.innerHTML = `<div id="emptyState">[ NO SIGNAL ]<br>Area ${s.loc.desa || zone} bersih dari misi.</div>`;
-                } else {
-                    AudioEngine.play('sonar');
-                    allMissions.forEach(m => App.Core.renderMisi(m, listDiv));
-                }
-            });
-        },
+                    if(allMissions.length === 0) {
+                        listDiv.innerHTML = `<div id="emptyState">[ NO SIGNAL ]<br>Area ${s.loc.desa || zone} bersih dari misi.</div>`;
+                    } else {
+                        AudioEngine.play('sonar');
+                        allMissions.forEach(m => App.Core.renderMisi(m, listDiv));
+                    }
+                });
+            },
 
-
-
-    calcDist: function(lat1, lon1, lat2, lon2) {
-        if(!lat1 || !lat2) return 0;
-        const R = 6371; 
-        const dLat = (lat2-lat1)*Math.PI/180; 
-        const dLon = (lon2-lon1)*Math.PI/180;
-        const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    },
+            calcDist: function(lat1, lon1, lat2, lon2) {
+                if(!lat1 || !lat2) return 0;
+                const R = 6371; 
+                const dLat = (lat2-lat1)*Math.PI/180; 
+                const dLon = (lon2-lon1)*Math.PI/180;
+                const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+                return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            },
             
-                renderMisi: function(m, container) {
+            renderMisi: function(m, container) {
                 let mLat = m.lat, mLng = m.lng;
-                // Fallback jika lat/lng murni tidak ada, cari berdasarkan desa
                 if(!mLat && m.origin_desa) {
                     const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
                     if(detailAsal) { mLat = detailAsal.lat; mLng = detailAsal.lng; }
@@ -987,13 +1001,12 @@ updateRPG: function() {
                 const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
                 const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
                 
-                // Pewarnaan tingkat kesulitan
                 let diffColor = "#4ade80";
                 if (m.difficulty_rate > 1.5) diffColor = "#facc15";
                 if (m.difficulty_rate > 2.0) diffColor = "#f87171";
 
                 const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
-                const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || (m.dest_name && m.dest_name.includes('[TITIK')));
+                const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help');
                 
                 const rewardDisplay = (m.reward === 0 || !m.reward) ? 
                     '<span style="color:#facc15; font-weight:bold;">NEGO</span>' : 
@@ -1002,7 +1015,6 @@ updateRPG: function() {
                 const div = document.createElement('div');
                 div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
                 
-                // Handler untuk rincian belanja/titik banyak (|)
                 let formattedDest = m.dest_name || "";
                 if(isSpecial && formattedDest.includes('|')) {
                     formattedDest = formattedDest.split('|')
@@ -1010,9 +1022,8 @@ updateRPG: function() {
                         .join('');
                 }
 
-                // Proteksi karakter kutip agar tidak merusak onclick
-                const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
-                const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
+                const safeDest = (m.dest_name || "").replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, " ");
+                const safeNote = (m.note || "").replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, " ");
 
                 div.innerHTML = `
                     <div class="m-header">
@@ -1044,92 +1055,57 @@ updateRPG: function() {
                     }
                 `;
                 container.appendChild(div);
-            }, // <--- KOMA INI SANGAT PENTING
+            },
 
-
-    listenToContracts: function() {
-        App.db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(App.user.uid).on('child_added', snap => {
-            const k = snap.val();
-            if (k.status === 'briefing') {
-                AudioEngine.play('alert');
-                document.getElementById('alTitle').innerText = "KONTRAK DISETUJUI!";
-                document.getElementById('alMsg').innerText = "Requester telah memilih Anda. Segera pindah ke ruang pengarahan.";
-                const alertBox = document.querySelector('#alertOverlay .modal-box'); // Sesuaikan selector box-nya
-                if(alertBox) {
-                    alertBox.style.borderColor = "#00ff00";
-                    const btn = alertBox.querySelector('button');
-                    if(btn) {
-                        btn.innerText = "MASUK BRIEFING ROOM";
-                        btn.style.background = "#00ff00";
-                        btn.onclick = () => {
-                            sessionStorage.setItem('active_contract_id', k.id_kontrak);
-                            window.location.href = "briefing_room.html";
-                        };
+            listenToContracts: function() {
+                App.db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(App.user.uid).on('child_added', snap => {
+                    const k = snap.val();
+                    if (k.status === 'briefing') {
+                        AudioEngine.play('alert');
+                        App.UI.showAlert("KONTRAK DISETUJUI!", "Requester telah memilih Anda. Segera pindah ke ruang pengarahan.");
+                        // Redirect Logic di alert bisa ditambahkan di sini
                     }
+                });
+            },
+
+            checkDailyLogin: async function() {
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0]; 
+                const lastLoginLocal = localStorage.getItem('last_login_date');
+                if (lastLoginLocal === todayStr) return; 
+
+                try {
+                    const userRef = App.db1.ref(`users/${App.user.uid}/login_stats`);
+                    const snap = await userRef.once('value');
+                    let stats = snap.val() || { count: 0, last_claim: "" };
+
+                    if (stats.last_claim !== todayStr) {
+                        stats.count += 1;
+                        stats.last_claim = todayStr;
+                        let reward = this.getLoginReward(stats.count);
+                        localStorage.setItem('last_login_date', todayStr);
+                        await userRef.set(stats);
+                        if (reward) App.UI.showLoginModal(stats.count, reward);
+                    }
+                } catch (e) {
+                    console.error("Daily Login Error:", e);
                 }
-                document.getElementById('alertOverlay').style.display = 'flex';
+            },
+
+            getLoginReward: function(day) {
+                const rewards = ["GREEN STONE", "STAMINA RECOVERY", "CONTRACT BOOSTER", "RADAR AMPLIFIER", "KONTRAK EMAS"];
+                if (day === 7) return rewards[1];
+                if (day === 14) return rewards[2];
+                if (day === 21) return rewards[3];
+                if (day === 28) return rewards[4];
+                return rewards[0];
             }
-        });
-    }, // <-- KOMA DITAMBAHKAN
-
-    checkDailyLogin: async function() {
-    const now = new Date();
-    // Gunakan format YYYY-MM-DD agar perbandingannya akurat dan string-safe
-    const todayStr = now.toISOString().split('T')[0]; 
-    
-    // 1. CEK LOCAL STORAGE DULU (Paling cepat)
-    const lastLoginLocal = localStorage.getItem('last_login_date');
-    if (lastLoginLocal === todayStr) {
-        console.log("Sistem: Sudah login hari ini (Local Check).");
-        return; 
-    }
-
-    try {
-        const userRef = App.db1.ref(`users/${App.user.uid}/login_stats`);
-        const snap = await userRef.once('value');
-        let stats = snap.val() || { count: 0, last_claim: "" };
-
-        // 2. CEK DATABASE (Verifikasi ganda)
-        // Kita bandingkan last_claim di DB dengan todayStr
-        if (stats.last_claim !== todayStr) {
-            stats.count += 1;
-            stats.last_claim = todayStr;
-
-            // Tentukan Reward
-            let reward = this.getLoginReward(stats.count);
-
-            // 3. UPDATE DATABASE & LOCAL STORAGE SECARA BERSAMAAN
-            // Pastikan localStorage di-set SEBELUM modal muncul
-            localStorage.setItem('last_login_date', todayStr);
-            await userRef.set(stats);
-
-            // 4. TAMPILKAN MODAL
-            if (reward) {
-                App.UI.showLoginModal(stats.count, reward);
-            }
-        } else {
-            // Jika di DB ternyata sudah sama, sinkronkan localStorage-nya agar tidak nge-loop
-            localStorage.setItem('last_login_date', todayStr);
-        }
-    } catch (e) {
-        console.error("Daily Login Error:", e);
-    }
-},
-
-
-    getLoginReward: function(day) {
-        if (day >= 1 && day <= 6) return "GREEN STONE";
-        if (day === 7) return "STAMINA RECOVERY";
-        if (day === 14) return "CONTRACT BOOSTER";
-        if (day === 21) return "RADAR AMPLIFIER";
-        if (day === 28) return "KONTRAK EMAS";
-        return "GREEN STONE"; // Default reward agar tidak null
-    }
-} // Tutup core
+        } // Tutup Core
     }; // Tutup App
 
     window.onload = () => App.init();
 </script>
+
 
         
 </body>
