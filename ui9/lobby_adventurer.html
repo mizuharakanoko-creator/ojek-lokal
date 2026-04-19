@@ -1190,11 +1190,10 @@ Core: {
     // Fungsi untuk menggali data berdasarkan ID Adventurer secara lintas terminal
 async function debugExploreByNickname(targetNickname) {
     const nickClean = targetNickname.toLowerCase().trim();
-    App.UI.showAlert("SEARCHING...", `Mencari Adventurer: ${nickClean}`);
+    App.UI.showAlert("SEARCHING...", `Menggali 9 Tabel untuk: ${nickClean}`);
     
     try {
         const db1 = getTerminal('FB1_MASTER');
-        // 1. Cari di index berdasarkan Nickname
         const indexSnap = await db1.ref('adventurer_index').once('value');
         
         let foundId = null;
@@ -1203,29 +1202,35 @@ async function debugExploreByNickname(targetNickname) {
         indexSnap.forEach(child => {
             const data = child.val();
             if (data.nickname && data.nickname.toLowerCase() === nickClean) {
-                foundId = child.key; // Ini akan mendapatkan 'adv-kng-15979117'
+                foundId = child.key; 
                 foundData = data;
             }
         });
 
-        if (!foundId) {
-            throw new Error(`Nickname "${targetNickname}" tidak terdaftar di sistem.`);
-        }
+        if (!foundId) throw new Error(`Nickname "${targetNickname}" tidak ditemukan.`);
 
-        // 2. Gunakan shard_id dari data yang ditemukan (Contoh: FB2_RUNNER)
         const shardTarget = foundData.shard_id;
         const dbShard = getTerminal(shardTarget);
         
-        // 3. Gali semua tabel di Shard tersebut menggunakan ID yang baru ditemukan
+        // DAFTAR LENGKAP 9 TABEL SESUAI GAMBAR DATABASE
         const tables = [
-            'adventurer_profile', 'adventurer_inventory', 'adventurer_experience', 
-            'adventurer_reputation', 'adventurer_contracts'
+            'adventurer_profile', 
+            'adventurer_inventory', 
+            'adventurer_experience', 
+            'adventurer_reputation', 
+            'adventurer_contracts',
+            'adventurer_coxin',    // Baru ditambahkan
+            'adventurer_diagram',  // Baru ditambahkan
+            'adventurer_judge',    // Baru ditambahkan
+            'adventurer-KNG'       // Sesuai folder di gambar pertama
         ];
         
         const results = { "_INDEX_MASTER": foundData };
+        
+        // Proses pengambilan data paralel
         const promises = tables.map(async (table) => {
             const snap = await dbShard.ref(`${table}/${foundId}`).once('value');
-            results[table] = snap.val() || "KOSONG/BELUM ADA DATA";
+            results[table] = snap.val() || "--- KOSONG ---";
         });
         
         await Promise.all(promises);
@@ -1235,6 +1240,7 @@ async function debugExploreByNickname(targetNickname) {
         App.UI.showAlert("GALI DATA GAGAL", e.message);
     }
 }
+
 
 
 
