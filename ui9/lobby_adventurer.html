@@ -843,59 +843,79 @@ Bidding: {
         document.getElementById('bidAmount').value = App.BiddingData.currentPrice.toLocaleString('id-ID');
     },
     submit: async function() {
-        const { mid, currentPrice } = App.BiddingData;
-        const r = App.State.rpg;
+    const { mid, currentPrice } = App.BiddingData;
+    const r = App.State.rpg;
 
-        if (r.stm < 10) {
-            App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
-            return;
-        }
-        if (r.limit >= r.limitMax) {
-            App.UI.showAlert("LIMIT HABIS", `Jatah harian (${r.limitMax}) sudah tercapai.`);
-            return;
-        }
-
-        let tipeKontrak = "Kontrak Emas";
-        if (currentPrice <= 10000) tipeKontrak = "Kontrak Lusuh";
-        else if (currentPrice <= 30000) tipeKontrak = "Kontrak Normal";
-        else if (currentPrice <= 60000) tipeKontrak = "Kontrak Medium";
-        else if (currentPrice <= 100000) tipeKontrak = "Kontrak Premium";
-
-        const btn = document.querySelector('.btn-confirm');
-        if(btn) { btn.innerText = "TRANSMISI..."; btn.disabled = true; }
-
-        try {
-            await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
-                adventurer_id: App.user.uid,
-                adventurer_nick: App.user.nick || "Adventurer",
-                rank: App.State.rank,
-                offer_price: currentPrice,
-                contract_item: tipeKontrak,
-                timestamp: Date.now()
-            });
-
-            const newStm = r.stm - 10;
-            const newLimit = r.limit + 1;
-            await App.db1.ref(`users/${App.user.uid}`).update({
-                stamina: newStm,
-                limit_harian: newLimit
-            });
-
-            App.State.rpg.stm = newStm;
-            App.State.rpg.limit = newLimit;
-            App.UI.updateRPG();
-            App.State.renderedMissions.add(mid + "_applied");
-
-            App.UI.closeModal();
-            App.UI.showAlert("BERHASIL", `Sinyal terbit dengan tipe [${tipeKontrak.toUpperCase()}]. Stamina berkurang 10.`);
-            App.Core.startRadar(); 
-
-        } catch (e) {
-            App.UI.showAlert("ERROR", "Gagal transmisi: " + e.message);
-        } finally {
-            if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
-        }
+    // 1. Validasi Dasar (Stamina & Limit)
+    if (r.stm < 10) {
+        App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
+        return;
     }
+    if (r.limit >= r.limitMax) {
+        App.UI.showAlert("LIMIT HABIS", `Jatah harian (${r.limitMax}) sudah tercapai.`);
+        return;
+    }
+
+    // 2. Tentukan Jenis Kontrak yang Dibutuhkan
+    let jenisKontrak = "kontrak_emas";
+    if (currentPrice <= 10000) jenisKontrak = "kontrak_lusuh";
+    else if (currentPrice <= 30000) jenisKontrak = "kontrak_normal";
+    else if (currentPrice <= 60000) jenisKontrak = "kontrak_medium";
+    else if (currentPrice <= 100000) jenisKontrak = "kontrak_premium";
+
+    const btn = document.querySelector('.btn-confirm');
+    if(btn) { btn.innerText = "MENGECEK STOK..."; btn.disabled = true; }
+
+    try {
+        // 3. CEK STOK KONTRAK DI SHARD (FB2)
+        const idAdv = await App.Core.getIdAdvByNickname(App.user.nick);
+        const shardTarget = App.State.loc.shard || "FB2_RUNNER";
+        const dbShard = getTerminal(shardTarget);
+
+        const contractSnap = await dbShard.ref(`adventurer_contracts/${idAdv}/${jenisKontrak}`).once('value');
+        const stokSekarang = contractSnap.val() || 0;
+
+        if (stokSekarang <= 0) {
+            App.UI.showAlert("STOK HABIS", `Anda tidak memiliki [${jenisKontrak.replace('_', ' ').toUpperCase()}]. Silakan beli di Shop atau tukar Green Stone.`);
+            if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
+            return; // Hentikan proses jika stok 0
+        }
+
+        // 4. Jika stok ada, lanjutkan transmisi BID ke FB4
+        await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
+            adventurer_id: App.user.uid,
+            adventurer_nick: App.user.nick || "Adventurer",
+            rank: App.State.rank,
+            offer_price: currentPrice,
+            contract_item: jenisKontrak, // Simpan jenisnya agar requester tahu
+            timestamp: Date.now()
+        });
+
+        // 5. Potong Stamina & Update Limit di FB1
+        const newStm = r.stm - 10;
+        const newLimit = r.limit + 1;
+        await App.db1.ref(`users/${App.user.uid}`).update({
+            stamina: newStm,
+            limit_harian: newLimit
+        });
+
+        // Update State & UI
+        App.State.rpg.stm = newStm;
+        App.State.rpg.limit = newLimit;
+        App.UI.updateRPG();
+        App.State.renderedMissions.add(mid + "_applied");
+
+        App.UI.closeModal();
+        App.UI.showAlert("BERHASIL", `Sinyal terbit menggunakan 1 [${jenisKontrak.toUpperCase()}].`);
+        App.Core.startRadar(); 
+
+    } catch (e) {
+        App.UI.showAlert("ERROR", "Gagal validasi: " + e.message);
+    } finally {
+        if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
+    }
+}
+
 },
 
 
