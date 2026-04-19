@@ -673,7 +673,16 @@ init: async function() {
         const msg = `Sistem mendeteksi kehadiran Anda. <br><br> Reward diperoleh: <br> <b style="color:var(--theme-color); font-size:18px;">[ ${rewardName} ]</b> <br><br> Hadiah telah dikirim ke inventori Terminal Anda.`;
         this.showAlert(title, msg);
         if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
-    }, // <-- TAMBAH KOMA DI SINI
+    }, // <-- PASTIKAN ADA KOMA DI SINI
+
+    closeModal: function() {
+        document.getElementById('sovBidModal').style.display = 'none';
+    },
+
+    toggleRadar: function() {
+        // ... isi kode toggleRadar ...
+    }, // <-- PASTIKAN ADA KOMA DI SINI
+
 
     closeModal: function() {
         document.getElementById('sovBidModal').style.display = 'none';
@@ -812,32 +821,34 @@ Bidding: {
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
             
-            // Gunakan koordinat asli dari parameter 'pos'
+            // Ambil data desa berdasarkan GPS
             const hasil = cariDesaTerdekat(lat, lng); 
             
             App.State.loc = { 
                 lat: lat, lng: lng, 
-                desa: hasil.name, kec: hasil.kec, 
+                desa: hasil.name, 
+                kec: hasil.kec, 
                 shard: getShardDariKecamatan(hasil.kec) 
             };
 
             const locEl = document.getElementById('locName');
             if(locEl) locEl.innerText = `${App.State.loc.desa.toUpperCase()}`;
 
-            // LOGIKA DETEKSI: Bandingkan Kecamatan GPS vs Kecamatan Tugas
-            // Pastikan perbandingan string menggunakan format yang sama (misal: UpperCase)
-            const kecGPS = hasil.kec.toUpperCase();
-            const kecTugas = App.State.areaTugas.toUpperCase();
+            // --- VALIDASI AREA TUGAS ---
+            // Bersihkan string untuk mencegah error perbandingan (spasi/case sensitive)
+            const kecGPS = (hasil.kec || "").trim().toUpperCase();
+            const kecTugas = (App.State.areaTugas || "").trim().toUpperCase();
 
-            if (kecGPS !== kecTugas) {
-                // Beri jeda sedikit agar UI stabil sebelum muncul Alert
+            // Jika GPS mendeteksi kecamatan yang berbeda dengan Area Tugas di database
+            if (kecTugas !== "" && kecGPS !== kecTugas) {
+                // Gunakan setTimeout agar tidak bertabrakan dengan proses render radar
                 setTimeout(() => {
                     App.UI.showAlert(
                         "OUT OF SECTOR", 
-                        `Lokasi Anda: <b>${kecGPS}</b><br>Wilayah Tugas: <b>${kecTugas}</b><br><br>` +
-                        "Radar tetap menampilkan misi dari wilayah tugas Anda."
+                        `Sistem mendeteksi Anda berada di <b>${kecGPS}</b>.<br><br>` +
+                        `Sesuai protokol, radar tetap dikunci pada wilayah tugas Anda: <b>${kecTugas}</b>.`
                     );
-                }, 1000);
+                }, 800);
                 
                 if(pulseText) pulseText.innerText = `[ REMOTE SCANNING: ${kecTugas} ]`;
             } else {
@@ -848,13 +859,13 @@ Bidding: {
         }, (err) => {
             console.error("GPS Error:", err);
             App.UI.showAlert("GPS ERROR", "Gagal mengunci lokasi. Pastikan GPS aktif.");
-            // Tetap jalankan radar dengan area tugas jika GPS gagal
             App.Core.startRadar();
         }, { enableHighAccuracy: true, timeout: 10000 });
     } else {
         App.UI.showAlert("SENSOR ERROR", "Browser tidak mendukung GPS.");
     }
 },
+
 
 
 
