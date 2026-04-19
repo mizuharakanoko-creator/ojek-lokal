@@ -548,47 +548,39 @@ body.saver-mode .rank-badge {
 
         BiddingData: { mid: "", basePrice: 0, currentPrice: 0 },
 
-        init: async function() {
-            try {
-                this.user = Clearchance.enforceIdentity();
-                this.db1 = getTerminal('FB1_MASTER');
-                this.db4 = getTerminal('FB4_BOARD');
+init: async function() {
+    try {
+        this.user = Clearchance.enforceIdentity();
+        this.db1 = getTerminal('FB1_MASTER');
+        this.db4 = getTerminal('FB4_BOARD');
 
-                const userSnap = await this.db1.ref(`users/${this.user.uid}`).once('value');
-                const data = userSnap.val() || {};
-                
-                // Load data profil & RPG
-                this.State.areaTugas = data.area_tugas || this.user.zone || "KNG";
-                this.State.rank = data.rank || "Trainer";
-                this.State.rpg = {
-                    lvl: data.level || 1,
-                    exp: data.exp || 0,
-                    expNext: (data.level || 1) * 100,
-                    stm: data.stamina || 100,
-                    stmMax: 100,
-                    limit: data.limit_harian || 0,
-                    limitMax: data.max_limit || 5
-                };
+        // 1. Ambil data dari FB1 (adventurer_index/profil)
+        const userSnap = await this.db1.ref(`users/${this.user.uid}`).once('value');
+        const data = userSnap.val() || {};
+        
+        // 2. Kunci Area Tugas (Prioritas: Database FB1 > User Zone > Default)
+        this.State.areaTugas = data.area_tugas || this.user.zone || "KNG";
+        this.State.currentFilter = 'All'; // Pastikan filter terisi
 
-                this.UI.updateRPG(); // Update tampilan baru
-                await this.Core.checkDailyLogin();
-                this.UI.loadSaverSettings();
-                this.State.currentFilter = 'All';
-                
+        // 3. Update UI Dasar
+        document.getElementById('dispNick').innerText = this.user.nick || "ADVENTURER";
+        document.getElementById('dispZone').innerText = this.State.areaTugas;
+        document.getElementById('dispRank').innerText = data.rank || "Trainer";
 
-                
-                // ... (sisanya sama seperti init sebelumnya)
-                document.getElementById('dispNick').innerText = this.user.nick || "ADVENTURER";
-                document.getElementById('dispZone').innerText = this.State.areaTugas;
-                document.getElementById('dispRank').innerText = this.State.rank;
-                this.UI.applyRankTheme(this.State.rank);
-                this.UI.startEduRotary();
-                this.Core.startGPS();
-                this.Core.listenToContracts();
-            } catch (e) {
-                this.UI.showAlert("KONEKSI GAGAL", e.message);
-            }
-        },
+        // 4. Jalankan Fungsi Pendukung
+        this.UI.updateRPG();
+        this.UI.applyRankTheme(data.rank || "Trainer");
+        this.UI.startEduRotary();
+        this.UI.loadSaverSettings();
+        
+        // 5. Baru jalankan GPS & Radar
+        this.Core.startGPS(); 
+        this.Core.listenToContracts();
+    } catch (e) {
+        this.UI.showAlert("KONEKSI GAGAL", e.message);
+    }
+},
+
 
         UI: {
     eduTips: [
@@ -853,23 +845,15 @@ Bidding: {
     startRadar: function() {
     const s = App.State;
     
-    // 1. Tentukan Shard berdasarkan area_tugas, bukan berdasarkan GPS saat ini
-    const taskShard = getShardDariKecamatan(ZONA_MAP[s.areaTugas] || s.areaTugas);
+    // Ambil Shard berdasarkan area_tugas yang didapat dari FB1 tadi
+    // Pastikan fungsi getShardDariKecamatan tersedia di router_lokal.js
+    const targetShard = getShardDariKecamatan(s.areaTugas);
     
-    // 2. Tentukan Path: 
-    // Jika expanded: Ambil semua di wilayah tugas (mission-[shard])
-    // Jika local: Ambil spesifik di desa tempat GPS berada saat ini
+    // Path Penentu: Shard (Expanded) vs Shard/Desa (Local)
     const scanPath = s.isExpanded ? 
-        `mission-${taskShard}` : 
-        `mission-${taskShard}/${s.loc.desa}`;
+        `mission-${targetShard}` : 
+        `mission-${targetShard}/${s.loc.desa}`;
     
-    const pulseText = document.getElementById('radarPulse');
-    if (pulseText) {
-        pulseText.innerText = s.isExpanded ? 
-            `[ DEEP SCAN: SHARD ${taskShard} ]` : 
-            `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
-    }
-
     if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
     s.currentScanPath = scanPath;
 
@@ -879,47 +863,36 @@ Bidding: {
         listDiv.innerHTML = "";
         
         if (!snap.exists()) {
-            listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi di jangkauan radar wilayah ${s.areaTugas}.</div>`;
+            listDiv.innerHTML = `<div id="emptyState">[ NO SIGNAL ]<br>Tidak ada misi di Shard ${targetShard}.</div>`;
             return;
         }
 
         let allMissions = [];
-        const now = Date.now();
-        const oneHour = 60 * 60 * 1000;
-
         const collect = (m) => {
             if (m && m.status === 'open') {
-                const diffTime = now - (m.timestamp || 0);
-                const isExpired = (m.category !== 'Help' && diffTime > oneHour);
                 const matchFilter = (s.currentFilter === 'All' || m.category === s.currentFilter);
-                if (!isExpired && matchFilter) {
-                    allMissions.push(m);
-                }
+                if (matchFilter) allMissions.push(m);
             }
         };
 
-        // 3. Logika Iterasi (Sama dengan referensi kode 2)
+        // Iterasi sesuai level path (Ganda jika Expanded, Tunggal jika Local)
         if (s.isExpanded) {
-            // Karena path-nya adalah 'mission-[shard]', maka isinya adalah daftar Desa
             snap.forEach(desaSnap => {
                 desaSnap.forEach(misiSnap => collect(misiSnap.val()));
             });
         } else {
-            // Karena path-nya adalah 'mission-[shard]/[desa]', maka isinya langsung daftar Misi
             snap.forEach(misiSnap => collect(misiSnap.val()));
         }
 
-        allMissions.sort(() => Math.random() - 0.5);
-        const finalMissions = allMissions.slice(0, 10);
-        
-        if(finalMissions.length === 0) {
-            listDiv.innerHTML = `<div id="emptyState">Sinyal terdeteksi di ${s.areaTugas}, namun tidak ada kontrak aktif.</div>`;
+        if(allMissions.length === 0) {
+            listDiv.innerHTML = `<div id="emptyState">Sinyal terdeteksi, tetapi tidak ada misi terbuka.</div>`;
         } else {
             AudioEngine.play('sonar');
-            finalMissions.forEach(m => this.renderMisi(m, listDiv));
+            allMissions.forEach(m => this.renderMisi(m, listDiv));
         }
     });
 },
+
 
 
 
