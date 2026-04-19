@@ -419,7 +419,12 @@ body.saver-mode .rank-badge {
 <header>
      <div class="user-info">
         <div>
-            ID: <span class="user-nick" id="dispNick" onclick="debugExploreAdventurer(App.user.uid)" style="cursor:pointer; text-decoration:underline;">AWAITING...</span><br>
+      ID: <span class="user-nick" id="dispNick" 
+      onclick="debugExploreByNickname(this.innerText)" 
+      style="cursor:pointer; text-decoration:underline;">
+      nezza
+    </span>
+<br>
             <span style="color:#888; font-size:10px;">ZONE: <span id="dispZone" style="color:#fff;">-</span></span>
             <div style="margin-top: 5px;">
                 <button onclick="App.UI.toggleSaver()" id="btnSaver" 
@@ -1139,47 +1144,54 @@ Core: {
 
 
     // Fungsi untuk menggali data berdasarkan ID Adventurer secara lintas terminal
-async function debugExploreAdventurer(idAdv) {
-    App.UI.showAlert("SCANNING...", "Memulai sinkronisasi lintas terminal untuk ID: " + idAdv);
+async function debugExploreByNickname(targetNickname) {
+    const nickClean = targetNickname.toLowerCase().trim();
+    App.UI.showAlert("SEARCHING...", `Mencari Adventurer: ${nickClean}`);
     
     try {
-        // STEP 1: Cek FB1_MASTER untuk mendapatkan Shard ID
         const db1 = getTerminal('FB1_MASTER');
-        const indexSnap = await db1.ref(`adventurer_index/${idAdv}`).once('value');
+        // 1. Cari di index berdasarkan Nickname
+        const indexSnap = await db1.ref('adventurer_index').once('value');
         
-        if (!indexSnap.exists()) {
-            throw new Error("ID Adventurer tidak ditemukan di index Master (FB1).");
+        let foundId = null;
+        let foundData = null;
+
+        indexSnap.forEach(child => {
+            const data = child.val();
+            if (data.nickname && data.nickname.toLowerCase() === nickClean) {
+                foundId = child.key; // Ini akan mendapatkan 'adv-kng-15979117'
+                foundData = data;
+            }
+        });
+
+        if (!foundId) {
+            throw new Error(`Nickname "${targetNickname}" tidak terdaftar di sistem.`);
         }
-        
-        const indexData = indexSnap.val();
-        const shardTarget = indexData.shard_id; // Hasilnya: 'FB2_RUNNER'
-        
-        // STEP 2: Koneksi ke Terminal Shard yang bersangkutan
+
+        // 2. Gunakan shard_id dari data yang ditemukan (Contoh: FB2_RUNNER)
+        const shardTarget = foundData.shard_id;
         const dbShard = getTerminal(shardTarget);
         
-        // STEP 3: Gali semua tabel di FB2 yang berkaitan dengan ID tersebut
-        // Kita gunakan Promise.all agar proses pengambilan data lebih cepat (paralel)
+        // 3. Gali semua tabel di Shard tersebut menggunakan ID yang baru ditemukan
         const tables = [
             'adventurer_profile', 'adventurer_inventory', 'adventurer_experience', 
-            'adventurer_reputation', 'adventurer_contracts', 'adventurer_judge'
+            'adventurer_reputation', 'adventurer_contracts'
         ];
         
-        const results = {};
+        const results = { "_INDEX_MASTER": foundData };
         const promises = tables.map(async (table) => {
-            const snap = await dbShard.ref(`${table}/${idAdv}`).once('value');
-            results[table] = snap.val() || "DATA_KOSONG";
+            const snap = await dbShard.ref(`${table}/${foundId}`).once('value');
+            results[table] = snap.val() || "KOSONG/BELUM ADA DATA";
         });
         
         await Promise.all(promises);
-
-        // STEP 4: Tampilkan Hasil ke UI Debug
-        App.UI.showAdvancedDebug(results, shardTarget, idAdv);
+        App.UI.showAdvancedDebug(results, shardTarget, foundId);
 
     } catch (e) {
         App.UI.showAlert("GALI DATA GAGAL", e.message);
-        console.error(e);
     }
 }
+
 
 
     window.onload = () => App.init();
