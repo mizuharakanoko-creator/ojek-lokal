@@ -1106,29 +1106,77 @@ Core: {
     }, // <-- KOMA DITAMBAHKAN
 
     listenToContracts: function() {
-        App.db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(App.user.uid).on('child_added', snap => {
-            const k = snap.val();
-            if (k.status === 'briefing') {
-                AudioEngine.play('alert');
-                document.getElementById('alTitle').innerText = "KONTRAK DISETUJUI!";
-                document.getElementById('alMsg').innerText = "Requester telah memilih Anda. Segera pindah ke ruang pengarahan.";
-                const alertBox = document.querySelector('#alertOverlay .modal-box'); // Sesuaikan selector box-nya
-                if(alertBox) {
-                    alertBox.style.borderColor = "#00ff00";
-                    const btn = alertBox.querySelector('button');
-                    if(btn) {
-                        btn.innerText = "MASUK BRIEFING ROOM";
-                        btn.style.background = "#00ff00";
-                        btn.onclick = () => {
-                            sessionStorage.setItem('active_contract_id', k.id_kontrak);
-                            window.location.href = "briefing_room.html";
-                        };
-                    }
+    // 1. Pantau tabel kontrak_mission di FB4 (Board)
+    App.db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(App.user.uid).on('child_added', async (snap) => {
+        const k = snap.val();
+        
+        // Hanya proses jika statusnya 'briefing' dan belum diproses di sesi ini
+        if (k.status === 'briefing') {
+            
+            // Mencegah looping jika listener terpicu dua kali
+            if (sessionStorage.getItem('processing_contract') === k.id_kontrak) return;
+            sessionStorage.setItem('processing_contract', k.id_kontrak);
+
+            AudioEngine.play('alert');
+            App.UI.showAlert("KONTRAK DISETUJUI", "Mengevaluasi dokumen kontrak... Mohon tunggu.");
+
+            try {
+                // 2. Tentukan Jenis Kontrak berdasarkan Nilai Reward
+                // Logika: Lusuh (<10rb), Normal (<30rb), Medium (<60rb), Premium (<100rb), Emas (>100rb)
+                let jenisKontrak = "kontrak_emas"; // Default paling tinggi
+                const reward = k.final_price || 0;
+
+                if (reward <= 10000) jenisKontrak = "kontrak_lusuh";
+                else if (reward <= 30000) jenisKontrak = "kontrak_normal";
+                else if (reward <= 60000) jenisKontrak = "kontrak_medium";
+                else if (reward <= 100000) jenisKontrak = "kontrak_premium";
+
+                // 3. Akses Shard Adventurer (FB2) untuk ambil data kontrak
+                // Kita butuh ID_ADV yang formatnya adv-kng-xxx (bukan UID)
+                // Jika belum ada di App.State, kita cari dulu via nickname
+                const idAdv = await this.getIdAdvByNickname(App.user.nick);
+                const shardTarget = App.State.loc.shard || "FB2_RUNNER"; // Fallback ke runner
+                const dbShard = getTerminal(shardTarget);
+
+                const contractRef = dbShard.ref(`adventurer_contracts/${idAdv}/${jenisKontrak}`);
+                const contractSnap = await contractRef.once('value');
+                const currentCount = contractSnap.val() || 0;
+
+                // 4. Eksekusi Pengurangan (Hanya jika stok ada, atau biarkan minus jika sistem hutang)
+                if (currentCount > 0) {
+                    await contractRef.set(currentCount - 1);
+                    console.log(`[SYSTEM] ${jenisKontrak} berkurang 1. Sisa: ${currentCount - 1}`);
+                } else {
+                    console.warn(`[SYSTEM] Adventurer tidak punya stok ${jenisKontrak}, kontrak tetap berjalan.`);
                 }
-                document.getElementById('alertOverlay').style.display = 'flex';
+
+                // 5. Lempar ke Briefing Room
+                App.UI.showAlert("BERHASIL", "Dokumen diverifikasi. Memasuki ruang pengarahan...");
+                
+                setTimeout(() => {
+                    sessionStorage.setItem('active_contract_id', k.id_kontrak);
+                    window.location.href = "briefing_room.html";
+                }, 1500);
+
+            } catch (e) {
+                console.error("Gagal memproses kontrak:", e);
+                App.UI.showAlert("ERROR SISTEM", "Gagal memproses dokumen kontrak. Hubungi Guild Master.");
             }
-        });
-    }, // <-- KOMA DITAMBAHKAN
+        }
+    });
+},
+
+// Helper untuk mendapatkan ID_ADV asli dari Nickname jika belum tersimpan
+getIdAdvByNickname: async function(nickname) {
+    const nickClean = nickname.toLowerCase().trim();
+    const snap = await getTerminal('FB1_MASTER').ref('adventurer_index').once('value');
+    let foundId = null;
+    snap.forEach(child => {
+        if (child.val().nickname?.toLowerCase() === nickClean) foundId = child.key;
+    });
+    return foundId || App.user.uid; // Fallback ke UID jika tidak ketemu
+}
+
 
     checkDailyLogin: async function() {
     const now = new Date();
