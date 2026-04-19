@@ -606,251 +606,242 @@ init: async function() {
 
 
 
-        UI: {
-    eduTips: [
-        "TIPS: Memperluas radar (KABUPATEN) menambah daftar misi, namun persaingan dengan Adventurer lain akan lebih ketat.",
-        "INFO: Warna layar Anda menyesuaikan Rank. Semakin tinggi Rank, semakin bergengsi tampilan Terminal Anda.",
-        "NEGO HARGA: Anda tidak bisa menawar di bawah harga standar untuk melindungi ekonomi Guild.",
-        "SISTEM: Misi yang sudah diambil oleh orang lain akan otomatis hilang dari radar Anda."
-    ],
-    tipIndex: 0,
-    
-    startEduRotary: function() {
-        const panel = document.getElementById('eduPanel');
-        if(!panel) return;
-        panel.innerText = this.eduTips[0];
-        setInterval(() => {
-            panel.style.opacity = 0;
-            setTimeout(() => {
-                this.tipIndex = (this.tipIndex + 1) % this.eduTips.length;
-                panel.innerText = this.eduTips[this.tipIndex];
-                panel.style.opacity = 1;
-            }, 300);
-        }, 8000);
-    },
+                UI: {
+            eduTips: [
+                "TIPS: Memperluas radar (KABUPATEN) menambah daftar misi, namun persaingan akan lebih ketat.",
+                "INFO: Warna layar menyesuaikan Rank. Semakin tinggi Rank, semakin bergengsi tampilan Terminal.",
+                "NEGO HARGA: Anda tidak bisa menawar di bawah harga standar.",
+                "SISTEM: Misi yang diambil orang lain akan otomatis hilang dari radar."
+            ],
+            tipIndex: 0,
+            
+            startEduRotary: function() {
+                const panel = document.getElementById('eduPanel');
+                if(!panel) return;
+                panel.innerText = this.eduTips[0];
+                setInterval(() => {
+                    panel.style.opacity = 0;
+                    setTimeout(() => {
+                        this.tipIndex = (this.tipIndex + 1) % this.eduTips.length;
+                        panel.innerText = this.eduTips[this.tipIndex];
+                        panel.style.opacity = 1;
+                    }, 300);
+                }, 8000);
+            },
 
-    updateRPG: function() {
-        const r = App.State.rpg;
-        document.getElementById('dispLvl').innerText = r.lvl;
-        document.getElementById('dispExp').innerText = `${r.exp}/${r.expNext}`;
-        document.getElementById('expBar').style.width = (r.exp / r.expNext * 100) + "%";
-        
-        document.getElementById('dispStm').innerText = `${r.stm}/${r.stmMax}`;
-        document.getElementById('staminaBar').style.width = (r.stm / r.stmMax * 100) + "%";
-        
-        document.getElementById('dispLimit').innerText = `CONTRACTS: ${r.limit}/${r.limitMax}`;
-    },
+            updateRPG: function() {
+                const r = App.State.rpg;
+                if(!document.getElementById('dispLvl')) return;
+                
+                document.getElementById('dispLvl').innerText = r.lvl;
+                document.getElementById('dispExp').innerText = `${r.exp}/${r.expNext}`;
+                document.getElementById('expBar').style.width = (r.exp / r.expNext * 100) + "%";
+                
+                document.getElementById('dispStm').innerText = `${r.stm}/${r.stmMax}`;
+                document.getElementById('staminaBar').style.width = (r.stm / r.stmMax * 100) + "%";
+                
+                document.getElementById('dispLimit').innerText = `CONTRACTS: ${r.limit}/${r.limitMax}`;
+            },
 
-    applyRankTheme: function(rank) {
-        const r = rank.toLowerCase().replace('+', '-plus');
-        document.body.className = `rank-${r}`;
-    },
+            applyRankTheme: function(rank) {
+                const r = rank.toLowerCase().replace('+', '-plus');
+                document.body.className = `rank-${r}`;
+            },
 
-    showAlert: function(title, msg) {
-        AudioEngine.play('alert');
-        if(navigator.vibrate) navigator.vibrate(200);
-        document.getElementById('alTitle').innerText = title;
-        // Gunakan innerHTML agar <br> dari showLoginModal berfungsi
-        document.getElementById('alMsg').innerHTML = msg; 
-        document.getElementById('alertOverlay').style.display = 'flex';
-    },
+            showAlert: function(title, msg) {
+                AudioEngine.play('alert');
+                if(navigator.vibrate) navigator.vibrate(200);
+                document.getElementById('alTitle').innerText = title;
+                document.getElementById('alMsg').innerHTML = msg; 
+                document.getElementById('alertOverlay').style.display = 'flex';
+            },
 
-    openModal: function(mid, basePrice, note, category, origin, dest) {
-        App.BiddingData = { mid, basePrice, currentPrice: basePrice };
-        
-        const isSpecial = (category === 'Titip Beli' || category === 'Help' || dest.includes('[TITIK'));
-        
-        let formattedDest = dest;
-        if(isSpecial && dest.includes('|')) {
-            formattedDest = dest.split('|')
-                .map(t => `<div class="popup-titik-item">${t.trim()}</div>`)
-                .join('');
-        }
+            openModal: function(mid, basePrice, note, category, origin, dest) {
+                App.BiddingData = { mid, basePrice, currentPrice: basePrice };
+                
+                const isSpecial = (category === 'Titip Beli' || category === 'Help' || dest.includes('[TITIK'));
+                
+                let formattedDest = dest;
+                if(isSpecial && dest.includes('|')) {
+                    formattedDest = dest.split('|')
+                        .map(t => `<div class="popup-titik-item">${t.trim()}</div>`)
+                        .join('');
+                }
 
-        const infoDiv = document.getElementById('modalInfo');
-        if(infoDiv) {
-            infoDiv.innerHTML = `
-                <div class="tag-category">${category.toUpperCase()}</div>
-                <div class="popup-dest-title">
-                    <span class="loc-label">${isSpecial ? 'ALAMAT ANTAR / TUJUAN' : 'TUJUAN AKHIR'}</span><br>
-                    ${isSpecial ? '📦 RINCIAN PERMINTAAN' : dest.toUpperCase()}
-                </div>
-                ${isSpecial ? `<div class="popup-special-box">${formattedDest}</div>` : ''}
-                <div class="popup-note-box">
-                    <span class="loc-label">DESKRIPSI / CATATAN</span><br>
-                    ${note || "Tidak ada deskripsi tambahan untuk misi ini."}
-                </div>
-                <div class="popup-origin-text">
-                    <span class="loc-label">${isSpecial ? 'TITIK ORIGIN (BELANJA/HELP)' : 'TITIK JEMPUT (START)'}</span><br>
-                    <b style="color:#eee; font-size:12px;">📍 ${origin}</b>
-                </div>
-            `;
-        }
+                const infoDiv = document.getElementById('modalInfo');
+                if(infoDiv) {
+                    infoDiv.innerHTML = `
+                        <div class="tag-category">${category.toUpperCase()}</div>
+                        <div class="popup-dest-title">
+                            <span class="loc-label">${isSpecial ? 'ALAMAT ANTAR / TUJUAN' : 'TUJUAN AKHIR'}</span><br>
+                            ${isSpecial ? '📦 RINCIAN PERMINTAAN' : dest.toUpperCase()}
+                        </div>
+                        ${isSpecial ? `<div class="popup-special-box">${formattedDest}</div>` : ''}
+                        <div class="popup-note-box">
+                            <span class="loc-label">DESKRIPSI / CATATAN</span><br>
+                            ${note || "Tidak ada deskripsi tambahan."}
+                        </div>
+                        <div class="popup-origin-text">
+                            <span class="loc-label">TITIK JEMPUT / ORIGIN</span><br>
+                            <b style="color:#eee; font-size:12px;">📍 ${origin}</b>
+                        </div>
+                    `;
+                }
 
-        document.getElementById('bidAmount').value = basePrice.toLocaleString('id-ID');
-        document.getElementById('sovBidModal').style.display = 'flex';
-    },
+                document.getElementById('bidAmount').value = basePrice.toLocaleString('id-ID');
+                document.getElementById('sovBidModal').style.display = 'flex';
+            },
 
-    showLoginModal: function(dayCount, rewardName) {
-        AudioEngine.play('alert');
-        const title = `DAILY LOGIN: DAY ${dayCount}`;
-        const msg = `Sistem mendeteksi kehadiran Anda. <br><br> Reward diperoleh: <br> <b style="color:var(--theme-color); font-size:18px;">[ ${rewardName} ]</b> <br><br> Hadiah telah dikirim ke inventori Terminal Anda.`;
-        this.showAlert(title, msg);
-        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
-    }, // <-- TAMBAH KOMA DI SINI
+            showLoginModal: function(dayCount, rewardName) {
+                AudioEngine.play('alert');
+                const title = `DAILY LOGIN: DAY ${dayCount}`;
+                const msg = `Sistem mendeteksi kehadiran Anda. <br><br> Reward: <br> <b style="color:var(--theme-color); font-size:18px;">[ ${rewardName} ]</b>`;
+                this.showAlert(title, msg);
+            },
 
-    closeModal: function() {
-        document.getElementById('sovBidModal').style.display = 'none';
-    },
+            closeModal: function() {
+                document.getElementById('sovBidModal').style.display = 'none';
+            },
 
-    toggleRadar: function() {
-        const btn = document.getElementById('btnExpand');
-        const pulse = document.getElementById('radarPulse');
-        
-        AudioEngine.play('click');
-        App.State.isExpanded = !App.State.isExpanded;
-        
-        if(App.State.isExpanded) {
-            btn.classList.add('active-wide');
-            btn.innerText = "- KEMBALI KE RADAR LOKAL (DESA)";
-            pulse.innerText = "[ DEEP SCANNING: SELURUH SHARD/KABUPATEN ]";
-            if(document.getElementById('radarType')) document.getElementById('radarType').innerText = "WIDE AREA";
-        } else {
-            btn.classList.remove('active-wide');
-            btn.innerText = "+ PERLUAS RADAR KE SELURUH KABUPATEN";
-            pulse.innerText = "[ MEMINDAI AREA SEKITAR... ]";
-            if(document.getElementById('radarType')) document.getElementById('radarType').innerText = "LOCAL AREA";
-        }
-        
-        document.getElementById('missionList').innerHTML = `<div id="emptyState">Menyesuaikan frekuensi satelit...</div>`;
-        App.Core.startRadar();
-    }, // <-- TAMBAH KOMA DI SINI
-        
-    toggleSaver: function() {
-        const isActive = document.body.classList.toggle('saver-mode');
-        const btn = document.getElementById('btnSaver');
-        if (btn) {
-            btn.innerText = isActive ? "BATTERY SAVER: ON" : "BATTERY SAVER: OFF";
-            btn.style.color = isActive ? "#4ade80" : "#888";
-        }
-        localStorage.setItem('sov_saver_mode', isActive);
-        AudioEngine.play('click');
-    },
+            toggleRadar: function() {
+                const btn = document.getElementById('btnExpand');
+                const pulse = document.getElementById('radarPulse');
+                
+                AudioEngine.play('click');
+                App.State.isExpanded = !App.State.isExpanded;
+                
+                if(App.State.isExpanded) {
+                    btn.classList.add('active-wide');
+                    btn.innerText = "- KEMBALI KE RADAR LOKAL (DESA)";
+                    pulse.innerText = "[ DEEP SCANNING: SELURUH KABUPATEN ]";
+                } else {
+                    btn.classList.remove('active-wide');
+                    btn.innerText = "+ PERLUAS RADAR KE SELURUH KABUPATEN";
+                    pulse.innerText = "[ MEMINDAI AREA SEKITAR... ]";
+                }
+                
+                document.getElementById('missionList').innerHTML = `<div id="emptyState">Menyesuaikan frekuensi...</div>`;
+                App.Core.startRadar();
+            },
+                
+            toggleSaver: function() {
+                const isActive = document.body.classList.toggle('saver-mode');
+                const btn = document.getElementById('btnSaver');
+                if (btn) {
+                    btn.innerText = isActive ? "BATTERY SAVER: ON" : "BATTERY SAVER: OFF";
+                    btn.style.color = isActive ? "#4ade80" : "#888";
+                }
+                localStorage.setItem('sov_saver_mode', isActive);
+                AudioEngine.play('click');
+            },
 
-    loadSaverSettings: function() {
-        const saved = localStorage.getItem('sov_saver_mode');
-        if (saved === 'true') {
-            // Langsung aktifkan class tanpa memanggil toggle (mencegah loop)
-            document.body.classList.add('saver-mode');
-            const btn = document.getElementById('btnSaver');
-            if(btn) {
-                btn.innerText = "BATTERY SAVER: ON";
-                btn.style.color = "#4ade80";
+            loadSaverSettings: function() {
+                const saved = localStorage.getItem('sov_saver_mode');
+                if (saved === 'true') {
+                    document.body.classList.add('saver-mode');
+                    const btn = document.getElementById('btnSaver');
+                    if(btn) {
+                        btn.innerText = "BATTERY SAVER: ON";
+                        btn.style.color = "#4ade80";
+                    }
+                }
             }
-        }
-    }
-}, // <-- TUTUP OBJEK UI DENGAN KOMA
+        },
 
-Bidding: {
-    adjust: function(val) {
-        AudioEngine.play('click');
-        if (App.BiddingData.currentPrice + val < App.BiddingData.basePrice) {
-            App.BiddingData.currentPrice = App.BiddingData.basePrice;
-        } else {
-            App.BiddingData.currentPrice += val;
-        }
-        document.getElementById('bidAmount').value = App.BiddingData.currentPrice.toLocaleString('id-ID');
-        if(navigator.vibrate) navigator.vibrate(10);
-    },
-    resetNego: function() {
-        AudioEngine.play('click');
-        App.BiddingData.currentPrice = App.BiddingData.basePrice;
-        document.getElementById('bidAmount').value = App.BiddingData.currentPrice.toLocaleString('id-ID');
-    },
-    
-    submit: async function() {
-    const { mid, currentPrice } = App.BiddingData;
-    const r = App.State.rpg;
-    const db2 = getTerminal('FB2_RUNNER');
-    const btn = document.querySelector('.btn-confirm');
 
-    // 1. VALIDASI LIMIT & STAMINA (Cek state lokal dulu)
-    if (r.limit >= r.limitMax) {
-        App.UI.showAlert("LIMIT TERCAPAI", `Jatah harian (${r.limitMax}) sudah habis.`);
-        return;
-    }
-    if (r.stm < 10) {
-        App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
-        return;
-    }
+        Bidding: {
+            adjust: function(val) {
+                AudioEngine.play('click');
+                if (App.BiddingData.currentPrice + val < App.BiddingData.basePrice) {
+                    App.BiddingData.currentPrice = App.BiddingData.basePrice;
+                } else {
+                    App.BiddingData.currentPrice += val;
+                }
+                document.getElementById('bidAmount').value = App.BiddingData.currentPrice.toLocaleString('id-ID');
+                if(navigator.vibrate) navigator.vibrate(10);
+            },
 
-    // 2. KLASIFIKASI KONTRAK BERDASARKAN HARGA
-    let tipeKontrak, contractKey;
-    if (currentPrice <= 10000) { 
-        tipeKontrak = "Kontrak Lusuh"; contractKey = "kontrak_lusuh"; 
-    } else if (currentPrice <= 30000) { 
-        tipeKontrak = "Kontrak Normal"; contractKey = "kontrak_normal"; 
-    } else if (currentPrice <= 60000) { 
-        tipeKontrak = "Kontrak Medium"; contractKey = "kontrak_medium"; 
-    } else { 
-        tipeKontrak = "Kontrak Premium"; contractKey = "kontrak_premium"; 
-    }
+            resetNego: function() {
+                AudioEngine.play('click');
+                App.BiddingData.currentPrice = App.BiddingData.basePrice;
+                document.getElementById('bidAmount').value = App.BiddingData.currentPrice.toLocaleString('id-ID');
+            },
+            
+            submit: async function() {
+                const { mid, currentPrice } = App.BiddingData;
+                const r = App.State.rpg;
+                const db2 = getTerminal('FB2_RUNNER');
+                const btn = document.querySelector('.btn-confirm');
 
-    // Proteksi Tombol
-    if(btn) { btn.innerText = "MENGECEK DATA..."; btn.disabled = true; }
+                // 1. VALIDASI LIMIT & STAMINA
+                if (r.limit >= r.limitMax) {
+                    App.UI.showAlert("LIMIT TERCAPAI", `Jatah harian (${r.limitMax}) sudah habis.`);
+                    return;
+                }
+                if (r.stm < 10) {
+                    App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
+                    return;
+                }
 
-    try {
-        // 3. VALIDASI STOK ITEM DI DATABASE (Real-time check)
-        const contractSnap = await db2.ref(`adventurer_contracts/${App.user.uid}/${contractKey}`).once('value');
-        const currentStock = Number(contractSnap.val() || 0);
+                // 2. KLASIFIKASI KONTRAK
+                let tipeKontrak, contractKey;
+                if (currentPrice <= 10000) { 
+                    tipeKontrak = "Kontrak Lusuh"; contractKey = "kontrak_lusuh"; 
+                } else if (currentPrice <= 30000) { 
+                    tipeKontrak = "Kontrak Normal"; contractKey = "kontrak_normal"; 
+                } else if (currentPrice <= 60000) { 
+                    tipeKontrak = "Kontrak Medium"; contractKey = "kontrak_medium"; 
+                } else { 
+                    tipeKontrak = "Kontrak Premium"; contractKey = "kontrak_premium"; 
+                }
 
-        if (currentStock <= 0) {
-            App.UI.showAlert("GAGAL", `Stok [${tipeKontrak.toUpperCase()}] habis!`);
-            if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
-            return;
-        }
+                if(btn) { btn.innerText = "MENGECEK DATA..."; btn.disabled = true; }
 
-        if(btn) btn.innerText = "TRANSMISI SINYAL...";
+                try {
+                    // 3. VALIDASI STOK REAL-TIME
+                    const contractSnap = await db2.ref(`adventurer_contracts/${App.user.uid}/${contractKey}`).once('value');
+                    const currentStock = Number(contractSnap.val() || 0);
 
-        // 4. EKSEKUSI MULTI-WRITE (Update Semua Node)
-        const updates = {};
-        
-        // A. Potong Stok Kontrak di FB2
-        updates[`adventurer_contracts/${App.user.uid}/${contractKey}`] = currentStock - 1;
-        
-        // B. Update Stamina & Limit di FB2
-        updates[`adventurer_experience/${App.user.uid}/current_stamina`] = r.stm - 10;
-        updates[`adventurer_experience/${App.user.uid}/limit_harian`] = r.limit + 1;
+                    if (currentStock <= 0) {
+                        App.UI.showAlert("GAGAL", `Stok [${tipeKontrak.toUpperCase()}] habis!`);
+                        if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
+                        return;
+                    }
 
-        // Jalankan Update ke FB2
-        await db2.ref().update(updates);
+                    if(btn) btn.innerText = "TRANSMISI SINYAL...";
 
-        // C. Kirim Penawaran ke FB4 (Board)
-        await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
-            adventurer_id: App.user.uid,
-            adventurer_nick: document.getElementById('dispNick').innerText,
-            rank: App.State.rank,
-            offer_price: currentPrice,
-            contract_item: tipeKontrak,
-            timestamp: Date.now()
-        });
+                    // 4. EKSEKUSI UPDATE (MULTI-WRITE)
+                    const updates = {};
+                    updates[`adventurer_contracts/${App.user.uid}/${contractKey}`] = currentStock - 1;
+                    updates[`adventurer_experience/${App.user.uid}/current_stamina`] = r.stm - 10;
+                    updates[`adventurer_experience/${App.user.uid}/limit_harian`] = r.limit + 1;
 
-        // 5. FINISHING
-        // Tandai misi ini sudah dilamar secara lokal agar kartu terkunci
-        App.State.renderedMissions.add(mid + "_applied");
-        
-        App.UI.closeModal();
-        App.UI.showAlert("BERHASIL", `Sinyal terbit! Menggunakan 1 ${tipeKontrak}. Stamina -10.`);
-        
-        // Radar otomatis refresh karena ada listener .on di fungsi init
-        
-    } catch (e) {
-        console.error("Bidding Error:", e);
-        App.UI.showAlert("ERROR CRITICAL", "Transmisi gagal: " + e.message);
-    } finally {
-        if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
-    }
-}
+                    await db2.ref().update(updates);
+
+                    // 5. KIRIM KE BOARD (FB4)
+                    await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
+                        adventurer_id: App.user.uid,
+                        adventurer_nick: document.getElementById('dispNick').innerText,
+                        rank: App.State.rank,
+                        offer_price: currentPrice,
+                        contract_item: tipeKontrak,
+                        timestamp: Date.now()
+                    });
+
+                    // 6. FINISHING
+                    App.State.renderedMissions.add(mid + "_applied");
+                    App.UI.closeModal();
+                    App.UI.showAlert("BERHASIL", `Sinyal terbit! Menggunakan 1 ${tipeKontrak}. Stamina -10.`);
+                    
+                } catch (e) {
+                    console.error("Bidding Error:", e);
+                    App.UI.showAlert("ERROR", "Transmisi gagal: " + e.message);
+                } finally {
+                    if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
+                }
+            }
+        },
+
 
 
 
@@ -966,70 +957,76 @@ Bidding: {
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     },
             
-    renderMisi: function(m, container) {
-        let mLat = m.lat, mLng = m.lng;
-        if(!mLat && m.origin_desa) {
-            const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
-            if(detailAsal) { mLat = detailAsal.lat; mLng = detailAsal.lng; }
-        }
-        const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
-        const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
-        
-        let diffColor = "#4ade80";
-        if (m.difficulty_rate > 1.5) diffColor = "#facc15";
-        if (m.difficulty_rate > 2.0) diffColor = "#f87171";
-
-        const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
-        const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || (m.dest_name && m.dest_name.includes('[TITIK')));
-        
-        const rewardDisplay = (m.reward === 0 || !m.reward) ? 
-            '<span style="color:#facc15; font-weight:bold;">NEGO</span>' : 
-            `Rp ${m.reward.toLocaleString('id-ID')}`;
-
-        const div = document.createElement('div');
-        div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
-        
-        let formattedDest = m.dest_name || "";
-        if(isSpecial && formattedDest.includes('|')) {
-            formattedDest = formattedDest.split('|')
-                .map(t => `<div class="titik-item">${t.trim()}</div>`)
-                .join('');
-        }
-
-        const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
-        const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
-
-        div.innerHTML = `
-            <div class="m-header">
-                <span>ID: ${m.id_misi.slice(-6).toUpperCase()}</span>
-                ${isApplied ? 
-                    '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
-                    `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
+                renderMisi: function(m, container) {
+                let mLat = m.lat, mLng = m.lng;
+                // Fallback jika lat/lng murni tidak ada, cari berdasarkan desa
+                if(!mLat && m.origin_desa) {
+                    const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
+                    if(detailAsal) { mLat = detailAsal.lat; mLng = detailAsal.lng; }
                 }
-            </div>
-            <div class="m-title">
-                ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + (m.dest_desa || 'TUJUAN').toUpperCase()}
-            </div>
-            ${isSpecial ? `<div class="special-detail-box">${formattedDest || 'Tidak ada rincian data.'}</div>` : `
-                <div class="m-route">
-                    <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
-                    <div style="font-size:10px; color:#666;">Tujuan: ${m.dest_desa}</div>
-                </div>
-            `}
-            <div style="font-size:10px; color:var(--theme-color); margin-bottom:8px; font-family:var(--font-terminal); font-weight:bold;">
-                KATEGORI: ${m.category || 'REGULER'}
-            </div>
-            <div class="m-reward">
-                <span class="m-dist">${jarakTeks}</span>
-                <span>${rewardDisplay}</span>
-            </div>
-            ${isApplied ? 
-                `<button class="btn-bid-card" disabled>KONTRAK DALAM TINJAUAN</button>` :
-                `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}')">LIHAT DETAIL / NEGO</button>`
-            }
-        `;
-        container.appendChild(div);
-    }, // <-- KOMA DITAMBAHKAN
+
+                const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
+                const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
+                
+                // Pewarnaan tingkat kesulitan
+                let diffColor = "#4ade80";
+                if (m.difficulty_rate > 1.5) diffColor = "#facc15";
+                if (m.difficulty_rate > 2.0) diffColor = "#f87171";
+
+                const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
+                const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || (m.dest_name && m.dest_name.includes('[TITIK')));
+                
+                const rewardDisplay = (m.reward === 0 || !m.reward) ? 
+                    '<span style="color:#facc15; font-weight:bold;">NEGO</span>' : 
+                    `Rp ${m.reward.toLocaleString('id-ID')}`;
+
+                const div = document.createElement('div');
+                div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
+                
+                // Handler untuk rincian belanja/titik banyak (|)
+                let formattedDest = m.dest_name || "";
+                if(isSpecial && formattedDest.includes('|')) {
+                    formattedDest = formattedDest.split('|')
+                        .map(t => `<div class="titik-item">${t.trim()}</div>`)
+                        .join('');
+                }
+
+                // Proteksi karakter kutip agar tidak merusak onclick
+                const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
+                const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
+
+                div.innerHTML = `
+                    <div class="m-header">
+                        <span>ID: ${m.id_misi.slice(-6).toUpperCase()}</span>
+                        ${isApplied ? 
+                            '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
+                            `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
+                        }
+                    </div>
+                    <div class="m-title">
+                        ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + (m.dest_desa || 'TUJUAN').toUpperCase()}
+                    </div>
+                    ${isSpecial ? `<div class="special-detail-box">${formattedDest || 'Tidak ada rincian data.'}</div>` : `
+                        <div class="m-route">
+                            <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
+                            <div style="font-size:10px; color:#666;">Tujuan: ${m.dest_desa}</div>
+                        </div>
+                    `}
+                    <div style="font-size:10px; color:var(--theme-color); margin-bottom:8px; font-family:var(--font-terminal); font-weight:bold;">
+                        KATEGORI: ${m.category || 'REGULER'}
+                    </div>
+                    <div class="m-reward">
+                        <span class="m-dist">${jarakTeks}</span>
+                        <span>${rewardDisplay}</span>
+                    </div>
+                    ${isApplied ? 
+                        `<button class="btn-bid-card" disabled>KONTRAK DALAM TINJAUAN</button>` :
+                        `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}')">LIHAT DETAIL / NEGO</button>`
+                    }
+                `;
+                container.appendChild(div);
+            }, // <--- KOMA INI SANGAT PENTING
+
 
     listenToContracts: function() {
         App.db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(App.user.uid).on('child_added', snap => {
