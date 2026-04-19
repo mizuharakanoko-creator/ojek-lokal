@@ -116,7 +116,8 @@
         }
         .mission-card.flash { animation: flashSpawn 0.8s ease-out; }
         
-        .m-header { display: flex; justify-content: space-between; font-size: 11px; color: #777; font-family: var(--font-terminal); align-items: center; margin-bottom: 8px;}
+        .m-header { display: flex; justify-content: space-between; font-size: 11px; color: #777; font-family: var(--font-terminal); align-items: center; margin-bottom: 8px; gap: 5px;}
+        .m-header span:nth-child(2) { font-size: 9px; letter-spacing: 0.5px; }
         .m-title { color: #fff; font-weight: 900; font-size: 15px; letter-spacing: 0.5px; margin-bottom: 10px;}
         .m-route { background: #000; padding: 10px; border-radius: 4px; font-size: 12px; color: #aaa; border: 1px dashed #222; }
         .m-reward { color: #00ff00; font-size: 18px; font-weight: 900; margin-top: 12px; font-family: var(--font-terminal); display: flex; justify-content: space-between; align-items: flex-end;}
@@ -399,6 +400,16 @@ body.saver-mode .rank-badge {
     border: 1px solid #444 !important;
 }
 
+.filter-bar .btn-mini.active {
+    background: var(--theme-color) !important;
+    color: #000 !important;
+    border-color: var(--theme-color);
+}
+
+.filter-bar .btn-mini {
+    transition: all 0.2s ease;
+    flex-shrink: 0; /* Agar tombol tidak gepeng saat scroll */
+}
 
 
     </style>
@@ -807,99 +818,129 @@ Bidding: {
 },
 
 
-
-
-                Core: {
+Core: {
     startGPS: function() {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                const hasil = cariDesaTerdekat(lat, lng); 
-                App.State.loc = { 
-                    lat: lat, lng: lng, 
-                    desa: hasil.name, kec: hasil.kec, 
-                    shard: getShardDariKecamatan(hasil.kec) 
-                };
-                const locEl = document.getElementById('locName');
-                if(locEl) locEl.innerText = `${App.State.loc.desa.toUpperCase()}`;
-                App.Core.startRadar(); 
+                // Gunakan App.State agar data tersimpan global
+                App.State.loc.lat = pos.coords.latitude;
+                App.State.loc.lng = pos.coords.longitude;
+                
+                // Panggil fungsi dari router_lokal.js
+                const hasil = cariDesaTerdekat(App.State.loc.lat, App.State.loc.lng); 
+                App.State.loc.desa = hasil.name;
+                App.State.loc.kec = hasil.kec;
+                App.State.loc.shard = getShardDariKecamatan(hasil.kec);
+
+                document.getElementById('locName').innerText = `${App.State.loc.desa} (${App.State.loc.kec})`;
+
+                // LOGIKA CEK AREA TUGAS
+                const shardTugas = getShardDariKecamatan(ZONA_MAP[App.State.areaTugas] || App.State.areaTugas);
+                
+                if (App.State.loc.shard !== shardTugas) {
+                    App.UI.showAlert(
+                        "DI LUAR AREA TUGAS", 
+                        `Anda berada di ${App.State.loc.kec}. Radar dialihkan ke mode LUAR AREA.`
+                    );
+                    App.State.isExpanded = true; 
+                    document.getElementById('btnExpand').style.display = 'none';
+                    if(document.getElementById('radarType')) document.getElementById('radarType').innerText = "WIDE AREA";
+                }
+
+                this.startRadar(); // Panggil radar setelah GPS siap
             }, (err) => {
-                console.error("GPS Error:", err);
-                App.UI.showAlert("GPS MATI", "Aktifkan lokasi agar radar bisa mendeteksi misi.");
+                App.UI.showAlert("GPS ERROR", "Gagal mengunci lokasi. Pastikan GPS aktif.");
             }, { enableHighAccuracy: true });
-        } else {
-            App.UI.showAlert("SENSOR ERROR", "Perangkat tidak mendukung GPS.");
         }
     },
 
-    setFilter: function(cat, btn) {
-        App.State.currentFilter = cat;
-        // Update UI Visual Tombol
-        document.querySelectorAll('.filter-bar .btn-mini').forEach(b => b.classList.remove('active'));
-        if(btn) btn.classList.add('active');
-        
-        AudioEngine.play('click');
-        this.startRadar(); // Refresh radar dengan filter baru
-    },
+    setFilter: function(category, btnElement) {
+    AudioEngine.play('click');
+    App.State.currentFilter = category;
+
+    // Update Visual Tombol
+    const allButtons = document.querySelectorAll('.filter-bar .btn-mini');
+    allButtons.forEach(btn => btn.classList.remove('active'));
+    btnElement.classList.add('active');
+
+    // Refresh radar untuk memfilter data
+    this.startRadar();
+},
+
 
     startRadar: function() {
-        const s = App.State;
-        const currentShard = getShardDariKecamatan(ZONA_MAP[s.areaTugas] || s.areaTugas);
-        const scanPath = s.isExpanded ? `mission-${currentShard}` : `mission-${currentShard}/${s.loc.desa}`;
+        const listDiv = document.getElementById('missionList');
+        // Akses shardTugas dari App.State
+        const shardTugas = getShardDariKecamatan(ZONA_MAP[App.State.areaTugas] || App.State.areaTugas);
         
-        const pulseText = document.getElementById('radarPulse');
-        if (pulseText) {
-            pulseText.innerText = s.isExpanded ? `[ DEEP SCAN: SHARD ${currentShard} ]` : `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
+        let scanPath = "";
+
+        if (App.State.isExpanded) {
+            scanPath = `mission-${shardTugas}`;
+            document.getElementById('radarPulse').innerText = `[ DEEP SCAN: SHARD ${shardTugas} ]`;
+        } else {
+            scanPath = `mission-${shardTugas}/${App.State.loc.desa}`;
+            document.getElementById('radarPulse').innerText = `[ LOCAL SCAN: ${App.State.loc.desa.toUpperCase()} ]`;
         }
 
-        if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
-        s.currentScanPath = scanPath;
-
+        // Gunakan App.db4
+        App.db4.ref(scanPath).off();
         App.db4.ref(scanPath).on('value', snap => {
-            const listDiv = document.getElementById('missionList');
-            if(!listDiv) return;
             listDiv.innerHTML = "";
             
             if (!snap.exists()) {
-                listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi terbuka di area ini.</div>`;
+                listDiv.innerHTML = '<div id="emptyState">Tidak ada sinyal aktif di koordinat ini.</div>';
                 return;
             }
 
-            let allMissions = [];
-            const now = Date.now();
-            const oneHour = 60 * 60 * 1000;
+            const currentFilter = App.State.currentFilter || 'All';
 
-            const collect = (m) => {
-                if (m && m.status === 'open') {
-                    const diffTime = now - (m.timestamp || 0);
-                    const isExpired = (m.category !== 'Help' && diffTime > oneHour);
-                    const matchFilter = (s.currentFilter === 'All' || m.category === s.currentFilter);
-                    if (!isExpired && matchFilter) {
-                        allMissions.push(m);
-                    }
-                }
-            };
-
-            if (s.isExpanded) {
+            if (App.State.isExpanded) {
                 snap.forEach(desaSnap => {
-                    desaSnap.forEach(misiSnap => collect(misiSnap.val()));
+                    desaSnap.forEach(misiSnap => {
+                        const m = misiSnap.val();
+                        // Tambahkan Logika Filter
+                        if (currentFilter === 'All' || m.category === currentFilter) {
+                            this.renderMisi(m, listDiv);
+                        }
+                    });
                 });
             } else {
-                snap.forEach(misiSnap => collect(misiSnap.val()));
-            }
+snap.forEach(misiSnap => {
+const m = misiSnap.val() || {};
+// 1. Ambil filter aktif dari State
+const filter = App.State.currentFilter || 'All';
 
-            allMissions.sort(() => Math.random() - 0.5);
-            const finalMissions = allMissions.slice(0, 10);
-            
-            if(finalMissions.length === 0) {
-                listDiv.innerHTML = `<div id="emptyState">Sinyal terdeteksi, namun kontrak sudah kadaluwarsa atau tidak sesuai filter.</div>`;
-            } else {
-                AudioEngine.play('sonar');
-                finalMissions.forEach(m => this.renderMisi(m, listDiv));
+// 2. Logika penyaringan data
+let isVisible = false;
+
+if (filter === 'All') {
+    isVisible = true;
+} else if (filter === 'Reguler') {
+    // SESUAIKAN DENGAN TULISAN DI DATABASE (Foto: "Motor Ride")
+    const regulerTypes = ['Motor Ride', 'Car Ride', 'Pick & Drop'];
+    if (regulerTypes.includes(m.category)) isVisible = true;
+} else if (filter === 'Titip Beli') {
+    // Pastikan di DB tulisannya "Titip Beli" (huruf besar T dan B)
+    if (m.category === 'Titip Beli') isVisible = true;
+} else if (filter === 'Help') {
+    // Pastikan di DB tulisannya "Help"
+    if (m.category === 'Help') isVisible = true;
+}
+
+// 3. Render jika lolos filter
+if (isVisible) {
+    this.renderMisi(m, listDiv);
+}
+                });
             }
         });
     },
+
+    // ... (Fungsi calcDist, renderMisi, dan lainnya tetap di sini)
+
+
+    
 
     calcDist: function(lat1, lon1, lat2, lon2) {
         if(!lat1 || !lat2) return 0;
@@ -909,6 +950,18 @@ Bidding: {
         const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     },
+
+    timeAgo: function(timestamp) {
+    if (!timestamp) return "BARU SAJA";
+    const now = Date.now();
+    const diff = Math.floor((now - timestamp) / 1000); // dalam detik
+
+    if (diff < 60) return "BARU SAJA";
+    if (diff < 3600) return Math.floor(diff / 60) + " MENIT LALU";
+    if (diff < 86400) return Math.floor(diff / 3600) + " JAM LALU";
+    return Math.floor(diff / 86400) + " HARI LALU";
+},
+
             
     renderMisi: function(m, container) {
         let mLat = m.lat, mLng = m.lng;
@@ -918,6 +971,8 @@ Bidding: {
         }
         const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
         const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
+        const waktuTeks = this.timeAgo(m.created_at);
+
         
         let diffColor = "#4ade80";
         if (m.difficulty_rate > 1.5) diffColor = "#facc15";
@@ -944,13 +999,17 @@ Bidding: {
         const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
 
         div.innerHTML = `
-            <div class="m-header">
-                <span>ID: ${m.id_misi.slice(-6).toUpperCase()}</span>
-                ${isApplied ? 
-                    '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
-                    `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
-                }
-            </div>
+    <div class="m-header">
+        <div>
+            <span>ID: ${m.id_misi.slice(-6).toUpperCase()}</span>
+            <span style="margin-left:8px; color:#555; font-size:9px;">• ${waktuTeks}</span>
+        </div>
+        ${isApplied ? 
+            '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
+            `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
+        }
+    </div>
+
             <div class="m-title">
                 ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + (m.dest_desa || 'TUJUAN').toUpperCase()}
             </div>
