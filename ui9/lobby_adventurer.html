@@ -571,7 +571,10 @@ body.saver-mode .rank-badge {
                 };
 
                 this.UI.updateRPG(); // Update tampilan bar
+                await this.Core.checkDailyLogin();
                 this.UI.loadSaverSettings();
+                
+
                 
                 // ... (sisanya sama seperti init sebelumnya)
                 document.getElementById('dispNick').innerText = this.user.nick || "ADVENTURER";
@@ -677,6 +680,19 @@ body.saver-mode .rank-badge {
                 document.getElementById('bidAmount').value = basePrice.toLocaleString('id-ID');
                 document.getElementById('sovBidModal').style.display = 'flex';
             },
+
+            showLoginModal: function(dayCount, rewardName) {
+                AudioEngine.play('alert');
+                const title = `DAILY LOGIN: DAY ${dayCount}`;
+                const msg = `Sistem mendeteksi kehadiran Anda. <br><br> Reward diperoleh: <br> <b style="color:var(--theme-color); font-size:18px;">[ ${rewardName} ]</b> <br><br> Hadiah telah dikirim ke inventori Terminal Anda.`;
+                
+                // Gunakan fungsi alert yang sudah Abang punya
+                this.showAlert(title, msg);
+                
+                // Opsional: Getarkan HP jika mendukung
+                if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            }
+
 
 
 
@@ -1040,6 +1056,51 @@ body.saver-mode .rank-badge {
                     }
                 });
             }
+
+            checkDailyLogin: async function() {
+                const now = new Date();
+                const todayStr = now.toDateString(); // Contoh: "Mon Oct 23 2023"
+                
+                // 1. Cek apakah sudah login hari ini di local (biar gak spam DB)
+                const lastLoginLocal = localStorage.getItem('last_login_date');
+                if (lastLoginLocal === todayStr) return; 
+
+                try {
+                    const userRef = App.db1.ref(`users/${App.user.uid}/login_stats`);
+                    const snap = await userRef.once('value');
+                    let stats = snap.val() || { count: 0, last_claim: "" };
+
+                    // 2. Jika hari terakhir di DB berbeda dengan hari ini
+                    if (stats.last_claim !== todayStr) {
+                        stats.count += 1;
+                        stats.last_claim = todayStr;
+
+                        // Tentukan Reward berdasarkan jumlah hari
+                        let reward = this.getLoginReward(stats.count);
+
+                        // 3. Update ke Database
+                        await userRef.set(stats);
+                        localStorage.setItem('last_login_date', todayStr);
+
+                        // 4. Tampilkan Pop-up Reward
+                        if (reward) {
+                            App.UI.showLoginModal(stats.count, reward);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Daily Login Error:", e);
+                }
+            },
+
+            getLoginReward: function(day) {
+                if (day >= 1 && day <= 6) return "GREEN STONE";
+                if (day === 7) return "STAMINA RECOVERY";
+                if (day === 14) return "CONTRACT BOOSTER";
+                if (day === 21) return "RADAR AMPLIFIER";
+                if (day === 28) return "KONTRAK EMAS";
+                return null; // Hari lain belum ada reward spesial (atau bisa diisi stone lagi)
+            }
+
         } // Tutup Core
     }; // Tutup App
 
