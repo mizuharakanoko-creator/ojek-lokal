@@ -868,11 +868,9 @@ Core: {
 },
 
 
-    startRadar: function() {
+        startRadar: function() {
         const listDiv = document.getElementById('missionList');
-        // Akses shardTugas dari App.State
         const shardTugas = getShardDariKecamatan(ZONA_MAP[App.State.areaTugas] || App.State.areaTugas);
-        
         let scanPath = "";
 
         if (App.State.isExpanded) {
@@ -883,7 +881,6 @@ Core: {
             document.getElementById('radarPulse').innerText = `[ LOCAL SCAN: ${App.State.loc.desa.toUpperCase()} ]`;
         }
 
-        // Gunakan App.db4
         App.db4.ref(scanPath).off();
         App.db4.ref(scanPath).on('value', snap => {
             listDiv.innerHTML = "";
@@ -893,49 +890,42 @@ Core: {
                 return;
             }
 
-            const currentFilter = App.State.currentFilter || 'All';
+            const filter = App.State.currentFilter || 'All';
+
+            // Fungsi pembantu agar logika filter tidak ditulis dua kali
+            const cekVisibility = (m) => {
+                if (filter === 'All') return true;
+                if (filter === 'Reguler') {
+                    const regulerTypes = ['Motor Ride', 'Car Ride', 'Pick & Drop'];
+                    return regulerTypes.includes(m.category);
+                }
+                // Untuk 'Titip Beli' dan 'Help'
+                return m.category === filter;
+            };
 
             if (App.State.isExpanded) {
+                // Iterasi untuk mode Kabupaten (Dua tingkat: Desa -> Misi)
                 snap.forEach(desaSnap => {
                     desaSnap.forEach(misiSnap => {
-                        const m = misiSnap.val();
-                        // Tambahkan Logika Filter
-                        if (currentFilter === 'All' || m.category === currentFilter) {
-                            this.renderMisi(m, listDiv);
-                        }
+                        const m = misiSnap.val() || {};
+                        if (cekVisibility(m)) this.renderMisi(m, listDiv);
                     });
                 });
             } else {
-snap.forEach(misiSnap => {
-const m = misiSnap.val() || {};
-// 1. Ambil filter aktif dari State
-const filter = App.State.currentFilter || 'All';
-
-// 2. Logika penyaringan data
-let isVisible = false;
-
-if (filter === 'All') {
-    isVisible = true;
-} else if (filter === 'Reguler') {
-    // SESUAIKAN DENGAN TULISAN DI DATABASE (Foto: "Motor Ride")
-    const regulerTypes = ['Motor Ride', 'Car Ride', 'Pick & Drop'];
-    if (regulerTypes.includes(m.category)) isVisible = true;
-} else if (filter === 'Titip Beli') {
-    // Pastikan di DB tulisannya "Titip Beli" (huruf besar T dan B)
-    if (m.category === 'Titip Beli') isVisible = true;
-} else if (filter === 'Help') {
-    // Pastikan di DB tulisannya "Help"
-    if (m.category === 'Help') isVisible = true;
-}
-
-// 3. Render jika lolos filter
-if (isVisible) {
-    this.renderMisi(m, listDiv);
-}
+                // Iterasi untuk mode Lokal (Satu tingkat: Misi)
+                snap.forEach(misiSnap => {
+                    const m = misiSnap.val() || {};
+                    if (cekVisibility(m)) this.renderMisi(m, listDiv);
                 });
+            }
+
+            // Jika setelah filter ternyata tidak ada misi yang tampil
+            if (listDiv.innerHTML === "") {
+                listDiv.innerHTML = '<div id="emptyState">Tidak ada misi kategori ini di area Anda.</div>';
             }
         });
     },
+
 
     // ... (Fungsi calcDist, renderMisi, dan lainnya tetap di sini)
 
