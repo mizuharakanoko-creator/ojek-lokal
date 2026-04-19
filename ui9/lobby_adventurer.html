@@ -556,24 +556,34 @@ init: async function() {
         const db2 = getTerminal('FB2_RUNNER');
 
         // 1. Ambil Data Dasar (Nickname & Zona) dari folder "Umum"
-        // Di foto Abang path-nya: Umum/adv-kng-xxx/nickname
+        // Berdasarkan database: Umum > ID_USER > nickname
         const umumSnap = await this.db1.ref(`Umum/${this.user.uid}`).once('value');
         const dataUmum = umumSnap.val() || {};
         
+        const nickname = dataUmum.nickname || "ADVENTURER";
         this.State.areaTugas = dataUmum.area_tugas || "KNG";
         document.getElementById('dispZone').innerText = this.State.areaTugas;
 
         // 2. Listener Real-Time Profil (Gelar, Rank, Level)
-        // Path: adventurer_profile/adv-kng-xxx/gelar
+        // Berdasarkan database: adventurer_profile > ID_USER > gelar
         db2.ref(`adventurer_profile/${this.user.uid}`).on('value', snap => {
             const p = snap.val() || {};
-            const nick = dataUmum.nickname || "ADVENTURER";
-            const gelar = p.gelar || "Novice";
+            const gelar = p.gelar || "Novice Traveler"; // Ambil gelar dari DB
             
-            // Set Nama dan Gelar di UI
-            document.getElementById('dispNick').innerText = `${nick.toUpperCase()} , ${gelar}`;
+            // --- PENANGANAN KERAPIAN NAMA & GELAR (JS TRUNCATE) ---
+            const combinedName = `${nickname.toUpperCase()} , ${gelar}`;
+            let finalDisplay = combinedName;
             
-            this.State.rank = p.rank || "F";
+            // Jika total karakter lebih dari 25, kita potong gelarnya agar tidak overflow
+            if (combinedName.length > 25) {
+                const truncatedGelar = gelar.substring(0, 10) + "...";
+                finalDisplay = `${nickname.toUpperCase()} , ${truncatedGelar}`;
+            }
+            
+            document.getElementById('dispNick').innerText = finalDisplay;
+            // ------------------------------------------------------
+
+            this.State.rank = p.rank || "F"; // Menampilkan Rank F sesuai DB
             this.State.rpg.lvl = p.level || 1;
             this.State.rpg.expNext = (p.level || 1) * 100;
             
@@ -585,16 +595,17 @@ init: async function() {
         });
 
         // 3. Listener Real-Time Status Bar (Stamina, EXP, Limit)
-        // Path: adventurer_experience/adv-kng-xxx/current_stamina
+        // Berdasarkan database: adventurer_experience > ID_USER
         db2.ref(`adventurer_experience/${this.user.uid}`).on('value', snap => {
             const e = snap.val() || {};
             
             this.State.rpg.exp = e.exp || 0;
-            this.State.rpg.stm = e.current_stamina || 0;
+            this.State.rpg.stm = e.current_stamina || 0; // Mengambil nilai 100 dari DB
             this.State.rpg.stmMax = e.max_stamina || 100; 
             this.State.rpg.limit = Number(e.limit_harian || 0);
-            this.State.rpg.limitMax = Number(e.max_limit || 10);
+            this.State.rpg.limitMax = Number(e.max_limit || 10); // Mengambil nilai 10 dari DB
 
+            // Memanggil updateRPG agar bar Stamina langsung penuh (100/100)
             this.UI.updateRPG();
         });
 
@@ -607,9 +618,10 @@ init: async function() {
 
     } catch (e) {
         console.error("Critical Init Error:", e);
-        this.UI.showAlert("KONEKSI GAGAL", "Data karakter tidak ditemukan.");
+        this.UI.showAlert("KONEKSI GAGAL", "Gagal sinkronisasi data dari basis data.");
     }
 },
+
 
 
 
@@ -636,7 +648,7 @@ init: async function() {
                 }, 8000);
             },
 
-            updateRPG: function() {
+updateRPG: function() {
     const r = App.State.rpg;
     
     // 1. SAFETY CHECK: Pastikan elemen-elemen kritikal ada di HTML
