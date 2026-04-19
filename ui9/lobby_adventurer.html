@@ -769,88 +769,23 @@ Bidding: {
     },
     
     submit: async function() {
-        const { mid, currentPrice } = App.BiddingData;
-        const r = App.State.rpg;
-        
-        // Memanggil Terminal FB2 karena data Experience & Contracts ada di sana
-        const db2 = getTerminal('FB2_RUNNER');
-
-        // 1. VALIDASI DASAR (STAMINA & LIMIT)
-        if (r.stm < 10) {
-            App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
-            return;
-        }
-        if (r.limit >= r.limitMax) {
-            App.UI.showAlert("LIMIT HABIS", `Jatah harian (${r.limitMax}) sudah tercapai.`);
-            return;
-        }
-
-        // 2. KLASIFIKASI KONTRAK & PENENTUAN KEY DATABASE
-        let tipeKontrak = "Kontrak Emas";
-        let contractKey = "kontrak_emas"; // Key untuk tabel adventurer_contracts
-
-        if (currentPrice <= 10000) { 
-            tipeKontrak = "Kontrak Lusuh"; contractKey = "kontrak_lusuh"; 
-        } else if (currentPrice <= 30000) { 
-            tipeKontrak = "Kontrak Normal"; contractKey = "kontrak_normal"; 
-        } else if (currentPrice <= 60000) { 
-            tipeKontrak = "Kontrak Medium"; contractKey = "kontrak_medium"; 
-        } else if (currentPrice <= 100000) { 
-            tipeKontrak = "Kontrak Premium"; contractKey = "kontrak_premium"; 
-        }
-
-        const btn = document.querySelector('.btn-confirm');
-        if(btn) { btn.innerText = "MENGECEK ITEM..."; btn.disabled = true; }
-
-        try {
-            // 3. VALIDASI ITEM KONTRAK (Cek Stok di FB2)
-            const contractSnap = await db2.ref(`adventurer_contracts/${App.user.uid}/${contractKey}`).once('value');
-            const currentStock = contractSnap.val() || 0;
-
-            if (currentStock <= 0) {
-                App.UI.showAlert("GAGAL", `Stok [${tipeKontrak.toUpperCase()}] Anda habis!`);
-                if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
-                return;
-            }
-
-            if(btn) btn.innerText = "TRANSMISI...";
-
-            // 4. EKSEKUSI MULTI-WRITE (Update 3 Node Sekaligus)
-            
-            // A. Kirim Bid ke FB4 (Board)
-            await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
-                adventurer_id: App.user.uid,
-                adventurer_nick: document.getElementById('dispNick').innerText,
-                rank: App.State.rank,
-                offer_price: currentPrice,
-                contract_item: tipeKontrak,
-                timestamp: Date.now()
-            });
-
-            // B. Potong Stok Item Kontrak di FB2
-            await db2.ref(`adventurer_contracts/${App.user.uid}/${contractKey}`).set(currentStock - 1);
-
-            // C. Potong Stamina & Tambah Limit di FB2 (adventurer_experience)
-submit: async function() {
     const { mid, currentPrice } = App.BiddingData;
     const r = App.State.rpg;
     const db2 = getTerminal('FB2_RUNNER');
+    const btn = document.querySelector('.btn-confirm');
 
-    // 1. VALIDASI LIMIT (Hanya blokir jika limit_harian >= max_limit)
+    // 1. VALIDASI LIMIT & STAMINA (Cek state lokal dulu)
     if (r.limit >= r.limitMax) {
-        App.UI.showAlert("LIMIT TERCAPAI", `Anda sudah mencapai batas ${r.limitMax} kontrak hari ini.`);
+        App.UI.showAlert("LIMIT TERCAPAI", `Jatah harian (${r.limitMax}) sudah habis.`);
         return;
     }
-
     if (r.stm < 10) {
-        App.UI.showAlert("STAMINA RENDAH", "Butuh minimal 10 Stamina.");
+        App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
         return;
     }
 
-    // 2. PENENTUAN ITEM KONTRAK
-    let tipeKontrak = "Kontrak Normal";
-    let contractKey = "kontrak_normal";
-
+    // 2. KLASIFIKASI KONTRAK BERDASARKAN HARGA
+    let tipeKontrak, contractKey;
     if (currentPrice <= 10000) { 
         tipeKontrak = "Kontrak Lusuh"; contractKey = "kontrak_lusuh"; 
     } else if (currentPrice <= 30000) { 
@@ -861,56 +796,61 @@ submit: async function() {
         tipeKontrak = "Kontrak Premium"; contractKey = "kontrak_premium"; 
     }
 
+    // Proteksi Tombol
+    if(btn) { btn.innerText = "MENGECEK DATA..."; btn.disabled = true; }
+
     try {
-        // 3. CEK STOK DI DATABASE SECARA REALTIME
+        // 3. VALIDASI STOK ITEM DI DATABASE (Real-time check)
         const contractSnap = await db2.ref(`adventurer_contracts/${App.user.uid}/${contractKey}`).once('value');
-        // Gunakan Number() untuk antisipasi data tersimpan sebagai string di Firebase
         const currentStock = Number(contractSnap.val() || 0);
 
         if (currentStock <= 0) {
-            App.UI.showAlert("STOK HABIS", `Anda tidak memiliki [${tipeKontrak}]. Silakan beli atau gunakan tipe kontrak lain.`);
+            App.UI.showAlert("GAGAL", `Stok [${tipeKontrak.toUpperCase()}] habis!`);
+            if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
             return;
         }
 
-        // 4. EKSEKUSI (Update Firebase)
+        if(btn) btn.innerText = "TRANSMISI SINYAL...";
+
+        // 4. EKSEKUSI MULTI-WRITE (Update Semua Node)
         const updates = {};
-        // Kurangi stok kontrak
+        
+        // A. Potong Stok Kontrak di FB2
         updates[`adventurer_contracts/${App.user.uid}/${contractKey}`] = currentStock - 1;
-        // Potong stamina & tambah limit_harian (+1)
+        
+        // B. Update Stamina & Limit di FB2
         updates[`adventurer_experience/${App.user.uid}/current_stamina`] = r.stm - 10;
         updates[`adventurer_experience/${App.user.uid}/limit_harian`] = r.limit + 1;
 
+        // Jalankan Update ke FB2
         await db2.ref().update(updates);
 
-        // Kirim penawaran ke Board
+        // C. Kirim Penawaran ke FB4 (Board)
         await App.db4.ref(`bids/${mid}/${App.user.uid}`).set({
             adventurer_id: App.user.uid,
             adventurer_nick: document.getElementById('dispNick').innerText,
+            rank: App.State.rank,
             offer_price: currentPrice,
+            contract_item: tipeKontrak,
             timestamp: Date.now()
         });
 
-        // Update UI Lokal
-        App.State.rpg.stm -= 10;
-        App.State.rpg.limit += 1;
-        App.UI.updateRPG();
+        // 5. FINISHING
+        // Tandai misi ini sudah dilamar secara lokal agar kartu terkunci
+        App.State.renderedMissions.add(mid + "_applied");
         
         App.UI.closeModal();
-        App.UI.showAlert("BERHASIL", `Kontrak terbit! Stok ${tipeKontrak} tersisa: ${currentStock - 1}`);
-
+        App.UI.showAlert("BERHASIL", `Sinyal terbit! Menggunakan 1 ${tipeKontrak}. Stamina -10.`);
+        
+        // Radar otomatis refresh karena ada listener .on di fungsi init
+        
     } catch (e) {
-        App.UI.showAlert("SYSTEM ERROR", "Gagal menghubungi database.");
+        console.error("Bidding Error:", e);
+        App.UI.showAlert("ERROR CRITICAL", "Transmisi gagal: " + e.message);
+    } finally {
+        if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
     }
 }
-error("Bidding Error:", e);
-            App.UI.showAlert("ERROR", "Gagal transmisi sinyal: " + e.message);
-        } finally {
-            if(btn) { btn.innerText = "AMBIL & TERBITKAN SINYAL"; btn.disabled = false; }
-        }
-    }
-
-},
-
 
 
 
