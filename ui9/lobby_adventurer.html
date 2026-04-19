@@ -922,13 +922,30 @@ Bidding: {
             timestamp: Date.now()
         });
 
-        // 5. Potong Stamina & Update Limit di FB1
-        const newStm = r.stm - 10;
-        const newLimit = r.limit + 1;
-        await App.db1.ref(`users/${App.user.uid}`).update({
-            stamina: newStm,
-            limit_harian: newLimit
-        });
+        
+// 5. Hitung Nilai Baru
+const newStm = r.stm - 10;
+const newLimit = r.limit + 1;
+
+// Tentukan Shard Target (Tempat data RPG Anda berada)
+const idAdv = await App.Core.getIdAdvByNickname(App.user.nick);
+const shardTarget = App.State.loc.shard || "FB2_RUNNER";
+const dbShard = getTerminal(shardTarget);
+
+// UPDATE KE SHARD (Ini yang paling penting agar UI sinkron)
+await dbShard.ref(`adventurer_experience/${idAdv}`).update({
+    current_stamina: newStm,
+    limit_harian: newLimit
+});
+
+// UPDATE KE MASTER (Sebagai Sinkronisasi Akun Utama)
+await App.db1.ref(`users/${App.user.uid}`).update({
+    stamina: newStm,
+    limit_harian: newLimit
+});
+
+
+    
 
         // Update State & UI
         App.State.rpg.stm = newStm;
