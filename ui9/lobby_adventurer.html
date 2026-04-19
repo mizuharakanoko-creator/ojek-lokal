@@ -901,9 +901,19 @@ Bidding: {
         this.startRadar(); // Refresh radar dengan filter baru
     },
 
-    startRadar: function() {
+        startRadar: function() {
         const s = App.State;
-        const currentShard = getShardDariKecamatan(ZONA_MAP[s.areaTugas] || s.areaTugas);
+        
+        // PENTING: Pastikan areaTugas ada isinya
+        const zone = s.areaTugas || "KNG"; 
+        const currentShard = getShardDariKecamatan(ZONA_MAP[zone] || zone);
+        
+        // Jika desa belum terdeteksi GPS, jangan jalankan scan dulu
+        if (!s.isExpanded && !s.loc.desa) {
+            console.log("Menunggu data desa dari GPS...");
+            return;
+        }
+
         const scanPath = s.isExpanded ? `mission-${currentShard}` : `mission-${currentShard}/${s.loc.desa}`;
         
         const pulseText = document.getElementById('radarPulse');
@@ -911,6 +921,7 @@ Bidding: {
             pulseText.innerText = s.isExpanded ? `[ DEEP SCAN: SHARD ${currentShard} ]` : `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
         }
 
+        // Matikan listener lama agar tidak dobel/tumpang tindih
         if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
         s.currentScanPath = scanPath;
 
@@ -920,44 +931,44 @@ Bidding: {
             listDiv.innerHTML = "";
             
             if (!snap.exists()) {
-                listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi terbuka di area ini.</div>`;
+                listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi di Shard ${currentShard} area ${s.loc.desa}.</div>`;
                 return;
             }
 
             let allMissions = [];
             const now = Date.now();
-            const oneHour = 60 * 60 * 1000;
 
             const collect = (m) => {
+                // Filter Status & Waktu (Opsional: Matikan filter waktu dulu untuk tes)
                 if (m && m.status === 'open') {
-                    const diffTime = now - (m.timestamp || 0);
-                    const isExpired = (m.category !== 'Help' && diffTime > oneHour);
-                    const matchFilter = (s.currentFilter === 'All' || m.category === s.currentFilter);
-                    if (!isExpired && matchFilter) {
+                    const matchFilter = (!s.currentFilter || s.currentFilter === 'All' || m.category === s.currentFilter);
+                    if (matchFilter) {
                         allMissions.push(m);
                     }
                 }
             };
 
+            // Logika Penelusuran Folder (Sangat Penting!)
             if (s.isExpanded) {
+                // Jika Expanded, kita masuk ke folder Shard, lalu loop folder Desa-Desa di dalamnya
                 snap.forEach(desaSnap => {
                     desaSnap.forEach(misiSnap => collect(misiSnap.val()));
                 });
             } else {
+                // Jika Lokal, kita langsung di dalam folder Desa
                 snap.forEach(misiSnap => collect(misiSnap.val()));
             }
 
-            allMissions.sort(() => Math.random() - 0.5);
-            const finalMissions = allMissions.slice(0, 10);
-            
-            if(finalMissions.length === 0) {
-                listDiv.innerHTML = `<div id="emptyState">Sinyal terdeteksi, namun kontrak sudah kadaluwarsa atau tidak sesuai filter.</div>`;
+            // Urutkan dan Tampilkan
+            if(allMissions.length === 0) {
+                listDiv.innerHTML = `<div id="emptyState">Radar Aktif, namun tidak ada sinyal misi terbuka.</div>`;
             } else {
                 AudioEngine.play('sonar');
-                finalMissions.forEach(m => this.renderMisi(m, listDiv));
+                allMissions.forEach(m => this.renderMisi(m, listDiv));
             }
         });
     },
+
 
     calcDist: function(lat1, lon1, lat2, lon2) {
         if(!lat1 || !lat2) return 0;
