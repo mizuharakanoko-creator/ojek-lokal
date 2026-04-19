@@ -602,45 +602,59 @@ body.saver-mode .rank-badge {
 
         BiddingData: { mid: "", basePrice: 0, currentPrice: 0 },
 
-        init: async function() {
+    init: async function() {
     try {
-        this.user = Clearchance.enforceIdentity();
+        // 1. Inisialisasi Terminal Utama
         this.db1 = getTerminal('FB1_MASTER');
         this.db4 = getTerminal('FB4_BOARD');
+        
+        // Cek apakah user sudah login (menggunakan nickname dari Clearchance)
+        this.user = Clearchance.enforceIdentity();
+        const nickname = this.user.nick || "nezza"; //
 
-        // 1. Ambil ID_ADV Asli & Shard
-        const idAdv = await this.Core.getIdAdvByNickname(this.user.nick);
-        const shardID = getShardDariKecamatan(this.user.zone || "KNG"); 
-        const dbShard = getTerminal(shardID);
+        // 2. Cari ID_ADV dan Shard di Index Master
+        const idAdvClean = await this.Core.getIdAdvByNickname(nickname);
+        if(!idAdvClean) throw new Error("ID Adventurer tidak ditemukan di index Master (FB1).");
 
-        // 2. Tarik Data dari adventurer_profile & adventurer_experience (Paralel)
-        const [profileSnap, expSnap] = await Promise.all([
-            dbShard.ref(`adventurer_profile/${idAdv}`).once('value'),
-            dbShard.ref(`adventurer_experience/${idAdv}`).once('value')
+        // Ambil info shard dari index untuk koneksi ke database shard (FB2)
+        const indexSnap = await this.db1.ref(`adventurer_index/${idAdvClean}`).once('value');
+        const indexData = indexSnap.val();
+        const shardTarget = indexData.shard_id || "FB2_RUNNER"; //
+        const dbShard = getTerminal(shardTarget);
+
+        // 3. Tarik Data Profil & Experience dari Shard
+        const [profSnap, expSnap] = await Promise.all([
+            dbShard.ref(`adventurer_profile/${idAdvClean}`).once('value'),
+            dbShard.ref(`adventurer_experience/${idAdvClean}`).once('value')
         ]);
 
-        const prof = profileSnap.val() || {};
+        const prof = profSnap.val() || {};
         const xp = expSnap.val() || {};
 
-        // 3. Masukkan ke State App
+        // 4. Set State Global
         this.State.rank = prof.rank || "Trainer";
-        this.State.gelar = prof.gelar || "Newbie"; // Gelar baru
-        
-        // Gabungkan Logika Reset 00:00
-        this.Core.syncRPGStats(idAdv, shardID, xp);
+        this.State.gelar = prof.gelar || "Newbie";
+        this.State.areaTugas = indexData.area_tugas || "KNG";
 
-        // 4. Update UI
-        document.getElementById('dispNick').innerText = this.user.nick;
-        document.getElementById('dispRank').innerText = `${this.State.rank} | ${this.State.gelar}`;
+        // 5. Jalankan Sinkronisasi RPG (Stamina, EXP, Limit)
+        await this.Core.syncRPGStats(idAdvClean, shardTarget, xp);
+
+        // 6. Update Visual UI
+        document.getElementById('dispNick').innerText = nickname;
+        document.getElementById('dispZone').innerText = this.State.areaTugas;
+        document.getElementById('dispRank').innerText = this.State.rank;
         this.UI.applyRankTheme(this.State.rank);
         
         this.UI.startEduRotary();
         this.Core.startGPS();
         this.Core.listenToContracts();
+
     } catch (e) {
+        console.error(e);
         this.UI.showAlert("KONEKSI GAGAL", e.message);
     }
 },
+
 
 
         UI: {
@@ -976,43 +990,42 @@ Core: {
     const now = Date.now();
     const dbShard = getTerminal(shardID);
     
+    // Ambil data dari database (adventurer_experience)
     let currentStm = xp.current_stamina || 0;
+    let maxStm = xp.max_stamina || 100;
     let currentLimit = xp.limit_harian || 0;
-    const maxStm = xp.max_stamina || 100;
-    const maxLimit = xp.max_limit || 5;
-    const nextReset = xp.last_stamina_update || 0;
+    let maxLimit = xp.max_limit || 5;
+    let nextReset = xp.last_stamina_update || 0; // Timestamp target reset
 
-    // A. LOGIKA RESET JAM 00:00
-    // Jika waktu sekarang sudah melewati jadwal reset
+    // --- LOGIKA RESET 00:00 ---
     if (now >= nextReset) {
-        currentStm = maxStm; // Stamina Full
-        currentLimit = 0;    // Limit Kembali 0
+        currentStm = maxStm;   // Stamina kembali penuh
+        currentLimit = 0;      // Limit kembali nol
         
-        // Hitung jadwal reset berikutnya (Besok jam 00:00)
+        // Hitung jam 00:00 besok
         const tomorrow = new Date();
-        tomorrow.setHours(24, 0, 0, 0); 
-        const newResetTime = tomorrow.getTime();
+        tomorrow.setHours(24, 0, 0, 0);
+        nextReset = tomorrow.getTime();
 
-        // Update ke Database Shard
+        // Update DB Shard agar permanen
         await dbShard.ref(`adventurer_experience/${idAdv}`).update({
             current_stamina: maxStm,
             limit_harian: 0,
-            last_stamina_update: newResetTime
+            last_stamina_update: nextReset
         });
-        console.log("Sistem: Memasuki hari baru. Stamina & Limit di-reset.");
     }
 
-    // B. LOGIKA LEVEL UP
+    // --- LOGIKA LEVEL UP ---
     let lvl = xp.level || 1;
     let currentExp = xp.exp || 0;
     let maxExp = xp.max_exp || 100;
 
     if (currentExp >= maxExp) {
         lvl += 1;
-        currentExp = currentExp - maxExp;
-        maxExp = lvl * 150; // Skala kenaikan kesulitan exp
+        currentExp = currentExp - maxExp; // Sisa exp dibawa ke level depan
+        maxExp = lvl * 150; // Skala kesulitan naik
         
-        App.UI.showAlert("LEVEL UP!", `Selamat! Anda naik ke LVL.${lvl}.`);
+        this.UI.showAlert("LEVEL UP!", `Selamat! Anda sekarang Level ${lvl}`);
         
         await dbShard.ref(`adventurer_experience/${idAdv}`).update({
             level: lvl,
@@ -1021,7 +1034,7 @@ Core: {
         });
     }
 
-    // C. SIMPAN KE STATE UNTUK UI
+    // Masukkan ke State App agar UI terupdate
     App.State.rpg = {
         lvl: lvl,
         exp: currentExp,
@@ -1034,6 +1047,7 @@ Core: {
 
     App.UI.updateRPG();
 },
+
 
 
         startRadar: function() {
