@@ -856,26 +856,17 @@ Core: {
 
     setFilter: function(category, btnElement) {
     AudioEngine.play('click');
-    
-    // Update State
     App.State.currentFilter = category;
 
-    // Update UI Tombol (Visual Feedback)
+    // Update Visual Tombol
     const allButtons = document.querySelectorAll('.filter-bar .btn-mini');
     allButtons.forEach(btn => btn.classList.remove('active'));
     btnElement.classList.add('active');
 
-    // Beri gaya visual untuk tombol aktif (Opsional jika CSS belum ada)
-    allButtons.forEach(btn => {
-        btn.style.background = "#222";
-        btn.style.color = "var(--theme-color)";
-    });
-    btnElement.style.background = "var(--theme-color)";
-    btnElement.style.color = "#000";
-
-    // Refresh Radar untuk menerapkan filter
+    // Refresh radar untuk memfilter data
     this.startRadar();
 },
+
 
     startRadar: function() {
         const listDiv = document.getElementById('missionList');
@@ -915,11 +906,26 @@ Core: {
                     });
                 });
             } else {
-                snap.forEach(misiSnap => {
-                    const m = misiSnap.val();
-                    if (currentFilter === 'All' || m.category === currentFilter) {
-                        this.renderMisi(m, listDiv);
-                    }
+snap.forEach(misiSnap => {
+const m = misiSnap.val() || {};
+const filter = App.State.currentFilter || 'All';
+
+let isVisible = false;
+
+if (filter === 'All') {
+    isVisible = true;
+} else if (filter === 'Reguler') {
+    // Tombol Reguler mencakup 3 jenis kategori di database
+    const regulerTypes = ['motor-ride', 'car-ride', 'pick & drop'];
+    if (regulerTypes.includes(m.category)) isVisible = true;
+} else {
+    // Untuk 'Titip Beli' dan 'Help', cek kesamaan langsung
+    if (m.category === filter) isVisible = true;
+}
+
+if (isVisible) {
+    this.renderMisi(m, listDiv);
+}
                 });
             }
         });
