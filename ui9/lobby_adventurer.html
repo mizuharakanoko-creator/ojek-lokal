@@ -852,17 +852,22 @@ Bidding: {
 
     startRadar: function() {
     const s = App.State;
-    // Mengambil shard berdasarkan area tugas user
-    const currentShard = getShardDariKecamatan(ZONA_MAP[s.areaTugas] || s.areaTugas);
     
-    // Penentuan Path: Jika expand scan root Shard, jika tidak scan spesifik Desa
+    // 1. Tentukan Shard berdasarkan area_tugas, bukan berdasarkan GPS saat ini
+    const taskShard = getShardDariKecamatan(ZONA_MAP[s.areaTugas] || s.areaTugas);
+    
+    // 2. Tentukan Path: 
+    // Jika expanded: Ambil semua di wilayah tugas (mission-[shard])
+    // Jika local: Ambil spesifik di desa tempat GPS berada saat ini
     const scanPath = s.isExpanded ? 
-        `mission-${currentShard}` : 
-        `mission-${currentShard}/${s.loc.desa}`;
+        `mission-${taskShard}` : 
+        `mission-${taskShard}/${s.loc.desa}`;
     
     const pulseText = document.getElementById('radarPulse');
     if (pulseText) {
-        pulseText.innerText = s.isExpanded ? `[ DEEP SCAN: SHARD ${currentShard} ]` : `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
+        pulseText.innerText = s.isExpanded ? 
+            `[ DEEP SCAN: SHARD ${taskShard} ]` : 
+            `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
     }
 
     if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
@@ -874,7 +879,7 @@ Bidding: {
         listDiv.innerHTML = "";
         
         if (!snap.exists()) {
-            listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi terbuka di area ini.</div>`;
+            listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi di jangkauan radar wilayah ${s.areaTugas}.</div>`;
             return;
         }
 
@@ -886,38 +891,36 @@ Bidding: {
             if (m && m.status === 'open') {
                 const diffTime = now - (m.timestamp || 0);
                 const isExpired = (m.category !== 'Help' && diffTime > oneHour);
-                
-                // Pengecekan Filter
                 const matchFilter = (s.currentFilter === 'All' || m.category === s.currentFilter);
-                
                 if (!isExpired && matchFilter) {
                     allMissions.push(m);
                 }
             }
         };
 
+        // 3. Logika Iterasi (Sama dengan referensi kode 2)
         if (s.isExpanded) {
-            // Loop Shard -> Desa -> Misi
+            // Karena path-nya adalah 'mission-[shard]', maka isinya adalah daftar Desa
             snap.forEach(desaSnap => {
                 desaSnap.forEach(misiSnap => collect(misiSnap.val()));
             });
         } else {
-            // Loop Desa -> Misi
+            // Karena path-nya adalah 'mission-[shard]/[desa]', maka isinya langsung daftar Misi
             snap.forEach(misiSnap => collect(misiSnap.val()));
         }
 
-        // Acak dan tampilkan
         allMissions.sort(() => Math.random() - 0.5);
         const finalMissions = allMissions.slice(0, 10);
         
         if(finalMissions.length === 0) {
-            listDiv.innerHTML = `<div id="emptyState">Sinyal terdeteksi, namun tidak sesuai kriteria filter atau kadaluwarsa.</div>`;
+            listDiv.innerHTML = `<div id="emptyState">Sinyal terdeteksi di ${s.areaTugas}, namun tidak ada kontrak aktif.</div>`;
         } else {
             AudioEngine.play('sonar');
             finalMissions.forEach(m => this.renderMisi(m, listDiv));
         }
     });
 },
+
 
 
     calcDist: function(lat1, lon1, lat2, lon2) {
