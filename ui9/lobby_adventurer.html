@@ -461,6 +461,8 @@ body.saver-mode .rank-badge {
       nezza
     </span>
 <br>
+    <span id="dispGelar" style="color:var(--theme-color); font-size:10px; font-weight:bold; letter-spacing:1px;">NEWBIE</span>
+
             <span style="color:#888; font-size:10px;">ZONE: <span id="dispZone" style="color:#fff;">-</span></span>
             <div style="margin-top: 5px;">
                 <button onclick="App.UI.toggleSaver()" id="btnSaver" 
@@ -601,45 +603,45 @@ body.saver-mode .rank-badge {
         BiddingData: { mid: "", basePrice: 0, currentPrice: 0 },
 
         init: async function() {
-            try {
-                this.user = Clearchance.enforceIdentity();
-                this.db1 = getTerminal('FB1_MASTER');
-                this.db4 = getTerminal('FB4_BOARD');
+    try {
+        this.user = Clearchance.enforceIdentity();
+        this.db1 = getTerminal('FB1_MASTER');
+        this.db4 = getTerminal('FB4_BOARD');
 
-                const userSnap = await this.db1.ref(`users/${this.user.uid}`).once('value');
-                const data = userSnap.val() || {};
-                
-                // Load data profil & RPG
-                this.State.areaTugas = data.area_tugas || this.user.zone || "KNG";
-                this.State.rank = data.rank || "Trainer";
-                this.State.rpg = {
-                    lvl: data.level || 1,
-                    exp: data.exp || 0,
-                    expNext: (data.level || 1) * 100,
-                    stm: data.stamina || 100,
-                    stmMax: 100,
-                    limit: data.limit_harian || 0,
-                    limitMax: data.max_limit || 5
-                };
+        // 1. Ambil ID_ADV Asli & Shard
+        const idAdv = await this.Core.getIdAdvByNickname(this.user.nick);
+        const shardID = getShardDariKecamatan(this.user.zone || "KNG"); 
+        const dbShard = getTerminal(shardID);
 
-                this.UI.updateRPG(); // Update tampilan bar
-                await this.Core.checkDailyLogin();
-                this.UI.loadSaverSettings();
-                
+        // 2. Tarik Data dari adventurer_profile & adventurer_experience (Paralel)
+        const [profileSnap, expSnap] = await Promise.all([
+            dbShard.ref(`adventurer_profile/${idAdv}`).once('value'),
+            dbShard.ref(`adventurer_experience/${idAdv}`).once('value')
+        ]);
 
-                
-                // ... (sisanya sama seperti init sebelumnya)
-                document.getElementById('dispNick').innerText = this.user.nick || "ADVENTURER";
-                document.getElementById('dispZone').innerText = this.State.areaTugas;
-                document.getElementById('dispRank').innerText = this.State.rank;
-                this.UI.applyRankTheme(this.State.rank);
-                this.UI.startEduRotary();
-                this.Core.startGPS();
-                this.Core.listenToContracts();
-            } catch (e) {
-                this.UI.showAlert("KONEKSI GAGAL", e.message);
-            }
-        },
+        const prof = profileSnap.val() || {};
+        const xp = expSnap.val() || {};
+
+        // 3. Masukkan ke State App
+        this.State.rank = prof.rank || "Trainer";
+        this.State.gelar = prof.gelar || "Newbie"; // Gelar baru
+        
+        // Gabungkan Logika Reset 00:00
+        this.Core.syncRPGStats(idAdv, shardID, xp);
+
+        // 4. Update UI
+        document.getElementById('dispNick').innerText = this.user.nick;
+        document.getElementById('dispRank').innerText = `${this.State.rank} | ${this.State.gelar}`;
+        this.UI.applyRankTheme(this.State.rank);
+        
+        this.UI.startEduRotary();
+        this.Core.startGPS();
+        this.Core.listenToContracts();
+    } catch (e) {
+        this.UI.showAlert("KONEKSI GAGAL", e.message);
+    }
+},
+
 
         UI: {
     eduTips: [
@@ -709,6 +711,7 @@ showAdvancedDebug: function(allData, shardName, idAdv) {
         document.getElementById('dispLvl').innerText = r.lvl;
         document.getElementById('dispExp').innerText = `${r.exp}/${r.expNext}`;
         document.getElementById('expBar').style.width = (r.exp / r.expNext * 100) + "%";
+        document.getElementById('dispGelar').innerText = App.State.gelar.toUpperCase();
         
         document.getElementById('dispStm').innerText = `${r.stm}/${r.stmMax}`;
         document.getElementById('staminaBar').style.width = (r.stm / r.stmMax * 100) + "%";
@@ -966,6 +969,70 @@ Core: {
 
     // Refresh radar untuk memfilter data
     this.startRadar();
+},
+
+
+    syncRPGStats: async function(idAdv, shardID, xp) {
+    const now = Date.now();
+    const dbShard = getTerminal(shardID);
+    
+    let currentStm = xp.current_stamina || 0;
+    let currentLimit = xp.limit_harian || 0;
+    const maxStm = xp.max_stamina || 100;
+    const maxLimit = xp.max_limit || 5;
+    const nextReset = xp.last_stamina_update || 0;
+
+    // A. LOGIKA RESET JAM 00:00
+    // Jika waktu sekarang sudah melewati jadwal reset
+    if (now >= nextReset) {
+        currentStm = maxStm; // Stamina Full
+        currentLimit = 0;    // Limit Kembali 0
+        
+        // Hitung jadwal reset berikutnya (Besok jam 00:00)
+        const tomorrow = new Date();
+        tomorrow.setHours(24, 0, 0, 0); 
+        const newResetTime = tomorrow.getTime();
+
+        // Update ke Database Shard
+        await dbShard.ref(`adventurer_experience/${idAdv}`).update({
+            current_stamina: maxStm,
+            limit_harian: 0,
+            last_stamina_update: newResetTime
+        });
+        console.log("Sistem: Memasuki hari baru. Stamina & Limit di-reset.");
+    }
+
+    // B. LOGIKA LEVEL UP
+    let lvl = xp.level || 1;
+    let currentExp = xp.exp || 0;
+    let maxExp = xp.max_exp || 100;
+
+    if (currentExp >= maxExp) {
+        lvl += 1;
+        currentExp = currentExp - maxExp;
+        maxExp = lvl * 150; // Skala kenaikan kesulitan exp
+        
+        App.UI.showAlert("LEVEL UP!", `Selamat! Anda naik ke LVL.${lvl}.`);
+        
+        await dbShard.ref(`adventurer_experience/${idAdv}`).update({
+            level: lvl,
+            exp: currentExp,
+            max_exp: maxExp
+        });
+    }
+
+    // C. SIMPAN KE STATE UNTUK UI
+    App.State.rpg = {
+        lvl: lvl,
+        exp: currentExp,
+        expNext: maxExp,
+        stm: currentStm,
+        stmMax: maxStm,
+        limit: currentLimit,
+        limitMax: maxLimit
+    };
+
+    App.UI.updateRPG();
 },
 
 
