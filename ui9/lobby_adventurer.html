@@ -804,10 +804,15 @@ Bidding: {
 
                 Core: {
     startGPS: function() {
+    const pulseText = document.getElementById('radarPulse');
+    if (pulseText) pulseText.innerText = "[ MENGUNCI KOORDINAT GPS... ]";
+
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
+            
+            // Gunakan koordinat asli dari parameter 'pos'
             const hasil = cariDesaTerdekat(lat, lng); 
             
             App.State.loc = { 
@@ -819,27 +824,38 @@ Bidding: {
             const locEl = document.getElementById('locName');
             if(locEl) locEl.innerText = `${App.State.loc.desa.toUpperCase()}`;
 
-            // --- LOGIKA TAMBAHAN: DETEKSI LUAR AREA ---
-            // Bandingkan Kecamatan GPS (hasil.kec) dengan Area Tugas (App.State.areaTugas)
-            if (hasil.kec !== App.State.areaTugas) {
-                const alertMsg = `DITEKSI: Anda berada di luar wilayah tugas (${hasil.kec}). <br><br> Radar tetap dikunci pada Shard wilayah tugas Anda: <b>${App.State.areaTugas}</b>.`;
-                this.UI.showAlert("OUT OF SECTOR", alertMsg);
+            // LOGIKA DETEKSI: Bandingkan Kecamatan GPS vs Kecamatan Tugas
+            // Pastikan perbandingan string menggunakan format yang sama (misal: UpperCase)
+            const kecGPS = hasil.kec.toUpperCase();
+            const kecTugas = App.State.areaTugas.toUpperCase();
+
+            if (kecGPS !== kecTugas) {
+                // Beri jeda sedikit agar UI stabil sebelum muncul Alert
+                setTimeout(() => {
+                    App.UI.showAlert(
+                        "OUT OF SECTOR", 
+                        `Lokasi Anda: <b>${kecGPS}</b><br>Wilayah Tugas: <b>${kecTugas}</b><br><br>` +
+                        "Radar tetap menampilkan misi dari wilayah tugas Anda."
+                    );
+                }, 1000);
                 
-                // Ubah teks radar pulse agar user sadar radar sedang "Remote Scanning"
-                const pulseText = document.getElementById('radarPulse');
-                if(pulseText) pulseText.innerText = `[ REMOTE SCANNING: ${App.State.areaTugas} ]`;
+                if(pulseText) pulseText.innerText = `[ REMOTE SCANNING: ${kecTugas} ]`;
+            } else {
+                if(pulseText) pulseText.innerText = `[ LOCAL SCANNING: ${hasil.name.toUpperCase()} ]`;
             }
-            // ------------------------------------------
 
             App.Core.startRadar(); 
         }, (err) => {
             console.error("GPS Error:", err);
-            App.UI.showAlert("GPS MATI", "Aktifkan lokasi agar radar bisa mendeteksi misi.");
-        }, { enableHighAccuracy: true });
+            App.UI.showAlert("GPS ERROR", "Gagal mengunci lokasi. Pastikan GPS aktif.");
+            // Tetap jalankan radar dengan area tugas jika GPS gagal
+            App.Core.startRadar();
+        }, { enableHighAccuracy: true, timeout: 10000 });
     } else {
-        App.UI.showAlert("SENSOR ERROR", "Perangkat tidak mendukung GPS.");
+        App.UI.showAlert("SENSOR ERROR", "Browser tidak mendukung GPS.");
     }
 },
+
 
 
 
