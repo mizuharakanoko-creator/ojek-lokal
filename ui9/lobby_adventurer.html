@@ -1001,28 +1001,49 @@ Bidding: {
     }, // <-- KOMA DITAMBAHKAN
 
     checkDailyLogin: async function() {
-        const now = new Date();
-        const todayStr = now.toDateString(); 
-        const lastLoginLocal = localStorage.getItem('last_login_date');
-        if (lastLoginLocal === todayStr) return; 
+    const now = new Date();
+    // Gunakan format YYYY-MM-DD agar perbandingannya akurat dan string-safe
+    const todayStr = now.toISOString().split('T')[0]; 
+    
+    // 1. CEK LOCAL STORAGE DULU (Paling cepat)
+    const lastLoginLocal = localStorage.getItem('last_login_date');
+    if (lastLoginLocal === todayStr) {
+        console.log("Sistem: Sudah login hari ini (Local Check).");
+        return; 
+    }
 
-        try {
-            const userRef = App.db1.ref(`users/${App.user.uid}/login_stats`);
-            const snap = await userRef.once('value');
-            let stats = snap.val() || { count: 0, last_claim: "" };
+    try {
+        const userRef = App.db1.ref(`users/${App.user.uid}/login_stats`);
+        const snap = await userRef.once('value');
+        let stats = snap.val() || { count: 0, last_claim: "" };
 
-            if (stats.last_claim !== todayStr) {
-                stats.count += 1;
-                stats.last_claim = todayStr;
-                let reward = this.getLoginReward(stats.count);
-                await userRef.set(stats);
-                localStorage.setItem('last_login_date', todayStr);
-                if (reward) App.UI.showLoginModal(stats.count, reward);
+        // 2. CEK DATABASE (Verifikasi ganda)
+        // Kita bandingkan last_claim di DB dengan todayStr
+        if (stats.last_claim !== todayStr) {
+            stats.count += 1;
+            stats.last_claim = todayStr;
+
+            // Tentukan Reward
+            let reward = this.getLoginReward(stats.count);
+
+            // 3. UPDATE DATABASE & LOCAL STORAGE SECARA BERSAMAAN
+            // Pastikan localStorage di-set SEBELUM modal muncul
+            localStorage.setItem('last_login_date', todayStr);
+            await userRef.set(stats);
+
+            // 4. TAMPILKAN MODAL
+            if (reward) {
+                App.UI.showLoginModal(stats.count, reward);
             }
-        } catch (e) {
-            console.error("Daily Login Error:", e);
+        } else {
+            // Jika di DB ternyata sudah sama, sinkronkan localStorage-nya agar tidak nge-loop
+            localStorage.setItem('last_login_date', todayStr);
         }
-    }, // <-- KOMA DITAMBAHKAN
+    } catch (e) {
+        console.error("Daily Login Error:", e);
+    }
+},
+
 
     getLoginReward: function(day) {
         if (day >= 1 && day <= 6) return "GREEN STONE";
