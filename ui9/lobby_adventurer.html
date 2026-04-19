@@ -280,53 +280,56 @@
 
         init: async function() {
     try {
-        // Pastikan objek Clearchance tersedia
+        // Cek Library Autentikasi
         if (typeof Clearchance === 'undefined') {
-            throw new Error("Library Autentikasi (Clearchance) belum dimuat.");
+            throw new Error("Library Clearchance belum dimuat di HTML ini.");
         }
         
         this.user = Clearchance.enforceIdentity();
-        this.db1 = getTerminal('FB1_MASTER'); // Lokasi tabel profil & inventory
+        this.db1 = getTerminal('FB1_MASTER'); 
+        this.db4 = getTerminal('FB4_BOARD'); 
 
-        // Pengecekan status hukuman berdasarkan struktur gambar database Anda
+        // 1. CEK SUSPEND (Sesuai gambar database adventurer_judge)
         const judgeSnap = await this.db1.ref(`adventurer_judge/${this.user.uid}`).once('value');
         if (judgeSnap.exists() && judgeSnap.val().is_suspended === true) {
-            this.UI.showSuspendedScreen();
+            document.body.innerHTML = `<div style="color:red; text-align:center; padding:50px;">ACCESS DENIED: ACCOUNT SUSPENDED</div>`;
             return;
         }
 
-        // Pengambilan data inventory dari path yang benar
-        const invSnap = await this.db1.ref(`adventurer_inventory/${this.user.uid}`).once('value');
-        const inventoryData = invSnap.val() || {};
-        console.log("Inventory Loaded:", inventoryData); // Berisi small_stamina_potion dll.
+        // 2. AMBIL DATA USER & SYNC UI
+        const userSnap = await this.db1.ref(`users/${this.user.uid}`).once('value');
+        const data = userSnap.val() || {};
+        
+        this.State.areaTugas = data.area_tugas || this.user.zone || "KNG";
+        this.State.rank = data.rank || "Trainer";
+        
+        // Sync RPG State dari Database
+        this.State.rpg.lvl = data.level || 1;
+        this.State.rpg.exp = data.exp || 0;
+        this.State.rpg.stm = data.stamina || 100;
+        this.State.rpg.limit = data.limit_harian || 0;
 
+        // 3. UPDATE UI DASAR
+        document.getElementById('dispNick').innerText = this.user.nick || "ADVENTURER";
+        document.getElementById('dispZone').innerText = this.State.areaTugas;
+        document.getElementById('dispRank').innerText = this.State.rank;
 
-                // 2. AMBIL DATA PROFIL & INVENTORY
-                const userSnap = await this.db1.ref(`users/${this.user.uid}`).once('value');
-                const data = userSnap.val() || {};
-                
-                this.State.areaTugas = data.area_tugas || this.user.zone || "KNG";
-                
-                // 3. UPDATE UI DASAR
-                document.getElementById('dispNick').innerText = this.user.nick || "ADVENTURER";
-                document.getElementById('dispZone').innerText = this.State.areaTugas;
-                document.getElementById('dispRank').innerText = data.rank || "Trainer";
+        this.UI.updateRPG();
+        this.UI.applyRankTheme(this.State.rank);
+        this.UI.loadSaverSettings();
+        this.UI.bindEvents();
+        
+        // 4. JALANKAN SISTEM
+        await this.Core.checkDailyLogin(); 
+        this.Core.startGPS(); 
+        this.Core.listenToContracts();
+        this.Core.listenToClosedReports();
 
-                this.UI.updateRPG();
-                this.UI.applyRankTheme(data.rank || "Trainer");
-                this.UI.loadSaverSettings();
-                this.UI.bindEvents(); // Pasang event listener ke tombol
-                
-                // 4. JALANKAN SISTEM UTAMA
-                await this.Core.checkDailyLogin(); // Sinkronisasi Daily Login & Inventory
-                this.Core.startGPS(); 
-                this.Core.listenToContracts();
-                this.Core.listenToClosedReports(); // Dengarkan laporan tempat tutup
+    } catch (e) {
+        this.UI.showAlert("KONEKSI GAGAL", e.message);
+    }
+},
 
-            } catch (e) {
-                this.UI.showAlert("KONEKSI GAGAL", e.message);
-            }
-        },
 
         UI: {
             bindEvents: function() {
@@ -367,6 +370,20 @@
 
                 const btnSubmitBid = document.getElementById('btnSubmitBid');
                 if(btnSubmitBid) btnSubmitBid.addEventListener('click', () => App.Bidding.submit());
+
+const bidInput = document.getElementById('bidAmount');
+document.querySelectorAll('.modal-box .btn-filter').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        let current = parseInt(bidInput.value.replace(/\./g, '')) || 0;
+        if (e.target.innerText === '+5K') current += 5000;
+        if (e.target.innerText === '-5K' && current > 5000) current -= 5000;
+        
+        App.BiddingData.currentPrice = current;
+        bidInput.value = current.toLocaleString('id-ID');
+        AudioEngine.play('click');
+    });
+});
+                
             },
 
             updateRPG: function() {
@@ -820,14 +837,16 @@
 
                         // Update Database Inventory (Menuju root adventurer_inventory sesuai gambar referensi Anda)
                         const invRef = App.db1.ref(`adventurer_inventory/${App.user.uid}`);
-                        const invSnap = await invRef.once('value');
-                        let inv = invSnap.val() || { id_adventurer: App.user.uid };
+const invSnap = await invRef.once('value');
+let inv = invSnap.val() || { id_adventurer: App.user.uid };
 
-                        if (reward === "SMALL STAMINA POTION") {
-                            inv.small_stamina_potion = (inv.small_stamina_potion || 0) + 1;
-                        } else if (reward === "PRIORITY TICKET") {
-                            inv.priority_ticket = (inv.priority_ticket || 0) + 1;
-                        }
+if (reward === "SMALL STAMINA POTION") {
+    inv.small_stamina_potion = (inv.small_stamina_potion || 0) + 1;
+} else if (reward === "PRIORITY TICKET") {
+    inv.priority_ticket = (inv.priority_ticket || 0) + 1;
+}
+
+await invRef.set(inv); 
 
                         // Simpan Data
                         await userRef.set(stats);
