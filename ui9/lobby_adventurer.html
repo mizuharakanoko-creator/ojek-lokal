@@ -551,83 +551,95 @@ body.saver-mode .rank-badge {
 
         BiddingData: { mid: "", basePrice: 0, currentPrice: 0 },
 
-Init: async function() {
-    try {
-        // Tampilkan loading atau status awal
-        console.log("Sovereign System: Initializing...");
-        
-        this.user = Clearchance.enforceIdentity();
-        this.db1 = getTerminal('FB1_MASTER');
-        this.db4 = getTerminal('FB4_BOARD');
+        init: async function() {
+            try {
+                console.log("Sovereign System: Initializing Terminal...");
+                
+                // 1. Enforce Identity & Base DB Connections
+                this.user = Clearchance.enforceIdentity();
+                this.db1 = getTerminal('FB1_MASTER');
+                this.db4 = getTerminal('FB4_BOARD');
 
-        // 1. Ambil Index dari FB1 (Data Master)
-        const indexSnap = await this.db1.ref(`adventurer_index/${this.user.uid}`).once('value');
-        const indexData = indexSnap.val() || {};
-        
-        // Simpan ke State (Ini kunci agar nickname ngga hilang)
-        this.State.nickname = (indexData.nickname || "ADVENTURER").toUpperCase();
-        this.State.areaTugas = indexData.area_tugas || "KNG";
-        const shardTarget = indexData.shard_id || "FB2_RUNNER";
-        
-        if(document.getElementById('dispZone')) {
-            document.getElementById('dispZone').innerText = this.State.areaTugas;
-        }
+                // 2. Ambil Index dari FB1 (Data Master/Permanen)
+                // Ini dilakukan 'once' untuk efisiensi di awal
+                const indexSnap = await this.db1.ref(`adventurer_index/${this.user.uid}`).once('value');
+                const indexData = indexSnap.val() || {};
+                
+                // Simpan Identitas Dasar ke State
+                this.State.nickname = (indexData.nickname || "ADVENTURER").toUpperCase();
+                this.State.areaTugas = indexData.area_tugas || "KNG";
+                const shardTarget = indexData.shard_id || "FB2_RUNNER";
+                
+                // Render Zone Awal
+                if(document.getElementById('dispZone')) {
+                    document.getElementById('dispZone').innerText = this.State.areaTugas;
+                }
 
-        // 2. Koneksi ke Shard (Data Dinamis RPG)
-        const dbShard = getTerminal(shardTarget);
+                // 3. Koneksi ke Shard Dinamis (Data RPG)
+                const dbShard = getTerminal(shardTarget);
 
-        // 3. Listener Profil & Gelar (Real-time dari FB2)
-        dbShard.ref(`adventurer-${this.State.areaTugas}/adventurer_profile/${this.user.uid}`).on('value', snap => {
-            const p = snap.val() || {};
-            const gelar = p.gelar || "Novice Traveler";
-            
-            // Gabungkan Nama + Gelar
-            const nick = this.State.nickname;
-            const fullTitle = `${nick} , ${gelar}`;
-            
-            const nickEl = document.getElementById('dispNick');
-            if(nickEl) {
-                // Potong teks jika kepanjangan agar UI ngga hancur
-                nickEl.innerText = fullTitle.length > 22 
-                    ? `${nick} , ${gelar.substring(0, 10)}...` 
-                    : fullTitle;
+                // 4. Listener Profil & Gelar (Real-time dari Shard)
+                // Menggunakan .on agar jika Rank/Gelar berubah di DB, UI langsung berubah
+                dbShard.ref(`adventurer-${this.State.areaTugas}/adventurer_profile/${this.user.uid}`).on('value', snap => {
+                    const p = snap.val() || {};
+                    const gelar = p.gelar || "Novice Traveler";
+                    
+                    // Gabungkan Nickname + Gelar
+                    const nick = this.State.nickname;
+                    const fullTitle = `${nick} , ${gelar}`;
+                    
+                    const nickEl = document.getElementById('dispNick');
+                    if(nickEl) {
+                        // Proteksi agar UI tidak hancur jika gelar terlalu panjang
+                        nickEl.innerText = fullTitle.length > 22 
+                            ? `${nick} , ${gelar.substring(0, 10)}...` 
+                            : fullTitle;
+                    }
+
+                    this.State.rank = p.rank || "F";
+                    this.State.rpg.lvl = p.level || 1;
+                    
+                    if(document.getElementById('dispRank')) document.getElementById('dispRank').innerText = this.State.rank;
+                    if(document.getElementById('dispLvl')) document.getElementById('dispLvl').innerText = this.State.rpg.lvl;
+                    
+                    // Update Tema UI berdasarkan Rank baru
+                    this.UI.applyRankTheme(this.State.rank);
+                    this.UI.updateRPG();
+                });
+
+                // 5. Listener Experience, Stamina & Limit (Real-time dari Shard)
+                dbShard.ref(`adventurer-${this.State.areaTugas}/adventurer_experience/${this.user.uid}`).on('value', snap => {
+                    const e = snap.val() || {};
+                    
+                    // Update State RPG
+                    this.State.rpg.exp = e.exp || 0;
+                    this.State.rpg.expNext = (this.State.rpg.lvl) * 100;
+                    this.State.rpg.stm = e.current_stamina || 0;
+                    this.State.rpg.stmMax = e.max_stamina || 100;
+                    this.State.rpg.limit = Number(e.limit_harian || 0);
+                    this.State.rpg.limitMax = Number(e.max_limit || 10);
+                    
+                    // Sinkronkan ke Bar UI
+                    this.UI.updateRPG();
+                });
+
+                // 6. Eksekusi Fitur Pendukung & Core
+                await this.Core.checkDailyLogin();
+                this.UI.loadSaverSettings();
+                this.UI.startEduRotary(); 
+                this.Core.startGPS();
+                this.Core.listenToContracts();
+
+                console.log("Sovereign System: Terminal Online.");
+
+            } catch (e) {
+                console.error("Critical Init Error:", e);
+                if(this.UI.showAlert) {
+                    this.UI.showAlert("KONEKSI GAGAL", "Gagal memuat data Master Adventurer. Periksa izin lokasi dan koneksi.");
+                }
             }
+        },
 
-            this.State.rank = p.rank || "F";
-            this.State.rpg.lvl = p.level || 1;
-            
-            if(document.getElementById('dispRank')) document.getElementById('dispRank').innerText = this.State.rank;
-            if(document.getElementById('dispLvl')) document.getElementById('dispLvl').innerText = this.State.rpg.lvl;
-            
-            this.UI.applyRankTheme(this.State.rank);
-            this.UI.updateRPG();
-        });
-
-        // 4. Listener Experience & Stamina
-        dbShard.ref(`adventurer-${this.State.areaTugas}/adventurer_experience/${this.user.uid}`).on('value', snap => {
-            const e = snap.val() || {};
-            this.State.rpg.exp = e.exp || 0;
-            this.State.rpg.stm = e.current_stamina || 0;
-            this.State.rpg.stmMax = e.max_stamina || 100;
-            this.State.rpg.limit = Number(e.limit_harian || 0);
-            this.State.rpg.limitMax = Number(e.max_limit || 10);
-            this.UI.updateRPG();
-        });
-
-        // 5. Eksekusi Fitur Pendukung
-        await this.Core.checkDailyLogin();
-        this.UI.loadSaverSettings();
-        this.UI.startEduRotary(); 
-        this.Core.startGPS();
-        this.Core.listenToContracts();
-
-    } catch (e) {
-        console.error("Critical Init Error:", e);
-        if(this.UI.showAlert) {
-            this.UI.showAlert("KONEKSI GAGAL", "Gagal memuat data Master Adventurer.");
-        }
-    }
-},
 
 
 
@@ -932,55 +944,83 @@ updateRPG: function() {
                 }
             },
 
-            startRadar: function() {
-                const s = App.State;
-                const zone = s.areaTugas || "KNG";
-                const shardId = getShardDariKecamatan(ZONA_MAP[zone] || zone);
-                
-                if (!s.isExpanded && !s.loc.desa) return;
+                startRadar: function() {
+        const s = App.State;
+        
+        // Pastikan Zona terpetakan ke Shard yang benar
+        let zoneTarget = s.areaTugas;
+        if (typeof ZONA_MAP !== 'undefined' && ZONA_MAP[s.areaTugas]) {
+            zoneTarget = ZONA_MAP[s.areaTugas];
+        }
+        
+        const currentShard = getShardDariKecamatan(zoneTarget);
+        
+        // Tentukan Path berdasarkan mode: Wide (Kabupaten) atau Local (Desa)
+        const scanPath = s.isExpanded ? `mission-${currentShard}` : `mission-${currentShard}/${s.loc.desa}`;
+        
+        const pulseText = document.getElementById('radarPulse');
+        if (pulseText) {
+            pulseText.innerText = s.isExpanded ? `[ DEEP SCAN: SHARD ${currentShard} ]` : `[ LOCAL SCAN: ${s.loc.desa.toUpperCase()} ]`;
+        }
 
-                const scanPath = s.isExpanded ? `mission-${shardId}` : `mission-${shardId}/${s.loc.desa}`;
-                
-                if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
-                s.currentScanPath = scanPath;
+        // PENTING: Matikan listener lama sebelum membuat yang baru agar tidak memakan RAM
+        if (s.currentScanPath) App.db4.ref(s.currentScanPath).off();
+        s.currentScanPath = scanPath;
 
-                App.db4.ref(scanPath).on('value', snap => {
-                    const listDiv = document.getElementById('missionList');
-                    if(!listDiv) return;
-                    listDiv.innerHTML = "";
+        App.db4.ref(scanPath).on('value', snap => {
+            const listDiv = document.getElementById('missionList');
+            if(!listDiv) return;
+            
+            listDiv.innerHTML = ""; // Bersihkan list
+            
+            if (!snap.exists()) {
+                listDiv.innerHTML = `<div id="emptyState"><span style="color:var(--theme-color);">[ NO SIGNAL ]</span><br>Tidak ada misi terbuka di koordinat ini.</div>`;
+                return;
+            }
+
+            let allMissions = [];
+            const now = Date.now();
+            const oneHour = 60 * 60 * 1000; // 1 Jam Expired
+
+            const collect = (m) => {
+                if (m && m.status === 'open') {
+                    // Filter Expired (Kecuali kategori Help biasanya lebih lama)
+                    const diffTime = now - (m.timestamp || 0);
+                    const isExpired = (m.category !== 'Help' && diffTime > oneHour);
                     
-                    let allMissions = [];
-                    if (s.isExpanded) {
-                        snap.forEach(desaSnap => {
-                            desaSnap.forEach(misiSnap => {
-                                const m = misiSnap.val();
-                                if(m.status === 'open') {
-                                    // Logika Filter
-                                    if(!this.currentFilter || this.currentFilter === 'All' || m.category === this.currentFilter) {
-                                        allMissions.push(m);
-                                    }
-                                }
-                            });
-                        });
-                    } else {
-                        snap.forEach(misiSnap => {
-                            const m = misiSnap.val();
-                            if(m.status === 'open') {
-                                if(!this.currentFilter || this.currentFilter === 'All' || m.category === this.currentFilter) {
-                                    allMissions.push(m);
-                                }
-                            }
-                        });
+                    // Filter Kategori
+                    const matchFilter = (!s.currentFilter || s.currentFilter === 'All' || m.category === s.currentFilter);
+                    
+                    if (!isExpired && matchFilter) {
+                        allMissions.push(m);
                     }
+                }
+            };
 
-                    if(allMissions.length === 0) {
-                        listDiv.innerHTML = `<div id="emptyState">[ NO SIGNAL ]<br>Area ${s.loc.desa || zone} bersih dari misi.</div>`;
-                    } else {
-                        AudioEngine.play('sonar');
-                        allMissions.forEach(m => App.Core.renderMisi(m, listDiv));
-                    }
+            // Jika Expanded, data bersarang di bawah Desa. Jika Local, data langsung di bawah Path.
+            if (s.isExpanded) {
+                snap.forEach(desaSnap => {
+                    desaSnap.forEach(misiSnap => collect(misiSnap.val()));
                 });
-            },
+            } else {
+                snap.forEach(misiSnap => collect(misiSnap.val()));
+            }
+
+            // Acak urutan misi agar tidak membosankan (Gacha feel)
+            allMissions.sort(() => Math.random() - 0.5);
+            
+            // Batasi tampilan (misal max 15 misi) untuk performa
+            const finalMissions = allMissions.slice(0, 15);
+            
+            if(finalMissions.length === 0) {
+                listDiv.innerHTML = `<div id="emptyState">Sinyal terdeteksi, namun tidak ada kontrak yang sesuai kriteria Anda.</div>`;
+            } else {
+                AudioEngine.play('sonar');
+                finalMissions.forEach(m => this.renderMisi(m, listDiv));
+            }
+        });
+    },
+
 
             calcDist: function(lat1, lon1, lat2, lon2) {
                 if(!lat1 || !lat2) return 0;
@@ -991,71 +1031,83 @@ updateRPG: function() {
                 return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             },
             
-            renderMisi: function(m, container) {
-                let mLat = m.lat, mLng = m.lng;
-                if(!mLat && m.origin_desa) {
-                    const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
-                    if(detailAsal) { mLat = detailAsal.lat; mLng = detailAsal.lng; }
+                renderMisi: function(m, container) {
+        // Tentukan Koordinat Target (Gunakan Koordinat Misi atau Fallback ke Desa Asal)
+        let mLat = m.lat, mLng = m.lng;
+        if(!mLat && m.origin_desa) {
+            const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
+            if(detailAsal) { mLat = detailAsal.lat; mLng = detailAsal.lng; }
+        }
+        
+        // Hitung Jarak dari Lokasi User
+        const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
+        const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK SCANNING...`;
+        
+        // Penentuan Warna Kesulitan
+        let diffColor = "#4ade80"; // Hijau (Mudah)
+        if (m.difficulty_rate > 1.5) diffColor = "#facc15"; // Kuning (Menengah)
+        if (m.difficulty_rate > 2.0) diffColor = "#f87171"; // Merah (Bahaya)
+
+        // Cek apakah user sudah melamar misi ini sebelumnya
+        const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
+        const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || (m.dest_name && m.dest_name.includes('[TITIK')));
+        
+        const rewardDisplay = (m.reward === 0 || !m.reward) ? 
+            '<span style="color:#facc15; font-weight:bold;">NEGO</span>' : 
+            `Rp ${m.reward.toLocaleString('id-ID')}`;
+
+        const div = document.createElement('div');
+        div.className = `mission-card ${isApplied ? 'applied-locked' : 'flash'}`;
+        
+        // Format Rincian untuk Titip Beli (Gunakan pemisah pipe | )
+        let formattedDest = m.dest_name || "";
+        if(isSpecial && formattedDest.includes('|')) {
+            formattedDest = formattedDest.split('|')
+                .map(t => `<div class="titik-item">• ${t.trim()}</div>`)
+                .join('');
+        }
+
+        // Sanitasi input agar tidak merusak HTML (XSS Protection sederhana)
+        const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+        const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+
+        div.innerHTML = `
+            <div class="m-header">
+                <span>ID: ${m.id_misi.slice(-6).toUpperCase()}</span>
+                ${isApplied ? 
+                    '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
+                    `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
                 }
+            </div>
+            <div class="m-title">
+                ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'TUJUAN: ' + (m.dest_desa || 'AREA TERDEKAT').toUpperCase()}
+            </div>
+            
+            ${isSpecial ? `
+                <div class="special-detail-box">${formattedDest || 'Membuka rincian data...'}</div>
+            ` : `
+                <div class="m-route">
+                    <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
+                    <div style="font-size:10px; color:#666;">Ke: ${m.dest_desa}</div>
+                </div>
+            `}
 
-                const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
-                const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
-                
-                let diffColor = "#4ade80";
-                if (m.difficulty_rate > 1.5) diffColor = "#facc15";
-                if (m.difficulty_rate > 2.0) diffColor = "#f87171";
-
-                const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
-                const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help');
-                
-                const rewardDisplay = (m.reward === 0 || !m.reward) ? 
-                    '<span style="color:#facc15; font-weight:bold;">NEGO</span>' : 
-                    `Rp ${m.reward.toLocaleString('id-ID')}`;
-
-                const div = document.createElement('div');
-                div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
-                
-                let formattedDest = m.dest_name || "";
-                if(isSpecial && formattedDest.includes('|')) {
-                    formattedDest = formattedDest.split('|')
-                        .map(t => `<div class="titik-item">${t.trim()}</div>`)
-                        .join('');
-                }
-
-                const safeDest = (m.dest_name || "").replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, " ");
-                const safeNote = (m.note || "").replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, " ");
-
-                div.innerHTML = `
-                    <div class="m-header">
-                        <span>ID: ${m.id_misi.slice(-6).toUpperCase()}</span>
-                        ${isApplied ? 
-                            '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
-                            `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
-                        }
-                    </div>
-                    <div class="m-title">
-                        ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + (m.dest_desa || 'TUJUAN').toUpperCase()}
-                    </div>
-                    ${isSpecial ? `<div class="special-detail-box">${formattedDest || 'Tidak ada rincian data.'}</div>` : `
-                        <div class="m-route">
-                            <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
-                            <div style="font-size:10px; color:#666;">Tujuan: ${m.dest_desa}</div>
-                        </div>
-                    `}
-                    <div style="font-size:10px; color:var(--theme-color); margin-bottom:8px; font-family:var(--font-terminal); font-weight:bold;">
-                        KATEGORI: ${m.category || 'REGULER'}
-                    </div>
-                    <div class="m-reward">
-                        <span class="m-dist">${jarakTeks}</span>
-                        <span>${rewardDisplay}</span>
-                    </div>
-                    ${isApplied ? 
-                        `<button class="btn-bid-card" disabled>KONTRAK DALAM TINJAUAN</button>` :
-                        `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}')">LIHAT DETAIL / NEGO</button>`
-                    }
-                `;
-                container.appendChild(div);
-            },
+            <div style="font-size:10px; color:var(--theme-color); margin-top:8px; font-family:var(--font-terminal); font-weight:bold;">
+                KATEGORI: ${m.category || 'REGULER'}
+            </div>
+            
+            <div class="m-reward">
+                <span class="m-dist">${jarakTeks}</span>
+                <span>${rewardDisplay}</span>
+            </div>
+            
+            ${isApplied ? 
+                `<button class="btn-bid-card" disabled>MENUNGGU RESPON REQUESTER...</button>` :
+                `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}')">LIHAT DETAIL / NEGO</button>`
+            }
+        `;
+        container.appendChild(div);
+    },
 
             listenToContracts: function() {
                 App.db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(App.user.uid).on('child_added', snap => {
