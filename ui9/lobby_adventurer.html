@@ -553,39 +553,36 @@ init: async function() {
         this.user = Clearchance.enforceIdentity();
         this.db1 = getTerminal('FB1_MASTER');
         this.db4 = getTerminal('FB4_BOARD');
-        const db2 = getTerminal('FB2_RUNNER');
 
-        // 1. Ambil Data Dasar (Nickname & Zona) dari folder "Umum"
-        // Berdasarkan database: Umum > ID_USER > nickname
-        const umumSnap = await this.db1.ref(`Umum/${this.user.uid}`).once('value');
-        const dataUmum = umumSnap.val() || {};
+        // 1. CARI SHARD & ZONA (FB1_MASTER > adventurer_index)
+        // Sesuai foto: adventurer_index > ID_USER
+        const indexSnap = await this.db1.ref(`adventurer_index/${this.user.uid}`).once('value');
+        const indexData = indexSnap.val() || {};
         
-        const nickname = dataUmum.nickname || "ADVENTURER";
-        this.State.areaTugas = dataUmum.area_tugas || "KNG";
-        document.getElementById('dispZone').innerText = this.State.areaTugas;
+        const zonaUser = indexData.area_tugas || "KNG"; 
+        const shardTarget = indexData.shard_id || "FB2_RUNNER"; // Mengambil FB2_RUNNER dari DB
+        const nickname = indexData.nickname || "ADVENTURER";
+        
+        this.State.areaTugas = zonaUser;
+        document.getElementById('dispZone').innerText = zonaUser;
 
-        // 2. Listener Real-Time Profil (Gelar, Rank, Level)
-        // Berdasarkan database: adventurer_profile > ID_USER > gelar
-        db2.ref(`adventurer_profile/${this.user.uid}`).on('value', snap => {
+        // 2. KONEKSI KE TERMINAL SHARD YANG DITUNJUK (FB2_RUNNER)
+        const dbShard = getTerminal(shardTarget);
+
+        // 3. LISTENER REAL-TIME PROFIL (Gelar, Rank, Level)
+        // Path: adventurer-KNG > adventurer_profile > ID_USER
+        dbShard.ref(`adventurer-${zonaUser}/adventurer_profile/${this.user.uid}`).on('value', snap => {
             const p = snap.val() || {};
-            const gelar = p.gelar || "Novice Traveler"; // Ambil gelar dari DB
+            const gelar = p.gelar || "Novice Traveler";
             
-            // --- PENANGANAN KERAPIAN NAMA & GELAR (JS TRUNCATE) ---
+            // Penanganan kerapihan teks (Truncate) agar tidak overflow
             const combinedName = `${nickname.toUpperCase()} , ${gelar}`;
-            let finalDisplay = combinedName;
-            
-            // Jika total karakter lebih dari 25, kita potong gelarnya agar tidak overflow
-            if (combinedName.length > 25) {
-                const truncatedGelar = gelar.substring(0, 10) + "...";
-                finalDisplay = `${nickname.toUpperCase()} , ${truncatedGelar}`;
-            }
-            
-            document.getElementById('dispNick').innerText = finalDisplay;
-            // ------------------------------------------------------
+            document.getElementById('dispNick').innerText = combinedName.length > 22 
+                ? `${nickname.toUpperCase()} , ${gelar.substring(0, 10)}...` 
+                : combinedName;
 
-            this.State.rank = p.rank || "F"; // Menampilkan Rank F sesuai DB
+            this.State.rank = p.rank || "F";
             this.State.rpg.lvl = p.level || 1;
-            this.State.rpg.expNext = (p.level || 1) * 100;
             
             document.getElementById('dispRank').innerText = this.State.rank;
             document.getElementById('dispLvl').innerText = this.State.rpg.lvl;
@@ -594,33 +591,32 @@ init: async function() {
             this.UI.updateRPG();
         });
 
-        // 3. Listener Real-Time Status Bar (Stamina, EXP, Limit)
-        // Berdasarkan database: adventurer_experience > ID_USER
-        db2.ref(`adventurer_experience/${this.user.uid}`).on('value', snap => {
+        // 4. LISTENER REAL-TIME STATUS BAR (Stamina, EXP, Limit)
+        // Path: adventurer-KNG > adventurer_experience > ID_USER
+        dbShard.ref(`adventurer-${zonaUser}/adventurer_experience/${this.user.uid}`).on('value', snap => {
             const e = snap.val() || {};
             
             this.State.rpg.exp = e.exp || 0;
-            this.State.rpg.stm = e.current_stamina || 0; // Mengambil nilai 100 dari DB
-            this.State.rpg.stmMax = e.max_stamina || 100; 
+            this.State.rpg.stm = e.current_stamina || 0; // Mengambil 100 dari DB
+            this.State.rpg.stmMax = e.max_stamina || 100;
             this.State.rpg.limit = Number(e.limit_harian || 0);
-            this.State.rpg.limitMax = Number(e.max_limit || 10); // Mengambil nilai 10 dari DB
+            this.State.rpg.limitMax = Number(e.max_limit || 10);
 
-            // Memanggil updateRPG agar bar Stamina langsung penuh (100/100)
             this.UI.updateRPG();
         });
 
-        // 4. Jalankan Fitur Pendukung
+        // 5. JALANKAN FITUR LAIN
         await this.Core.checkDailyLogin();
         this.UI.loadSaverSettings();
-        this.UI.startEduRotary();
         this.Core.startGPS();
         this.Core.listenToContracts();
 
     } catch (e) {
         console.error("Critical Init Error:", e);
-        this.UI.showAlert("KONEKSI GAGAL", "Gagal sinkronisasi data dari basis data.");
+        this.UI.showAlert("KONEKSI GAGAL", "Gagal sinkronisasi data index.");
     }
 },
+
 
 
 
