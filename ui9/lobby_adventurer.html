@@ -602,7 +602,7 @@ body.saver-mode .rank-badge {
 
         BiddingData: { mid: "", basePrice: 0, currentPrice: 0 },
 
-    init: async function() {
+init: async function() {
     try {
         // 1. Inisialisasi Terminal Utama
         this.db1 = getTerminal('FB1_MASTER');
@@ -621,15 +621,37 @@ const indexSnap = await this.db1.ref(`adventurer_index/${idAdvClean}`).once('val
 const indexData = indexSnap.val();
 
 if (indexData) {
-    // Otomatis mengambil "KNG" atau kode area lainnya dari database
-    this.State.zone = indexData.area_tugas; 
-    
-    // Tampilkan di UI agar user tahu mereka berada di zona mana
+    // 1. Identifikasi Lokasi & Terjemahkan Nama Zona
+    const kodeZona = indexData.area_tugas || "KNG"; 
+    const namaPanjangZona = ZONA_MAP[kodeZona] || kodeZona;
+
+    // 2. Hubungkan ke Shard (Database Regional)
+    // shard_id ditarik dari indexData (misal: "FB2_RUNNER")
+    const shardID = indexData.shard_id; 
+    const dbShard = getTerminal(shardID); 
+
+    // 3. Simpan Identitas ke State Internal
+    this.State.zone = kodeZona;
+    this.State.namaZona = namaPanjangZona;
+    this.State.idAdv = indexData.id_adv; // Simpan ID asli untuk referensi update
+
+    // 4. Update Tampilan Nama Zona di UI
     const zoneElement = document.getElementById('dispZone');
-    if(zoneElement) zoneElement.innerText = this.State.zone;
+    if(zoneElement) {
+        zoneElement.innerText = `Zona ${this.State.namaZona}`; 
+    }
+
+    // 5. AMBIL DATA RPG (Stamina, Exp, Limit) DARI SHARD
+    const expSnap = await dbShard.ref(`adventurer_experience/${this.State.idAdv}`).once('value');
+    const xpData = expSnap.val() || {};
+
+    // 6. Jalankan Logika Reset & Sinkronisasi
+    // Kita kirim dbShard agar fungsi Core bisa melakukan update jika sudah lewat jam 00.00
+    await this.Core.syncRPGStats(this.State.idAdv, dbShard, xpData);
     
-    console.log("Zone terdeteksi secara otomatis:", this.State.zone);
+    console.log(`[System] Koneksi Shard: ${shardID} | Lokasi: ${namaPanjangZona}`);
 }
+
         
         
         const shardTarget = indexData.shard_id || "FB2_RUNNER"; //
