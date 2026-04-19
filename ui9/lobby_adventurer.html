@@ -279,22 +279,27 @@
         BiddingData: { mid: "", basePrice: 0, currentPrice: 0 },
 
         init: async function() {
-            try {
-                this.user = Clearchance.enforceIdentity();
-                this.db1 = getTerminal('FB1_MASTER'); // Database Master (User, Inventory, Judge)
-                this.db4 = getTerminal('FB4_BOARD');  // Database Misi & Kontrak
+    try {
+        // Pastikan objek Clearchance tersedia
+        if (typeof Clearchance === 'undefined') {
+            throw new Error("Library Autentikasi (Clearchance) belum dimuat.");
+        }
+        
+        this.user = Clearchance.enforceIdentity();
+        this.db1 = getTerminal('FB1_MASTER'); // Lokasi tabel profil & inventory
 
-                // 1. CEK STATUS SUSPENDED (HUKUMAN)
-                const judgeSnap = await this.db1.ref(`adventurer_judge/${this.user.uid}`).once('value');
-                if (judgeSnap.exists() && judgeSnap.val().is_suspended === true) {
-                    document.body.innerHTML = `
-                        <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; background:#000; color:#f87171; font-family:monospace; padding: 20px; text-align:center;">
-                            <h1 style="border-bottom:2px solid #f87171; padding-bottom:10px;">ACCESS DENIED</h1>
-                            <p>Sistem mendeteksi Anda dalam masa penangguhan (Suspended) oleh Guild.</p>
-                            <p style="color:#666; font-size:12px;">Silakan hubungi Administrator untuk banding.</p>
-                        </div>`;
-                    return; // Hentikan inisialisasi
-                }
+        // Pengecekan status hukuman berdasarkan struktur gambar database Anda
+        const judgeSnap = await this.db1.ref(`adventurer_judge/${this.user.uid}`).once('value');
+        if (judgeSnap.exists() && judgeSnap.val().is_suspended === true) {
+            this.UI.showSuspendedScreen();
+            return;
+        }
+
+        // Pengambilan data inventory dari path yang benar
+        const invSnap = await this.db1.ref(`adventurer_inventory/${this.user.uid}`).once('value');
+        const inventoryData = invSnap.val() || {};
+        console.log("Inventory Loaded:", inventoryData); // Berisi small_stamina_potion dll.
+
 
                 // 2. AMBIL DATA PROFIL & INVENTORY
                 const userSnap = await this.db1.ref(`users/${this.user.uid}`).once('value');
