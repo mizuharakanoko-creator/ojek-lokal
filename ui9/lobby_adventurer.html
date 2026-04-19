@@ -360,21 +360,69 @@
         }
 
 
+/* --- BATTERY SAVER MODE: MINIMALIST UI --- */
+
+/* 1. Memaksa latar belakang jadi hitam pekat (OLED Friendly) */
+body.saver-mode {
+    background: #000 !important;
+    background-image: none !important; /* Matikan gradasi Rank S */
+    animation: none !important;
+}
+
+/* 2. Mematikan efek cahaya dan bayangan di seluruh elemen */
+body.saver-mode * {
+    text-shadow: none !important;
+    box-shadow: none !important;
+    animation: none !important;
+}
+
+/* 3. Menyederhanakan tampilan Box Radar & Kartu Misi */
+body.saver-mode .radar-box, 
+body.saver-mode .mission-card,
+body.saver-mode .modal-box {
+    border: 1px solid #333 !important; /* Garis tipis saja */
+    background: #000 !important;
+}
+
+/* 4. Menghilangkan elemen visual dekoratif */
+body.saver-mode .radar-box::before, /* Garis putar radar */
+body.saver-mode .mission-card.flash { /* Animasi kartu baru */
+    display: none !important;
+}
+
+/* 5. Mengubah tombol jadi low-contrast (Abu-abu gelap) */
+body.saver-mode .btn-bid-card, 
+body.saver-mode .btn-confirm,
+body.saver-mode .rank-badge {
+    background: #1a1a1a !important;
+    color: #ccc !important;
+    border: 1px solid #444 !important;
+}
+
+
+
     </style>
 </head>
 <body>
 
 <header>
-    <div class="user-info">
+     <div class="user-info">
         <div>
             ID: <span class="user-nick" id="dispNick">AWAITING...</span><br>
             <span style="color:#888; font-size:10px;">ZONE: <span id="dispZone" style="color:#fff;">-</span></span>
+            <div style="margin-top: 5px;">
+                <button onclick="App.UI.toggleSaver()" id="btnSaver" 
+                    style="background:#222; color:#888; border:1px solid #444; font-size:9px; padding:3px 8px; border-radius:3px; cursor:pointer;">
+                    BATTERY SAVER: OFF
+                </button>
+            </div>
         </div>
         <div style="text-align: right;">
             RANK<br>
             <span class="rank-badge" id="dispRank">-</span>
         </div>
     </div>
+
     
     <div class="edu-panel" id="eduPanel">
         Menghubungkan ke satelit Sovereign Guild...
@@ -523,6 +571,7 @@
                 };
 
                 this.UI.updateRPG(); // Update tampilan bar
+                this.UI.loadSaverSettings();
                 
                 // ... (sisanya sama seperti init sebelumnya)
                 document.getElementById('dispNick').innerText = this.user.nick || "ADVENTURER";
@@ -659,6 +708,34 @@
                 document.getElementById('missionList').innerHTML = `<div id="emptyState">Menyesuaikan frekuensi satelit...</div>`;
                 App.Core.startRadar();
             }
+                
+            toggleSaver: function() {
+                // 1. Tambah/Hapus class 'saver-mode' di body
+                const isActive = document.body.classList.toggle('saver-mode');
+                
+                // 2. Update tulisan di tombol
+                const btn = document.getElementById('btnSaver');
+                if (isActive) {
+                    btn.innerText = "BATTERY SAVER: ON";
+                    btn.style.color = "#4ade80"; // Hijau kalau aktif
+                } else {
+                    btn.innerText = "BATTERY SAVER: OFF";
+                    btn.style.color = "#888";
+                }
+
+                // 3. Simpan pilihan di memori HP agar saat refresh tidak berubah
+                localStorage.setItem('sov_saver_mode', isActive);
+                AudioEngine.play('click');
+            },
+
+            // Panggil ini saat aplikasi pertama kali dibuka (di App.init)
+            loadSaverSettings: function() {
+                const saved = localStorage.getItem('sov_saver_mode');
+                if (saved === 'true') {
+                    this.toggleSaver();
+                }
+            }
+
         },
 
                 Bidding: {
