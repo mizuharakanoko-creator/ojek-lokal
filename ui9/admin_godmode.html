@@ -3,382 +3,364 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sovereign Guild - God Mode Console</title>
+    <title>SOVEREIGN GUILD - ADVENTURER TERMINAL</title>
     
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="router_lokal.js"></script>
+    <script src="clearchance.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap');
-
+        /* ==========================================
+           1. BASE & RANK THEME ENGINE (OLED UI)
+           ========================================== */
         :root {
-            --bg-deep: #020617;
-            --panel-glass: rgba(30, 41, 59, 0.7);
-            --accent-gold: #fbbf24;
-            --glow-gold: 0 0 15px rgba(251, 191, 36, 0.5);
-            --accent-red: #f43f5e;
-            --accent-cyan: #22d3ee;
-            --text-system: #e2e8f0;
+            --bg-main: #050505;
+            --bg-card: #0f0f0f;
+            --text-main: #ffffff;
+            --font-terminal: 'Courier New', Courier, monospace;
+            --font-sans: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --theme-color: #888888; 
+            --theme-bg-glow: rgba(136, 136, 136, 0.05);
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * { user-select: none; -webkit-user-select: none; box-sizing: border-box; outline: none; }
+        body { background-color: var(--bg-main); color: var(--text-main); margin: 0; font-family: var(--font-sans); padding-bottom: 80px; transition: all 0.5s ease; }
+
+        /* Dynamic Rank Themes */
+        body.rank-trainer { --theme-color: #888888; }
+        body.rank-e { --theme-color: #4ade80; }
+        body.rank-d { --theme-color: #60a5fa; }
+        body.rank-c { --theme-color: #a855f7; }
+        body.rank-b { --theme-color: #facc15; }
+        body.rank-a { --theme-color: #fb923c; }
+        body.rank-s { --theme-color: #ff4500; background: linear-gradient(45deg, #1a0500, #050505); }
+
+        header { background: var(--bg-card); padding: 15px; border-bottom: 2px solid var(--theme-color); position: sticky; top: 0; z-index: 100; }
+        .user-info { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-terminal); font-size: 12px; }
+        .user-nick { color: var(--text-main); font-weight: bold; font-size: 16px; letter-spacing: 1px;}
+        .rank-badge { background: var(--theme-color); color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 900; }
+
+        /* RPG Status Bar */
+        .status-rpg-container { background: #000; padding: 10px 15px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid #222; }
+        .rpg-row { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-terminal); font-size: 10px; }
+        .bar-outer { flex: 1; height: 6px; background: #222; margin: 0 10px; border-radius: 3px; overflow: hidden; }
+        .bar-inner { height: 100%; width: 0%; transition: width 0.5s ease; }
+        #staminaBar { background: #4ade80; }
+        #expBar { background: #60a5fa; }
+        .stat-val { color: var(--theme-color); font-weight: bold; }
+
+        /* Radar & Mission Cards */
+        .radar-box { border: 1px solid var(--theme-color); background: var(--bg-card); padding: 15px; border-radius: 8px; margin: 15px; position: relative; overflow: hidden; }
+        .mission-card { background: #0a0a0a; border: 1px solid #1a1a1a; margin-bottom: 10px; border-left: 3px solid var(--theme-color); border-radius: 6px; padding: 12px; cursor: pointer; transition: 0.3s; }
+        .mission-card.active-expand { background: #111; }
+        .m-expand-body { display: none; margin-top: 10px; border-top: 1px solid #222; padding-top: 10px; }
+        .active-expand .m-expand-body { display: block; }
         
-        body {
-            background-color: var(--bg-deep);
-            color: var(--text-system);
-            font-family: 'Rajdhani', sans-serif;
-            overflow-x: hidden;
-            background-image: radial-gradient(circle at 50% 50%, #1e1b4b 0%, #020617 100%);
-            min-height: 100vh;
-        }
+        /* Modal Style */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 9999; }
+        .modal-box { background: var(--bg-card); border: 2px solid var(--theme-color); padding: 25px; width: 90%; max-width: 400px; border-radius: 8px; }
+        .btn-confirm { width: 100%; padding: 15px; background: var(--theme-color); color: #000; border: none; font-weight: 900; margin-top: 20px; border-radius: 6px; cursor: pointer; }
 
-        /* --- UI SYSTEM ANIMATIONS --- */
-        @keyframes pulse-glow {
-            0% { box-shadow: 0 0 5px var(--accent-gold); }
-            50% { box-shadow: 0 0 20px var(--accent-gold); }
-            100% { box-shadow: 0 0 5px var(--accent-gold); }
-        }
-
-        @keyframes slide-in {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
-        }
-
-        /* --- HEADER SYSTEM --- */
-        .header {
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(10px);
-            padding: 15px;
-            border-bottom: 2px solid var(--accent-gold);
-            display: flex; justify-content: space-between; align-items: center;
-            position: sticky; top: 0; z-index: 100;
-        }
-        .header h1 { 
-            font-family: 'Orbitron', sans-serif; font-size: 1rem; 
-            color: var(--accent-gold); text-shadow: var(--glow-gold);
-            letter-spacing: 2px;
-        }
-
-        /* --- SEARCH & LIST AREA --- */
-        .main-container { padding: 15px; padding-bottom: 100px; }
-        
-        .search-container {
-            position: relative; margin-bottom: 20px;
-        }
-        .search-input {
-            width: 100%; background: var(--panel-glass);
-            border: 1px solid var(--accent-cyan);
-            padding: 15px; border-radius: 4px; color: white;
-            font-family: 'Orbitron'; font-size: 0.9rem;
-            box-shadow: inset 0 0 10px rgba(34, 211, 238, 0.2);
-        }
-
-        .adventurer-list {
-            display: grid; gap: 12px;
-        }
-        .adv-card {
-            background: var(--panel-glass);
-            border: 1px solid rgba(255,255,255,0.1);
-            padding: 15px; border-radius: 8px;
-            display: flex; justify-content: space-between; align-items: center;
-            transition: 0.3s; cursor: pointer;
-        }
-        .adv-card:active { transform: scale(0.95); border-color: var(--accent-gold); }
-        .adv-card.selected { border-color: var(--accent-gold); background: rgba(251, 191, 36, 0.1); }
-        
-        .adv-info h3 { font-family: 'Orbitron'; color: var(--accent-cyan); font-size: 1rem; }
-        .adv-info p { font-size: 0.8rem; color: #94a3b8; }
-
-        .rank-tag {
-            padding: 4px 10px; border-radius: 4px; font-weight: bold;
-            font-family: 'Orbitron'; font-size: 0.7rem;
-            border: 1px solid currentColor;
-        }
-
-        /* --- THE GOD SHEET (SIDE PANEL) --- */
-        .side-panel {
-            position: fixed; top: 0; right: 0; width: 100%; height: 100%;
-            background: rgba(2, 6, 23, 0.95);
-            z-index: 200; display: none;
-            flex-direction: column;
-            animation: slide-in 0.3s ease-out;
-            border-left: 2px solid var(--accent-gold);
-        }
-        .panel-header {
-            padding: 20px; border-bottom: 1px solid #334155;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .panel-content {
-            flex: 1; overflow-y: auto; padding: 20px;
-        }
-
-        /* --- FORM ELEMENTS --- */
-        .form-group { margin-bottom: 20px; }
-        .form-group label {
-            display: block; font-family: 'Orbitron'; font-size: 0.7rem;
-            color: var(--accent-gold); margin-bottom: 8px; text-transform: uppercase;
-        }
-        .god-input {
-            width: 100%; background: #0f172a; border: 1px solid #334155;
-            padding: 12px; color: white; border-radius: 4px;
-            font-family: 'Rajdhani'; font-size: 1.1rem;
-        }
-        .god-input:focus { border-color: var(--accent-gold); outline: none; }
-
-        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-
-        /* --- BUTTONS --- */
-        .btn-execute {
-            background: var(--accent-gold); color: black;
-            border: none; padding: 18px; width: 100%;
-            font-family: 'Orbitron'; font-weight: bold;
-            text-transform: uppercase; cursor: pointer;
-            box-shadow: var(--glow-gold);
-            margin-top: 10px; border-radius: 4px;
-        }
-        .btn-execute:active { filter: brightness(1.2); }
-
-        .btn-close {
-            background: none; border: 1px solid var(--accent-red); color: var(--accent-red);
-            padding: 5px 15px; border-radius: 4px; cursor: pointer; font-family: 'Orbitron';
-        }
-
-        /* --- SYSTEM ALERT --- */
-        #systemAlert {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            background: var(--accent-gold); color: black; padding: 10px 20px;
-            border-radius: 4px; font-family: 'Orbitron'; font-weight: bold;
-            z-index: 1000; display: none; box-shadow: 0 0 20px black;
-        }
+        /* Animation */
+        @keyframes pulseText { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+        #radarPulse { animation: pulseText 2s infinite; text-align: center; font-size: 11px; color: var(--theme-color); font-family: var(--font-terminal); margin: 10px 0; }
     </style>
 </head>
 <body>
 
-    <div id="systemAlert">SYSTEM UPDATED</div>
-
-    <div class="header">
-        <h1>SOVEREIGN CONTROL</h1>
-        <div id="status" style="color: var(--accent-cyan); font-size: 0.7rem;">[ADMIN_DEWA_ONLINE]</div>
-    </div>
-
-    <div class="main-container">
-        <div class="search-container">
-            <input type="text" id="masterSearch" class="search-input" 
-                   placeholder="SEARCH NICKNAME / ID_ADV..." oninput="searchSovereign()">
+<header>
+    <div class="user-info">
+        <div>
+            ID: <span class="user-nick" id="dispNick">---</span><br>
+            <span id="dispGelar" style="color:var(--theme-color); font-size:10px;">LOADING...</span><br>
+            <span style="color:#888; font-size:10px;">ZONE: <span id="dispZone" style="color:#fff;">-</span></span>
         </div>
-
-        <div id="adventurerList" class="adventurer-list">
-            <p style="text-align:center; color:#475569;">Menunggu Input Dewa...</p>
+        <div style="text-align: right;">
+            RANK<br>
+            <span class="rank-badge" id="dispRank">-</span>
         </div>
     </div>
+</header>
 
-    <div id="godSheet" class="side-panel">
-        <div class="panel-header">
-            <h2 id="targetName" style="font-family:'Orbitron'; color:var(--accent-gold);">EDITING_ID...</h2>
-            <button class="btn-close" onclick="closeGodSheet()">X CLOSE</button>
-        </div>
+<div class="status-rpg-container">
+    <div class="rpg-row">
+        <span>LVL.<span id="dispLvl">1</span></span>
+        <div class="bar-outer"><div id="expBar" class="bar-inner"></div></div>
+        <span class="stat-val" id="dispExp">0/0</span>
+    </div>
+    <div class="rpg-row">
+        <span>STM</span>
+        <div class="bar-outer"><div id="staminaBar" class="bar-inner"></div></div>
+        <span class="stat-val" id="dispStm">0/0</span>
+    </div>
+    <div class="rpg-row">
+        <span style="color:#666">LIMIT HARIAN</span>
+        <span id="dispLimit" style="color:#f87171">0/0</span>
+    </div>
+</div>
 
-        <div class="panel-content">
-            <input type="hidden" id="targetId">
-            
-            <div class="form-group">
-                <label>Nickname</label>
-                <input type="text" id="in-name" class="god-input">
-            </div>
+<div class="radar-box">
+    <div style="font-size: 11px; color: #888; display: flex; justify-content: space-between;">
+        <span>LOC: <span id="locName" style="color:#fff;">MENUNGGU GPS...</span></span>
+        <span>RADAR: <span id="radarType">LOCAL</span></span>
+    </div>
+    <div id="radarPulse">[ MENCARI SINYAL AKTIF... ]</div>
+    <button onclick="App.UI.toggleRadar()" id="btnExpand" style="width:100%; background:transparent; border:1px solid var(--theme-color); color:var(--theme-color); padding:8px; font-size:10px; cursor:pointer;">+ PERLUAS RADAR</button>
+</div>
 
-            <div class="stats-row">
-                <div class="form-group">
-                    <label>Level</label>
-                    <input type="number" id="in-level" class="god-input">
-                </div>
-                <div class="form-group">
-                    <label>Rank</label>
-                    <select id="in-rank" class="god-input">
-                        <option value="S">RANK S</option>
-                        <option value="A">RANK A</option>
-                        <option value="B">RANK B</option>
-                        <option value="C">RANK C</option>
-                        <option value="D">RANK D</option>
-                        <option value="E">RANK E</option>
-                        <option value="F">RANK F</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="stats-row">
-                <div class="form-group">
-                    <label>Stamina (Current)</label>
-                    <input type="number" id="in-stamina" class="god-input" style="color:var(--accent-cyan);">
-                </div>
-                <div class="form-group">
-                    <label>Max Stamina</label>
-                    <input type="number" id="in-max-stamina" class="god-input">
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>Gold Coin (Koin Emas)</label>
-                <input type="number" id="in-koin" class="god-input" style="color:var(--accent-gold);">
-            </div>
-
-            <div class="form-group">
-                <label>Account Status</label>
-                <select id="in-status" class="god-input">
-                    <option value="Active">ACTIVE</option>
-                    <option value="Banned">BANNED / DEAD</option>
-                </select>
-            </div>
-
-            <div style="border: 1px dashed var(--accent-red); padding: 15px; margin-top: 20px;">
-                <p style="color:var(--accent-red); font-size: 0.7rem; font-family:'Orbitron'; margin-bottom:10px;">DANGER_ZONE</p>
-                <button class="btn-execute" onclick="executeOverride()">OVERRIDE DATABASE</button>
-            </div>
-        </div>
+<div id="missionList" style="padding: 0 15px;">
     </div>
 
-    <div style="position:fixed; bottom:0; width:100%; background:black; border-top:1px solid var(--accent-gold); display:flex; justify-content:space-around; padding:10px;">
-        <button onclick="location.reload()" style="background:none; border:none; color:var(--accent-gold); font-family:'Orbitron'; font-size:0.8rem;">REFRESH_SYSTEM</button>
-    </div>
-
-    <script>
-        // 1. CONFIG (PASTE PUNYA ANDA)
-        const firebaseConfig = {
-            apiKey: "API_KEY",
-            authDomain: "PROJECT.firebaseapp.com",
-            projectId: "PROJECT",
-            storageBucket: "PROJECT.appspot.com",
-            messagingSenderId: "ID",
-            appId: "APPID"
-        };
+<div id="sovBidModal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 id="modalTitle" style="margin:0; font-family:var(--font-terminal);">DETAIL KONTRAK</h3>
+        <div id="modalInfo" style="margin-top: 15px; font-size: 13px; color: #ccc;"></div>
         
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+        <div style="background:#000; padding:15px; border-radius:8px; margin-top:15px; text-align:center;">
+            <div style="font-size:10px; color:#666;">PENAWARAN (Rp)</div>
+            <div style="font-size:24px; font-weight:bold; color:#4ade80;" id="dispBidAmt">0</div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button onclick="App.Bidding.adjust(-5000)" style="flex:1; background:#222; color:#fff; border:1px solid #444; padding:5px;">-5K</button>
+                <button onclick="App.Bidding.adjust(5000)" style="flex:1; background:#222; color:#fff; border:1px solid #444; padding:5px;">+5K</button>
+            </div>
+        </div>
 
-        // 2. SEARCH ENGINE (Mencari di adventurer_index)
-        function searchSovereign() {
-            const query = document.getElementById('masterSearch').value.toLowerCase();
-            const list = document.getElementById('adventurerList');
+        <button class="btn-confirm" onclick="App.Bidding.submit()">AMBIL & TERBITKAN SINYAL</button>
+        <button onclick="App.UI.closeModal()" style="width:100%; background:none; color:#666; border:none; margin-top:10px; cursor:pointer;">BATAL</button>
+    </div>
+</div>
 
-            if(query.length < 2) return;
+<script>
+    const App = {
+        db1: null, db4: null, user: null,
+        State: {
+            idAdv: "", zone: "", rank: "Trainer",
+            loc: { lat: 0, lng: 0, desa: "", shard: "" },
+            rpg: { lvl: 1, exp: 0, expNext: 100, stm: 100, stmMax: 100, limit: 0, limitMax: 5 },
+            isExpanded: false,
+            appliedMissions: new Set()
+        },
+        BiddingData: { mid: "", basePrice: 0, currentPrice: 0, rpgData: null },
 
-            // Kita cari berdasarkan nickname (startAt untuk fitur search real-time)
-            db.collection("adventurer_index")
-              .orderBy("nickname_lowercase")
-              .startAt(query)
-              .endAt(query + "\uf8ff")
-              .limit(10)
-              .onSnapshot(snapshot => {
-                  list.innerHTML = "";
-                  if(snapshot.empty) {
-                      list.innerHTML = `<p style="text-align:center; color:#475569;">No Data Found in Index.</p>`;
-                      return;
-                  }
-                  snapshot.forEach(doc => {
-                      const data = doc.data();
-                      const card = document.createElement('div');
-                      card.className = 'adv-card';
-                      card.onclick = () => openGodSheet(data.id_adv);
-                      card.innerHTML = `
-                        <div class="adv-info">
-                            <h3>${data.nickname || 'Unknown'}</h3>
-                            <p>ID: ${data.id_adv}</p>
-                        </div>
-                        <div class="rank-tag" style="color: ${getRankColor(data.rank)}">${data.rank || 'F'}</div>
-                      `;
-                      list.appendChild(card);
-                  });
-              });
-        }
-
-        // 3. OPEN GOD SHEET (Menarik data sangat dalam)
-        async function openGodSheet(id) {
-            triggerAlert("PULLING DATA...");
-            
-            // Mencari data di terminal_router logic (Profile & Vitality)
+        init: async function() {
             try {
-                const profileDoc = await db.collection("adventurer_profiles").doc(id).get();
-                const vitalityDoc = await db.collection("adventurer_vitality").doc(id).get();
+                // 1. Koneksi Terminal Router
+                this.db1 = getTerminal('FB1_MASTER');
+                this.db4 = getTerminal('FB4_BOARD');
+                
+                // 2. Identitas
+                this.user = Clearchance.enforceIdentity();
+                const nickname = this.user.nick || "Adventurer";
 
-                if(!profileDoc.exists) throw "Profile not found!";
+                // 3. Cari Data Lintas Terminal (Shard Mapping)
+                const idAdv = await this.Core.getIdAdvByNickname(nickname);
+                const indexSnap = await this.db1.ref(`adventurer_index/${idAdv}`).once('value');
+                const index = indexSnap.val();
+                
+                if(!index) throw new Error("ID Adventurer tidak terdaftar.");
 
-                const p = profileDoc.data();
-                const v = vitalityDoc.data() || {};
+                const shardID = index.shard_id || "FB2_RUNNER";
+                const dbShard = getTerminal(shardID);
 
-                // Isi Form
-                document.getElementById('targetId').value = id;
-                document.getElementById('targetName').innerText = p.nickname || id;
-                document.getElementById('in-name').value = p.nickname || '';
-                document.getElementById('in-level').value = p.level || 1;
-                document.getElementById('in-rank').value = p.rank || 'F';
-                document.getElementById('in-stamina').value = v.stamina || 0;
-                document.getElementById('in-max-stamina').value = v.max_stamina || 100;
-                document.getElementById('in-koin').value = p.koin || 0;
-                document.getElementById('in-status').value = p.status || 'Active';
+                // 4. Load Data RPG dari Shard
+                const xpSnap = await dbShard.ref(`adventurer_experience/${idAdv}`).once('value');
+                const profSnap = await dbShard.ref(`adventurer_profile/${idAdv}`).once('value');
+                
+                this.State.idAdv = idAdv;
+                this.State.zone = index.area_tugas;
+                this.State.rank = profSnap.val()?.rank || "Trainer";
+                
+                // 5. Sinkronisasi Stats
+                await this.Core.syncRPG(idAdv, shardID, xpSnap.val() || {});
 
-                document.getElementById('godSheet').style.display = 'flex';
+                // 6. Jalankan Engine
+                this.UI.updateHeader(nickname);
+                this.Core.startGPS();
+                this.Core.listenToContracts();
+
             } catch (e) {
-                alert("ERROR FETCHING: " + e);
+                console.error("Initialization Failed:", e);
+                alert("TERMINAL ERROR: " + e.message);
             }
-        }
+        },
 
-        function closeGodSheet() {
-            document.getElementById('godSheet').style.display = 'none';
-        }
+        Core: {
+            getIdAdvByNickname: async function(nick) {
+                const snap = await App.db1.ref('adventurer_index').once('value');
+                let found = null;
+                snap.forEach(c => { if(c.val().nickname?.toLowerCase() === nick.toLowerCase()) found = c.key; });
+                return found;
+            },
 
-        // 4. EXECUTE OVERRIDE (Update Database Paksa)
-        async function executeOverride() {
-            const id = document.getElementById('targetId').value;
-            triggerAlert("EXECUTING OVERRIDE...");
+            syncRPG: async function(idAdv, shardID, data) {
+                const now = Date.now();
+                // Logika Reset Harian (Jika lewat tengah malam)
+                if(now > (data.last_stamina_update || 0)) {
+                    data.current_stamina = data.max_stamina || 100;
+                    data.limit_harian = 0;
+                    const tomorrow = new Date().setHours(24,0,0,0);
+                    await getTerminal(shardID).ref(`adventurer_experience/${idAdv}`).update({
+                        current_stamina: data.current_stamina,
+                        limit_harian: 0,
+                        last_stamina_update: tomorrow
+                    });
+                }
+                App.State.rpg = {
+                    lvl: data.level || 1,
+                    exp: data.exp || 0,
+                    expNext: data.max_exp || 100,
+                    stm: data.current_stamina || 100,
+                    stmMax: data.max_stamina || 100,
+                    limit: data.limit_harian || 0,
+                    limitMax: data.max_limit || 5
+                };
+                App.UI.updateRPG();
+            },
 
-            const pData = {
-                nickname: document.getElementById('in-name').value,
-                level: parseInt(document.getElementById('in-level').value),
-                rank: document.getElementById('in-rank').value,
-                koin: parseInt(document.getElementById('in-koin').value),
-                status: document.getElementById('in-status').value,
-                last_god_update: firebase.firestore.FieldValue.serverTimestamp()
-            };
+            startGPS: function() {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    App.State.loc.lat = pos.coords.latitude;
+                    App.State.loc.lng = pos.coords.longitude;
+                    const res = cariDesaTerdekat(App.State.loc.lat, App.State.loc.lng);
+                    App.State.loc.desa = res.name;
+                    App.State.loc.shard = getShardDariKecamatan(res.kec);
+                    document.getElementById('locName').innerText = res.name;
+                    this.startRadar();
+                });
+            },
 
-            const vData = {
-                stamina: parseInt(document.getElementById('in-stamina').value),
-                max_stamina: parseInt(document.getElementById('in-max-stamina').value)
-            };
+            startRadar: function() {
+                const shard = App.State.loc.shard || "FB2_RUNNER";
+                let path = App.State.isExpanded ? `mission-${shard}` : `mission-${shard}/${App.State.loc.desa}`;
+                
+                App.db4.ref(path).on('value', snap => {
+                    const list = document.getElementById('missionList');
+                    list.innerHTML = "";
+                    if(!snap.exists()) { list.innerHTML = "<div style='text-align:center; color:#444; padding:20px;'>AREA BERSIH (TIDAK ADA MISI)</div>"; return; }
+                    
+                    snap.forEach(mSnap => {
+                        const m = mSnap.val();
+                        if(App.State.isExpanded) {
+                            mSnap.forEach(inner => App.UI.renderCard(inner.val(), list));
+                        } else {
+                            App.UI.renderCard(m, list);
+                        }
+                    });
+                });
+            },
 
-            try {
-                // Gunakan Batch agar update sekaligus ke dua tabel/shard
-                const batch = db.batch();
-                const pRef = db.collection("adventurer_profiles").doc(id);
-                const vRef = db.collection("adventurer_vitality").doc(id);
-                const iRef = db.collection("adventurer_index").doc(id); // Update index juga jika nama berubah
+            // LOGIKA ACCEPT TRANSACTION (PEMOTONGAN ITEM OTOMATIS)
+            listenToContracts: function() {
+                App.db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(App.user.uid).on('child_added', async snap => {
+                    const k = snap.val();
+                    if(k.status === 'briefing') {
+                        if(sessionStorage.getItem('processed_' + k.id_kontrak)) return;
+                        sessionStorage.setItem('processed_' + k.id_kontrak, true);
 
-                batch.update(pRef, pData);
-                batch.update(vRef, vData);
-                batch.update(iRef, { 
-                    nickname: pData.nickname, 
-                    nickname_lowercase: pData.nickname.toLowerCase(),
-                    rank: pData.rank 
+                        // Proses Pemotongan di Shard
+                        const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+                        const jenis = k.contract_item || "kontrak_normal";
+                        
+                        const updates = {};
+                        updates[`adventurer_contracts/${App.State.idAdv}/${jenis}`] = firebase.database.ServerValue.increment(-1);
+                        updates[`adventurer_experience/${App.State.idAdv}/current_stamina`] = App.State.rpg.stm - (k.rpg_reward?.stamina_used || 10);
+                        updates[`adventurer_experience/${App.State.idAdv}/limit_harian`] = App.State.rpg.limit + 1;
+
+                        await dbShard.ref().update(updates);
+                        
+                        alert("KONTRAK DISETUJUI! Masuk ke Briefing Room...");
+                        window.location.href = `briefing_room.html?id=${k.id_kontrak}`;
+                    }
+                });
+            }
+        },
+
+        Bidding: {
+            adjust: function(val) {
+                App.BiddingData.currentPrice = Math.max(App.BiddingData.basePrice, App.BiddingData.currentPrice + val);
+                document.getElementById('dispBidAmt').innerText = App.BiddingData.currentPrice.toLocaleString('id-ID');
+            },
+            submit: async function() {
+                const b = App.BiddingData;
+                const r = App.State.rpg;
+                
+                if(r.stm < b.rpgData.stamina) return alert("Stamina Tidak Cukup!");
+                
+                // Cek Stok Item di Shard sebelum Bid
+                const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+                const jenis = b.currentPrice > 60000 ? "kontrak_premium" : "kontrak_normal";
+                const stok = await dbShard.ref(`adventurer_contracts/${App.State.idAdv}/${jenis}`).once('value');
+                
+                if((stok.val() || 0) <= 0) return alert(`Stok ${jenis.toUpperCase()} Habis!`);
+
+                await App.db4.ref(`bids/${b.mid}/${App.user.uid}`).set({
+                    adventurer_id: App.State.idAdv,
+                    uid: App.user.uid,
+                    nickname: App.user.nick,
+                    offer_price: b.currentPrice,
+                    contract_item: jenis,
+                    rpg_reward: { stamina_used: b.rpgData.stamina },
+                    timestamp: Date.now()
                 });
 
-                await batch.commit();
-                triggerAlert("DATABASE OVERRIDDEN!");
-                setTimeout(closeGodSheet, 1000);
-            } catch (e) {
-                alert("OVERRIDE FAILED: " + e);
+                App.UI.closeModal();
+                alert("Sinyal Terbit! Menunggu konfirmasi...");
+            }
+        },
+
+        UI: {
+            updateHeader: function(nick) {
+                document.getElementById('dispNick').innerText = nick;
+                document.getElementById('dispRank').innerText = App.State.rank;
+                document.body.className = `rank-${App.State.rank.toLowerCase()}`;
+                document.getElementById('dispGelar').innerText = App.State.rank.toUpperCase() + " ADVENTURER";
+            },
+            updateRPG: function() {
+                const r = App.State.rpg;
+                document.getElementById('dispLvl').innerText = r.lvl;
+                document.getElementById('dispExp').innerText = `${r.exp}/${r.expNext}`;
+                document.getElementById('expBar').style.width = (r.exp/r.expNext*100) + "%";
+                document.getElementById('dispStm').innerText = `${r.stm}/${r.stmMax}`;
+                document.getElementById('staminaBar').style.width = (r.stm/r.stmMax*100) + "%";
+                document.getElementById('dispLimit').innerText = `${r.limit}/${r.limitMax}`;
+            },
+            renderCard: function(m, container) {
+                const card = document.createElement('div');
+                card.className = "mission-card";
+                card.onclick = () => card.classList.toggle('active-expand');
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between;">
+                        <b style="color:var(--theme-color)">${m.category || 'QUEST'}</b>
+                        <span style="color:#4ade80; font-family:var(--font-terminal)">Rp ${m.reward?.toLocaleString()}</span>
+                    </div>
+                    <div style="font-size:14px; margin:5px 0;">📍 ${m.dest_desa || m.origin_name}</div>
+                    <div class="m-expand-body">
+                        <p style="font-size:12px; color:#888;">${m.note || 'Tidak ada catatan.'}</p>
+                        <button onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${m.note}', ${JSON.stringify(m.rpg_reward)})" style="width:100%; padding:10px; background:var(--theme-color); border:none; font-weight:bold; cursor:pointer;">AMBIL KONTRAK</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            },
+            openModal: function(mid, price, note, rpg) {
+                App.BiddingData = { mid, basePrice: price, currentPrice: price, rpgData: rpg || {stamina:10} };
+                document.getElementById('modalInfo').innerText = note;
+                document.getElementById('dispBidAmt').innerText = price.toLocaleString('id-ID');
+                document.getElementById('sovBidModal').style.display = 'flex';
+            },
+            closeModal: function() { document.getElementById('sovBidModal').style.display = 'none'; },
+            toggleRadar: function() {
+                App.State.isExpanded = !App.State.isExpanded;
+                document.getElementById('radarType').innerText = App.State.isExpanded ? "DISTRICT" : "LOCAL";
+                App.Core.startRadar();
             }
         }
+    };
 
-        // UTILS
-        function getRankColor(rank) {
-            const colors = { 'S': '#fbbf24', 'A': '#f87171', 'B': '#c084fc', 'C': '#60a5fa', 'D': '#4ade80', 'E': '#94a3b8', 'F': '#ffffff' };
-            return colors[rank] || '#fff';
-        }
+    window.onload = () => App.init();
+</script>
 
-        function triggerAlert(msg) {
-            const el = document.getElementById('systemAlert');
-            el.innerText = msg;
-            el.style.display = 'block';
-            setTimeout(() => { el.style.display = 'none'; }, 2000);
-        }
-    </script>
 </body>
 </html>
