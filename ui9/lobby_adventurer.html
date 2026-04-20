@@ -1197,23 +1197,32 @@
                 }
             },
 
-            sendTopupReport: async function(item, nominal) {
-                try {
-                    const reportRef = App.db1.ref(`transaction_top_coxreal`).push();
-                    await reportRef.set({
-                        id_transaksi: reportRef.key,
-                        id_adventurer: App.State.idAdv,
-                        nickname: App.user.nick,
-                        stone_type: item.target,
-                        nominal_bayar: nominal,
-                        status: "pending",
-                        created_at: Date.now()
-                    });
-                    App.UI.showAlert("SINYAL TERKIRIM", "Laporan topup telah masuk antrian Admin. Mohon tunggu verifikasi 1x24 jam.");
-                } catch (e) {
-                    App.UI.showAlert("ERROR", "Gagal mengirim laporan.");
-                }
-            },
+    sendTopupReport: async function(item, nominal) {
+    try {
+        // Minta input bukti transfer (sebagai simulasi sebelum integrasi upload gambar)
+        const bukti = prompt("Masukkan No. Referensi Transfer / Nama Rekening Pengirim:");
+        if (!bukti) return;
+
+        const reportRef = App.db1.ref(`transaction_top_coxreal`).push();
+        await reportRef.set({
+            id_transaksi: reportRef.key,
+            id_adventurer: App.State.idAdv, // ID unik (misal: adv-kng-001)
+            uid_auth: App.user.uid,        // UID Firebase Auth
+            nickname: App.user.nick,
+            stone_type: item.target,       // red_stone / purple_stone
+            qty: item.qty,                 // Jumlah stone yang dibeli
+            nominal_bayar: nominal,
+            bukti_transfer: bukti,
+            shard_tujuan: App.State.loc.shard || "FB2_RUNNER", // PENTING: Agar Admin tahu shard mana yang diupdate
+            status: "pending",
+            created_at: Date.now()
+        });
+        App.UI.showAlert("SINYAL TERKIRIM", "Laporan topup telah masuk antrian Admin.");
+    } catch (e) {
+        App.UI.showAlert("ERROR", "Gagal mengirim laporan.");
+    }
+},
+
 
             processExchange: async function(item) {
                 // Logika pengurangan saldo & penambahan item di Shard (Next Step)
