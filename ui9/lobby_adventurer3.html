@@ -109,17 +109,85 @@
         .btn-expand.active-wide { background: #333; border-color: #555; color: #888; }
 
         /* MISSION CARDS */
-        .mission-card { 
-            background: #111; border: 1px solid #333; padding: 16px; margin-bottom: 15px; 
-            border-left: 4px solid var(--theme-color); border-radius: 6px;
-            position: relative; z-index: 2; transition: all 0.3s ease; 
-        }
+.mission-card { 
+    background: #0a0a0a; border: 1px solid #1a1a1a; 
+    margin-bottom: 10px; border-left: 3px solid var(--theme-color); 
+    border-radius: 6px; overflow: hidden; transition: all 0.3s ease;
+    cursor: pointer; position: relative;
+}
+        .m-body { padding: 15px; } /* Bungkus isi misi agar rapi */
         .mission-card.flash { animation: flashSpawn 0.8s ease-out; }
-        
-        .m-header { display: flex; justify-content: space-between; font-size: 11px; color: #777; font-family: var(--font-terminal); align-items: center; margin-bottom: 8px; gap: 5px;}
+.m-strip-header {
+    display: flex; align-items: center; padding: 12px 15px; gap: 12px;
+}
+.m-header { 
+    background: #151515; padding: 10px 15px; 
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #222;
+}
+
         .m-header span:nth-child(2) { font-size: 9px; letter-spacing: 0.5px; }
-        .m-title { color: #fff; font-weight: 900; font-size: 15px; letter-spacing: 0.5px; margin-bottom: 10px;}
-        .m-route { background: #000; padding: 10px; border-radius: 4px; font-size: 12px; color: #aaa; border: 1px dashed #222; }
+.m-title { 
+    color: #fff; font-weight: 800; font-size: 16px; 
+    margin-bottom: 12px; display: flex; align-items: flex-start; gap: 8px;
+}
+.m-icon-box { font-size: 20px; min-width: 30px; text-align: center; }
+
+.m-main-info { flex: 1; min-width: 0; } /* min-width 0 agar ellipsis jalan */
+
+.m-dest-summary { 
+    color: #fff; font-weight: 800; font-size: 14px; 
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-transform: uppercase;
+}
+
+.m-route { 
+    background: #000; padding: 12px; border-radius: 6px; 
+    border: 1px solid #1a1a1a; margin-bottom: 15px;
+}
+.m-stats-row { 
+    display: flex; gap: 10px; margin-bottom: 15px; 
+    font-family: var(--font-terminal); font-size: 11px;
+}
+.stat-pill { 
+    background: #111; padding: 4px 8px; border-radius: 4px; 
+    border: 1px solid #222; display: flex; align-items: center; gap: 5px;
+}
+.m-reward-box {
+    display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(90deg, #111, #0a0a0a);
+    padding: 12px 15px; border-top: 1px solid #222;
+}
+.price-tag { color: #4ade80; font-size: 20px; font-weight: 900; font-family: var(--font-terminal); }
+.m-bonus-row { font-size: 9px; font-family: var(--font-terminal); margin-top: 2px; }
+
+/* Kolom Kanan (Harga & Jarak) - Perbaikan Dobel */
+.m-side-stats { text-align: right; min-width: 85px; }
+.m-side-dist { font-size: 9px; color: #666; font-weight: bold; display: block; }
+.m-side-price { color: #4ade80; font-size: 15px; font-weight: 900; font-family: var(--font-terminal); }
+
+/* Body Expandable (Hidden by default) */
+.m-expand-body { 
+    display: none; padding: 0 15px 15px 15px; 
+    border-top: 1px solid #151515; background: #070707;
+}
+
+.mission-card.active-expand { border-color: var(--theme-color); }
+.mission-card.active-expand .m-expand-body { display: block; animation: slideDown 0.2s ease-out; }
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; font-size: 10px; }
+.detail-item { background: #111; padding: 6px; border-radius: 4px; border: 1px solid #1a1a1a; }
+.detail-label { color: #555; display: block; margin-bottom: 2px; text-transform: uppercase; }
+
+/* Status Applied */
+.mission-card.applied-locked { opacity: 0.5; filter: grayscale(1); pointer-events: none; }
+
+
         .m-reward { color: #00ff00; font-size: 18px; font-weight: 900; margin-top: 12px; font-family: var(--font-terminal); display: flex; justify-content: space-between; align-items: flex-end;}
         .m-dist { font-size: 10px; color: var(--theme-color); font-weight: bold; }
         
@@ -761,9 +829,14 @@ showAdvancedDebug: function(allData, shardName, idAdv) {
         document.getElementById('alertOverlay').style.display = 'flex';
     },
 
-    openModal: function(mid, basePrice, note, category, origin, dest) {
-        App.BiddingData = { mid, basePrice, currentPrice: basePrice };
-        
+    openModal: function(mid, basePrice, note, category, origin, dest, rpgData) {
+    App.BiddingData = { 
+        mid, 
+        basePrice, 
+        currentPrice: basePrice,
+        rpgReward: rpgData // Simpan data RPG di sini
+    };
+
         const isSpecial = (category === 'Titip Beli' || category === 'Help' || dest.includes('[TITIK'));
         
         let formattedDest = dest;
@@ -790,6 +863,10 @@ showAdvancedDebug: function(allData, shardName, idAdv) {
                     <span class="loc-label">${isSpecial ? 'TITIK ORIGIN (BELANJA/HELP)' : 'TITIK JEMPUT (START)'}</span><br>
                     <b style="color:#eee; font-size:12px;">📍 ${origin}</b>
                 </div>
+                <div style="margin-top:10px; font-size:11px; color:#f87171; font-family:var(--font-terminal);">
+                    ⚡ KEBUTUHAN STAMINA: ${rpgData.stamina} STM
+                </div>
+
             `;
         }
 
@@ -874,12 +951,14 @@ Bidding: {
         document.getElementById('bidAmount').value = App.BiddingData.currentPrice.toLocaleString('id-ID');
     },
     submit: async function() {
-    const { mid, currentPrice } = App.BiddingData;
+    const { mid, currentPrice, rpgReward } = App.BiddingData;
     const r = App.State.rpg;
 
-    // 1. Validasi Dasar (Stamina & Limit)
-    if (r.stm < 10) {
-        App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
+    // 1. Validasi Dinamis (Bukan lagi flat 10)
+    const butuhStm = rpgReward.stamina || 10; 
+    
+    if (r.stm < butuhStm) {
+        App.UI.showAlert("LELAH", `Stamina tidak cukup (Butuh ${butuhStm} STM).`);
         return;
     }
     if (r.limit >= r.limitMax) {
@@ -918,6 +997,11 @@ Bidding: {
             adventurer_nick: App.user.nick || "Adventurer",
             rank: App.State.rank,
             offer_price: currentPrice,
+            rpg_reward: {
+                exp: rpgReward.exp,
+                greenStone: rpgReward.greenStone,
+                stamina_used: butuhStm
+            },
             contract_item: jenisKontrak, // Simpan jenisnya agar requester tahu
             timestamp: Date.now()
         });
@@ -925,7 +1009,7 @@ Bidding: {
         
 // 5. Hitung Nilai Baru
 // 1. Gunakan nilai yang sudah dihitung
-const newStm = r.stm - 10;
+const newStm = r.stm - butuhStm;
 const newLimit = r.limit + 1;
 
 // 2. Ambil referensi tanpa menulis ulang 'const' jika sudah ada di atas
@@ -1169,75 +1253,104 @@ Core: {
 
             
     renderMisi: function(m, container) {
-        let mLat = m.lat, mLng = m.lng;
-        if(!mLat && m.origin_desa) {
-            const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
-            if(detailAsal) { mLat = detailAsal.lat; mLng = detailAsal.lng; }
+    let mLat = m.lat, mLng = m.lng;
+    if(!mLat && m.origin_desa) {
+        const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
+        if(detailAsal) { mLat = detailAsal.lat; mLng = detailAsal.lng; }
+    }
+    const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
+    const jarakTeks = jarak > 0 ? `${jarak.toFixed(1)} KM` : `??? KM`;
+    const waktuTeks = this.timeAgo(m.created_at);
+
+    const rpg = m.rpg_reward || { exp: 0, greenStone: 0, stamina: 10 }; 
+    let bonusHtml = "";
+    if (rpg.exp > 0) bonusHtml += `<span style="color:#60a5fa;">+${rpg.exp}XP </span>`;
+    if (rpg.greenStone > 0) bonusHtml += `<span style="color:#4ade80;">+${rpg.greenStone}GS</span>`;
+        
+    let diffColor = "#4ade80";
+    if (m.difficulty_rate > 1.5) diffColor = "#facc15";
+    if (m.difficulty_rate > 2.0) diffColor = "#f87171";
+
+    const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
+    const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || (m.dest_name && m.dest_name.includes('[TITIK')));
+    
+    // Icon berdasarkan kategori
+    let icon = "🛵";
+    if(m.category === 'Titip Beli') icon = "📦";
+    else if(m.category === 'Help') icon = "🛡️";
+    else if(m.category === 'Car Ride') icon = "🚗";
+
+    const rewardDisplay = (m.reward === 0 || !m.reward) ? "NEGO" : `Rp ${m.reward.toLocaleString('id-ID')}`;
+
+    const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
+    const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
+    const safeRPG = JSON.stringify(rpg).replace(/"/g, '&quot;');
+
+    const div = document.createElement('div');
+    div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
+    
+    // Fungsi Toggle Minimize/Expand
+    div.onclick = (e) => {
+        if(e.target.tagName !== 'BUTTON') { // Agar klik tombol tidak mentrigger tutup/buka
+            div.classList.toggle('active-expand');
+            AudioEngine.play('click');
         }
-        const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
-        const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
-        const waktuTeks = this.timeAgo(m.created_at);
+    };
 
-        
-        let diffColor = "#4ade80";
-        if (m.difficulty_rate > 1.5) diffColor = "#facc15";
-        if (m.difficulty_rate > 2.0) diffColor = "#f87171";
-
-        const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
-        const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || (m.dest_name && m.dest_name.includes('[TITIK')));
-        
-        const rewardDisplay = (m.reward === 0 || !m.reward) ? 
-            '<span style="color:#facc15; font-weight:bold;">NEGO</span>' : 
-            `Rp ${m.reward.toLocaleString('id-ID')}`;
-
-        const div = document.createElement('div');
-        div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
-        
-        let formattedDest = m.dest_name || "";
-        if(isSpecial && formattedDest.includes('|')) {
-            formattedDest = formattedDest.split('|')
-                .map(t => `<div class="titik-item">${t.trim()}</div>`)
-                .join('');
-        }
-
-        const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
-        const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
-
-        div.innerHTML = `
-    <div class="m-header">
-        <div>
-            <span>ID: ${m.id_misi.slice(-6).toUpperCase()}</span>
-            <span style="margin-left:8px; color:#555; font-size:9px;">• ${waktuTeks}</span>
+    div.innerHTML = `
+    <div class="m-strip-header">
+        <div class="m-icon-box">${icon}</div>
+        <div class="m-main-info">
+            <div class="m-dest-summary">${isSpecial ? 'RINCIAN PERMINTAAN' : (m.dest_desa || 'TUJUAN').toUpperCase()}</div>
+            <div class="m-bonus-row">
+                <span style="color:#555;">ID: ${m.id_misi.slice(-6).toUpperCase()} • </span>
+                ${bonusHtml || '<span style="color:#444;">NO BONUS</span>'}
+            </div>
         </div>
-        ${isApplied ? 
-            '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
-            `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
-        }
+        <div class="m-side-stats">
+            <span class="m-side-dist">${jarakTeks}</span>
+            <span class="m-side-price" style="${rewardDisplay === 'NEGO' ? 'color:#facc15' : ''}">${rewardDisplay}</span>
+        </div>
     </div>
 
-            <div class="m-title">
-                ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + (m.dest_desa || 'TUJUAN').toUpperCase()}
+    <div class="m-expand-body">
+        ${isSpecial ? 
+            `<div class="special-detail-box" style="margin-top:5px; margin-bottom:5px;">${m.dest_name || 'Tidak ada rincian.'}</div>` : 
+            `<div class="detail-item" style="margin-top:5px;">
+                <span class="detail-label">LOKASI PENJEMPUTAN</span>
+                <span style="color:#eee; font-size:11px;">📍 ${m.origin_name}</span>
+            </div>`
+        }
+
+        <div class="detail-grid">
+            <div class="detail-item">
+                <span class="detail-label">WAKTU TERBIT</span>
+                <span style="color:#fff;">${waktuTeks}</span>
             </div>
-            ${isSpecial ? `<div class="special-detail-box">${formattedDest || 'Tidak ada rincian data.'}</div>` : `
-                <div class="m-route">
-                    <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
-                    <div style="font-size:10px; color:#666;">Tujuan: ${m.dest_desa}</div>
-                </div>
-            `}
-            <div style="font-size:10px; color:var(--theme-color); margin-bottom:8px; font-family:var(--font-terminal); font-weight:bold;">
-                KATEGORI: ${m.category || 'REGULER'}
+            <div class="detail-item">
+                <span class="detail-label">STAMINA REQ</span>
+                <span style="color:${diffColor};">${rpg.stamina} STM</span>
             </div>
-            <div class="m-reward">
-                <span class="m-dist">${jarakTeks}</span>
-                <span>${rewardDisplay}</span>
+            <div class="detail-item">
+                <span class="detail-label">KATEGORI</span>
+                <span style="color:var(--theme-color);">${m.category || 'REGULER'}</span>
             </div>
-            ${isApplied ? 
-                `<button class="btn-bid-card" disabled>KONTRAK DALAM TINJAUAN</button>` :
-                `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}')">LIHAT DETAIL / NEGO</button>`
-            }
-        `;
-        container.appendChild(div);
-    }, 
+            <div class="detail-item">
+                <span class="detail-label">KESULITAN</span>
+                <span style="color:${diffColor};">${m.difficulty_rate}x RATE</span>
+            </div>
+        </div>
+
+        ${isApplied ? 
+            `<button class="btn-bid-card" style="background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
+            `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>`
+        }
+    </div>
+    `;
+    container.appendChild(div);
+},
+
+
 
     listenToContracts: function() {
     // 1. Pantau tabel kontrak_mission di FB4 (Board)
