@@ -3,488 +3,382 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sovereign Guild - God Mode Panel</title>
+    <title>Sovereign Guild - God Mode Console</title>
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap');
+
         :root {
-            --bg-dark: #0f172a;
-            --panel-bg: #1e293b;
+            --bg-deep: #020617;
+            --panel-glass: rgba(30, 41, 59, 0.7);
             --accent-gold: #fbbf24;
-            --accent-red: #ef4444;
-            --accent-green: #10b981;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
+            --glow-gold: 0 0 15px rgba(251, 191, 36, 0.5);
+            --accent-red: #f43f5e;
+            --accent-cyan: #22d3ee;
+            --text-system: #e2e8f0;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         
         body {
-            background-color: var(--bg-dark); color: var(--text-main);
-            padding-bottom: 80px; /* Space for bottom nav */
+            background-color: var(--bg-deep);
+            color: var(--text-system);
+            font-family: 'Rajdhani', sans-serif;
+            overflow-x: hidden;
+            background-image: radial-gradient(circle at 50% 50%, #1e1b4b 0%, #020617 100%);
+            min-height: 100vh;
         }
 
-        /* Header & Nav */
+        /* --- UI SYSTEM ANIMATIONS --- */
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 5px var(--accent-gold); }
+            50% { box-shadow: 0 0 20px var(--accent-gold); }
+            100% { box-shadow: 0 0 5px var(--accent-gold); }
+        }
+
+        @keyframes slide-in {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        /* --- HEADER SYSTEM --- */
         .header {
-            background: linear-gradient(90deg, #1e293b, #000000);
-            padding: 15px 20px; border-bottom: 2px solid var(--accent-gold);
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-bottom: 2px solid var(--accent-gold);
+            display: flex; justify-content: space-between; align-items: center;
             position: sticky; top: 0; z-index: 100;
+        }
+        .header h1 { 
+            font-family: 'Orbitron', sans-serif; font-size: 1rem; 
+            color: var(--accent-gold); text-shadow: var(--glow-gold);
+            letter-spacing: 2px;
+        }
+
+        /* --- SEARCH & LIST AREA --- */
+        .main-container { padding: 15px; padding-bottom: 100px; }
+        
+        .search-container {
+            position: relative; margin-bottom: 20px;
+        }
+        .search-input {
+            width: 100%; background: var(--panel-glass);
+            border: 1px solid var(--accent-cyan);
+            padding: 15px; border-radius: 4px; color: white;
+            font-family: 'Orbitron'; font-size: 0.9rem;
+            box-shadow: inset 0 0 10px rgba(34, 211, 238, 0.2);
+        }
+
+        .adventurer-list {
+            display: grid; gap: 12px;
+        }
+        .adv-card {
+            background: var(--panel-glass);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 15px; border-radius: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: 0.3s; cursor: pointer;
+        }
+        .adv-card:active { transform: scale(0.95); border-color: var(--accent-gold); }
+        .adv-card.selected { border-color: var(--accent-gold); background: rgba(251, 191, 36, 0.1); }
+        
+        .adv-info h3 { font-family: 'Orbitron'; color: var(--accent-cyan); font-size: 1rem; }
+        .adv-info p { font-size: 0.8rem; color: #94a3b8; }
+
+        .rank-tag {
+            padding: 4px 10px; border-radius: 4px; font-weight: bold;
+            font-family: 'Orbitron'; font-size: 0.7rem;
+            border: 1px solid currentColor;
+        }
+
+        /* --- THE GOD SHEET (SIDE PANEL) --- */
+        .side-panel {
+            position: fixed; top: 0; right: 0; width: 100%; height: 100%;
+            background: rgba(2, 6, 23, 0.95);
+            z-index: 200; display: none;
+            flex-direction: column;
+            animation: slide-in 0.3s ease-out;
+            border-left: 2px solid var(--accent-gold);
+        }
+        .panel-header {
+            padding: 20px; border-bottom: 1px solid #334155;
             display: flex; justify-content: space-between; align-items: center;
         }
-        .header h1 { font-size: 1.2rem; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 2px;}
-        
-        .bottom-nav {
-            position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel-bg);
-            display: flex; justify-content: space-around; padding: 10px 0;
-            border-top: 1px solid #334155; z-index: 100;
+        .panel-content {
+            flex: 1; overflow-y: auto; padding: 20px;
         }
-        .nav-btn {
-            background: none; border: none; color: var(--text-muted); font-size: 0.9rem;
-            display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer;
-        }
-        .nav-btn.active { color: var(--accent-gold); font-weight: bold; }
 
-        /* Content Sections */
-        .section { display: none; padding: 15px; }
-        .section.active { display: block; }
+        /* --- FORM ELEMENTS --- */
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block; font-family: 'Orbitron'; font-size: 0.7rem;
+            color: var(--accent-gold); margin-bottom: 8px; text-transform: uppercase;
+        }
+        .god-input {
+            width: 100%; background: #0f172a; border: 1px solid #334155;
+            padding: 12px; color: white; border-radius: 4px;
+            font-family: 'Rajdhani'; font-size: 1.1rem;
+        }
+        .god-input:focus { border-color: var(--accent-gold); outline: none; }
 
-        /* Search & Filter Tools */
-        .tools-container {
-            display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;
-        }
-        input, select {
-            width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #334155;
-            background: var(--bg-dark); color: white; font-size: 1rem;
-        }
-        .search-box { flex: 1; min-width: 200px; }
-        .filter-box { width: 100px; }
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 
-        /* Cards (Mobile Optimized) */
-        .card {
-            background: var(--panel-bg); border-radius: 12px; padding: 15px;
-            margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            border-left: 4px solid #334155;
+        /* --- BUTTONS --- */
+        .btn-execute {
+            background: var(--accent-gold); color: black;
+            border: none; padding: 18px; width: 100%;
+            font-family: 'Orbitron'; font-weight: bold;
+            text-transform: uppercase; cursor: pointer;
+            box-shadow: var(--glow-gold);
+            margin-top: 10px; border-radius: 4px;
         }
-        .card.rank-S { border-left-color: var(--accent-gold); }
-        .card-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
-        .card-title { font-size: 1.1rem; font-weight: bold; }
-        .card-subtitle { font-size: 0.8rem; color: var(--text-muted); }
-        
-        .stats-grid {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;
-            font-size: 0.9rem;
-        }
-        .stat-item span { color: var(--text-muted); display: block; font-size: 0.75rem;}
-        
-        /* Buttons */
-        .btn {
-            padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold;
-            cursor: pointer; width: 100%; text-align: center;
-        }
-        .btn-gold { background: var(--accent-gold); color: black; }
-        .btn-green { background: var(--accent-green); color: white; }
-        .btn-red { background: var(--accent-red); color: white; }
-        .btn-dark { background: #334155; color: white; }
-        .btn-group { display: flex; gap: 10px; }
+        .btn-execute:active { filter: brightness(1.2); }
 
-        /* Modal / God Mode Form */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.8); z-index: 1000;
-            display: none; justify-content: center; align-items: center; padding: 20px;
+        .btn-close {
+            background: none; border: 1px solid var(--accent-red); color: var(--accent-red);
+            padding: 5px 15px; border-radius: 4px; cursor: pointer; font-family: 'Orbitron';
         }
-        .modal {
-            background: var(--panel-bg); width: 100%; max-width: 400px;
-            border-radius: 12px; padding: 20px; border: 1px solid var(--accent-gold);
-            max-height: 90vh; overflow-y: auto;
+
+        /* --- SYSTEM ALERT --- */
+        #systemAlert {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--accent-gold); color: black; padding: 10px 20px;
+            border-radius: 4px; font-family: 'Orbitron'; font-weight: bold;
+            z-index: 1000; display: none; box-shadow: 0 0 20px black;
         }
-        .modal h2 { color: var(--accent-gold); margin-bottom: 15px; text-align: center;}
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px;}
-        
-        /* Global Actions */
-        .global-panel { border: 1px dashed var(--accent-red); padding: 15px; border-radius: 10px; margin-bottom:15px;}
     </style>
 </head>
 <body>
 
+    <div id="systemAlert">SYSTEM UPDATED</div>
+
     <div class="header">
-        <h1>👁️ God Mode Panel</h1>
-        <div id="connectionStatus" style="color: var(--accent-green); font-size: 0.8rem;">Online</div>
+        <h1>SOVEREIGN CONTROL</h1>
+        <div id="status" style="color: var(--accent-cyan); font-size: 0.7rem;">[ADMIN_DEWA_ONLINE]</div>
     </div>
 
-    <div id="tab-users" class="section active">
-        <div class="tools-container">
-            <input type="text" id="searchUser" class="search-box" placeholder="Cari Nama / ID Adventurer..." oninput="filterUsers()">
-            <select id="filterRank" class="filter-box" onchange="filterUsers()">
-                <option value="ALL">All Rank</option>
-                <option value="S">Rank S</option>
-                <option value="A">Rank A</option>
-                <option value="B">Rank B</option>
-                <option value="C">Rank C</option>
-                <option value="D">Rank D</option>
-                <option value="E">Rank E</option>
-                <option value="F">Rank F</option>
-            </select>
+    <div class="main-container">
+        <div class="search-container">
+            <input type="text" id="masterSearch" class="search-input" 
+                   placeholder="SEARCH NICKNAME / ID_ADV..." oninput="searchSovereign()">
         </div>
-        <div id="usersContainer">
-            </div>
-    </div>
 
-    <div id="tab-topups" class="section">
-        <div class="tools-container">
-            <select id="filterTopup" class="search-box" onchange="loadTopups()">
-                <option value="Pending">Menunggu Verifikasi (Pending)</option>
-                <option value="Approved">Sudah Disetujui (Approved)</option>
-                <option value="Rejected">Ditolak (Rejected)</option>
-            </select>
-        </div>
-        <div id="topupsContainer">
-            </div>
-    </div>
-
-    <div id="tab-global" class="section">
-        <div class="global-panel">
-            <h3 style="color: var(--accent-red); margin-bottom: 10px;">⚡ Mass Manipulation</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px;">Tindakan ini akan mempengaruhi SELURUH akun di database.</p>
-            
-            <div class="form-group">
-                <label>Suntik Stamina Massal</label>
-                <div class="btn-group">
-                    <input type="number" id="massStaminaAmount" placeholder="Jml Stamina" style="width: 60%;">
-                    <button class="btn btn-gold" onclick="massInject('stamina')">SUNTIK</button>
-                </div>
-            </div>
-            
-            <div class="form-group">
-                <label>Server EXP Multiplier (Aktifkan Event)</label>
-                <div class="btn-group">
-                    <select id="expMultiplier" style="width: 60%;">
-                        <option value="1">Normal (1x)</option>
-                        <option value="2">Double (2x)</option>
-                        <option value="3">Triple (3x)</option>
-                    </select>
-                    <button class="btn btn-red" onclick="setGlobalMultiplier()">TERAPKAN</button>
-                </div>
-            </div>
+        <div id="adventurerList" class="adventurer-list">
+            <p style="text-align:center; color:#475569;">Menunggu Input Dewa...</p>
         </div>
     </div>
 
-    <div class="bottom-nav">
-        <button class="nav-btn active" onclick="switchTab('users', this)">
-            <span>🛡️</span> Adventurers
-        </button>
-        <button class="nav-btn" onclick="switchTab('topups', this)">
-            <span>💰</span> Laporan Top-up
-        </button>
-        <button class="nav-btn" onclick="switchTab('global', this)">
-            <span>🌍</span> Global Event
-        </button>
-    </div>
+    <div id="godSheet" class="side-panel">
+        <div class="panel-header">
+            <h2 id="targetName" style="font-family:'Orbitron'; color:var(--accent-gold);">EDITING_ID...</h2>
+            <button class="btn-close" onclick="closeGodSheet()">X CLOSE</button>
+        </div>
 
-    <div class="modal-overlay" id="editModal">
-        <div class="modal">
-            <h2>⚙️ Edit Dewa</h2>
-            <input type="hidden" id="editUserId">
+        <div class="panel-content">
+            <input type="hidden" id="targetId">
             
             <div class="form-group">
-                <label>Nama Adventurer</label>
-                <input type="text" id="editName">
+                <label>Nickname</label>
+                <input type="text" id="in-name" class="god-input">
             </div>
-            
-            <div class="stats-grid">
+
+            <div class="stats-row">
                 <div class="form-group">
                     <label>Level</label>
-                    <input type="number" id="editLevel">
+                    <input type="number" id="in-level" class="god-input">
                 </div>
                 <div class="form-group">
                     <label>Rank</label>
-                    <select id="editRank">
-                        <option value="S">S</option><option value="A">A</option>
-                        <option value="B">B</option><option value="C">C</option>
-                        <option value="D">D</option><option value="E">E</option>
-                        <option value="F">F</option>
+                    <select id="in-rank" class="god-input">
+                        <option value="S">RANK S</option>
+                        <option value="A">RANK A</option>
+                        <option value="B">RANK B</option>
+                        <option value="C">RANK C</option>
+                        <option value="D">RANK D</option>
+                        <option value="E">RANK E</option>
+                        <option value="F">RANK F</option>
                     </select>
                 </div>
+            </div>
+
+            <div class="stats-row">
                 <div class="form-group">
-                    <label>Stamina Aktual (Bisa Overcap)</label>
-                    <input type="number" id="editStamina">
+                    <label>Stamina (Current)</label>
+                    <input type="number" id="in-stamina" class="god-input" style="color:var(--accent-cyan);">
                 </div>
                 <div class="form-group">
-                    <label>Koin Emas</label>
-                    <input type="number" id="editKoin">
+                    <label>Max Stamina</label>
+                    <input type="number" id="in-max-stamina" class="god-input">
                 </div>
             </div>
 
             <div class="form-group">
-                <label>Status Akun</label>
-                <select id="editStatus">
-                    <option value="Active">Active</option>
-                    <option value="Banned">Banned (Mati)</option>
+                <label>Gold Coin (Koin Emas)</label>
+                <input type="number" id="in-koin" class="god-input" style="color:var(--accent-gold);">
+            </div>
+
+            <div class="form-group">
+                <label>Account Status</label>
+                <select id="in-status" class="god-input">
+                    <option value="Active">ACTIVE</option>
+                    <option value="Banned">BANNED / DEAD</option>
                 </select>
             </div>
 
-            <div class="btn-group" style="margin-top: 20px;">
-                <button class="btn btn-dark" onclick="closeModal()">Batal</button>
-                <button class="btn btn-red" onclick="saveGodModeChanges()">OVERRIDE DATA</button>
+            <div style="border: 1px dashed var(--accent-red); padding: 15px; margin-top: 20px;">
+                <p style="color:var(--accent-red); font-size: 0.7rem; font-family:'Orbitron'; margin-bottom:10px;">DANGER_ZONE</p>
+                <button class="btn-execute" onclick="executeOverride()">OVERRIDE DATABASE</button>
             </div>
         </div>
     </div>
 
+    <div style="position:fixed; bottom:0; width:100%; background:black; border-top:1px solid var(--accent-gold); display:flex; justify-content:space-around; padding:10px;">
+        <button onclick="location.reload()" style="background:none; border:none; color:var(--accent-gold); font-family:'Orbitron'; font-size:0.8rem;">REFRESH_SYSTEM</button>
+    </div>
+
     <script>
-        // 1. INISIALISASI FIREBASE (GANTI DENGAN CONFIG ANDA)
+        // 1. CONFIG (PASTE PUNYA ANDA)
         const firebaseConfig = {
-            apiKey: "API_KEY_ANDA",
-            authDomain: "PROJECT_ANDA.firebaseapp.com",
-            projectId: "PROJECT_ANDA",
-            storageBucket: "PROJECT_ANDA.appspot.com",
-            messagingSenderId: "MESSAGING_ID",
-            appId: "APP_ID"
+            apiKey: "API_KEY",
+            authDomain: "PROJECT.firebaseapp.com",
+            projectId: "PROJECT",
+            storageBucket: "PROJECT.appspot.com",
+            messagingSenderId: "ID",
+            appId: "APPID"
         };
         
-        // Cek inisialisasi agar tidak error jika dijalankan ulang
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // Variabel Global
-        let adventurersData = [];
+        // 2. SEARCH ENGINE (Mencari di adventurer_index)
+        function searchSovereign() {
+            const query = document.getElementById('masterSearch').value.toLowerCase();
+            const list = document.getElementById('adventurerList');
 
-        // 2. NAVIGASI TABS
-        function switchTab(tabId, btnElement) {
-            document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            if(query.length < 2) return;
+
+            // Kita cari berdasarkan nickname (startAt untuk fitur search real-time)
+            db.collection("adventurer_index")
+              .orderBy("nickname_lowercase")
+              .startAt(query)
+              .endAt(query + "\uf8ff")
+              .limit(10)
+              .onSnapshot(snapshot => {
+                  list.innerHTML = "";
+                  if(snapshot.empty) {
+                      list.innerHTML = `<p style="text-align:center; color:#475569;">No Data Found in Index.</p>`;
+                      return;
+                  }
+                  snapshot.forEach(doc => {
+                      const data = doc.data();
+                      const card = document.createElement('div');
+                      card.className = 'adv-card';
+                      card.onclick = () => openGodSheet(data.id_adv);
+                      card.innerHTML = `
+                        <div class="adv-info">
+                            <h3>${data.nickname || 'Unknown'}</h3>
+                            <p>ID: ${data.id_adv}</p>
+                        </div>
+                        <div class="rank-tag" style="color: ${getRankColor(data.rank)}">${data.rank || 'F'}</div>
+                      `;
+                      list.appendChild(card);
+                  });
+              });
+        }
+
+        // 3. OPEN GOD SHEET (Menarik data sangat dalam)
+        async function openGodSheet(id) {
+            triggerAlert("PULLING DATA...");
             
-            document.getElementById('tab-' + tabId).classList.add('active');
-            btnElement.classList.add('active');
+            // Mencari data di terminal_router logic (Profile & Vitality)
+            try {
+                const profileDoc = await db.collection("adventurer_profiles").doc(id).get();
+                const vitalityDoc = await db.collection("adventurer_vitality").doc(id).get();
 
-            if(tabId === 'users') loadAdventurers();
-            if(tabId === 'topups') loadTopups();
-        }
+                if(!profileDoc.exists) throw "Profile not found!";
 
-        // 3. LOGIKA ADVENTURER & PENCARIAN (REALTIME)
-        function loadAdventurers() {
-            // Mengambil data dan mensimulasikan gabungan profile & vitality
-            db.collection("adventurer_profiles").onSnapshot((snapshot) => {
-                adventurersData = [];
-                const container = document.getElementById('usersContainer');
-                container.innerHTML = '';
+                const p = profileDoc.data();
+                const v = vitalityDoc.data() || {};
 
-                snapshot.forEach((doc) => {
-                    const data = doc.data();
-                    data.id = doc.id;
-                    adventurersData.push(data);
-                    
-                    // Render Card
-                    const card = document.createElement('div');
-                    card.className = `card rank-${data.rank || 'F'}`;
-                    card.setAttribute('data-name', (data.name || '').toLowerCase());
-                    card.setAttribute('data-rank', data.rank || 'F');
-                    
-                    card.innerHTML = `
-                        <div class="card-header">
-                            <div>
-                                <div class="card-title">${data.name || 'Unknown'} [${data.rank || 'F'}]</div>
-                                <div class="card-subtitle">ID: ${doc.id.substring(0,8)}...</div>
-                            </div>
-                            <span style="color: ${data.status === 'Banned' ? 'var(--accent-red)' : 'var(--accent-green)'}">
-                                ${data.status || 'Active'}
-                            </span>
-                        </div>
-                        <div class="stats-grid">
-                            <div class="stat-item"><span>Level</span> ${data.level || 1}</div>
-                            <div class="stat-item"><span>Stamina</span> ⚡ ${data.stamina || 0}/${data.max_stamina || 100}</div>
-                            <div class="stat-item"><span>Koin</span> 🪙 ${data.koin || 0}</div>
-                            <div class="stat-item"><span>Total Misi</span> 📜 ${data.total_missions || 0}</div>
-                        </div>
-                        <button class="btn btn-gold" onclick='openEditModal(${JSON.stringify(data)})'>⚙️ OVERRIDE</button>
-                    `;
-                    container.appendChild(card);
-                });
-            });
-        }
+                // Isi Form
+                document.getElementById('targetId').value = id;
+                document.getElementById('targetName').innerText = p.nickname || id;
+                document.getElementById('in-name').value = p.nickname || '';
+                document.getElementById('in-level').value = p.level || 1;
+                document.getElementById('in-rank').value = p.rank || 'F';
+                document.getElementById('in-stamina').value = v.stamina || 0;
+                document.getElementById('in-max-stamina').value = v.max_stamina || 100;
+                document.getElementById('in-koin').value = p.koin || 0;
+                document.getElementById('in-status').value = p.status || 'Active';
 
-        function filterUsers() {
-            const searchText = document.getElementById('searchUser').value.toLowerCase();
-            const rankFilter = document.getElementById('filterRank').value;
-            const cards = document.querySelectorAll('#usersContainer .card');
-
-            cards.forEach(card => {
-                const name = card.getAttribute('data-name');
-                const rank = card.getAttribute('data-rank');
-                
-                const matchSearch = name.includes(searchText);
-                const matchRank = (rankFilter === 'ALL') || (rank === rankFilter);
-
-                if (matchSearch && matchRank) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-        }
-
-        // 4. LOGIKA GOD MODE MODAL (MENGUBAH DATA SEENAKNYA)
-        function openEditModal(data) {
-            document.getElementById('editUserId').value = data.id;
-            document.getElementById('editName').value = data.name || '';
-            document.getElementById('editLevel').value = data.level || 1;
-            document.getElementById('editRank').value = data.rank || 'F';
-            document.getElementById('editStamina').value = data.stamina || 0;
-            document.getElementById('editKoin').value = data.koin || 0;
-            document.getElementById('editStatus').value = data.status || 'Active';
-            
-            document.getElementById('editModal').style.display = 'flex';
-        }
-
-        function closeModal() {
-            document.getElementById('editModal').style.display = 'none';
-        }
-
-        function saveGodModeChanges() {
-            const id = document.getElementById('editUserId').value;
-            const payload = {
-                name: document.getElementById('editName').value,
-                level: parseInt(document.getElementById('editLevel').value),
-                rank: document.getElementById('editRank').value,
-                stamina: parseInt(document.getElementById('editStamina').value),
-                koin: parseInt(document.getElementById('editKoin').value),
-                status: document.getElementById('editStatus').value,
-                last_modified_by_admin: firebase.firestore.FieldValue.serverTimestamp()
-            };
-
-            // Paksa update tanpa peduli rules (karena security rules diabaikan)
-            db.collection("adventurer_profiles").doc(id).set(payload, { merge: true })
-            .then(() => {
-                alert('TANGGAPAN DEWA: Data telah di-override secara absolut.');
-                closeModal();
-            })
-            .catch(err => alert('Gagal: ' + err.message));
-        }
-
-        // 5. LOGIKA KEDALAMAN DATA TOP-UP
-        function loadTopups() {
-            const statusFilter = document.getElementById('filterTopup').value;
-            const container = document.getElementById('topupsContainer');
-            container.innerHTML = '<p>Memuat kedalaman data...</p>';
-
-            db.collection("topup_reports")
-              .where("status", "==", statusFilter)
-              .onSnapshot((snapshot) => {
-                container.innerHTML = '';
-                if(snapshot.empty) {
-                    container.innerHTML = `<p style="text-align:center; color:var(--text-muted);">Tidak ada data ${statusFilter}.</p>`;
-                    return;
-                }
-
-                snapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const reqDate = data.timestamp ? data.timestamp.toDate().toLocaleString() : 'Unknown Time';
-                    
-                    const card = document.createElement('div');
-                    card.className = 'card';
-                    card.innerHTML = `
-                        <div class="card-header">
-                            <div>
-                                <div class="card-title">Rp ${data.amount_rp ? data.amount_rp.toLocaleString() : 0}</div>
-                                <div class="card-subtitle">${reqDate}</div>
-                            </div>
-                            <span style="font-size: 0.8rem; background: #334155; padding: 3px 8px; border-radius: 4px;">ID: ${doc.id.substring(0,6)}</span>
-                        </div>
-                        
-                        <div style="background: var(--bg-dark); padding: 10px; border-radius: 8px; margin-bottom: 15px;">
-                            <p style="font-size: 0.8rem; color: var(--accent-gold); margin-bottom: 5px;">[DATA INVESTIGASI]</p>
-                            <div class="stats-grid" style="margin-bottom: 0;">
-                                <div class="stat-item"><span>User ID</span> ${data.user_id}</div>
-                                <div class="stat-item"><span>Metode</span> ${data.payment_method || 'Bank Transfer'}</div>
-                                <div class="stat-item"><span>Saldo Awal Koin</span> 🪙 ${data.current_koin_snapshot || 0}</div>
-                                <div class="stat-item"><span>Permintaan Koin</span> 🪙 +${data.koin_to_add || 0}</div>
-                            </div>
-                            <div class="stat-item" style="margin-top: 5px;"><span>Device Fingerprint</span> ${data.device_info || 'Mobile App Android'}</div>
-                        </div>
-
-                        ${statusFilter === 'Pending' ? `
-                            <div class="btn-group">
-                                <button class="btn btn-green" onclick="executeTopup('${doc.id}', '${data.user_id}', ${data.koin_to_add}, 'Approve')">✔️ SETUJUI & INJECT</button>
-                                <button class="btn btn-red" onclick="executeTopup('${doc.id}', '${data.user_id}', 0, 'Reject')">❌ TOLAK</button>
-                            </div>
-                        ` : ''}
-                    `;
-                    container.appendChild(card);
-                });
-            });
-        }
-
-        function executeTopup(reportId, userId, koinToAdd, action) {
-            if(!confirm(`Anda yakin akan melakukan ${action} pada laporan ini?`)) return;
-
-            const reportRef = db.collection("topup_reports").doc(reportId);
-            const userRef = db.collection("adventurer_profiles").doc(userId);
-
-            db.runTransaction((transaction) => {
-                return transaction.get(userRef).then((userDoc) => {
-                    if (!userDoc.exists) {
-                        throw "Adventurer tidak ditemukan!";
-                    }
-
-                    if(action === 'Approve') {
-                        const newKoin = (userDoc.data().koin || 0) + parseInt(koinToAdd);
-                        transaction.update(userRef, { koin: newKoin });
-                    }
-                    
-                    // Catat riwayat audit
-                    transaction.update(reportRef, { 
-                        status: action === 'Approve' ? 'Approved' : 'Rejected',
-                        processed_at: firebase.firestore.FieldValue.serverTimestamp(),
-                        processed_by: "GOD_ADMIN"
-                    });
-                });
-            }).then(() => {
-                alert(`Eksekusi berhasil: Status telah diubah menjadi ${action}.`);
-            }).catch((err) => {
-                alert("Eksekusi gagal: " + err);
-            });
-        }
-
-        // 6. GLOBAL MANIPULATION
-        function massInject(type) {
-            if(type === 'stamina') {
-                const amount = document.getElementById('massStaminaAmount').value;
-                if(!amount || amount <= 0) return alert('Masukkan jumlah stamina.');
-                
-                if(confirm(`YAKIN INGIN MENYUNTIKKAN ${amount} STAMINA KE SEMUA USER? (Proses ini berat)`)) {
-                    // Logika: Ambil semua user, lakukan batch update
-                    db.collection("adventurer_profiles").get().then(snapshot => {
-                        let batch = db.batch();
-                        snapshot.forEach(doc => {
-                            const newStamina = (doc.data().stamina || 0) + parseInt(amount);
-                            batch.update(doc.ref, { stamina: newStamina });
-                        });
-                        return batch.commit();
-                    }).then(() => {
-                        alert('Injeksi Massal Berhasil!');
-                    });
-                }
+                document.getElementById('godSheet').style.display = 'flex';
+            } catch (e) {
+                alert("ERROR FETCHING: " + e);
             }
         }
 
-        function setGlobalMultiplier() {
-            const val = document.getElementById('expMultiplier').value;
-            db.collection("server_settings").doc("global_config").set({
-                exp_multiplier: parseInt(val),
-                updated_at: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true }).then(() => {
-                alert(`Server Event Diaktifkan: EXP Multiplier x${val}`);
-            });
+        function closeGodSheet() {
+            document.getElementById('godSheet').style.display = 'none';
         }
 
-        // Init load
-        window.onload = () => {
-            loadAdventurers();
-        };
+        // 4. EXECUTE OVERRIDE (Update Database Paksa)
+        async function executeOverride() {
+            const id = document.getElementById('targetId').value;
+            triggerAlert("EXECUTING OVERRIDE...");
+
+            const pData = {
+                nickname: document.getElementById('in-name').value,
+                level: parseInt(document.getElementById('in-level').value),
+                rank: document.getElementById('in-rank').value,
+                koin: parseInt(document.getElementById('in-koin').value),
+                status: document.getElementById('in-status').value,
+                last_god_update: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            const vData = {
+                stamina: parseInt(document.getElementById('in-stamina').value),
+                max_stamina: parseInt(document.getElementById('in-max-stamina').value)
+            };
+
+            try {
+                // Gunakan Batch agar update sekaligus ke dua tabel/shard
+                const batch = db.batch();
+                const pRef = db.collection("adventurer_profiles").doc(id);
+                const vRef = db.collection("adventurer_vitality").doc(id);
+                const iRef = db.collection("adventurer_index").doc(id); // Update index juga jika nama berubah
+
+                batch.update(pRef, pData);
+                batch.update(vRef, vData);
+                batch.update(iRef, { 
+                    nickname: pData.nickname, 
+                    nickname_lowercase: pData.nickname.toLowerCase(),
+                    rank: pData.rank 
+                });
+
+                await batch.commit();
+                triggerAlert("DATABASE OVERRIDDEN!");
+                setTimeout(closeGodSheet, 1000);
+            } catch (e) {
+                alert("OVERRIDE FAILED: " + e);
+            }
+        }
+
+        // UTILS
+        function getRankColor(rank) {
+            const colors = { 'S': '#fbbf24', 'A': '#f87171', 'B': '#c084fc', 'C': '#60a5fa', 'D': '#4ade80', 'E': '#94a3b8', 'F': '#ffffff' };
+            return colors[rank] || '#fff';
+        }
+
+        function triggerAlert(msg) {
+            const el = document.getElementById('systemAlert');
+            el.innerText = msg;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 2000);
+        }
     </script>
 </body>
 </html>
