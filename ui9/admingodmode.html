@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOVEREIGN - MULTI-SHARD INSPECTOR</title>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* === THEME & VARIABLES === */
+        :root {
+            --admin-gold: #facc15;
+            --admin-gold-dim: #a16207;
+            --bg-dark: #050505;
+            --card-dark: #111111;
+            --border-color: #333333;
+            --text-main: #e5e7eb;
+            --success: #4ade80;
+            --danger: #f87171;
+            --highlight: #1a1a0f;
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Consolas', 'Segoe UI', monospace, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1, h2, h3 { margin: 0; color: var(--admin-gold); }
+        
+        /* === GLOBAL SEARCH BAR === */
+        .search-container {
+            background: var(--card-dark);
+            border: 1px solid var(--admin-gold);
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            box-shadow: 0 0 15px rgba(250, 204, 21, 0.1);
+        }
+
+        .search-container input {
+            flex: 1;
+            background: #000;
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 12px;
+            font-size: 16px;
+            font-family: monospace;
+            outline: none;
+        }
+
+        .search-container input:focus { border-color: var(--admin-gold); }
+
+        .btn-search {
+            background: var(--admin-gold);
+            color: #000;
+            border: none;
+            padding: 0 25px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        /* === ACCORDION PANELS (MINIMIZED BY DEFAULT) === */
+        .accordion-card {
+            background: var(--card-dark);
+            border: 1px solid var(--border-color);
+            margin-bottom: 10px;
+        }
+
+        .accordion-header {
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #0a0a0a;
+            border-bottom: 1px solid transparent;
+            transition: 0.3s;
+        }
+
+        .accordion-header:hover { background: #151515; }
+        
+        .accordion-header.active {
+            border-bottom: 1px solid var(--border-color);
+            border-left: 3px solid var(--admin-gold);
+        }
+
+        .accordion-body {
+            display: none; /* Minimized by default */
+            padding: 20px;
+            background: #111;
+        }
+
+        /* === TABLES === */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background: #050505;
+            color: var(--admin-gold-dim);
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #1a1a1a;
+            color: #ccc;
+        }
+
+        tr:hover { background: var(--highlight); }
+
+        /* === INPUT FOR INLINE EDIT === */
+        .inline-input {
+            background: #000;
+            border: 1px solid var(--admin-gold);
+            color: #fff;
+            padding: 5px;
+            width: 90%;
+            font-family: monospace;
+        }
+
+        /* === BUTTONS === */
+        .btn-action {
+            background: transparent;
+            border: 1px solid #555;
+            color: #aaa;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .btn-action:hover { color: var(--admin-gold); border-color: var(--admin-gold); }
+        .btn-save-inline { color: var(--success); border-color: var(--success); font-weight: bold; }
+        .btn-cancel-inline { color: var(--danger); border-color: var(--danger); }
+
+        /* === MODAL CONFIRMATION === */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none; justify-content: center; align-items: center; z-index: 9999;
+        }
+
+        .modal-box {
+            background: #111;
+            border: 1px solid var(--admin-gold);
+            padding: 25px;
+            width: 400px;
+            text-align: center;
+        }
+
+        .modal-box p { color: #fff; line-height: 1.5; font-size: 14px; margin: 20px 0; }
+        .highlight-val { color: var(--admin-gold); font-weight: bold; font-size: 16px; }
+        
+        .btn-confirm { background: var(--success); color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
+        .btn-reject { background: transparent; color: #aaa; border: 1px solid #aaa; padding: 10px 20px; cursor: pointer; margin-right: 10px;}
+
+        /* UTILS */
+        .loader-text { color: var(--admin-gold); font-size: 12px; margin-top: 10px; }
+        .target-info { background: #1a1a0f; border: 1px dashed var(--admin-gold); padding: 15px; margin-bottom: 20px; display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Cari ID_ADV, Nickname, atau No HP di Master Index..." onkeydown="if(event.key === 'Enter') App.searchUser()">
+        <button class="btn-search" onclick="App.searchUser()">SCAN MASTER</button>
+    </div>
+    <div id="searchLoader" class="loader-text" style="display:none;">Mencari di FB1_MASTER...</div>
+
+    <div id="searchResultArea" style="margin-bottom: 20px;"></div>
+
+    <div class="accordion-card">
+        <div class="accordion-header" onclick="App.toggleAccordion('panel_topup', this)">
+            <h3>[+] RADAR TRANSAKSI (PENDING)</h3>
+            <span id="badge_topup" style="color:var(--danger)">Memuat...</span>
+        </div>
+        <div id="panel_topup" class="accordion-body">
+            <div id="table_topup_content"></div>
+        </div>
+    </div>
+
+    <div id="targetArea" class="target-info">
+        <h3>TARGET TERKUNCI: <span id="targetId" style="color:#fff"></span></h3>
+        <p style="margin: 5px 0 0 0; color:#888; font-size:12px;">Lokasi Terminal: <strong id="targetShard" style="color:var(--admin-gold)"></strong></p>
+    </div>
+
+    <div id="shardTablesArea" style="display: none;">
+        </div>
+
+    <div id="securityModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3 style="color: var(--danger);">SECURITY CHECK</h3>
+            <p id="securityMessage"></p>
+            <div style="margin-top: 20px;">
+                <button class="btn-reject" onclick="App.closeModal()">BATAL</button>
+                <button class="btn-confirm" onclick="App.executeSave()">LANJUTKAN UPDATE</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // A. TERMINAL ROUTER CONFIGURATION
+        // ==========================================
+        const TERMINAL_URLS = {
+            FB1_MASTER: "https://data1-fe8b7-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            FB2_RUNNER: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            FB3_DIRECTORY: "https://requester-2c6d9-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            FB4_BOARD: "https://biding-c8f01-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            FB5_DEAL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        };
+
+        window.FirebaseInstances = {};
+
+        function getTerminal(terminalName) {
+            const url = TERMINAL_URLS[terminalName];
+            if (!url) return null;
+            if (!window.FirebaseInstances[terminalName]) {
+                const app = firebase.initializeApp({ databaseURL: url }, "APP_" + terminalName);
+                window.FirebaseInstances[terminalName] = app.database();
+            }
+            return window.FirebaseInstances[terminalName];
+        }
+
+        // ==========================================
+        // B. DAFTAR 8 TABEL SHARD
+        // ==========================================
+        const SHARD_TABLES = [
+            { id: "adventurer_profile", title: "PROFILE & IDENTITAS" },
+            { id: "adventurer_inventory", title: "INVENTORY (Item & Resource)" },
+            { id: "adventurer_experience", title: "EXPERIENCE & LEVELING" },
+            { id: "adventurer_reputation", title: "REPUTATION & MORALITAS" },
+            { id: "adventurer_contracts", title: "CONTRACTS & MISI" },
+            { id: "adventurer_coxin", title: "COXIN (Ekonomi/Saldo)" },
+            { id: "adventurer_diagram", title: "DIAGRAM (Skill Tree)" },
+            { id: "adventurer_judge", title: "JUDGE (Moderasi & Penalti)" }
+        ];
+
+        // ==========================================
+        // C. MAIN APPLICATION LOGIC
+        // ==========================================
+        const App = {
+            db1: null,
+            targetId: null,
+            targetShard: null,
+            
+            // Variabel untuk modal konfirmasi
+            pendingUpdate: { dbShard: null, path: "", key: "", oldVal: "", newVal: "", tableName: "" },
+
+            init: function() {
+                this.db1 = getTerminal('FB1_MASTER');
+                this.loadPendingTopup();
+                this.buildShardAccordions();
+            },
+
+            // 1. UI ACCORDION LOGIC
+            toggleAccordion: function(panelId, headerEl, isShardTable = false, tableName = "") {
+                const panel = document.getElementById(panelId);
+                const isOpen = panel.style.display === "block";
+                
+                // Toggle UI
+                panel.style.display = isOpen ? "none" : "block";
+                if(isOpen) {
+                    headerEl.classList.remove("active");
+                } else {
+                    headerEl.classList.add("active");
+                    // Lazy Load Trigger untuk Shard Table
+                    if (isShardTable && this.targetId && this.targetShard) {
+                        this.fetchShardData(tableName, panelId);
+                    }
+                }
+            },
+
+            // 2. FETCH PENDING TRANSACTIONS (FB1)
+            loadPendingTopup: async function() {
+                try {
+                    const snap = await this.db1.ref('transaction_top_coxreal').once('value');
+                    const data = snap.val();
+                    let pendingCount = 0;
+                    let html = `<table><tr><th>ID TRANS</th><th>ID ADV</th><th>STONE</th><th>STATUS</th><th>ACTION</th></tr>`;
+
+                    if (data) {
+                        for (let key in data) {
+                            if (data[key].status === 'pending') {
+                                pendingCount++;
+                                html += `<tr>
+                                    <td>${key}</td>
+                                    <td>${data[key].id_adventurer}</td>
+                                    <td>${data[key].jumlah_stone}</td>
+                                    <td style="color:var(--danger)">PENDING</td>
+                                    <td><button class="btn-action" onclick="App.searchUser('${data[key].id_adventurer}')">INSPEKSI USER</button></td>
+                                </tr>`;
+                            }
+                        }
+                    }
+                    html += `</table>`;
+                    
+                    if(pendingCount === 0) html = `<p style="color:#555">Tidak ada antrean topup.</p>`;
+                    
+                    document.getElementById('table_topup_content').innerHTML = html;
+                    document.getElementById('badge_topup').innerText = `${pendingCount} Antrean`;
+                } catch (e) {
+                    console.error("Gagal load transaksi", e);
+                }
+            },
+
+            // 3. SMART SEARCH (3 PARAMETER DI FB1)
+            searchUser: async function(forcedInput = null) {
+                const query = forcedInput || document.getElementById('searchInput').value.trim();
+                if (!query) return;
+
+                document.getElementById('searchLoader').style.display = "block";
+                document.getElementById('searchResultArea').innerHTML = "";
+
+                try {
+                    // Ambil seluruh index (Karena kita tidak pakai query kompleks di Realtime DB)
+                    const snap = await this.db1.ref('adventurer_index').once('value');
+                    const users = snap.val();
+                    let found = [];
+
+                    if (users) {
+                        for (let id_adv in users) {
+                            let u = users[id_adv];
+                            let matchNick = (u.nickname && u.nickname.toLowerCase().includes(query.toLowerCase()));
+                            let matchPhone = (u.phone && u.phone.includes(query));
+                            let matchId = (id_adv.includes(query));
+
+                            if (matchNick || matchPhone || matchId) {
+                                found.push({ id: id_adv, ...u });
+                            }
+                        }
+                    }
+
+                    document.getElementById('searchLoader').style.display = "none";
+
+                    if (found.length === 0) {
+                        document.getElementById('searchResultArea').innerHTML = `<p style="color:var(--danger)">Target tidak ditemukan di Master Index.</p>`;
+                        return;
+                    }
+
+                    // Tampilkan Hasil (Jika > 1, biarkan Admin milih)
+                    let html = `<div style="background:#111; padding:15px; border:1px solid #333;">
+                        <h4 style="margin-top:0">HASIL SCANNING:</h4><table>
+                        <tr><th>NICKNAME</th><th>ID_ADV</th><th>PHONE</th><th>SHARD</th><th>ACTION</th></tr>`;
+                    
+                    found.forEach(f => {
+                        html += `<tr>
+                            <td>${f.nickname || '-'}</td>
+                            <td style="color:var(--admin-gold)">${f.id}</td>
+                            <td>${f.phone || '-'}</td>
+                            <td>${f.shard_id || 'UNKNOWN'}</td>
+                            <td><button class="btn-action" style="color:var(--success); border-color:var(--success)" 
+                                onclick="App.lockTarget('${f.id}', '${f.shard_id}')">KUNCI TARGET</button></td>
+                        </tr>`;
+                    });
+                    html += `</table></div>`;
+                    
+                    document.getElementById('searchResultArea').innerHTML = html;
+
+                } catch (e) {
+                    document.getElementById('searchLoader').style.display = "none";
+                    alert("Error pencarian: " + e.message);
+                }
+            },
+
+            // 4. KUNCI TARGET & SIAPKAN 8 ACCORDION
+            lockTarget: function(id_adv, shard_id) {
+                if (!shard_id || shard_id === 'undefined') {
+                    alert("Fatal Error: Target tidak memiliki Shard ID yang valid di Master Index.");
+                    return;
+                }
+
+                this.targetId = id_adv;
+                this.targetShard = shard_id;
+
+                // Update UI Header Target
+                document.getElementById('targetArea').style.display = "block";
+                document.getElementById('targetId').innerText = id_adv;
+                document.getElementById('targetShard').innerText = shard_id;
+
+                // Tampilkan container 8 tabel, pastikan semuanya tertutup (Minimized)
+                document.getElementById('shardTablesArea').style.display = "block";
+                
+                // Reset semua konten tabel (karena ganti user)
+                SHARD_TABLES.forEach(tbl => {
+                    const panel = document.getElementById(`panel_${tbl.id}`);
+                    const header = document.getElementById(`header_${tbl.id}`);
+                    panel.style.display = "none"; // Minimize
+                    header.classList.remove("active");
+                    panel.innerHTML = `<p class="loader-text">Menunggu instruksi Maximize...</p>`;
+                });
+
+                // Bersihkan area search
+                document.getElementById('searchResultArea').innerHTML = "";
+                document.getElementById('searchInput').value = "";
+            },
+
+            buildShardAccordions: function() {
+                const container = document.getElementById('shardTablesArea');
+                let html = "";
+                SHARD_TABLES.forEach(tbl => {
+                    html += `
+                    <div class="accordion-card">
+                        <div id="header_${tbl.id}" class="accordion-header" onclick="App.toggleAccordion('panel_${tbl.id}', this, true, '${tbl.id}')">
+                            <h3>[+] ${tbl.title}</h3>
+                        </div>
+                        <div id="panel_${tbl.id}" class="accordion-body">
+                            <p class="loader-text">Menunggu instruksi Maximize...</p>
+                        </div>
+                    </div>`;
+                });
+                container.innerHTML = html;
+            },
+
+            // 5. LAZY FETCH DATA SHARD (ONCE)
+            fetchShardData: async function(tableName, panelId) {
+                const panel = document.getElementById(panelId);
+                panel.innerHTML = `<p class="loader-text">Mengunduh dari ${this.targetShard}...</p>`;
+
+                try {
+                    const dbShard = getTerminal(this.targetShard);
+                    const path = `${tableName}/${this.targetId}`;
+                    const snap = await dbShard.ref(path).once('value');
+                    
+                    const data = snap.val();
+
+                    if (!data) {
+                        panel.innerHTML = `<p style="color:#888">Data kosong atau belum terinisialisasi di Shard.</p>
+                        <button class="btn-action" onclick="App.addBlankData('${tableName}', '${panelId}')">+ Force Init Data</button>`;
+                        return;
+                    }
+
+                    this.renderTableData(tableName, data, panelId);
+
+                } catch (e) {
+                    panel.innerHTML = `<p style="color:var(--danger)">Gagal memuat data: ${e.message}</p>`;
+                }
+            },
+
+            // 6. RENDER DATA & INLINE EDITOR
+            renderTableData: function(tableName, dataObj, panelId) {
+                let html = `<table><tr><th width="30%">DATA KEY</th><th width="50%">VALUE</th><th width="20%">ACTION</th></tr>`;
+                
+                for (let key in dataObj) {
+                    // Karena ini "Simple Object", jika berupa object (nested), kita ubah ke JSON String dulu (jaga-jaga)
+                    let val = dataObj[key];
+                    let displayVal = typeof val === 'object' ? JSON.stringify(val) : val;
+
+                    html += `
+                    <tr>
+                        <td style="color:var(--admin-gold)">${key}</td>
+                        <td id="val_${tableName}_${key}">
+                            <span id="text_${tableName}_${key}">${displayVal}</span>
+                            <input type="text" id="input_${tableName}_${key}" class="inline-input" value="${displayVal}" style="display:none;">
+                        </td>
+                        <td id="act_${tableName}_${key}">
+                            <button class="btn-action" onclick="App.enableEdit('${tableName}', '${key}')">EDIT</button>
+                        </td>
+                    </tr>`;
+                }
+                html += `</table>`;
+                document.getElementById(panelId).innerHTML = html;
+            },
+
+            enableEdit: function(tableName, key) {
+                document.getElementById(`text_${tableName}_${key}`).style.display = "none";
+                document.getElementById(`input_${tableName}_${key}`).style.display = "block";
+                
+                document.getElementById(`act_${tableName}_${key}`).innerHTML = `
+                    <button class="btn-action btn-save-inline" onclick="App.prepareSave('${tableName}', '${key}')">SAVE</button>
+                    <button class="btn-action btn-cancel-inline" onclick="App.cancelEdit('${tableName}', '${key}')">X</button>
+                `;
+            },
+
+            cancelEdit: function(tableName, key) {
+                document.getElementById(`text_${tableName}_${key}`).style.display = "block";
+                document.getElementById(`input_${tableName}_${key}`).style.display = "none";
+                document.getElementById(`input_${tableName}_${key}`).value = document.getElementById(`text_${tableName}_${key}`).innerText;
+                
+                document.getElementById(`act_${tableName}_${key}`).innerHTML = `
+                    <button class="btn-action" onclick="App.enableEdit('${tableName}', '${key}')">EDIT</button>
+                `;
+            },
+
+            // 7. SECURITY CONFIRMATION & EXECUTE SAVE
+            prepareSave: function(tableName, key) {
+                const oldVal = document.getElementById(`text_${tableName}_${key}`).innerText;
+                const newVal = document.getElementById(`input_${tableName}_${key}`).value;
+
+                if (oldVal === newVal) {
+                    this.cancelEdit(tableName, key);
+                    return;
+                }
+
+                // Siapkan data untuk dieksekusi
+                const dbShard = getTerminal(this.targetShard);
+                this.pendingUpdate = {
+                    dbShard: dbShard,
+                    path: `${tableName}/${this.targetId}`,
+                    key: key,
+                    oldVal: oldVal,
+                    newVal: newVal,
+                    tableName: tableName
+                };
+
+                // Munculkan Modal
+                const msg = `Mengubah <span style="color:#fff">${key}</span> pada tabel <span style="color:#fff">${tableName}</span><br><br>
+                             Dari: <span class="highlight-val" style="color:#888">${oldVal}</span><br>
+                             Menjadi: <span class="highlight-val">${newVal}</span>`;
+                
+                document.getElementById('securityMessage').innerHTML = msg;
+                document.getElementById('securityModal').style.display = "flex";
+            },
+
+            closeModal: function() {
+                document.getElementById('securityModal').style.display = "none";
+            },
+
+            executeSave: async function() {
+                const updateData = this.pendingUpdate;
+                
+                // Deteksi jika input berupa angka, paksa jadi Integer/Float (penting untuk experience/coxin)
+                let finalVal = updateData.newVal;
+                if (!isNaN(finalVal) && finalVal.trim() !== '') {
+                    finalVal = Number(finalVal);
+                } else {
+                    // Deteksi jika JSON Array/Object sederhana dari tabel Inventory
+                    try {
+                        let parsed = JSON.parse(finalVal);
+                        if (typeof parsed === 'object') finalVal = parsed;
+                    } catch(e) {} // Abaikan jika sekadar string teks
+                }
+
+                try {
+                    document.querySelector('.btn-confirm').innerText = "MENYIMPAN...";
+                    
+                    // Eksekusi Update ke Firebase Shard
+                    await updateData.dbShard.ref(updateData.path).update({
+                        [updateData.key]: finalVal
+                    });
+
+                    // Sukses, update UI langsung tanpa fetch ulang agar hemat read
+                    document.getElementById(`text_${updateData.tableName}_${updateData.key}`).innerText = typeof finalVal === 'object' ? JSON.stringify(finalVal) : finalVal;
+                    this.cancelEdit(updateData.tableName, updateData.key);
+                    this.closeModal();
+
+                } catch (e) {
+                    alert("GAGAL MENYIMPAN KE SHARD: " + e.message);
+                } finally {
+                    document.querySelector('.btn-confirm').innerText = "LANJUTKAN UPDATE";
+                }
+            },
+
+            // UTILS: Force Init data kosong jika belum ada di tabel Shard tersebut
+            addBlankData: async function(tableName, panelId) {
+                const dbShard = getTerminal(this.targetShard);
+                try {
+                    await dbShard.ref(`${tableName}/${this.targetId}`).set({ _init: "blank_data" });
+                    this.fetchShardData(tableName, panelId); // Reload UI
+                } catch(e) { alert("Gagal init data: " + e.message); }
+            }
+        };
+
+        // START APP
+        window.onload = () => App.init();
+
+    </script>
+</body>
+</html>
