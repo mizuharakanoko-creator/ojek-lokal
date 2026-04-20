@@ -3,156 +3,582 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GOD MODE - MASTER CONTROL</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="terminal_router.js"></script> <style>
-        body { background: #050505; color: #fff; font-family: 'Segoe UI', sans-serif; padding: 20px; }
-        .admin-panel { border: 2px solid #fbbf24; padding: 20px; border-radius: 12px; background: #0f172a; }
-        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
-        input { flex: 1; padding: 12px; background: #000; border: 1px solid #334155; color: #fff; border-radius: 6px; }
-        .btn { padding: 10px 20px; border: none; font-weight: bold; cursor: pointer; border-radius: 6px; }
-        .btn-gold { background: #fbbf24; color: #000; }
-        
-        .result-card { background: #1e293b; padding: 20px; border-radius: 10px; margin-top: 20px; display: none; }
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
-        label { font-size: 11px; color: #94a3b8; display: block; margin-bottom: 5px; }
+    <title>SOVEREIGN - MASTER TERMINAL ADMIN</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        /* CSS CORE: THEME CYBER-GOLD ADMIN */
+        :root {
+            --admin-gold: #facc15;
+            --admin-gold-dim: #a16207;
+            --bg-dark: #050505;
+            --card-dark: #0f0f0f;
+            --border-color: #222;
+            --text-main: #e5e7eb;
+            --success: #4ade80;
+            --danger: #f87171;
+        }
+
+        body { 
+            background: var(--bg-dark); 
+            color: var(--text-main); 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* SIDEBAR NAVIGATION */
+        .sidebar {
+            width: 280px;
+            background: var(--card-dark);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .sidebar h2 {
+            color: var(--admin-gold);
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            margin-bottom: 30px;
+            text-align: center;
+            border-bottom: 2px solid var(--admin-gold);
+            padding-bottom: 10px;
+        }
+
+        .nav-group {
+            margin-bottom: 25px;
+        }
+
+        .nav-group label {
+            font-size: 10px;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .nav-item {
+            padding: 12px 15px;
+            background: #111;
+            border: 1px solid #1a1a1a;
+            margin-bottom: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.3s;
+            color: #aaa;
+        }
+
+        .nav-item:hover {
+            border-color: var(--admin-gold);
+            color: var(--admin-gold);
+            background: #151510;
+        }
+
+        .nav-item.active {
+            border-left: 4px solid var(--admin-gold);
+            background: #1a1a15;
+            color: #fff;
+        }
+
+        /* MAIN AREA */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            background: radial-gradient(circle at top right, #0a0a05, #050505);
+        }
+
+        .header-strip {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .header-strip h1 {
+            font-size: 1.5rem;
+            margin: 0;
+            color: #fff;
+        }
+
+        /* DATA TABLE STYLE */
+        .table-wrapper {
+            background: var(--card-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .admin-table th {
+            background: #111;
+            padding: 15px;
+            color: var(--admin-gold);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            text-transform: uppercase;
+        }
+
+        .admin-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #161616;
+            color: #ccc;
+        }
+
+        .admin-table tr:hover {
+            background: #121212;
+        }
+
+        /* ACTIONS */
+        .btn-action {
+            background: transparent;
+            border: 1px solid #444;
+            color: #888;
+            padding: 5px 12px;
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: 0.2s;
+        }
+
+        .btn-action:hover {
+            border-color: var(--admin-gold);
+            color: var(--admin-gold);
+        }
+
+        .btn-approve {
+            color: var(--success);
+            border-color: var(--success);
+        }
+
+        .btn-approve:hover {
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        /* EDITOR MODAL / PANEL */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .editor-card {
+            background: #0f0f0f;
+            width: 700px;
+            max-height: 90vh;
+            border: 1px solid var(--admin-gold);
+            box-shadow: 0 0 30px rgba(250, 204, 21, 0.15);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-header {
+            padding: 20px;
+            border-bottom: 1px solid #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .editor-body {
+            padding: 20px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 11px;
+            color: var(--admin-gold);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            background: #000;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 10px;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .input-group input:focus {
+            border-color: var(--admin-gold);
+        }
+
+        .editor-footer {
+            padding: 20px;
+            border-top: 1px solid #222;
+            text-align: right;
+        }
+
+        .btn-save {
+            background: var(--admin-gold);
+            color: #000;
+            border: none;
+            padding: 10px 25px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            background: transparent;
+            color: #888;
+            border: none;
+            margin-right: 15px;
+            cursor: pointer;
+        }
+
+        /* LOADING SPINNER */
+        .loader {
+            display: none;
+            color: var(--admin-gold);
+            font-size: 12px;
+            letter-spacing: 2px;
+        }
     </style>
 </head>
 <body>
 
-<div class="admin-panel">
-    <h2 style="color:#fbbf24; margin-bottom:10px;">👁️ GOD MODE: OVERRIDE SYSTEM</h2>
-    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 20px;">Pihak Ketiga: Kendali Penuh Lintas Shard</p>
-
-    <div class="search-box">
-        <input type="text" id="targetNickname" placeholder="Masukkan Nickname Adventurer...">
-        <button class="btn btn-gold" onclick="GodMode.search()">CARI TARGET</button>
-    </div>
-
-    <div id="resultArea" class="result-card">
-        <div style="border-bottom: 1px solid #334155; padding-bottom: 10px; margin-bottom: 15px;">
-            <h3 id="dispName" style="margin:0;">-</h3>
-            <small id="dispID" style="color:#fbbf24;">ID: -</small> | 
-            <small id="dispShard" style="color:#4ade80;">SHARD: -</small>
-        </div>
-
-        <div class="stats-grid">
-            <div>
-                <label>LEVEL</label>
-                <input type="number" id="editLvl">
+    <div class="sidebar">
+        <h2>SOVEREIGN</h2>
+        
+        <div class="nav-group">
+            <label>Master Databases (FB1)</label>
+            <div class="nav-item" onclick="MasterAdmin.changeTab('adventurer_index', this)">
+                Adventurer Index
             </div>
-            <div>
-                <label>RANK</label>
-                <select id="editRank" style="width:100%; padding:10px; background:#000; color:#fff; border:1px solid #334155;">
-                    <option value="S">Rank S</option><option value="A">Rank A</option>
-                    <option value="B">Rank B</option><option value="C">Rank C</option>
-                    <option value="D">Rank D</option><option value="E">Rank E</option>
-                    <option value="F">Rank F</option>
-                </select>
+            <div class="nav-item" onclick="MasterAdmin.changeTab('misi_index', this)">
+                Misi Index
             </div>
-            <div>
-                <label>STAMINA AKTUAL</label>
-                <input type="number" id="editStm">
-            </div>
-            <div>
-                <label>KOIN EMAS</label>
-                <input type="number" id="editKoin">
+            <div class="nav-item" onclick="MasterAdmin.changeTab('transaction_top_coxreal', this)">
+                Topup Requests
             </div>
         </div>
 
-        <button class="btn btn-gold" style="width:100%; margin-top:20px; height:50px; font-size:16px;" onclick="GodMode.override()">
-            SUNTIK DATA (OVERRIDE)
-        </button>
+        <div class="nav-group">
+            <label>System Info</label>
+            <div style="font-size: 11px; color: #444;">
+                Router Version: 2.0<br>
+                Status: Connected to FB1_MASTER
+            </div>
+        </div>
     </div>
-</div>
 
-<script>
-    const GodMode = {
-        target: { id: "", shard: "", nick: "" },
+    <div class="main-content">
+        <div class="header-strip">
+            <h1 id="viewTitle">Pilih Tabel Master</h1>
+            <div id="loadingIndicator" class="loader">SYNCHRONIZING...</div>
+        </div>
 
-        // 1. CARA AMBIL DATA (PELAJARI LOGIKA INI)
-        search: async function() {
-            const nick = document.getElementById('targetNickname').value.trim();
-            if(!nick) return alert("Masukkan nickname!");
+        <div id="tableContainer" class="table-wrapper">
+            <div style="padding: 40px; text-align: center; color: #444;">
+                Silahkan pilih tabel di sidebar untuk mengelola data.
+            </div>
+        </div>
+    </div>
 
-            // Admin akses FB1_MASTER untuk cari index (Alamat si User)
-            const dbMaster = getTerminal('FB1_MASTER');
+    <div id="editorModal" class="modal-overlay">
+        <div class="editor-card">
+            <div class="editor-header">
+                <div>
+                    <span style="color:var(--admin-gold); font-size:10px; display:block">EDITING DATA SHARD</span>
+                    <strong id="editorSubject">ID: -</strong>
+                </div>
+                <button class="btn-cancel" onclick="MasterAdmin.closeEditor()">CLOSE</button>
+            </div>
             
-            dbMaster.ref('adventurer_index').once('value', async (snap) => {
-                let foundID = null;
-                let foundData = null;
+            <div id="editorFields" class="editor-body">
+                <p>Memuat data dari Shard...</p>
+            </div>
 
-                snap.forEach(child => {
-                    if(child.val().nickname?.toLowerCase() === nick.toLowerCase()) {
-                        foundID = child.key;
-                        foundData = child.val();
-                    }
-                });
+            <div class="editor-footer">
+                <span id="shardIndicator" style="float: left; font-size: 10px; color: #555; margin-top: 10px;">Shard: -</span>
+                <button class="btn-cancel" onclick="MasterAdmin.closeEditor()">CANCEL</button>
+                <button class="btn-save" id="saveButton">SIMPAN PERUBAHAN</button>
+            </div>
+        </div>
+    </div>
 
-                if(!foundID) return alert("Adventurer tidak ditemukan di Buku Induk!");
+    <script>
+        // ==========================================
+        // 1. TERMINAL ROUTER ( LOGIKA ANDA )
+        // ==========================================
+        const TERMINAL_URLS = {
+            FB1_MASTER: "https://data1-fe8b7-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            FB2_RUNNER: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            FB3_DIRECTORY: "https://requester-2c6d9-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            FB4_BOARD: "https://biding-c8f01-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            FB5_DEAL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        };
 
-                this.target.id = foundID;
-                this.target.shard = foundData.shard_id || "FB2_RUNNER";
-                this.target.nick = foundData.nickname;
+        window.FirebaseInstances = {};
 
-                // Setelah dapat lokasi (Shard), ambil data Vitality & Profile asli di Shard tersebut
-                const dbShard = getTerminal(this.target.shard);
-                const vitalitySnap = await dbShard.ref(`adventurer_experience/${foundID}`).once('value');
-                const profileSnap = await dbShard.ref(`adventurer_profile/${foundID}`).once('value');
-                
-                this.showResult(vitalitySnap.val(), profileSnap.val(), foundData.koin);
-            });
-        },
-
-        showResult: function(vit, prof, koin) {
-            document.getElementById('resultArea').style.display = 'block';
-            document.getElementById('dispName').innerText = this.target.nick;
-            document.getElementById('dispID').innerText = "ID: " + this.target.id;
-            document.getElementById('dispShard').innerText = "SHARD: " + this.target.shard;
-
-            // Masukkan data ke form untuk diubah
-            document.getElementById('editLvl').value = vit?.level || 1;
-            document.getElementById('editStm').value = vit?.current_stamina || 0;
-            document.getElementById('editRank').value = prof?.rank || "F";
-            document.getElementById('editKoin').value = koin || 0;
-        },
-
-        // 2. CARA UBAH SEGALA DATA (LOGIKA OVERRIDE)
-        override: async function() {
-            if(!confirm("ANDA YAKIN? Data akan diubah secara absolut sebagai Pihak Ketiga.")) return;
-
-            const id = this.target.id;
-            const shard = this.target.shard;
-            const dbShard = getTerminal(shard);
-            const dbMaster = getTerminal('FB1_MASTER');
-
-            const payloadExperience = {
-                level: parseInt(document.getElementById('editLvl').value),
-                current_stamina: parseInt(document.getElementById('editStm').value)
-            };
-
-            const payloadProfile = {
-                rank: document.getElementById('editRank').value
-            };
-
-            const newKoin = parseInt(document.getElementById('editKoin').value);
-
-            try {
-                // Ubah data di Shard
-                await dbShard.ref(`adventurer_experience/${id}`).update(payloadExperience);
-                await dbShard.ref(`adventurer_profile/${id}`).update(payloadProfile);
-                
-                // Ubah data di Master (Koin biasanya di index utama)
-                await dbMaster.ref(`adventurer_index/${id}`).update({ koin: newKoin });
-
-                alert("SUNTIKAN BERHASIL: Data " + this.target.nick + " telah diperbarui!");
-            } catch (e) {
-                alert("GAGAL: " + e.message);
+        function getTerminal(terminalName) {
+            const url = TERMINAL_URLS[terminalName];
+            if (!url) {
+                console.error("TERMINAL ROUTER ERROR: " + terminalName);
+                return null;
             }
+            if (!window.FirebaseInstances[terminalName]) {
+                const app = firebase.initializeApp({ databaseURL: url }, "APP_" + terminalName);
+                window.FirebaseInstances[terminalName] = app.database();
+            }
+            return window.FirebaseInstances[terminalName];
         }
-    };
-</script>
 
+        // ==========================================
+        // 2. MASTER ADMIN ENGINE
+        // ==========================================
+        const MasterAdmin = {
+            db1: null,
+            currentView: "",
+            
+            init: function() {
+                this.db1 = getTerminal('FB1_MASTER');
+                console.log("Master Admin Ready.");
+            },
+
+            // Mengganti Tampilan Tabel
+            changeTab: function(view, element) {
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                element.classList.add('active');
+                this.currentView = view;
+                document.getElementById('viewTitle').innerText = view.replace(/_/g, ' ').toUpperCase();
+                this.fetchMasterData();
+            },
+
+            // Ambil data dari FB1
+            fetchMasterData: async function() {
+                const container = document.getElementById('tableContainer');
+                const loader = document.getElementById('loadingIndicator');
+                
+                loader.style.display = "block";
+                container.style.opacity = "0.5";
+
+                try {
+                    const snap = await this.db1.ref(this.currentView).once('value');
+                    loader.style.display = "none";
+                    container.style.opacity = "1";
+
+                    if (!snap.exists()) {
+                        container.innerHTML = `<div style="padding:40px; color:#555">Tabel ${this.currentView} kosong.</div>`;
+                        return;
+                    }
+
+                    this.renderTable(snap.val());
+                } catch (e) {
+                    console.error(e);
+                    alert("Gagal mengambil data master.");
+                }
+            },
+
+            // Render Tabel Dinamis
+            renderTable: function(data) {
+                const container = document.getElementById('tableContainer');
+                const keys = Object.keys(data);
+                const firstItem = data[keys[0]];
+                const columns = Object.keys(firstItem);
+
+                let html = `<table class="admin-table"><thead><tr>`;
+                columns.forEach(col => html += `<th>${col}</th>`);
+                html += `<th>MANAGE</th></tr></thead><tbody>`;
+
+                for (let key in data) {
+                    const row = data[key];
+                    html += `<tr>`;
+                    columns.forEach(col => {
+                        let val = row[col];
+                        // Format data jika panjang
+                        if (typeof val === 'string' && val.length > 30) val = val.substring(0, 27) + "...";
+                        html += `<td>${val === undefined ? '-' : val}</td>`;
+                    });
+
+                    // Logika Tombol Action berdasarkan tabel
+                    let actionHtml = "";
+                    if (this.currentView === 'adventurer_index') {
+                        actionHtml = `<button class="btn-action" onclick="MasterAdmin.openUserEditor('${key}', '${row.shard_id}')">EDIT SHARD</button>`;
+                    } else if (this.currentView === 'transaction_top_coxreal') {
+                        if (row.status === 'pending') {
+                            actionHtml = `<button class="btn-action btn-approve" onclick="MasterAdmin.approveTopup('${key}')">APPROVE</button>`;
+                        } else {
+                            actionHtml = `<span style="color:#444; font-size:10px;">${row.status.toUpperCase()}</span>`;
+                        }
+                    } else {
+                        actionHtml = `<button class="btn-action" onclick="alert('Fitur edit tabel ini segera hadir')">EDIT</button>`;
+                    }
+
+                    html += `<td>${actionHtml}</td></tr>`;
+                }
+
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            },
+
+            // ==========================================
+            // 3. EDITOR LINTAS SHARD (DEEP LINK)
+            // ==========================================
+            openUserEditor: async function(idAdv, shardId) {
+                const modal = document.getElementById('editorModal');
+                const fieldsContainer = document.getElementById('editorFields');
+                const saveBtn = document.getElementById('saveButton');
+                
+                modal.style.display = "flex";
+                document.getElementById('editorSubject').innerText = idAdv;
+                document.getElementById('shardIndicator').innerText = "Terminal: " + shardId;
+                fieldsContainer.innerHTML = "Tracing Shard Data...";
+
+                try {
+                    const dbShard = getTerminal(shardId);
+                    
+                    // Kita ambil data dari 2 tabel sekaligus di Shard: Profile & Vitality
+                    const [snapProfile, snapVital] = await Promise.all([
+                        dbShard.ref(`adventurer_profile/${idAdv}`).once('value'),
+                        dbShard.ref(`adventurer_vitality/${idAdv}`).once('value')
+                    ]);
+
+                    const profile = snapProfile.val() || {};
+                    const vital = snapVital.val() || {};
+
+                    // Susun Form Editor
+                    fieldsContainer.innerHTML = `
+                        <div class="input-group">
+                            <label>Nama Adventurer</label>
+                            <input type="text" id="edit_nama" value="${profile.nama || ''}">
+                        </div>
+                        <div class="input-group">
+                            <label>Rank (Gelar)</label>
+                            <input type="text" id="edit_rank" value="${profile.rank || 'F'}">
+                        </div>
+                        <div class="input-group">
+                            <label>Stamina Sekarang</label>
+                            <input type="number" id="edit_stamina" value="${vital.stamina_current || 0}">
+                        </div>
+                        <div class="input-group">
+                            <label>Max Stamina</label>
+                            <input type="number" id="edit_max_stamina" value="${vital.stamina_max || 0}">
+                        </div>
+                        <div class="input-group">
+                            <label>Coxin Stone (Balance)</label>
+                            <input type="number" id="edit_coxin" value="${vital.coxin_stone || 0}">
+                        </div>
+                        <div class="input-group">
+                            <label>Reputasi</label>
+                            <input type="number" id="edit_reputasi" value="${profile.reputasi || 0}">
+                        </div>
+                    `;
+
+                    // Logic Simpan
+                    saveBtn.onclick = async () => {
+                        saveBtn.innerText = "SAVING...";
+                        saveBtn.disabled = true;
+
+                        const updateProfile = {
+                            nama: document.getElementById('edit_nama').value,
+                            rank: document.getElementById('edit_rank').value,
+                            reputasi: parseInt(document.getElementById('edit_reputasi').value)
+                        };
+
+                        const updateVital = {
+                            stamina_current: parseInt(document.getElementById('edit_stamina').value),
+                            stamina_max: parseInt(document.getElementById('edit_max_stamina').value),
+                            coxin_stone: parseInt(document.getElementById('edit_coxin').value)
+                        };
+
+                        try {
+                            await Promise.all([
+                                dbShard.ref(`adventurer_profile/${idAdv}`).update(updateProfile),
+                                dbShard.ref(`adventurer_vitality/${idAdv}`).update(updateVital)
+                            ]);
+                            alert("DATA SHARD BERHASIL DIUPDATE!");
+                            this.closeEditor();
+                        } catch (err) {
+                            alert("Error Simpan: " + err.message);
+                        } finally {
+                            saveBtn.innerText = "SIMPAN PERUBAHAN";
+                            saveBtn.disabled = false;
+                        }
+                    };
+
+                } catch (e) {
+                    fieldsContainer.innerHTML = "Gagal memuat data dari shard: " + e.message;
+                }
+            },
+
+            closeEditor: function() {
+                document.getElementById('editorModal').style.display = "none";
+            },
+
+            // ==========================================
+            // 4. LOGIKA APPROVE TOPUP (FB1 -> SHARD)
+            // ==========================================
+            approveTopup: async function(transId) {
+                if (!confirm("Approve topup ini? Crystal akan dikirim ke Shard user.")) return;
+
+                try {
+                    // 1. Baca data transaksi di FB1
+                    const transRef = this.db1.ref(`transaction_top_coxreal/${transId}`);
+                    const snapTrans = await transRef.once('value');
+                    const data = snapTrans.val();
+
+                    // 2. Cari Shard ID user di adventurer_index
+                    const userRef = this.db1.ref(`adventurer_index/${data.id_adventurer}`);
+                    const snapUser = await userRef.once('value');
+                    
+                    if (!snapUser.exists()) throw new Error("User tidak ditemukan di Index.");
+                    const shardId = snapUser.val().shard_id;
+
+                    // 3. Update Shard (Tambah Saldo)
+                    const dbShard = getTerminal(shardId);
+                    await dbShard.ref(`adventurer_vitality/${data.id_adventurer}/coxin_stone`).transaction((current) => {
+                        return (current || 0) + parseInt(data.jumlah_stone);
+                    });
+
+                    // 4. Update Status di FB1
+                    await transRef.update({
+                        status: 'success',
+                        processed_at: Date.now(),
+                        admin_note: 'Approved by Master Terminal'
+                    });
+
+                    alert(`BERHASIL! ${data.jumlah_stone} Stone dikirim ke Shard ${shardId}`);
+                    this.fetchMasterData();
+
+                } catch (e) {
+                    alert("Gagal: " + e.message);
+                }
+            }
+        };
+
+        // RUN
+        window.onload = () => MasterAdmin.init();
+
+    </script>
 </body>
 </html>
