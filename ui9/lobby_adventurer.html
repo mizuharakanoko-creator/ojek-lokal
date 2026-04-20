@@ -1214,10 +1214,8 @@ Core: {
 
             
     renderMisi: function(m, container) {
-    // 1. LOGIKA KOORDINAT & JARAK
     let mLat = m.lat, mLng = m.lng;
     if(!mLat && m.origin_desa) {
-        // Mengambil koordinat cadangan jika m.lat kosong
         const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
         if(detailAsal) { mLat = detailAsal.lat; mLng = detailAsal.lng; }
     }
@@ -1225,18 +1223,18 @@ Core: {
     const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
     const waktuTeks = this.timeAgo(m.created_at);
 
-    // 2. DATA RPG REWARD & STAMINA
+    // AMBIL DATA RPG_REWARD DARI DATABASE MISI
     const rpg = m.rpg_reward || { exp: 0, greenStone: 0, stamina: 10 }; 
-    let bonusHtml = "";
-    if (rpg.exp > 0) bonusHtml += `<span style="color:#60a5fa; margin-right:5px;">+${rpg.exp}XP</span>`;
-    if (rpg.greenStone > 0) bonusHtml += `<span style="color:#4ade80;">+${rpg.greenStone}GS</span>`;
     
-    // 3. WARNA TINGKAT KESULITAN
+    // Tampilan visual bonus
+    let bonusHtml = "";
+    if (rpg.exp > 0) bonusHtml += `<span style="color:#60a5fa;">+${rpg.exp}XP </span>`;
+    if (rpg.greenStone > 0) bonusHtml += `<span style="color:#4ade80;">+${rpg.greenStone}GS </span>`;
+        
     let diffColor = "#4ade80";
     if (m.difficulty_rate > 1.5) diffColor = "#facc15";
     if (m.difficulty_rate > 2.0) diffColor = "#f87171";
 
-    // 4. STATUS & KATEGORI
     const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
     const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || (m.dest_name && m.dest_name.includes('[TITIK')));
     
@@ -1244,76 +1242,68 @@ Core: {
         '<span style="color:#facc15; font-weight:bold;">NEGO</span>' : 
         `Rp ${m.reward.toLocaleString('id-ID')}`;
 
-    // 5. SANITASI STRING (Mencegah Error di Modal)
-    const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
-    const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
-
-    // 6. FORMAT TUJUAN KHUSUS (Titik Belanja/Multi-titik)
+    const div = document.createElement('div');
+    div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
+    
     let formattedDest = m.dest_name || "";
     if(isSpecial && formattedDest.includes('|')) {
         formattedDest = formattedDest.split('|')
-            .map(t => `<div class="titik-item" style="padding:4px 0; border-bottom:1px solid #1a1a1a;">• ${t.trim()}</div>`)
+            .map(t => `<div class="titik-item">${t.trim()}</div>`)
             .join('');
     }
 
-    const div = document.createElement('div');
-    div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
+    const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
+    const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
+    
+    // --- PENYELAMAT: Agar JSON tidak merusak onclick ---
+    const safeRPG = JSON.stringify(rpg).replace(/"/g, '&quot;');
 
-    // 7. STRUKTUR HTML (Layout Premium & Rapi)
     div.innerHTML = `
-        <div class="m-header" style="background:#151515; padding:10px 15px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #222;">
-            <div style="font-family:var(--font-terminal); font-size:11px; color:#777;">
-                ID: ${m.id_misi.slice(-6).toUpperCase()} 
-                <span style="margin-left:8px; color:#444;">• ${waktuTeks}</span>
-            </div>
-            <div class="difficulty-tag" style="background:${diffColor}; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:bold; color:#000;">
-                ${isApplied ? 'SINYAL AKTIF' : 'REQ: ' + rpg.stamina + ' STM'}
-            </div>
+    <div class="m-header">
+        <div>
+            <span>ID: ${m.id_misi.slice(-6).toUpperCase()}</span>
+            <span style="margin-left:8px; color:#555; font-size:9px;">• ${waktuTeks}</span>
+            <span class="difficulty-tag" style="background:${diffColor};">REQ: ${rpg.stamina} STM</span>
+        </div>
+        
+        <div style="font-size:10px; margin-bottom:8px; font-family:var(--font-terminal);">
+            <b style="color:#facc15;">REWARD RPG:</b> ${bonusHtml || 'STANDARD'}
         </div>
 
-        <div class="m-body" style="padding:15px;">
-            <div style="font-family:var(--font-terminal); font-size:10px; margin-bottom:10px; display:flex; align-items:center; gap:5px;">
-                <b style="color:#facc15;">BONUS:</b> 
-                ${bonusHtml || '<span style="color:#444;">NO BONUS</span>'}
-            </div>
-
-            <div class="m-title" style="color:#fff; font-weight:900; font-size:15px; margin-bottom:12px; display:flex; gap:8px;">
-                <span style="color:var(--theme-color);">➔</span>
-                ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + (m.dest_desa || 'TUJUAN').toUpperCase()}
-            </div>
-
-            ${isSpecial ? 
-                `<div class="special-detail-box" style="background:#000; border:1px solid #222; padding:10px; border-radius:4px; font-size:12px; color:#bbb; line-height:1.5;">${formattedDest || 'Tidak ada rincian data.'}</div>` : 
-                `<div class="m-route" style="background:#000; padding:10px; border-radius:4px; border:1px dashed #333; font-size:12px;">
-                    <div style="color:#fff; margin-bottom:4px;">📍 ${m.origin_name}</div>
-                    <div style="font-size:10px; color:#666;">Titik Jemput: ${m.origin_desa}</div>
-                </div>`
-            }
-
-            <div style="font-size:10px; color:var(--theme-color); margin-top:10px; font-family:var(--font-terminal); font-weight:bold; letter-spacing:1px;">
-                KATEGORI: ${m.category || 'REGULER'} | <span style="color:#555;">DIFF: ${m.difficulty_rate}x</span>
-            </div>
+        <div class="m-reward">
+            <span class="m-dist">${jarakTeks}</span>
+            <span>${rewardDisplay}</span>
         </div>
 
-        <div class="m-reward-box" style="display:flex; justify-content:space-between; align-items:center; background:#0f0f0f; padding:12px 15px; border-top:1px solid #222;">
-            <div>
-                <div style="font-size:9px; color:#555; font-family:var(--font-terminal);">EST. REWARD</div>
-                <div style="color:#00ff00; font-size:18px; font-weight:900; font-family:var(--font-terminal);">${rewardDisplay}</div>
-            </div>
-            <div style="text-align:right;">
-                <div style="font-size:10px; color:var(--theme-color); font-weight:bold; margin-bottom:5px;">${jarakTeks}</div>
-                ${isApplied ? 
-                    `<button class="btn-bid-card" disabled style="padding:8px 12px; background:#222; color:#555; border:1px solid #333; border-radius:4px; font-size:10px; font-weight:bold;">LOCK OUT</button>` :
-                    `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${JSON.stringify(rpg)})" 
-                             style="padding:8px 12px; background:var(--theme-color); color:#000; border:none; border-radius:4px; font-weight:bold; font-size:11px; cursor:pointer;">
-                        LIHAT DETAIL
-                    </button>`
-                }
-            </div>
+        ${isApplied ? 
+            '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
+            `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
+        }
+    </div>
+
+    <div class="m-title">
+        ${isSpecial ? '📦 RINCIAN PERMINTAAN' : 'KE: ' + (m.dest_desa || 'TUJUAN').toUpperCase()}
+    </div>
+    ${isSpecial ? `<div class="special-detail-box">${formattedDest || 'Tidak ada rincian data.'}</div>` : `
+        <div class="m-route">
+            <div style="color:#fff; margin-bottom:2px;">📍 ${m.origin_name}</div>
+            <div style="font-size:10px; color:#666;">Tujuan: ${m.dest_desa}</div>
         </div>
+    `}
+    <div style="font-size:10px; color:var(--theme-color); margin-bottom:8px; font-family:var(--font-terminal); font-weight:bold;">
+        KATEGORI: ${m.category || 'REGULER'}
+    </div>
+    <div class="m-reward">
+        <span class="m-dist">${jarakTeks}</span>
+        <span>${rewardDisplay}</span>
+    </div>
+    ${isApplied ? 
+        `<button class="btn-bid-card" disabled>KONTRAK DALAM TINJAUAN</button>` :
+        `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">LIHAT DETAIL / NEGO</button>`
+    }
     `;
     container.appendChild(div);
-}
+},
 
 
     listenToContracts: function() {
