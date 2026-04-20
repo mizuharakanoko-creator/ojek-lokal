@@ -761,9 +761,14 @@ showAdvancedDebug: function(allData, shardName, idAdv) {
         document.getElementById('alertOverlay').style.display = 'flex';
     },
 
-    openModal: function(mid, basePrice, note, category, origin, dest) {
-        App.BiddingData = { mid, basePrice, currentPrice: basePrice };
-        
+    openModal: function(mid, basePrice, note, category, origin, dest, rpgData) {
+    App.BiddingData = { 
+        mid, 
+        basePrice, 
+        currentPrice: basePrice,
+        rpgReward: rpgData // Simpan data RPG di sini
+    };
+
         const isSpecial = (category === 'Titip Beli' || category === 'Help' || dest.includes('[TITIK'));
         
         let formattedDest = dest;
@@ -790,6 +795,10 @@ showAdvancedDebug: function(allData, shardName, idAdv) {
                     <span class="loc-label">${isSpecial ? 'TITIK ORIGIN (BELANJA/HELP)' : 'TITIK JEMPUT (START)'}</span><br>
                     <b style="color:#eee; font-size:12px;">📍 ${origin}</b>
                 </div>
+                <div style="margin-top:10px; font-size:11px; color:#f87171; font-family:var(--font-terminal);">
+                    ⚡ KEBUTUHAN STAMINA: ${rpgData.stamina} STM
+                </div>
+
             `;
         }
 
@@ -874,12 +883,14 @@ Bidding: {
         document.getElementById('bidAmount').value = App.BiddingData.currentPrice.toLocaleString('id-ID');
     },
     submit: async function() {
-    const { mid, currentPrice } = App.BiddingData;
+    const { mid, currentPrice, rpgReward } = App.BiddingData;
     const r = App.State.rpg;
 
-    // 1. Validasi Dasar (Stamina & Limit)
-    if (r.stm < 10) {
-        App.UI.showAlert("LELAH", "Stamina tidak cukup (Butuh 10 STM).");
+    // 1. Validasi Dinamis (Bukan lagi flat 10)
+    const butuhStm = rpgReward.stamina || 10; 
+    
+    if (r.stm < butuhStm) {
+        App.UI.showAlert("LELAH", `Stamina tidak cukup (Butuh ${butuhStm} STM).`);
         return;
     }
     if (r.limit >= r.limitMax) {
@@ -918,6 +929,11 @@ Bidding: {
             adventurer_nick: App.user.nick || "Adventurer",
             rank: App.State.rank,
             offer_price: currentPrice,
+            rpg_reward: {
+                exp: rpgReward.exp,
+                greenStone: rpgReward.greenStone,
+                stamina_used: butuhStm
+            },
             contract_item: jenisKontrak, // Simpan jenisnya agar requester tahu
             timestamp: Date.now()
         });
@@ -925,7 +941,7 @@ Bidding: {
         
 // 5. Hitung Nilai Baru
 // 1. Gunakan nilai yang sudah dihitung
-const newStm = r.stm - 10;
+const newStm = r.stm - butuhStm;
 const newLimit = r.limit + 1;
 
 // 2. Ambil referensi tanpa menulis ulang 'const' jika sudah ada di atas
@@ -1178,6 +1194,13 @@ Core: {
         const jarakTeks = jarak > 0 ? `± ${jarak.toFixed(1)} KM` : `JARAK UNKNOWN`;
         const waktuTeks = this.timeAgo(m.created_at);
 
+    // AMBIL DATA RPG_REWARD DARI DATABASE MISI
+    const rpg = m.rpg_reward || { exp: 0, greenStone: 0, stamina: 10 }; 
+    
+    // Tampilan visual bonus
+    let bonusHtml = "";
+    if (rpg.exp > 0) bonusHtml += `<span style="color:#60a5fa;">+${rpg.exp}XP </span>`;
+    if (rpg.greenStone > 0) bonusHtml += `<span style="color:#4ade80;">+${rpg.greenStone}GS </span>`;
         
         let diffColor = "#4ade80";
         if (m.difficulty_rate > 1.5) diffColor = "#facc15";
@@ -1208,7 +1231,18 @@ Core: {
         <div>
             <span>ID: ${m.id_misi.slice(-6).toUpperCase()}</span>
             <span style="margin-left:8px; color:#555; font-size:9px;">• ${waktuTeks}</span>
+            <span class="difficulty-tag" style="background:${diffColor};">REQ: ${rpg.stamina} STM</span>
         </div>
+        
+        <div style="font-size:10px; margin-bottom:8px; font-family:var(--font-terminal);">
+            <b style="color:#facc15;">REWARD RPG:</b> ${bonusHtml || 'STANDARD'}
+        </div>
+
+        <div class="m-reward">
+            <span class="m-dist">${jarakTeks}</span>
+            <span>${rewardDisplay}</span>
+        </div>
+
         ${isApplied ? 
             '<span style="color:#facc15; font-weight:bold;">[ SINYAL AKTIF ]</span>' : 
             `<span class="difficulty-tag" style="background:${diffColor};">DIFF: ${m.difficulty_rate}x</span>`
@@ -1233,7 +1267,7 @@ Core: {
             </div>
             ${isApplied ? 
                 `<button class="btn-bid-card" disabled>KONTRAK DALAM TINJAUAN</button>` :
-                `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}')">LIHAT DETAIL / NEGO</button>`
+                `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${JSON.stringify(rpg)})">LIHAT DETAIL / NEGO</button>`
             }
         `;
         container.appendChild(div);
