@@ -278,11 +278,14 @@
             // Variabel untuk modal konfirmasi
             pendingUpdate: { dbShard: null, path: "", key: "", oldVal: "", newVal: "", tableName: "" },
 
-            init: function() {
-                this.db1 = getTerminal('FB1_MASTER');
-                this.loadPendingTopup();
-                this.buildShardAccordions();
-            },
+init: function() {
+    this.db1 = getTerminal('FB1_MASTER');
+    this.loadPendingTopup(); // Untuk radar atas
+    this.buildShardAccordions();
+    
+    // TAMBAHKAN INI: Agar tabel antrean bawah (topupList) terisi
+    listenTopupRequests(); 
+},
 
             // 1. UI ACCORDION LOGIC
             toggleAccordion: function(panelId, headerEl, isShardTable = false, tableName = "") {
@@ -595,66 +598,92 @@
 
 // Jalankan ini saat Admin Login
 function listenTopupRequests() {
+function listenTopupRequests() {
     const listTable = document.getElementById('topupList');
-    
-    // Pantau tabel transaksi di FB1_MASTER
+    if(!listTable) return;
+
     App.db1.ref(`transaction_top_coxreal`).on('value', (snap) => {
         listTable.innerHTML = "";
-        snap.forEach((child) => {
-            const data = child.val();
-            
-            // Hanya tampilkan yang masih pending
+        const dataMaster = snap.val();
+        
+        if (!dataMaster) {
+            listTable.innerHTML = "<tr><td colspan='6' style='text-align:center'>Tidak ada data transaksi.</td></tr>";
+            return;
+        }
+
+        for (let key in dataMaster) {
+            const data = dataMaster[key];
             if (data.status === "pending") {
                 const tr = document.createElement('tr');
+                // Pastikan qty aman jika user kirim dengan nama berbeda
+                const jumlah = data.qty || data.jumlah_stone || 0; 
+                
                 tr.innerHTML = `
-                    <td>${data.nickname}</td>
-                    <td>${data.qty} ${data.stone_type}</td>
-                    <td>Rp ${data.nominal_bayar.toLocaleString()}</td>
-                    <td><small>${data.bukti_transfer}</small></td>
+                    <td>${data.nickname || 'Unknown'}</td>
+                    <td>${jumlah} ${data.stone_type}</td>
+                    <td>Rp ${(data.nominal_bayar || 0).toLocaleString()}</td>
+                    <td><small>${data.bukti_transfer || '-'}</small></td>
                     <td style="color: yellow;">${data.status}</td>
                     <td>
                         <button onclick='verifikasiTopup(${JSON.stringify(data)})' 
-                                style="background: green; color: white; cursor: pointer;">
-                            ACCEPT (VERIF)
+                                style="background: #4ade80; color: #000; font-weight:bold; cursor: pointer; border:none; padding: 5px 10px;">
+                            TERIMA PEMBAYARAN
                         </button>
                     </td>
                 `;
                 listTable.appendChild(tr);
             }
-        });
+        }
     });
 }
 
 
 
+
         
 async function verifikasiTopup(dataTransaksi) {
-    const { id_transaksi, id_adventurer, shard_tujuan, stone_type, qty } = dataTransaksi;
+    // Tambahkan fallback jika qty atau jumlah_stone yang digunakan
+    const id_transaksi = dataTransaksi.id_transaksi;
+    const id_adventurer = dataTransaksi.id_adventurer;
+    const shard_tujuan = dataTransaksi.shard_tujuan;
+    const stone_type = dataTransaksi.stone_type;
+    const qty = dataTransaksi.qty || dataTransaksi.jumlah_stone || 0; // Ambil salah satu yang ada
     
+    if(!id_transaksi || !id_adventurer || !shard_tujuan) {
+        alert("Data transaksi tidak lengkap!");
+        return;
+    }
+
+    if (!confirm(`Verifikasi Topup untuk ${dataTransaksi.nickname} sebesar ${qty} ${stone_type}?`)) return;
+
     try {
-        // 1. Hubungkan ke Shard Adventurer tersebut
         const dbShard = getTerminal(shard_tujuan);
         
-        // 2. Ambil saldo lama di tabel adventurer_coxin
+        // Ambil saldo lama
         const coxinRef = dbShard.ref(`adventurer_coxin/${id_adventurer}/${stone_type}`);
         const currentSnap = await coxinRef.once('value');
         const saldoLama = currentSnap.val() || 0;
 
-        // 3. Update Saldo Baru
+        // 1. Update Saldo di Shard
         await coxinRef.set(saldoLama + qty);
 
-        // 4. Update Status Transaksi di Master agar tidak bisa di-verif dua kali
+        // 2. Update Status di Master (FB1)
         await App.db1.ref(`transaction_top_coxreal/${id_transaksi}`).update({
             status: "success",
             verified_at: Date.now(),
-            admin_handler: "Admin_Name"
+            admin_handler: "Master_Admin"
         });
 
-        alert("Verifikasi Berhasil! Stone telah ditambahkan ke player.");
+        alert("VERIFIKASI BERHASIL! Saldo player telah diperbarui.");
+        
+        // Refresh radar atas jika perlu
+        App.loadPendingTopup();
     } catch (e) {
         console.error("Gagal Verifikasi:", e);
+        alert("Terjadi kesalahan sistem. Cek console log.");
     }
 }
+
 
         // START APP
         window.onload = () => App.init();
