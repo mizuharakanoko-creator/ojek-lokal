@@ -516,6 +516,73 @@ body.saver-mode .rank-badge {
 }
 
 
+
+/* ==========================================
+   GUILD SHOP & EXCHANGE UI
+   ========================================== */
+.shop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 15px;
+}
+
+.shop-card {
+    background: #0a0a0a;
+    border: 1px solid #222;
+    padding: 12px;
+    border-radius: 6px;
+    text-align: center;
+    transition: 0.3s;
+    position: relative;
+    overflow: hidden;
+}
+
+.shop-card:active { transform: scale(0.95); }
+
+.item-icon { font-size: 24px; margin-bottom: 8px; display: block; }
+.item-name { font-size: 11px; color: #fff; font-weight: bold; display: block; margin-bottom: 5px; }
+
+/* Warna Harga Berdasarkan Mata Uang */
+.price-tag-shop {
+    font-family: var(--font-terminal);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-block;
+}
+.price-gs { background: rgba(74, 222, 128, 0.1); color: #4ade80; border: 1px solid #4ade80; }
+.price-ws { background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid #fff; }
+.price-rs { background: rgba(248, 113, 113, 0.1); color: #f87171; border: 1px solid #f87171; }
+.price-ps { background: rgba(168, 85, 247, 0.1); color: #a855f7; border: 1px solid #a855f7; }
+.price-idr { background: #facc15; color: #000; font-weight: 900; }
+
+/* Tab Navigasi Shop */
+.shop-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #222;
+    padding-bottom: 8px;
+}
+.tab-btn {
+    flex: 1;
+    padding: 8px;
+    background: #111;
+    color: #666;
+    border: 1px solid #222;
+    font-size: 10px;
+    font-family: var(--font-terminal);
+    cursor: pointer;
+}
+.tab-btn.active {
+    background: var(--theme-color);
+    color: #000;
+    border-color: var(--theme-color);
+}
+
+
+
     </style>
 </head>
 <body>
@@ -628,6 +695,34 @@ body.saver-mode .rank-badge {
         <button onclick="document.getElementById('alertOverlay').style.display='none'" style="margin-top:20px; background:var(--theme-color); color:#000; border:none; padding:12px; border-radius:4px; font-weight:900; width:100%; cursor:pointer;">MENGERTI</button>
     </div>
 </div>
+
+
+
+<div id="guildShopModal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 450px; width: 95%;">
+        <h3 style="color:var(--theme-color); margin-top:0; font-family:var(--font-terminal);">GUILD SHOP & EXCHANGE</h3>
+        
+        <div class="shop-tabs">
+            <button class="tab-btn active" onclick="App.Shop.changeTab('exchange', this)">EXCHANGE</button>
+            <button class="tab-btn" onclick="App.Shop.changeTab('topup', this)">REALM TOPUP</button>
+        </div>
+
+        <div id="shopContent" class="shop-grid">
+            </div>
+
+        <button onclick="document.getElementById('guildShopModal').style.display='none'" 
+                style="width:100%; background:none; color:#666; border:none; margin-top:15px; cursor:pointer; font-size:12px;">
+            TUTUP TERMINAL SHOP
+        </button>
+    </div>
+</div>
+
+<div style="padding: 0 15px;">
+    <button onclick="App.Shop.open()" class="btn-expand" style="border-style: dashed; margin-top: 10px;">
+        🛒 BUKA GUILD SHOP & TOPUP
+    </button>
+</div>
+
 
 <script>
     // Audio Context (Sonar & Beeps)
@@ -950,6 +1045,103 @@ Bidding: {
         App.BiddingData.currentPrice = App.BiddingData.basePrice;
         document.getElementById('bidAmount').value = App.BiddingData.currentPrice.toLocaleString('id-ID');
     },
+
+
+Shop: {
+    data: [
+        // EXCHANGE RED STONE
+        { id: 1, cat: 'exchange', name: '30x Kontrak Lusuh', icon: '📜', price: 1, curr: 'red_stone', target: 'kontrak_lusuh', qty: 30 },
+        { id: 2, cat: 'exchange', name: '25x Kontrak Normal', icon: '📜', price: 1, curr: 'red_stone', target: 'kontrak_normal', qty: 25 },
+        { id: 3, cat: 'exchange', name: '5x Kontrak Emas', icon: '🏆', price: 1, curr: 'red_stone', target: 'kontrak_emas', qty: 5 },
+        
+        // EXCHANGE GREEN STONE
+        { id: 4, cat: 'exchange', name: '12x Kontrak Lusuh', icon: '📜', price: 1000, curr: 'green_stone', target: 'kontrak_lusuh', qty: 12 },
+        { id: 5, cat: 'exchange', name: '2x Small Stamina', icon: '🧪', price: 1000, curr: 'green_stone', target: 'potion_stamina', qty: 2 },
+
+        // TOP UP (REAL MONEY)
+        { id: 101, cat: 'topup', name: '1 Red Stone', icon: '🔴', price: 52000, curr: 'idr', target: 'red_stone', qty: 1 },
+        { id: 102, cat: 'topup', name: '1 Purple Stone', icon: '🟣', price: 260000, curr: 'idr', target: 'purple_stone', qty: 1 }
+    ],
+
+    open: function() {
+        document.getElementById('guildShopModal').style.display = 'flex';
+        this.render('exchange');
+    },
+
+    changeTab: function(tab, btn) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.render(tab);
+    },
+
+    render: function(category) {
+        const container = document.getElementById('shopContent');
+        container.innerHTML = "";
+        const filtered = this.data.filter(i => i.cat === category);
+
+        filtered.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'shop-card';
+            let priceClass = `price-${item.curr.split('_')[0]}`;
+            let priceText = item.curr === 'idr' ? `Rp ${item.price.toLocaleString()}` : `${item.price} ${item.curr.replace('_', ' ').toUpperCase()}`;
+
+            card.innerHTML = `
+                <span class="item-icon">${item.icon}</span>
+                <span class="item-name">${item.name}</span>
+                <div class="price-tag-shop ${priceClass}" onclick="App.Shop.buy('${item.id}')">${priceText}</div>
+            `;
+            container.appendChild(card);
+        });
+    },
+
+    buy: async function(itemId) {
+        const item = this.data.find(i => i.id == itemId);
+        if(!item) return;
+
+        if(item.curr === 'idr') {
+            // LOGIKA TOPUP (LAPOR ADMIN)
+            const unik = Math.floor(100 + Math.random() * 899); // Kode Unik
+            const totalBayar = item.price + unik;
+            
+            const confirmMsg = `PROSES TOPUP:\n\nItem: ${item.name}\nTotal: Rp ${totalBayar.toLocaleString()}\n(Termasuk kode unik: ${unik})\n\nLaporan akan diteruskan ke Admin. Proses 1x24 Jam. Lanjutkan?`;
+            
+            if(confirm(confirmMsg)) {
+                await this.sendTopupReport(item, totalBayar);
+            }
+        } else {
+            // LOGIKA EXCHANGE (OTOMATIS)
+            if(confirm(`Tukarkan ${item.price} ${item.curr.replace('_', ' ')} untuk ${item.name}?`)) {
+                this.processExchange(item);
+            }
+        }
+    },
+
+    sendTopupReport: async function(item, nominal) {
+        try {
+            const reportRef = App.db1.ref(`transaction_top_coxreal`).push();
+            await reportRef.set({
+                id_transaksi: reportRef.key,
+                id_adventurer: App.State.idAdv,
+                nickname: App.user.nick,
+                stone_type: item.target,
+                nominal_bayar: nominal,
+                status: "pending",
+                created_at: Date.now()
+            });
+            App.UI.showAlert("SINYAL TERKIRIM", "Laporan topup telah masuk antrian Admin. Mohon tunggu verifikasi 1x24 jam.");
+        } catch (e) {
+            App.UI.showAlert("ERROR", "Gagal mengirim laporan.");
+        }
+    },
+
+    processExchange: async function(item) {
+        // Logika pengurangan saldo & penambahan item di Shard (Next Step)
+        App.UI.showAlert("SISTEM", "Mengecek Saldo Kristal di Shard...");
+        // Di sini nanti kita panggil fungsi update saldo coxin
+    }
+};
+
+    
     submit: async function() {
     const { mid, currentPrice, rpgReward } = App.BiddingData;
     const r = App.State.rpg;
