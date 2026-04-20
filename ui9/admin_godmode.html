@@ -3,363 +3,377 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SOVEREIGN GUILD - ADVENTURER TERMINAL</title>
+    <title>Sovereign Guild - God Mode Panel</title>
     
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    
-    <script src="terminal_router.js"></script>
-    <script src="router_lokal.js"></script>
-    <script src="clearchance.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <style>
-        /* ==========================================
-           1. BASE & RANK THEME ENGINE (OLED UI)
-           ========================================== */
         :root {
-            --bg-main: #050505;
-            --bg-card: #0f0f0f;
-            --text-main: #ffffff;
-            --font-terminal: 'Courier New', Courier, monospace;
-            --font-sans: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            --theme-color: #888888; 
-            --theme-bg-glow: rgba(136, 136, 136, 0.05);
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+            --accent-gold: #fbbf24;
+            --accent-red: #ef4444;
+            --accent-green: #10b981;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
         }
 
-        * { user-select: none; -webkit-user-select: none; box-sizing: border-box; outline: none; }
-        body { background-color: var(--bg-main); color: var(--text-main); margin: 0; font-family: var(--font-sans); padding-bottom: 80px; transition: all 0.5s ease; }
-
-        /* Dynamic Rank Themes */
-        body.rank-trainer { --theme-color: #888888; }
-        body.rank-e { --theme-color: #4ade80; }
-        body.rank-d { --theme-color: #60a5fa; }
-        body.rank-c { --theme-color: #a855f7; }
-        body.rank-b { --theme-color: #facc15; }
-        body.rank-a { --theme-color: #fb923c; }
-        body.rank-s { --theme-color: #ff4500; background: linear-gradient(45deg, #1a0500, #050505); }
-
-        header { background: var(--bg-card); padding: 15px; border-bottom: 2px solid var(--theme-color); position: sticky; top: 0; z-index: 100; }
-        .user-info { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-terminal); font-size: 12px; }
-        .user-nick { color: var(--text-main); font-weight: bold; font-size: 16px; letter-spacing: 1px;}
-        .rank-badge { background: var(--theme-color); color: #000; padding: 2px 6px; border-radius: 3px; font-weight: 900; }
-
-        /* RPG Status Bar */
-        .status-rpg-container { background: #000; padding: 10px 15px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid #222; }
-        .rpg-row { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-terminal); font-size: 10px; }
-        .bar-outer { flex: 1; height: 6px; background: #222; margin: 0 10px; border-radius: 3px; overflow: hidden; }
-        .bar-inner { height: 100%; width: 0%; transition: width 0.5s ease; }
-        #staminaBar { background: #4ade80; }
-        #expBar { background: #60a5fa; }
-        .stat-val { color: var(--theme-color); font-weight: bold; }
-
-        /* Radar & Mission Cards */
-        .radar-box { border: 1px solid var(--theme-color); background: var(--bg-card); padding: 15px; border-radius: 8px; margin: 15px; position: relative; overflow: hidden; }
-        .mission-card { background: #0a0a0a; border: 1px solid #1a1a1a; margin-bottom: 10px; border-left: 3px solid var(--theme-color); border-radius: 6px; padding: 12px; cursor: pointer; transition: 0.3s; }
-        .mission-card.active-expand { background: #111; }
-        .m-expand-body { display: none; margin-top: 10px; border-top: 1px solid #222; padding-top: 10px; }
-        .active-expand .m-expand-body { display: block; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
-        /* Modal Style */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 9999; }
-        .modal-box { background: var(--bg-card); border: 2px solid var(--theme-color); padding: 25px; width: 90%; max-width: 400px; border-radius: 8px; }
-        .btn-confirm { width: 100%; padding: 15px; background: var(--theme-color); color: #000; border: none; font-weight: 900; margin-top: 20px; border-radius: 6px; cursor: pointer; }
+        body {
+            background-color: var(--bg-dark); color: var(--text-main);
+            padding-bottom: 80px; /* Space for bottom nav */
+        }
 
-        /* Animation */
-        @keyframes pulseText { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
-        #radarPulse { animation: pulseText 2s infinite; text-align: center; font-size: 11px; color: var(--theme-color); font-family: var(--font-terminal); margin: 10px 0; }
+        /* Header & Nav */
+        .header {
+            background: linear-gradient(90deg, #1e293b, #000000);
+            padding: 15px 20px; border-bottom: 2px solid var(--accent-gold);
+            position: sticky; top: 0; z-index: 100;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .header h1 { font-size: 1.2rem; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 2px;}
+        
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel-bg);
+            display: flex; justify-content: space-around; padding: 10px 0;
+            border-top: 1px solid #334155; z-index: 100;
+        }
+        .nav-btn {
+            background: none; border: none; color: var(--text-muted); font-size: 0.9rem;
+            display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer;
+        }
+        .nav-btn.active { color: var(--accent-gold); font-weight: bold; }
+
+        /* Content Sections */
+        .section { display: none; padding: 15px; }
+        .section.active { display: block; }
+
+        /* Search & Filter Tools */
+        .tools-container {
+            display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;
+        }
+        input, select {
+            width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #334155;
+            background: var(--bg-dark); color: white; font-size: 1rem;
+        }
+        .search-box { flex: 1; min-width: 200px; }
+        .filter-box { width: 100px; }
+
+        /* Cards (Mobile Optimized) */
+        .card {
+            background: var(--panel-bg); border-radius: 12px; padding: 15px;
+            margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border-left: 4px solid #334155;
+        }
+        .card.rank-S { border-left-color: var(--accent-gold); }
+        .card-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .card-title { font-size: 1.1rem; font-weight: bold; }
+        .card-subtitle { font-size: 0.8rem; color: var(--text-muted); }
+        
+        .stats-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+        .stat-item span { color: var(--text-muted); display: block; font-size: 0.75rem;}
+        
+        /* Buttons */
+        .btn {
+            padding: 10px 15px; border-radius: 6px; border: none; font-weight: bold;
+            cursor: pointer; width: 100%; text-align: center;
+        }
+        .btn-gold { background: var(--accent-gold); color: black; }
+        .btn-green { background: var(--accent-green); color: white; }
+        .btn-red { background: var(--accent-red); color: white; }
+        .btn-dark { background: #334155; color: white; }
+        .btn-group { display: flex; gap: 10px; }
+
+        /* Modal / God Mode Form */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8); z-index: 1000;
+            display: none; justify-content: center; align-items: center; padding: 20px;
+        }
+        .modal {
+            background: var(--panel-bg); width: 100%; max-width: 400px;
+            border-radius: 12px; padding: 20px; border: 1px solid var(--accent-gold);
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal h2 { color: var(--accent-gold); margin-bottom: 15px; text-align: center;}
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px;}
+        
+        /* Global Actions */
+        .global-panel { border: 1px dashed var(--accent-red); padding: 15px; border-radius: 10px; margin-bottom:15px;}
     </style>
 </head>
 <body>
 
-<header>
-    <div class="user-info">
-        <div>
-            ID: <span class="user-nick" id="dispNick">---</span><br>
-            <span id="dispGelar" style="color:var(--theme-color); font-size:10px;">LOADING...</span><br>
-            <span style="color:#888; font-size:10px;">ZONE: <span id="dispZone" style="color:#fff;">-</span></span>
+    <div class="header">
+        <h1>👁️ God Mode Panel</h1>
+        <div id="connectionStatus" style="color: var(--accent-green); font-size: 0.8rem;">Online</div>
+    </div>
+
+    <div id="tab-users" class="section active">
+        <div class="tools-container">
+            <input type="text" id="searchUser" class="search-box" placeholder="Cari Nama / ID Adventurer..." oninput="filterUsers()">
+            <select id="filterRank" class="filter-box" onchange="filterUsers()">
+                <option value="ALL">All Rank</option>
+                <option value="S">Rank S</option>
+                <option value="A">Rank A</option>
+                <option value="B">Rank B</option>
+                <option value="C">Rank C</option>
+                <option value="D">Rank D</option>
+                <option value="E">Rank E</option>
+                <option value="F">Rank F</option>
+            </select>
         </div>
-        <div style="text-align: right;">
-            RANK<br>
-            <span class="rank-badge" id="dispRank">-</span>
+        <div id="usersContainer">
+            </div>
+    </div>
+
+    <div id="tab-topups" class="section">
+        <div class="tools-container">
+            <select id="filterTopup" class="search-box" onchange="loadTopups()">
+                <option value="Pending">Menunggu Verifikasi (Pending)</option>
+                <option value="Approved">Sudah Disetujui (Approved)</option>
+                <option value="Rejected">Ditolak (Rejected)</option>
+            </select>
         </div>
-    </div>
-</header>
-
-<div class="status-rpg-container">
-    <div class="rpg-row">
-        <span>LVL.<span id="dispLvl">1</span></span>
-        <div class="bar-outer"><div id="expBar" class="bar-inner"></div></div>
-        <span class="stat-val" id="dispExp">0/0</span>
-    </div>
-    <div class="rpg-row">
-        <span>STM</span>
-        <div class="bar-outer"><div id="staminaBar" class="bar-inner"></div></div>
-        <span class="stat-val" id="dispStm">0/0</span>
-    </div>
-    <div class="rpg-row">
-        <span style="color:#666">LIMIT HARIAN</span>
-        <span id="dispLimit" style="color:#f87171">0/0</span>
-    </div>
-</div>
-
-<div class="radar-box">
-    <div style="font-size: 11px; color: #888; display: flex; justify-content: space-between;">
-        <span>LOC: <span id="locName" style="color:#fff;">MENUNGGU GPS...</span></span>
-        <span>RADAR: <span id="radarType">LOCAL</span></span>
-    </div>
-    <div id="radarPulse">[ MENCARI SINYAL AKTIF... ]</div>
-    <button onclick="App.UI.toggleRadar()" id="btnExpand" style="width:100%; background:transparent; border:1px solid var(--theme-color); color:var(--theme-color); padding:8px; font-size:10px; cursor:pointer;">+ PERLUAS RADAR</button>
-</div>
-
-<div id="missionList" style="padding: 0 15px;">
+        <div id="topupsContainer">
+            </div>
     </div>
 
-<div id="sovBidModal" class="modal-overlay">
-    <div class="modal-box">
-        <h3 id="modalTitle" style="margin:0; font-family:var(--font-terminal);">DETAIL KONTRAK</h3>
-        <div id="modalInfo" style="margin-top: 15px; font-size: 13px; color: #ccc;"></div>
-        
-        <div style="background:#000; padding:15px; border-radius:8px; margin-top:15px; text-align:center;">
-            <div style="font-size:10px; color:#666;">PENAWARAN (Rp)</div>
-            <div style="font-size:24px; font-weight:bold; color:#4ade80;" id="dispBidAmt">0</div>
-            <div style="display:flex; gap:10px; margin-top:10px;">
-                <button onclick="App.Bidding.adjust(-5000)" style="flex:1; background:#222; color:#fff; border:1px solid #444; padding:5px;">-5K</button>
-                <button onclick="App.Bidding.adjust(5000)" style="flex:1; background:#222; color:#fff; border:1px solid #444; padding:5px;">+5K</button>
+    <div id="tab-global" class="section">
+        <div class="global-panel">
+            <h3 style="color: var(--accent-red); margin-bottom: 10px;">⚡ Mass Manipulation</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px;">Tindakan ini akan mempengaruhi SELURUH akun di database.</p>
+            
+            <div class="form-group">
+                <label>Suntik Stamina Massal</label>
+                <div class="btn-group">
+                    <input type="number" id="massStaminaAmount" placeholder="Jml Stamina" style="width: 60%;">
+                    <button class="btn btn-gold" onclick="massInject('stamina')">SUNTIK</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Server EXP Multiplier (Aktifkan Event)</label>
+                <div class="btn-group">
+                    <select id="expMultiplier" style="width: 60%;">
+                        <option value="1">Normal (1x)</option>
+                        <option value="2">Double (2x)</option>
+                        <option value="3">Triple (3x)</option>
+                    </select>
+                    <button class="btn btn-red" onclick="setGlobalMultiplier()">TERAPKAN</button>
+                </div>
             </div>
         </div>
-
-        <button class="btn-confirm" onclick="App.Bidding.submit()">AMBIL & TERBITKAN SINYAL</button>
-        <button onclick="App.UI.closeModal()" style="width:100%; background:none; color:#666; border:none; margin-top:10px; cursor:pointer;">BATAL</button>
     </div>
-</div>
 
-<script>
-    const App = {
-        db1: null, db4: null, user: null,
-        State: {
-            idAdv: "", zone: "", rank: "Trainer",
-            loc: { lat: 0, lng: 0, desa: "", shard: "" },
-            rpg: { lvl: 1, exp: 0, expNext: 100, stm: 100, stmMax: 100, limit: 0, limitMax: 5 },
-            isExpanded: false,
-            appliedMissions: new Set()
+    <div class="bottom-nav">
+        <button class="nav-btn active" onclick="switchTab('users', this)">
+            <span>🛡️</span> Adventurers
+        </button>
+        <button class="nav-btn" onclick="switchTab('topups', this)">
+            <span>💰</span> Laporan Top-up
+        </button>
+        <button class="nav-btn" onclick="switchTab('global', this)">
+            <span>🌍</span> Global Event
+        </button>
+    </div>
+
+    <div class="modal-overlay" id="editModal">
+        <div class="modal">
+            <h2>⚙️ Edit Dewa</h2>
+            <input type="hidden" id="editUserId">
+            
+            <div class="form-group">
+                <label>Nama Adventurer</label>
+                <input type="text" id="editName">
+            </div>
+            
+            <div class="stats-grid">
+                <div class="form-group">
+                    <label>Level</label>
+                    <input type="number" id="editLevel">
+                </div>
+                <div class="form-group">
+                    <label>Rank</label>
+                    <select id="editRank">
+                        <option value="S">S</option><option value="A">A</option>
+                        <option value="B">B</option><option value="C">C</option>
+                        <option value="D">D</option><option value="E">E</option>
+                        <option value="F">F</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Stamina Aktual (Bisa Overcap)</label>
+                    <input type="number" id="editStamina">
+                </div>
+                <div class="form-group">
+                    <label>Koin Emas</label>
+                    <input type="number" id="editKoin">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Status Akun</label>
+                <select id="editStatus">
+                    <option value="Active">Active</option>
+                    <option value="Banned">Banned (Mati)</option>
+                </select>
+            </div>
+
+            <div class="btn-group" style="margin-top: 20px;">
+                <button class="btn btn-dark" onclick="closeModal()">Batal</button>
+                <button class="btn btn-red" onclick="saveGodModeChanges()">OVERRIDE DATA</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // 1. INTEGRASI TERMINAL ROUTER
+    // Pastikan terminal_router.js sudah di-import di head
+    
+    const AdminApp = {
+        state: {
+            adventurers: [],
+            activeTab: 'users'
         },
-        BiddingData: { mid: "", basePrice: 0, currentPrice: 0, rpgData: null },
 
-        init: async function() {
+        init: function() {
+            // Gunakan FB1_MASTER sebagai sumber indeks utama
+            this.dbMaster = getTerminal('FB1_MASTER');
+            this.loadAdventurers();
+        },
+
+        // 2. LOAD DATA DARI MULTI-FIREBASE
+        loadAdventurers: function() {
+            const container = document.getElementById('usersContainer');
+            container.innerHTML = '<p style="padding:20px">Scanning Master Index...</p>';
+
+            // Ambil Index dari FB1
+            this.dbMaster.ref('adventurer_index').on('value', async (snapshot) => {
+                const indexData = snapshot.val();
+                container.innerHTML = '';
+                this.state.adventurers = [];
+
+                for (let id in indexData) {
+                    const index = indexData[id];
+                    // RUTE OTOMATIS: Ambil data Vitality dari Shard yang tepat (FB2/Lainnya)
+                    const dbShard = getTerminal(index.shard_id || 'FB2_RUNNER');
+                    
+                    const vitalitySnap = await dbShard.ref(`adventurer_experience/${id}`).once('value');
+                    const profileSnap = await dbShard.ref(`adventurer_profile/${id}`).once('value');
+                    
+                    const v = vitalitySnap.val() || {};
+                    const p = profileSnap.val() || {};
+
+                    const fullData = { 
+                        id, ...index, ...v, ...p, 
+                        shard: index.shard_id || 'FB2_RUNNER' 
+                    };
+                    this.state.adventurers.push(fullData);
+                    this.renderCard(fullData, container);
+                }
+            });
+        },
+
+        renderCard: function(data, container) {
+            const card = document.createElement('div');
+            card.className = `card rank-${data.rank || 'F'}`;
+            card.innerHTML = `
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">${data.nickname || 'Unknown'} [${data.rank || 'F'}]</div>
+                        <div class="card-subtitle">SHARD: ${data.shard} | ID: ${data.id.substring(0,8)}</div>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item"><span>Level</span> ${data.level || 1}</div>
+                    <div class="stat-item"><span>Stamina</span> ⚡ ${data.current_stamina || 0}/${data.max_stamina || 100}</div>
+                    <div class="stat-item"><span>Koin</span> 🪙 ${data.koin || 0}</div>
+                    <div class="stat-item"><span>Status</span> ${data.status || 'Active'}</div>
+                </div>
+                <button class="btn btn-gold" onclick='openEditModal(${JSON.stringify(data)})'>⚙️ OVERRIDE SHARD</button>
+            `;
+            container.appendChild(card);
+        },
+
+        // 3. GOD MODE OVERRIDE (Langsung ke Shard Database)
+        saveGodModeChanges: async function() {
+            const id = document.getElementById('editUserId').value;
+            const shardID = document.getElementById('editUserShard').value; // Ambil dari data card
+            
+            const dbShard = getTerminal(shardID);
+            
+            const payloadExperience = {
+                level: parseInt(document.getElementById('editLevel').value),
+                current_stamina: parseInt(document.getElementById('editStamina').value)
+            };
+
+            const payloadProfile = {
+                rank: document.getElementById('editRank').value,
+                status: document.getElementById('editStatus').value
+            };
+
             try {
-                // 1. Koneksi Terminal Router
-                this.db1 = getTerminal('FB1_MASTER');
-                this.db4 = getTerminal('FB4_BOARD');
+                // Update di Shard (Experience & Vitality)
+                await dbShard.ref(`adventurer_experience/${id}`).update(payloadExperience);
+                await dbShard.ref(`adventurer_profile/${id}`).update(payloadProfile);
                 
-                // 2. Identitas
-                this.user = Clearchance.enforceIdentity();
-                const nickname = this.user.nick || "Adventurer";
+                // Update Koin di Master (FB1) jika koin disimpan di Master
+                await this.dbMaster.ref(`adventurer_index/${id}`).update({
+                    koin: parseInt(document.getElementById('editKoin').value)
+                });
 
-                // 3. Cari Data Lintas Terminal (Shard Mapping)
-                const idAdv = await this.Core.getIdAdvByNickname(nickname);
-                const indexSnap = await this.db1.ref(`adventurer_index/${idAdv}`).once('value');
-                const index = indexSnap.val();
-                
-                if(!index) throw new Error("ID Adventurer tidak terdaftar.");
-
-                const shardID = index.shard_id || "FB2_RUNNER";
-                const dbShard = getTerminal(shardID);
-
-                // 4. Load Data RPG dari Shard
-                const xpSnap = await dbShard.ref(`adventurer_experience/${idAdv}`).once('value');
-                const profSnap = await dbShard.ref(`adventurer_profile/${idAdv}`).once('value');
-                
-                this.State.idAdv = idAdv;
-                this.State.zone = index.area_tugas;
-                this.State.rank = profSnap.val()?.rank || "Trainer";
-                
-                // 5. Sinkronisasi Stats
-                await this.Core.syncRPG(idAdv, shardID, xpSnap.val() || {});
-
-                // 6. Jalankan Engine
-                this.UI.updateHeader(nickname);
-                this.Core.startGPS();
-                this.Core.listenToContracts();
-
+                alert('TANGGAPAN DEWA: Shard ' + shardID + ' berhasil di-override!');
+                closeModal();
             } catch (e) {
-                console.error("Initialization Failed:", e);
-                alert("TERMINAL ERROR: " + e.message);
+                alert('Gagal Override: ' + e.message);
             }
         },
 
-        Core: {
-            getIdAdvByNickname: async function(nick) {
-                const snap = await App.db1.ref('adventurer_index').once('value');
-                let found = null;
-                snap.forEach(c => { if(c.val().nickname?.toLowerCase() === nick.toLowerCase()) found = c.key; });
-                return found;
-            },
+        // 4. MASS MANIPULATION (Looping Semua Shard)
+        massInject: async function(type) {
+            const amount = parseInt(document.getElementById('massStaminaAmount').value);
+            if(!amount) return;
 
-            syncRPG: async function(idAdv, shardID, data) {
-                const now = Date.now();
-                // Logika Reset Harian (Jika lewat tengah malam)
-                if(now > (data.last_stamina_update || 0)) {
-                    data.current_stamina = data.max_stamina || 100;
-                    data.limit_harian = 0;
-                    const tomorrow = new Date().setHours(24,0,0,0);
-                    await getTerminal(shardID).ref(`adventurer_experience/${idAdv}`).update({
-                        current_stamina: data.current_stamina,
-                        limit_harian: 0,
-                        last_stamina_update: tomorrow
+            if(confirm(`Suntik ${amount} Stamina ke SEMUA Shard?`)) {
+                // Kita harus loop index di Master untuk tahu shard masing-masing user
+                const snapshot = await this.dbMaster.ref('adventurer_index').once('value');
+                const users = snapshot.val();
+
+                for(let id in users) {
+                    const shardID = users[id].shard_id || 'FB2_RUNNER';
+                    const dbShard = getTerminal(shardID);
+                    
+                    // Gunakan transaction agar tidak bentrok
+                    dbShard.ref(`adventurer_experience/${id}/current_stamina`).transaction(current => {
+                        return (current || 0) + amount;
                     });
                 }
-                App.State.rpg = {
-                    lvl: data.level || 1,
-                    exp: data.exp || 0,
-                    expNext: data.max_exp || 100,
-                    stm: data.current_stamina || 100,
-                    stmMax: data.max_stamina || 100,
-                    limit: data.limit_harian || 0,
-                    limitMax: data.max_limit || 5
-                };
-                App.UI.updateRPG();
-            },
-
-            startGPS: function() {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    App.State.loc.lat = pos.coords.latitude;
-                    App.State.loc.lng = pos.coords.longitude;
-                    const res = cariDesaTerdekat(App.State.loc.lat, App.State.loc.lng);
-                    App.State.loc.desa = res.name;
-                    App.State.loc.shard = getShardDariKecamatan(res.kec);
-                    document.getElementById('locName').innerText = res.name;
-                    this.startRadar();
-                });
-            },
-
-            startRadar: function() {
-                const shard = App.State.loc.shard || "FB2_RUNNER";
-                let path = App.State.isExpanded ? `mission-${shard}` : `mission-${shard}/${App.State.loc.desa}`;
-                
-                App.db4.ref(path).on('value', snap => {
-                    const list = document.getElementById('missionList');
-                    list.innerHTML = "";
-                    if(!snap.exists()) { list.innerHTML = "<div style='text-align:center; color:#444; padding:20px;'>AREA BERSIH (TIDAK ADA MISI)</div>"; return; }
-                    
-                    snap.forEach(mSnap => {
-                        const m = mSnap.val();
-                        if(App.State.isExpanded) {
-                            mSnap.forEach(inner => App.UI.renderCard(inner.val(), list));
-                        } else {
-                            App.UI.renderCard(m, list);
-                        }
-                    });
-                });
-            },
-
-            // LOGIKA ACCEPT TRANSACTION (PEMOTONGAN ITEM OTOMATIS)
-            listenToContracts: function() {
-                App.db4.ref(`kontrak_mission`).orderByChild('id_adventurer').equalTo(App.user.uid).on('child_added', async snap => {
-                    const k = snap.val();
-                    if(k.status === 'briefing') {
-                        if(sessionStorage.getItem('processed_' + k.id_kontrak)) return;
-                        sessionStorage.setItem('processed_' + k.id_kontrak, true);
-
-                        // Proses Pemotongan di Shard
-                        const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
-                        const jenis = k.contract_item || "kontrak_normal";
-                        
-                        const updates = {};
-                        updates[`adventurer_contracts/${App.State.idAdv}/${jenis}`] = firebase.database.ServerValue.increment(-1);
-                        updates[`adventurer_experience/${App.State.idAdv}/current_stamina`] = App.State.rpg.stm - (k.rpg_reward?.stamina_used || 10);
-                        updates[`adventurer_experience/${App.State.idAdv}/limit_harian`] = App.State.rpg.limit + 1;
-
-                        await dbShard.ref().update(updates);
-                        
-                        alert("KONTRAK DISETUJUI! Masuk ke Briefing Room...");
-                        window.location.href = `briefing_room.html?id=${k.id_kontrak}`;
-                    }
-                });
-            }
-        },
-
-        Bidding: {
-            adjust: function(val) {
-                App.BiddingData.currentPrice = Math.max(App.BiddingData.basePrice, App.BiddingData.currentPrice + val);
-                document.getElementById('dispBidAmt').innerText = App.BiddingData.currentPrice.toLocaleString('id-ID');
-            },
-            submit: async function() {
-                const b = App.BiddingData;
-                const r = App.State.rpg;
-                
-                if(r.stm < b.rpgData.stamina) return alert("Stamina Tidak Cukup!");
-                
-                // Cek Stok Item di Shard sebelum Bid
-                const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
-                const jenis = b.currentPrice > 60000 ? "kontrak_premium" : "kontrak_normal";
-                const stok = await dbShard.ref(`adventurer_contracts/${App.State.idAdv}/${jenis}`).once('value');
-                
-                if((stok.val() || 0) <= 0) return alert(`Stok ${jenis.toUpperCase()} Habis!`);
-
-                await App.db4.ref(`bids/${b.mid}/${App.user.uid}`).set({
-                    adventurer_id: App.State.idAdv,
-                    uid: App.user.uid,
-                    nickname: App.user.nick,
-                    offer_price: b.currentPrice,
-                    contract_item: jenis,
-                    rpg_reward: { stamina_used: b.rpgData.stamina },
-                    timestamp: Date.now()
-                });
-
-                App.UI.closeModal();
-                alert("Sinyal Terbit! Menunggu konfirmasi...");
-            }
-        },
-
-        UI: {
-            updateHeader: function(nick) {
-                document.getElementById('dispNick').innerText = nick;
-                document.getElementById('dispRank').innerText = App.State.rank;
-                document.body.className = `rank-${App.State.rank.toLowerCase()}`;
-                document.getElementById('dispGelar').innerText = App.State.rank.toUpperCase() + " ADVENTURER";
-            },
-            updateRPG: function() {
-                const r = App.State.rpg;
-                document.getElementById('dispLvl').innerText = r.lvl;
-                document.getElementById('dispExp').innerText = `${r.exp}/${r.expNext}`;
-                document.getElementById('expBar').style.width = (r.exp/r.expNext*100) + "%";
-                document.getElementById('dispStm').innerText = `${r.stm}/${r.stmMax}`;
-                document.getElementById('staminaBar').style.width = (r.stm/r.stmMax*100) + "%";
-                document.getElementById('dispLimit').innerText = `${r.limit}/${r.limitMax}`;
-            },
-            renderCard: function(m, container) {
-                const card = document.createElement('div');
-                card.className = "mission-card";
-                card.onclick = () => card.classList.toggle('active-expand');
-                card.innerHTML = `
-                    <div style="display:flex; justify-content:space-between;">
-                        <b style="color:var(--theme-color)">${m.category || 'QUEST'}</b>
-                        <span style="color:#4ade80; font-family:var(--font-terminal)">Rp ${m.reward?.toLocaleString()}</span>
-                    </div>
-                    <div style="font-size:14px; margin:5px 0;">📍 ${m.dest_desa || m.origin_name}</div>
-                    <div class="m-expand-body">
-                        <p style="font-size:12px; color:#888;">${m.note || 'Tidak ada catatan.'}</p>
-                        <button onclick="App.UI.openModal('${m.id_misi}', ${m.reward}, '${m.note}', ${JSON.stringify(m.rpg_reward)})" style="width:100%; padding:10px; background:var(--theme-color); border:none; font-weight:bold; cursor:pointer;">AMBIL KONTRAK</button>
-                    </div>
-                `;
-                container.appendChild(card);
-            },
-            openModal: function(mid, price, note, rpg) {
-                App.BiddingData = { mid, basePrice: price, currentPrice: price, rpgData: rpg || {stamina:10} };
-                document.getElementById('modalInfo').innerText = note;
-                document.getElementById('dispBidAmt').innerText = price.toLocaleString('id-ID');
-                document.getElementById('sovBidModal').style.display = 'flex';
-            },
-            closeModal: function() { document.getElementById('sovBidModal').style.display = 'none'; },
-            toggleRadar: function() {
-                App.State.isExpanded = !App.State.isExpanded;
-                document.getElementById('radarType').innerText = App.State.isExpanded ? "DISTRICT" : "LOCAL";
-                App.Core.startRadar();
+                alert('Injeksi Massal Selesai!');
             }
         }
     };
 
-    window.onload = () => App.init();
+    // Helper untuk Modal (Sesuaikan dengan field baru)
+    function openEditModal(data) {
+        document.getElementById('editUserId').value = data.id;
+        document.getElementById('editUserShard').value = data.shard; // Tambahkan input hidden ini di HTML modal
+        document.getElementById('editName').value = data.nickname || '';
+        document.getElementById('editLevel').value = data.level || 1;
+        document.getElementById('editRank').value = data.rank || 'F';
+        document.getElementById('editStamina').value = data.current_stamina || 0;
+        document.getElementById('editKoin').value = data.koin || 0;
+        document.getElementById('editStatus').value = data.status || 'Active';
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    window.onload = () => AdminApp.init();
 </script>
 
 </body>
