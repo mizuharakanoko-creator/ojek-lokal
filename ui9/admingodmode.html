@@ -209,6 +209,26 @@
         </div>
     </div>
 
+
+    <div id="adminPanel">
+    <h2>ANTREAN TOPUP REALM</h2>
+    <table border="1" style="width:100%; border-collapse: collapse; color: white; background: #111;">
+        <thead>
+            <tr style="background: #333;">
+                <th>Nickname</th>
+                <th>Item</th>
+                <th>Nominal</th>
+                <th>Bukti</th>
+                <th>Status</th>
+                <th>Aksi</th>
+            </tr>
+        </thead>
+        <tbody id="topupList">
+            </tbody>
+    </table>
+</div>
+
+
     <script>
         // ==========================================
         // A. TERMINAL ROUTER CONFIGURATION
@@ -571,6 +591,70 @@
                 } catch(e) { alert("Gagal init data: " + e.message); }
             }
         };
+
+
+// Jalankan ini saat Admin Login
+function listenTopupRequests() {
+    const listTable = document.getElementById('topupList');
+    
+    // Pantau tabel transaksi di FB1_MASTER
+    App.db1.ref(`transaction_top_coxreal`).on('value', (snap) => {
+        listTable.innerHTML = "";
+        snap.forEach((child) => {
+            const data = child.val();
+            
+            // Hanya tampilkan yang masih pending
+            if (data.status === "pending") {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${data.nickname}</td>
+                    <td>${data.qty} ${data.stone_type}</td>
+                    <td>Rp ${data.nominal_bayar.toLocaleString()}</td>
+                    <td><small>${data.bukti_transfer}</small></td>
+                    <td style="color: yellow;">${data.status}</td>
+                    <td>
+                        <button onclick='verifikasiTopup(${JSON.stringify(data)})' 
+                                style="background: green; color: white; cursor: pointer;">
+                            ACCEPT (VERIF)
+                        </button>
+                    </td>
+                `;
+                listTable.appendChild(tr);
+            }
+        });
+    });
+}
+
+
+
+        
+async function verifikasiTopup(dataTransaksi) {
+    const { id_transaksi, id_adventurer, shard_tujuan, stone_type, qty } = dataTransaksi;
+    
+    try {
+        // 1. Hubungkan ke Shard Adventurer tersebut
+        const dbShard = getTerminal(shard_tujuan);
+        
+        // 2. Ambil saldo lama di tabel adventurer_coxin
+        const coxinRef = dbShard.ref(`adventurer_coxin/${id_adventurer}/${stone_type}`);
+        const currentSnap = await coxinRef.once('value');
+        const saldoLama = currentSnap.val() || 0;
+
+        // 3. Update Saldo Baru
+        await coxinRef.set(saldoLama + qty);
+
+        // 4. Update Status Transaksi di Master agar tidak bisa di-verif dua kali
+        await App.db1.ref(`transaction_top_coxreal/${id_transaksi}`).update({
+            status: "success",
+            verified_at: Date.now(),
+            admin_handler: "Admin_Name"
+        });
+
+        alert("Verifikasi Berhasil! Stone telah ditambahkan ke player.");
+    } catch (e) {
+        console.error("Gagal Verifikasi:", e);
+    }
+}
 
         // START APP
         window.onload = () => App.init();
