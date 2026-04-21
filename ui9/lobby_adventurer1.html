@@ -702,6 +702,19 @@
             <button class="tab-btn" onclick="App.Shop.changeTab('topup', this)">REALM TOPUP</button>
         </div>
 
+<div id="topup-status-monitor" style="
+    background: #1a1a1a; 
+    border: 1px solid #333; 
+    padding: 10px; 
+    margin-bottom: 10px; 
+    font-size: 12px; 
+    text-align: center;
+    color: #888;
+">
+    Memuat status transaksi terakhir...
+</div>
+
+
         <div id="shopContent" class="shop-grid">
             </div>
 
@@ -1129,127 +1142,152 @@
         }, // <-- DITAMBAHKAN PENUTUP OBJECT BIDDING DI SINI
 
         Shop: {
-            data: [
-                // EXCHANGE RED STONE
-                { id: 1, cat: 'exchange', name: '30x Kontrak Lusuh', icon: '📜', price: 1, curr: 'red_stone', target: 'kontrak_lusuh', qty: 30 },
-                { id: 2, cat: 'exchange', name: '25x Kontrak Normal', icon: '📜', price: 1, curr: 'red_stone', target: 'kontrak_normal', qty: 25 },
-                { id: 3, cat: 'exchange', name: '5x Kontrak Emas', icon: '🏆', price: 1, curr: 'red_stone', target: 'kontrak_emas', qty: 5 },
-                
-                // EXCHANGE GREEN STONE
-                { id: 4, cat: 'exchange', name: '12x Kontrak Lusuh', icon: '📜', price: 1000, curr: 'green_stone', target: 'kontrak_lusuh', qty: 12 },
-                { id: 5, cat: 'exchange', name: '2x Small Stamina', icon: '🧪', price: 1000, curr: 'green_stone', target: 'potion_stamina', qty: 2 },
+    data: [
+        // EXCHANGE RED STONE
+        { id: 1, cat: 'exchange', name: '30x Kontrak Lusuh', icon: '📜', price: 1, curr: 'red_stone', target: 'kontrak_lusuh', qty: 30 },
+        { id: 2, cat: 'exchange', name: '25x Kontrak Normal', icon: '📜', price: 1, curr: 'red_stone', target: 'kontrak_normal', qty: 25 },
+        { id: 3, cat: 'exchange', name: '5x Kontrak Emas', icon: '🏆', price: 1, curr: 'red_stone', target: 'kontrak_emas', qty: 5 },
+        
+        // EXCHANGE GREEN STONE
+        { id: 4, cat: 'exchange', name: '12x Kontrak Lusuh', icon: '📜', price: 1000, curr: 'green_stone', target: 'kontrak_lusuh', qty: 12 },
+        { id: 5, cat: 'exchange', name: '2x Small Stamina', icon: '🧪', price: 1000, curr: 'green_stone', target: 'potion_stamina', qty: 2 },
 
-                // TOP UP (REAL MONEY)
-                { id: 101, cat: 'topup', name: '1 Red Stone', icon: '🔴', price: 52000, curr: 'idr', target: 'red_stone', qty: 1 },
-                { id: 102, cat: 'topup', name: '1 Purple Stone', icon: '🟣', price: 260000, curr: 'idr', target: 'purple_stone', qty: 1 }
-            ],
+        // TOP UP (REAL MONEY)
+        { id: 101, cat: 'topup', name: '1 Red Stone', icon: '🔴', price: 52000, curr: 'idr', target: 'red_stone', qty: 1 },
+        { id: 102, cat: 'topup', name: '1 Purple Stone', icon: '🟣', price: 260000, curr: 'idr', target: 'purple_stone', qty: 1 }
+    ],
 
-            open: function() {
-                document.getElementById('guildShopModal').style.display = 'flex';
-                this.render('exchange');
-            },
+    open: function() {
+        document.getElementById('guildShopModal').style.display = 'flex';
+        this.render('exchange');
+        this.updateStatusUI();
+    },
 
-            changeTab: function(tab, btn) {
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                this.render(tab);
-            },
+    changeTab: function(tab, btn) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.render(tab);
+    },
 
-            render: function(category) {
-                const container = document.getElementById('shopContent');
-                container.innerHTML = "";
-                const filtered = this.data.filter(i => i.cat === category);
+    render: function(category) {
+        const container = document.getElementById('shopContent');
+        container.innerHTML = "";
+        const filtered = this.data.filter(i => i.cat === category);
 
-                filtered.forEach(item => {
-                    const card = document.createElement('div');
-                    card.className = 'shop-card';
-                    let priceClass = `price-${item.curr.split('_')[0]}`;
-                    let priceText = item.curr === 'idr' ? `Rp ${item.price.toLocaleString()}` : `${item.price} ${item.curr.replace('_', ' ').toUpperCase()}`;
+        filtered.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'shop-card';
+            let priceClass = `price-${item.curr.split('_')[0]}`;
+            let priceText = item.curr === 'idr' ? `Rp ${item.price.toLocaleString()}` : `${item.price} ${item.curr.replace('_', ' ').toUpperCase()}`;
 
-                    card.innerHTML = `
-                        <span class="item-icon">${item.icon}</span>
-                        <span class="item-name">${item.name}</span>
-                        <div class="price-tag-shop ${priceClass}" onclick="App.Shop.buy('${item.id}')">${priceText}</div>
-                    `;
-                    container.appendChild(card);
-                });
-            },
+            card.innerHTML = `
+                <span class="item-icon">${item.icon}</span>
+                <span class="item-name">${item.name}</span>
+                <div class="price-tag-shop ${priceClass}" onclick="App.Shop.buy('${item.id}')">${priceText}</div>
+            `;
+            container.appendChild(card);
+        });
+    },
 
-            buy: async function(itemId) {
-                const item = this.data.find(i => i.id == itemId);
-                if(!item) return;
+    buy: async function(itemId) {
+        const item = this.data.find(i => i.id == itemId);
+        if(!item) return;
 
-                if(item.curr === 'idr') {
-                    // LOGIKA TOPUP (LAPOR ADMIN)
-                    const unik = Math.floor(100 + Math.random() * 899); // Kode Unik
-                    const totalBayar = item.price + unik;
-                    
-                    const confirmMsg = `PROSES TOPUP:\n\nItem: ${item.name}\nTotal: Rp ${totalBayar.toLocaleString()}\n(Termasuk kode unik: ${unik})\n\nLaporan akan diteruskan ke Admin. Proses 1x24 Jam. Lanjutkan?`;
-                    
-                    if(confirm(confirmMsg)) {
-                        await this.sendTopupReport(item, totalBayar);
-                    }
-                } else {
-                    // LOGIKA EXCHANGE (OTOMATIS)
-                    if(confirm(`Tukarkan ${item.price} ${item.curr.replace('_', ' ')} untuk ${item.name}?`)) {
-                        this.processExchange(item);
-                    }
-                }
-            },
+        if(item.curr === 'idr') {
+            // Check pending trans before allowing new topup
+            const snapshot = await App.db1.ref('transaction_top_coxreal')
+                .orderByChild('id_adventurer').equalTo(App.State.idAdv).once('value');
+            
+            let adaPending = false;
+            snapshot.forEach(child => { if(child.val().status === 'pending') adaPending = true; });
+
+            if(adaPending) {
+                App.UI.showAlert("TRANSAKSI TERTAHAN", "Selesaikan atau tunggu verifikasi laporan sebelumnya.");
+                return;
+            }
+
+            const unik = Math.floor(100 + Math.random() * 899);
+            const totalBayar = item.price + unik;
+            if(confirm(`PROSES TOPUP:\nItem: ${item.name}\nTotal: Rp ${totalBayar.toLocaleString()}\n\nKirim laporan ke Admin?`)) {
+                this.sendTopupReport(item, totalBayar);
+            }
+        } else {
+            // EXCHANGE LOGIC
+            if(confirm(`Tukarkan ${item.price} ${item.curr.replace('_', ' ')}?`)) {
+                this.processExchange(item);
+            }
+        }
+    },
+
+    processExchange: async function(item) {
+        try {
+            const idAdv = App.State.idAdv;
+            const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+            
+            // 1. Cek Saldo di Shard (adventurer_coxin)
+            const coxinSnap = await dbShard.ref(`adventurer_coxin/${idAdv}`).once('value');
+            const saldo = coxinSnap.val() || {};
+            const currentBalance = saldo[item.curr] || 0;
+
+            if (currentBalance < item.price) {
+                App.UI.showAlert("KRISTAL TIDAK CUKUP", `Butuh ${item.price}, saldo Anda ${currentBalance}.`);
+                return;
+            }
+
+            // 2. Potong Saldo & Tambah Item (Atomic Update)
+            const newBalance = currentBalance - item.price;
+            
+            // Update Saldo
+            await dbShard.ref(`adventurer_coxin/${idAdv}`).update({ [item.curr]: newBalance });
+
+            // Update Item (misal masuk ke contracts)
+            const itemRef = dbShard.ref(`adventurer_contracts/${idAdv}/${item.target}`);
+            const currentItemQty = (await itemRef.once('value')).val() || 0;
+            await itemRef.set(currentItemQty + item.qty);
+
+            App.UI.showAlert("EXCHANGE BERHASIL", `Menerima ${item.qty}x ${item.name.split(' ')[1]}.`);
+            AudioEngine.play('sonar');
+        } catch (e) {
+            App.UI.showAlert("FAILED", "Gagal menghubungi Shard: " + e.message);
+        }
+    },
 
     sendTopupReport: async function(item, nominal) {
-    try {
-
-        // --- TAMBAHKAN LOGIKA BARRIER INI ---
-        const snapshot = await App.db1.ref('transaction_top_coxreal')
-            .orderByChild('id_adventurer')
-            .equalTo(App.State.idAdv)
-            .once('value');
-
-        let adaPending = false;
-        if (snapshot.exists()) {
-            snapshot.forEach(child => {
-                if (child.val().status === "pending") adaPending = true;
-            });
-        }
-
-        if (adaPending) {
-            App.UI.showAlert("TRANSAKSI TERTAHAN", "Kamu masih punya laporan pending. Tunggu verifikasi Admin atau hubungi support.");
-            return; // Berhenti di sini, jangan lanjut kirim
-        }
-        // --- AKHIR LOGIKA BARRIER ---
-
-        // Minta input bukti transfer (sebagai simulasi sebelum integrasi upload gambar)
-        const bukti = prompt("Masukkan No. Referensi Transfer / Nama Rekening Pengirim:");
+        const bukti = prompt("Masukkan No. Referensi / Nama Pengirim:");
         if (!bukti) return;
 
         const reportRef = App.db1.ref(`transaction_top_coxreal`).push();
         await reportRef.set({
             id_transaksi: reportRef.key,
-            id_adventurer: App.State.idAdv, // ID unik (misal: adv-kng-001)
-            uid_auth: App.user.uid,        // UID Firebase Auth
+            id_adventurer: App.State.idAdv,
             nickname: App.user.nick,
-            stone_type: item.target,       // red_stone / purple_stone
-            qty: item.qty,                 // Jumlah stone yang dibeli
+            stone_type: item.target,
+            qty: item.qty,
             nominal_bayar: nominal,
             bukti_transfer: bukti,
-            shard_tujuan: App.State.loc.shard || "FB2_RUNNER", // PENTING: Agar Admin tahu shard mana yang diupdate
+            shard_tujuan: App.State.loc.shard || "FB2_RUNNER",
             status: "pending",
             created_at: Date.now()
         });
-        App.UI.showAlert("SINYAL TERKIRIM", "Laporan topup telah masuk antrian Admin.");
-    } catch (e) {
-        App.UI.showAlert("ERROR", "Gagal mengirim laporan.");
+        App.UI.showAlert("SINYAL TERKIRIM", "Laporan topup dalam antrian Admin.");
+        this.updateStatusUI();
+    },
+
+    updateStatusUI: async function() {
+        const monitor = document.getElementById('topup-status-monitor');
+        if (!monitor) return;
+        const snap = await App.db1.ref('transaction_top_coxreal')
+            .orderByChild('id_adventurer').equalTo(App.State.idAdv).limitToLast(1).once('value');
+
+        if (snap.exists()) {
+            const data = Object.values(snap.val())[0];
+            const colors = { pending: 'yellow', success: '#4ade80', rejected: '#f87171' };
+            monitor.innerHTML = `<span style="color: ${colors[data.status]};">${data.status.toUpperCase()}: ${data.stone_type} (${data.qty})</span>`;
+        }
     }
 },
 
 
-            processExchange: async function(item) {
-                // Logika pengurangan saldo & penambahan item di Shard (Next Step)
-                App.UI.showAlert("SISTEM", "Mengecek Saldo Kristal di Shard...");
-                // Di sini nanti kita panggil fungsi update saldo coxin
-            }
-        }, // <-- DIPERBAIKI PENUTUP OBJECT SHOP DI SINI
 
         Core: {
             startGPS: function() {
