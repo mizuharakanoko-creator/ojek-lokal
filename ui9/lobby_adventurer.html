@@ -819,19 +819,23 @@
 </div>
 
 
-<div id="inventoryModal" class="modal-overlay">
-    <div class="modal-box" style="max-height: 85vh;">
-        <h3 style="color:var(--theme-color); margin:0; font-family:var(--font-terminal);">STORAGE & BACKPACK</h3>
+<div id="inventoryModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box" style="max-height: 85vh; width: 90%; max-width: 500px;">
+        <div class="modal-header">
+            <h3 style="margin: 0; color: #ffcc00;">🎒 STORAGE & BACKPACK</h3>
+            <button onclick="App.Inventory.close()" class="close-btn">&times;</button>
+        </div>
+        <hr border="1" style="border-color: #444;">
         
-        <div id="inventoryContent" class="inv-list-container">
+        <div id="inventoryContent" class="inv-list-container" style="min-height: 200px; overflow-y: auto;">
             </div>
 
-        <button onclick="document.getElementById('inventoryModal').style.display='none'" 
-                style="width:100%; background:none; color:#666; border:none; margin-top:15px; cursor:pointer; font-size:12px;">
-            TUTUP STORAGE
-        </button>
+        <div class="modal-footer" style="margin-top: 15px;">
+            <button onclick="App.Inventory.close()" class="btn-block">CLOSE</button>
+        </div>
     </div>
 </div>
+
 
 <div id="adsTimerOverlay">
     <div id="adsIcon" style="font-size: 40px; margin-bottom: 15px;">📺</div>
@@ -844,6 +848,11 @@
     <button onclick="App.Shop.open()" class="btn-expand" style="border-style: dashed; margin-top: 10px;">🛒 GUILD SHOP</button>
     <button onclick="App.Inventory.open()" class="btn-expand" style="border-style: dashed; margin-top: 10px;">🎒 STORAGE</button>
 </div>
+<div class="footer-icon" onclick="App.Inventory.open()">
+    <i class="fas fa-briefcase"></i>
+    <span>STORAGE</span>
+</div>
+
 
 
 <div style="padding: 0 15px;">
@@ -1019,143 +1028,79 @@
 
                 // Tambahkan di dalam object App
     Inventory: {
-        open: async function() {
-            document.getElementById('inventoryModal').style.display = 'flex';
+    // Fungsi untuk membuka modal
+    open: function() {
+        const modal = document.getElementById('inventoryModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            // Mainkan sound jika ada
+            if (window.AudioEngine) AudioEngine.play('click');
+            
+            // Tampilkan loading sebentar
+            document.getElementById('inventoryContent').innerHTML = '<p style="text-align:center;">Loading items...</p>';
+            
+            // Panggil fungsi render
             this.render();
-        },
-
-render: async function() {
-    const container = document.getElementById('inventoryContent');
-    container.innerHTML = "<div style='text-align:center; color:#555;'>Membuka Storage...</div>";
-
-    // Pastikan ID Adventurer sudah ada
-    const idAdv = App.State.idAdv;
-    if(!idAdv) {
-        container.innerHTML = "<div style='color:red; text-align:center;'>ID tidak ditemukan. Silakan restart terminal.</div>";
-        return;
-    }
-
-    // Gunakan Shard dari State atau cari defaultnya
-    const shardTarget = App.State.loc.shard || "FB2_RUNNER";
-    const dbShard = getTerminal(shardTarget);
-
-    try {
-        const [invSnap, conSnap, coxSnap] = await Promise.all([
-            dbShard.ref(`adventurer_inventory/${idAdv}`).once('value'),
-            dbShard.ref(`adventurer_contracts/${idAdv}`).once('value'),
-            dbShard.ref(`adventurer_coxin/${idAdv}`).once('value')
-        ]);
-
-        let html = "";
-
-        // 1. Bagian Saldo (Coxin)
-        html += `<div class="section-label">Valuable Stones [SHARD: ${shardTarget}]</div>`;
-        const stones = coxSnap.val() || {};
-        const stoneTypes = [
-            {k: 'green_stone', n: 'Green Stone', i: '🟢'},
-            {k: 'red_stone', n: 'Red Stone', i: '🔴'},
-            {k: 'purple_stone', n: 'Purple Stone', i: '🟣'}
-        ];
-        stoneTypes.forEach(s => {
-            html += `
-                <div class="inv-item">
-                    <div class="inv-info"><span class="inv-icon">${s.i}</span><span class="inv-name">${s.n}</span></div>
-                    <span class="inv-qty">${stones[s.k] || 0}</span>
-                </div>`;
-        });
-
-        // 2. Bagian Kontrak
-        html += `<div class="section-label">Active Contracts</div>`;
-        const contracts = conSnap.val() || {};
-        let hasContract = false;
-        Object.entries(contracts).forEach(([key, val]) => {
-            if(val > 0) {
-                hasContract = true;
-                html += `
-                <div class="inv-item">
-                    <div class="inv-info"><span class="inv-icon">📜</span><span class="inv-name">${key.replace(/_/g,' ').toUpperCase()}</span></div>
-                    <span class="inv-qty">x${val}</span>
-                </div>`;
-            }
-        });
-        if(!hasContract) html += `<div style="font-size:10px; color:#333; text-align:center; padding:5px;">Tidak ada kontrak aktif</div>`;
-
-        // 3. Bagian Items
-        html += `<div class="section-label">Consumables</div>`;
-        const items = invSnap.val() || {};
-        let hasItem = false;
-        if(items) {
-            Object.entries(items).forEach(([key, val]) => {
-                if(val > 0) {
-                    hasItem = true;
-                    html += `
-                    <div class="inv-item">
-                        <div class="inv-info">
-                            <span class="inv-icon">${key.includes('stamina') ? '🧪' : '📦'}</span>
-                            <span class="inv-name">${key.replace(/_/g,' ').toUpperCase()}</span>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <span class="inv-qty">x${val}</span>
-                            <button class="btn-use" onclick="App.Inventory.useItem('${key}')">USE</button>
-                        </div>
-                    </div>`;
-                }
-            });
-        }
-        if(!hasItem) html += `<div style="font-size:10px; color:#333; text-align:center; padding:5px;">Backpack Kosong</div>`;
-
-        // 4. Recovery Area
-        html += `<div class="section-label">Guild Ad-Network</div>
-            <div class="inv-item" style="border-color: #444; background: #050505;">
-                <div class="inv-info"><span class="inv-icon">📺</span><span class="inv-name">STAMINA RECOVERY</span></div>
-                <button class="btn-use" style="background:#4ade80" onclick="App.Ads.start('stamina')">WATCH</button>
-            </div>`;
-
-        container.innerHTML = html;
-    } catch (e) {
-        console.error(e);
-        container.innerHTML = `<div style="color:red; font-size:10px; padding:20px;">ERROR: ${e.message}</div>`;
-    }
-},
-
-        
-        useItem: async function(itemKey) {
-            const idAdv = App.State.idAdv;
-            const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
-            
-            AudioEngine.play('click');
-            
-            // Logika efek item
-            let plusStm = 0;
-            if(itemKey === 'small_stamina_potion') plusStm = 20;
-            if(itemKey === 'medium_stamina_potion') plusStm = 50;
-            if(itemKey === 'large_stamina_potion') plusStm = 100;
-
-            try {
-                // 1. Kurangi Qty di Inventory
-                const refInv = dbShard.ref(`adventurer_inventory/${idAdv}/${itemKey}`);
-                const currentQty = (await refInv.once('value')).val() || 0;
-                if(currentQty <= 0) return;
-                await refInv.set(currentQty - 1);
-
-                // 2. Tambah Stamina
-                if(plusStm > 0) {
-                    let newStm = App.State.rpg.stm + plusStm;
-                    if(newStm > App.State.rpg.stmMax) newStm = App.State.rpg.stmMax;
-                    
-                    await dbShard.ref(`adventurer_experience/${idAdv}`).update({ current_stamina: newStm });
-                    App.State.rpg.stm = newStm;
-                    App.UI.updateRPG();
-                    App.UI.showAlert("ITEM USED", `Stamina bertambah +${plusStm}!`);
-                }
-                
-                this.render(); // Refresh list
-            } catch(e) {
-                App.UI.showAlert("ERROR", "Gagal menggunakan item.");
-            }
         }
     },
 
+    // Fungsi untuk menutup modal
+    close: function() {
+        document.getElementById('inventoryModal').style.display = 'none';
+    },
+
+    // Fungsi untuk mengambil data dari Firebase & menampilkan ke UI
+    render: async function() {
+        try {
+            const content = document.getElementById('inventoryContent');
+            const user = App.State.user; // Pastikan data user login tersedia
+            
+            if (!user) {
+                content.innerHTML = '<p style="color:red;">Error: User not authenticated.</p>';
+                return;
+            }
+
+            // Path database sesuaikan dengan Sovereign Guild Structure
+            const invRef = db.ref(`users/${user.uid}/inventory`);
+            const snapshot = await invRef.once('value');
+            const items = snapshot.val();
+
+            if (!items) {
+                content.innerHTML = '<p style="text-align:center; opacity:0.5;">Storage is empty.</p>';
+                return;
+            }
+
+            let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
+            
+            Object.keys(items).forEach(key => {
+                const item = items[key];
+                html += `
+                    <div class="item-card" style="background: #222; padding: 10px; border: 1px solid #444; border-radius: 5px;">
+                        <div style="font-weight: bold; color: #00ffcc;">${item.name || 'Unknown Item'}</div>
+                        <div style="font-size: 12px; color: #bbb;">Qty: ${item.qty || 1}</div>
+                        <button onclick="App.Inventory.useItem('${key}')" style="margin-top:5px; width:100%; font-size:10px;">USE</button>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            content.innerHTML = html;
+
+        } catch (error) {
+            console.error("Inventory Render Error:", error);
+            document.getElementById('inventoryContent').innerHTML = '<p style="color:orange;">Failed to load storage.</p>';
+        }
+    },
+
+    useItem: function(itemId) {
+        console.log("Using item:", itemId);
+        // Logika penggunaan item di sini
+        alert("Item used: " + itemId);
+    }
+},
+
+
+        
     Ads: {
         start: function(type) {
             const overlay = document.getElementById('adsTimerOverlay');
