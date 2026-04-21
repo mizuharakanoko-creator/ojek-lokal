@@ -619,6 +619,49 @@
             border-color: var(--theme-color);
         }
 
+
+        .coxin-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 15px;
+}
+
+.coxin-box {
+    padding: 10px;
+    text-align: center;
+    border: 1px solid #444;
+    background: rgba(0,0,0,0.5);
+}
+
+/* Glow Effects */
+.purple-glow { border-color: #a020f0; box-shadow: 0 0 8px #a020f0; color: #e0aaff; }
+.red-glow { border-color: #ff0000; box-shadow: 0 0 8px #ff0000; color: #ffcccc; }
+.white-glow { border-color: #ffffff; box-shadow: 0 0 8px #ffffff; color: #ffffff; }
+.green-glow { border-color: #00ff00; box-shadow: 0 0 8px #00ff00; color: #ccffcc; }
+
+.coxin-val { display: block; font-size: 1.2rem; font-weight: bold; font-family: 'Courier New', monospace; }
+.coxin-label { font-size: 0.6rem; opacity: 0.7; }
+
+.item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px dashed #333;
+}
+
+.btn-use {
+    background: #00ff00;
+    color: #000;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn-use:hover { background: #fff; }
+
     </style>
 </head>
 <body>
@@ -1627,6 +1670,98 @@ if (type === 'STM') {
 
                 App.UI.updateRPG();
             },
+
+
+            
+// Master Data untuk mapping ID ke Nama/Deskripsi
+const ITEM_DEFINITION = {
+    'pot_stamina_01': { name: 'Energy Elixir', desc: 'Restore 30 Stamina', icon: '🧪' },
+    'map_locator_01': { name: 'Radar Sweep', desc: 'Reveal hidden mission for 5m', icon: '📡' },
+    'gate_key_01': { name: 'Dungeon Key', desc: 'Access Restricted Area', icon: '🔑' }
+};
+
+App.Inventory = {
+    open: function() {
+        $('#guildInventoryModal').fadeIn(200);
+        this.fetchData();
+    },
+
+    close: function() {
+        $('#guildInventoryModal').fadeOut(200);
+    },
+
+    fetchData: function() {
+        const uid = App.User.uid; // Sesuaikan dengan cara ambil UID di app Anda
+        
+        // Ambil data secara paralel dari 3 node Shard
+        const paths = [
+            `adventurer_coxin/${uid}`,
+            `adventurer_contracts/${uid}`,
+            `adventurer_inventory/${uid}`
+        ];
+
+        Promise.all(paths.map(path => firebase.database().ref(path).once('value')))
+        .then(snapshots => {
+            this.renderCoxin(snapshots[0].val());
+            this.renderContracts(snapshots[1].val());
+            this.renderItems(snapshots[2].val());
+        });
+    },
+
+    renderCoxin: function(data) {
+        if(!data) return;
+        $('#coxin-purple').text(data.purple || 0);
+        $('#coxin-red').text(data.red || 0);
+        $('#coxin-white').text(data.white || 0);
+        $('#coxin-green').text(data.green || 0);
+    },
+
+    renderContracts: function(data) {
+        const container = $('#contractList');
+        container.empty();
+        if(!data) return container.addClass('empty-state').text('No active contracts.');
+
+        container.removeClass('empty-state');
+        Object.keys(data).forEach(key => {
+            container.append(`
+                <div class="contract-card">
+                    <span>📜 ${key.toUpperCase()}</span>
+                    <span class="gold-text">${data[key]} units</span>
+                </div>
+            `);
+        });
+    },
+
+    renderItems: function(data) {
+        const container = $('#itemList');
+        container.empty();
+        if(!data) return container.addClass('empty-state').text('Inventory empty.');
+
+        container.removeClass('empty-state');
+        Object.entries(data).forEach(([itemId, qty]) => {
+            const info = ITEM_DEFINITION[itemId] || { name: itemId, desc: 'Unknown Artifact', icon: '📦' };
+            container.append(`
+                <div class="item-row">
+                    <div class="item-info">
+                        <span class="item-icon">${info.icon}</span>
+                        <div class="item-text">
+                            <div class="item-name">${info.name} x${qty}</div>
+                            <div class="item-desc">${info.desc}</div>
+                        </div>
+                    </div>
+                    <button class="btn-use" onclick="App.Inventory.useItem('${itemId}')">USE</button>
+                </div>
+            `);
+        });
+    },
+
+    useItem: function(itemId) {
+        console.log("Using item:", itemId);
+        // Implementasi logika Firebase Transaction di sini
+        // Kurangi qty di Shard, Update efek di Master
+    }
+};
+
 
             startRadar: function() {
                 const listDiv = document.getElementById('missionList');
