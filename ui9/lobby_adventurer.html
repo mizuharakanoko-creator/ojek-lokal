@@ -619,46 +619,83 @@
             border-color: var(--theme-color);
         }
 
-                /* ==========================================
+        /* ==========================================
            INVENTORY UI
            ========================================== */
-        .inventory-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
+        .inventory-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
             margin-top: 15px;
-            max-height: 300px;
+            max-height: 400px;
             overflow-y: auto;
-            padding: 5px;
+            padding-right: 5px;
         }
 
-        .inv-card {
-            background: #0a0a0a;
+        .inv-item-row {
+            background: rgba(255, 255, 255, 0.03);
             border: 1px solid #222;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
             padding: 10px;
-            border-radius: 6px;
-            text-align: center;
-            position: relative;
-            transition: 0.2s;
+            gap: 12px;
         }
 
-        .inv-card:active { transform: scale(0.95); border-color: var(--theme-color); }
+        .inv-icon-box {
+            font-size: 24px;
+            min-width: 40px;
+            text-align: center;
+        }
 
-        .inv-qty {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background: var(--theme-color);
-            color: #000;
-            font-size: 9px;
-            font-weight: 900;
-            padding: 2px 5px;
-            border-radius: 10px;
+        .inv-details {
+            flex-grow: 1;
+            text-align: left;
+        }
+
+        .inv-item-name {
+            display: block;
+            font-weight: bold;
+            font-size: 13px;
+            color: var(--theme-color);
             font-family: var(--font-terminal);
         }
 
-        .inv-icon { font-size: 22px; display: block; margin-bottom: 5px; }
-        .inv-name { font-size: 9px; color: #888; display: block; text-transform: uppercase; }
+        .inv-qty-text {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .inv-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-inv-info {
+            background: #333;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+        }
+
+        .btn-inv-use {
+            background: var(--theme-color);
+            color: #000;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-weight: 900;
+            font-size: 11px;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
+
+        /* Scrollbar Styling */
+        .inventory-list::-webkit-scrollbar { width: 4px; }
+        .inventory-list::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
 
 
     </style>
@@ -1435,23 +1472,49 @@ if (adPanel) {
 },
 
 
-        Inventory: {
-            // Kamus data item agar icon dan nama rapi
+                Inventory: {
+            // Kamus data dengan tambahan Deskripsi
             itemMaster: {
-                small_stamina_potion: { name: "S-Stamina", icon: "🧪", effect: 25 },
-                medium_stamina_potion: { name: "M-Stamina", icon: "🧪", effect: 60 },
-                large_stamina_potion: { name: "L-Stamina", icon: "⚗️", effect: 150 },
-                exp_scroll: { name: "EXP Scroll", icon: "📜", effect: 100 }
+                small_stamina_potion: { 
+                    name: "S-STAMINA", 
+                    icon: "🧪", 
+                    effect: 25, 
+                    desc: "Memulihkan 25 poin Stamina secara instan." 
+                },
+                medium_stamina_potion: { 
+                    name: "M-STAMINA", 
+                    icon: "🧪", 
+                    effect: 60, 
+                    desc: "Ramuan standar untuk memulihkan 60 poin Stamina." 
+                },
+                large_stamina_potion: { 
+                    name: "L-STAMINA", 
+                    icon: "⚗️", 
+                    effect: 150, 
+                    desc: "Ramuan murni berenergi tinggi. Memulihkan 150 Stamina." 
+                },
+                exp_scroll: { 
+                    name: "EXP SCROLL", 
+                    icon: "📜", 
+                    effect: 100, 
+                    desc: "Gulungan kuno yang memberikan 100 EXP tambahan." 
+                }
             },
 
-            open: async function() {
+            open: function() {
                 document.getElementById('inventoryModal').style.display = 'flex';
                 this.render();
             },
 
+            showInfo: function(key) {
+                const item = this.itemMaster[key] || { name: "Unknown", desc: "Tidak ada deskripsi." };
+                App.UI.showAlert(item.name, item.desc);
+            },
+
             render: async function() {
                 const container = document.getElementById('inventoryContent');
-                container.innerHTML = '<div style="color:#444; font-size:11px; grid-column: 1/4;">Memindai isi tas...</div>';
+                container.className = "inventory-list"; // Pastikan class list dipakai
+                container.innerHTML = '<div style="color:#555; font-size:11px;">Membuka tas...</div>';
 
                 try {
                     const idAdv = App.State.idAdv;
@@ -1465,75 +1528,80 @@ if (adPanel) {
                     for (const [key, qty] of Object.entries(items)) {
                         if (qty <= 0) continue;
                         hasItem = true;
-                        const meta = this.itemMaster[key] || { name: key.replace(/_/g, ' '), icon: "📦" };
+                        const meta = this.itemMaster[key] || { name: key, icon: "📦", desc: "Item misterius." };
                         
-                        const div = document.createElement('div');
-                        div.className = 'inv-card';
-                        div.onclick = () => this.useItem(key, meta);
-                        div.innerHTML = `
-                            <span class="inv-qty">x${qty}</span>
-                            <span class="inv-icon">${meta.icon}</span>
-                            <span class="inv-name">${meta.name}</span>
+                        const row = document.createElement('div');
+                        row.className = 'inv-item-row';
+                        row.innerHTML = `
+                            <div class="inv-icon-box">${meta.icon}</div>
+                            <div class="inv-details">
+                                <span class="inv-item-name">${meta.name}</span>
+                                <span class="inv-qty-text">Jumlah: <b>${qty}</b></span>
+                            </div>
+                            <div class="inv-actions">
+                                <button class="btn-inv-info" onclick="App.Inventory.showInfo('${key}')">i</button>
+                                <button class="btn-inv-use" onclick="App.Inventory.useItem('${key}', '${meta.name}')">USE</button>
+                            </div>
                         `;
-                        container.appendChild(div);
+                        container.appendChild(row);
                     }
 
                     if (!hasItem) {
-                        container.innerHTML = '<div style="color:#444; font-size:11px; grid-column: 1/4; padding:20px;">Tas kosong.</div>';
+                        container.innerHTML = '<div style="text-align:center; padding:20px; color:#444;">Tas Kosong</div>';
                     }
                 } catch (e) {
-                    container.innerHTML = "Gagal memuat.";
+                    container.innerHTML = "Gagal memproses data.";
                 }
             },
 
-            useItem: async function(key, meta) {
-                if (!confirm(`Gunakan 1x ${meta.name}?`)) return;
+            useItem: async function(key, itemName) {
+                // Konfirmasi Penggunaan
+                const yakin = await new Promise(resolve => {
+                    if(confirm(`Gunakan 1 unit ${itemName} sekarang?`)) resolve(true);
+                    else resolve(false);
+                });
+
+                if (!yakin) return;
 
                 const idAdv = App.State.idAdv;
                 const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+                const meta = this.itemMaster[key];
 
                 try {
-                    // 1. Ambil stok terbaru
                     const itemRef = dbShard.ref(`adventurer_inventory/${idAdv}/${key}`);
                     const currentQty = (await itemRef.once('value')).val() || 0;
 
                     if (currentQty <= 0) {
-                        App.UI.showAlert("HABIS", "Item sudah tidak tersedia.");
-                        this.render();
+                        App.UI.showAlert("HABIS", "Item tidak lagi tersedia.");
                         return;
                     }
 
-                    // 2. Logika Efek (Contoh: Stamina Potion)
-                    if (key.includes('stamina_potion')) {
-                        const newStm = Math.min(App.State.rpg.stmMax + 100, App.State.rpg.stm + meta.effect); // Bonus Overcharge dikit
-                        
-                        // Update DB Shard & Master
+                    // --- LOGIKA EFEK ---
+                    if (key.includes('stamina')) {
+                        const newStm = App.State.rpg.stm + meta.effect;
                         await dbShard.ref(`adventurer_experience/${idAdv}`).update({ current_stamina: newStm });
-                        await App.db1.ref(`users/${App.user.uid}`).update({ stamina: newStm });
-                        
                         App.State.rpg.stm = newStm;
-                    } 
-                    else if (key === 'exp_scroll') {
+                    } else if (key === 'exp_scroll') {
                         const newExp = App.State.rpg.exp + meta.effect;
                         await dbShard.ref(`adventurer_experience/${idAdv}`).update({ exp: newExp });
                         App.State.rpg.exp = newExp;
                     }
 
-                    // 3. Potong Stok & Update UI
+                    // Kurangi stok & Sinkronisasi
                     await itemRef.set(currentQty - 1);
-                    AudioEngine.play('sonar');
-                    App.UI.updateRPG();
-                    this.render(); // Refresh tampilan tas
                     
-                    // Cek jika Level Up (Panggil fungsi Core yang sudah ada)
-                    const xpSnap = await dbShard.ref(`adventurer_experience/${idAdv}`).once('value');
-                    App.Core.syncRPGStats(idAdv, App.State.loc.shard || "FB2_RUNNER", xpSnap.val());
+                    // Efek suara & Visual Feedback
+                    if(window.AudioEngine) AudioEngine.play('sonar');
+                    
+                    App.UI.updateRPG();
+                    this.render(); // Refresh list
 
                 } catch (e) {
-                    App.UI.showAlert("ERROR", "Gagal menggunakan item.");
+                    App.UI.showAlert("GAGAL", "Gagal menggunakan item.");
                 }
             }
         },
+
 
                 
 
