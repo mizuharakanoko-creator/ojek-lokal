@@ -615,6 +615,61 @@
             border-color: var(--theme-color);
         }
 
+
+        /* INVENTORY LIST STYLE */
+.inv-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 15px;
+    overflow-y: auto;
+}
+
+.inv-item {
+    background: #111;
+    border: 1px solid #222;
+    padding: 12px;
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.inv-info { display: flex; align-items: center; gap: 12px; }
+.inv-icon { font-size: 20px; }
+.inv-name { font-size: 13px; color: #eee; font-family: var(--font-terminal); }
+.inv-qty { color: var(--theme-color); font-weight: bold; font-size: 12px; }
+
+.btn-use {
+    background: var(--theme-color);
+    color: #000;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 900;
+    cursor: pointer;
+    font-family: var(--font-terminal);
+}
+
+.section-label {
+    font-size: 10px;
+    color: #555;
+    margin: 15px 0 5px 0;
+    border-bottom: 1px solid #222;
+    padding-bottom: 3px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ADS TIMER STYLE */
+#adsTimerOverlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.95);
+    display: none; flex-direction: column; justify-content: center; align-items: center;
+    z-index: 100; border-radius: 8px;
+}
+
+
     </style>
 </head>
 <body>
@@ -762,6 +817,34 @@
 
     </div>
 </div>
+
+
+<div id="inventoryModal" class="modal-overlay">
+    <div class="modal-box" style="max-height: 85vh;">
+        <h3 style="color:var(--theme-color); margin:0; font-family:var(--font-terminal);">STORAGE & BACKPACK</h3>
+        
+        <div id="inventoryContent" class="inv-list-container">
+            </div>
+
+        <button onclick="document.getElementById('inventoryModal').style.display='none'" 
+                style="width:100%; background:none; color:#666; border:none; margin-top:15px; cursor:pointer; font-size:12px;">
+            TUTUP STORAGE
+        </button>
+    </div>
+</div>
+
+<div id="adsTimerOverlay">
+    <div id="adsIcon" style="font-size: 40px; margin-bottom: 15px;">📺</div>
+    <div style="color:var(--theme-color); font-family:var(--font-terminal); font-size:14px;" id="adsStatus">TRANSMISI IKLAN...</div>
+    <div style="font-size: 30px; font-weight: 900; margin-top: 10px;" id="adsCount">30</div>
+    <div style="font-size: 10px; color: #555; margin-top: 10px;">JANGAN TUTUP TERMINAL</div>
+</div>
+
+<div style="padding: 0 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+    <button onclick="App.Shop.open()" class="btn-expand" style="border-style: dashed; margin-top: 10px;">🛒 GUILD SHOP</button>
+    <button onclick="App.Inventory.open()" class="btn-expand" style="border-style: dashed; margin-top: 10px;">🎒 STORAGE</button>
+</div>
+
 
 <div style="padding: 0 15px;">
     <button onclick="App.Shop.open()" class="btn-expand" style="border-style: dashed; margin-top: 10px;">
@@ -933,6 +1016,184 @@
                 msg.innerHTML = contentHtml;
                 overlay.style.display = 'flex';
             },
+
+                // Tambahkan di dalam object App
+    Inventory: {
+        open: async function() {
+            document.getElementById('inventoryModal').style.display = 'flex';
+            this.render();
+        },
+
+        render: async function() {
+            const container = document.getElementById('inventoryContent');
+            container.innerHTML = "<div style='text-align:center; color:#555;'>Membuka Storage...</div>";
+
+            const idAdv = App.State.idAdv;
+            const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+
+            try {
+                // Ambil 3 data sekaligus
+                const [invSnap, conSnap, coxSnap] = await Promise.all([
+                    dbShard.ref(`adventurer_inventory/${idAdv}`).once('value'),
+                    dbShard.ref(`adventurer_contracts/${idAdv}`).once('value'),
+                    dbShard.ref(`adventurer_coxin/${idAdv}`).once('value')
+                ]);
+
+                let html = "";
+
+                // 1. Bagian Saldo (Coxin)
+                html += `<div class="section-label">Valuable Stones</div>`;
+                const stones = coxSnap.val() || {};
+                const stoneTypes = [
+                    {k: 'green_stone', n: 'Green Stone', i: '🟢'},
+                    {k: 'red_stone', n: 'Red Stone', i: '🔴'},
+                    {k: 'purple_stone', n: 'Purple Stone', i: '🟣'}
+                ];
+                stoneTypes.forEach(s => {
+                    html += `
+                        <div class="inv-item">
+                            <div class="inv-info"><span class="inv-icon">${s.i}</span><span class="inv-name">${s.n}</span></div>
+                            <span class="inv-qty">${stones[s.k] || 0}</span>
+                        </div>`;
+                });
+
+                // 2. Bagian Kontrak
+                html += `<div class="section-label">Active Contracts</div>`;
+                const contracts = conSnap.val() || {};
+                Object.entries(contracts).forEach(([key, val]) => {
+                    if(val > 0) {
+                        html += `
+                        <div class="inv-item">
+                            <div class="inv-info"><span class="inv-icon">📜</span><span class="inv-name">${key.replace('_',' ').toUpperCase()}</span></div>
+                            <span class="inv-qty">x${val}</span>
+                        </div>`;
+                    }
+                });
+
+                // 3. Bagian Items & Use
+                html += `<div class="section-label">Consumables</div>`;
+                const items = invSnap.val() || {};
+                let hasItem = false;
+                Object.entries(items).forEach(([key, val]) => {
+                    if(val > 0) {
+                        hasItem = true;
+                        html += `
+                        <div class="inv-item">
+                            <div class="inv-info">
+                                <span class="inv-icon">${key.includes('stamina') ? '🧪' : '📦'}</span>
+                                <span class="inv-name">${key.replace(/_/g,' ').toUpperCase()}</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <span class="inv-qty">x${val}</span>
+                                <button class="btn-use" onclick="App.Inventory.useItem('${key}')">USE</button>
+                            </div>
+                        </div>`;
+                    }
+                });
+                if(!hasItem) html += `<div style="font-size:10px; color:#333; text-align:center;">Backpack Kosong</div>`;
+
+                // 4. Fitur Iklan (Di bawah List)
+                html += `<div class="section-label">Guild Ad-Network</div>`;
+                html += `
+                    <div class="inv-item" style="border-color: #444; background: #050505;">
+                        <div class="inv-info"><span class="inv-icon">📺</span><span class="inv-name">RECOVERY STAMINA</span></div>
+                        <button class="btn-use" style="background:#4ade80" onclick="App.Ads.start('stamina')">WATCH</button>
+                    </div>
+                    <div class="inv-item" style="border-color: #444; background: #050505;">
+                        <div class="inv-info"><span class="inv-icon">📉</span><span class="inv-name">REDUCE CONTRACT LIMIT</span></div>
+                        <button class="btn-use" style="background:#60a5fa" onclick="App.Ads.start('limit')">WATCH</button>
+                    </div>
+                `;
+
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = "Gagal memuat storage.";
+            }
+        },
+
+        useItem: async function(itemKey) {
+            const idAdv = App.State.idAdv;
+            const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+            
+            AudioEngine.play('click');
+            
+            // Logika efek item
+            let plusStm = 0;
+            if(itemKey === 'small_stamina_potion') plusStm = 20;
+            if(itemKey === 'medium_stamina_potion') plusStm = 50;
+            if(itemKey === 'large_stamina_potion') plusStm = 100;
+
+            try {
+                // 1. Kurangi Qty di Inventory
+                const refInv = dbShard.ref(`adventurer_inventory/${idAdv}/${itemKey}`);
+                const currentQty = (await refInv.once('value')).val() || 0;
+                if(currentQty <= 0) return;
+                await refInv.set(currentQty - 1);
+
+                // 2. Tambah Stamina
+                if(plusStm > 0) {
+                    let newStm = App.State.rpg.stm + plusStm;
+                    if(newStm > App.State.rpg.stmMax) newStm = App.State.rpg.stmMax;
+                    
+                    await dbShard.ref(`adventurer_experience/${idAdv}`).update({ current_stamina: newStm });
+                    App.State.rpg.stm = newStm;
+                    App.UI.updateRPG();
+                    App.UI.showAlert("ITEM USED", `Stamina bertambah +${plusStm}!`);
+                }
+                
+                this.render(); // Refresh list
+            } catch(e) {
+                App.UI.showAlert("ERROR", "Gagal menggunakan item.");
+            }
+        }
+    },
+
+    Ads: {
+        start: function(type) {
+            const overlay = document.getElementById('adsTimerOverlay');
+            const countDisplay = document.getElementById('adsCount');
+            overlay.style.display = 'flex';
+            
+            let timeLeft = 30;
+            countDisplay.innerText = timeLeft;
+
+            const timer = setInterval(() => {
+                timeLeft--;
+                countDisplay.innerText = timeLeft;
+                if(timeLeft <= 0) {
+                    clearInterval(timer);
+                    overlay.style.display = 'none';
+                    this.giveReward(type);
+                }
+            }, 1000);
+        },
+
+        giveReward: async function(type) {
+            const idAdv = App.State.idAdv;
+            const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+
+            try {
+                if(type === 'stamina') {
+                    let newStm = App.State.rpg.stm + 15; // Iklan kasih 15 stamina
+                    if(newStm > App.State.rpg.stmMax) newStm = App.State.rpg.stmMax;
+                    await dbShard.ref(`adventurer_experience/${idAdv}`).update({ current_stamina: newStm });
+                    App.State.rpg.stm = newStm;
+                    App.UI.showAlert("REWARD", "Stamina bertambah +15 dari iklan.");
+                } else if(type === 'limit') {
+                    let newLimit = App.State.rpg.limit - 1;
+                    if(newLimit < 0) newLimit = 0;
+                    await dbShard.ref(`adventurer_experience/${idAdv}`).update({ limit_harian: newLimit });
+                    App.State.rpg.limit = newLimit;
+                    App.UI.showAlert("REWARD", "Limit kontrak dikurangi 1 (Anda bisa ambil misi lagi).");
+                }
+                App.UI.updateRPG();
+                App.Inventory.render();
+            } catch(e) {
+                App.UI.showAlert("ERROR", "Gagal klaim reward.");
+            }
+        }
+    },
+
 
             updateRPG: function() {
                 const r = App.State.rpg;
