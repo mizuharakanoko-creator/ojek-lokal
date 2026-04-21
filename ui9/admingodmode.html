@@ -442,7 +442,10 @@ function listenTopupRequests() {
                     <td>Rp ${(data.nominal_bayar || 0).toLocaleString()}</td>
                     <td><small>${data.bukti_transfer || '-'}</small></td>
                     <td style="color: yellow;">${data.status}</td>
-                    <td><button onclick='verifikasiTopup(${JSON.stringify(data)})' style="background:#4ade80; border:none; padding:5px; cursor:pointer;">VERIF</button></td>
+                    <td>
+                    <button onclick='verifikasiTopup(${JSON.stringify(data)})' style="background:#4ade80; border:none; padding:5px; cursor:pointer;">VERIF</button>
+                    <button onclick='rejectTopup("${key}")' style="background:#f87171; border:none; padding:5px 10px; cursor:pointer; color:white; margin-left:5px;">REJECT</button>
+                    </td>
                 `;
                 listTable.appendChild(tr);
             }
@@ -473,6 +476,26 @@ async function verifikasiTopup(dataTransaksi) {
         App.loadPendingTopup();
     } catch (e) { alert(e.message); }
 }
+
+async function rejectTopup(id_transaksi) {
+    const alasan = prompt("Alasan penolakan (opsional):", "Tidak ada dana masuk");
+    if (alasan === null) return; // Batal mencet
+
+    if (!confirm("Yakin ingin menolak dan menghapus antrean ini?")) return;
+
+    try {
+        await App.db1.ref(`transaction_top_coxreal/${id_transaksi}`).update({
+            status: "rejected",
+            rejected_at: Date.now(),
+            reason: alasan
+        });
+        alert("Laporan telah ditolak.");
+        App.loadPendingTopup(); // Refresh radar atas
+    } catch (e) {
+        alert("Gagal: " + e.message);
+    }
+}
+
 
 window.onload = () => App.init();
 
