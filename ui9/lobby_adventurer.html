@@ -705,6 +705,19 @@
         <div id="shopContent" class="shop-grid">
             </div>
 
+<div id="topup-status-monitor" style="
+    background: #1a1a1a; 
+    border: 1px solid #333; 
+    padding: 10px; 
+    margin-bottom: 10px; 
+    font-size: 12px; 
+    text-align: center;
+    color: #888;
+">
+    Memuat status transaksi terakhir...
+</div>
+
+
         <button onclick="document.getElementById('guildShopModal').style.display='none'" 
                 style="width:100%; background:none; color:#666; border:none; margin-top:15px; cursor:pointer; font-size:12px;">
             TUTUP TERMINAL SHOP
@@ -1250,6 +1263,34 @@
                 // Di sini nanti kita panggil fungsi update saldo coxin
             }
         }, // <-- DIPERBAIKI PENUTUP OBJECT SHOP DI SINI
+
+updateStatusUI: async function() {
+    const monitor = document.getElementById('topup-status-monitor');
+    if (!monitor) return;
+
+    try {
+        const snap = await App.db1.ref('transaction_top_coxreal')
+            .orderByChild('id_adventurer')
+            .equalTo(App.State.idAdv)
+            .limitToLast(1)
+            .once('value');
+
+        if (snap.exists()) {
+            const data = Object.values(snap.val())[0];
+            if (data.status === "pending") {
+                monitor.innerHTML = `<span style="color: yellow;">⏳ PROSES: Laporan ${data.stone_type} sedang diverifikasi.</span>`;
+            } else if (data.status === "success") {
+                monitor.innerHTML = `<span style="color: #4ade80;">✅ BERHASIL: Topup terakhir telah masuk.</span>`;
+            } else if (data.status === "rejected") {
+                monitor.innerHTML = `<span style="color: #f87171;">❌ DITOLAK: ${data.reason || 'Data tidak valid.'}</span>`;
+            }
+        } else {
+            monitor.innerHTML = "Siap untuk Topup Realm Stone.";
+        }
+    } catch (e) {
+        monitor.innerHTML = "Gagal memuat status.";
+    }
+},
 
         Core: {
             startGPS: function() {
