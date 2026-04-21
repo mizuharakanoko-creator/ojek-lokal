@@ -1024,58 +1024,68 @@
             },
 
                 // Tambahkan di dalam object App
-    Inventory: {
-    // Fungsi untuk membuka modal
+
+
+            Inventory: {
     open: function() {
         const modal = document.getElementById('inventoryModal');
         if (modal) {
             modal.style.display = 'flex';
-            // Mainkan sound jika ada
             if (window.AudioEngine) AudioEngine.play('click');
             
-            // Tampilkan loading sebentar
-            document.getElementById('inventoryContent').innerHTML = '<p style="text-align:center;">Loading items...</p>';
+            document.getElementById('inventoryContent').innerHTML = 
+                '<div style="text-align:center; padding:20px; color:var(--theme-color); font-family:var(--font-terminal);">MEMBUKA ENKRIPSI STORAGE...</div>';
             
-            // Panggil fungsi render
             this.render();
         }
     },
 
-    // Fungsi untuk menutup modal
     close: function() {
         document.getElementById('inventoryModal').style.display = 'none';
     },
 
-    // Fungsi untuk mengambil data dari Firebase & menampilkan ke UI
     render: async function() {
         try {
             const content = document.getElementById('inventoryContent');
-            const user = App.State.user; // Pastikan data user login tersedia
-            
-            if (!user) {
-                content.innerHTML = '<p style="color:red;">Error: User not authenticated.</p>';
+            // Ganti user.uid ke ID_ADV sesuai struktur Sovereign
+            const idAdv = App.State.idAdv; 
+            const shardID = App.State.loc.shard || "FB2_RUNNER";
+            const dbShard = getTerminal(shardID); 
+
+            if (!idAdv) {
+                content.innerHTML = '<p style="color:red; text-align:center;">ERROR: ID ADVENTURER TIDAK TERDETEKSI</p>';
                 return;
             }
 
-            // Path database sesuaikan dengan Sovereign Guild Structure
-            const invRef = db.ref(`users/${user.uid}/inventory`);
+            // Path sesuai gambar struktur database Anda (adventurer_inventory)
+            const invRef = dbShard.ref(`adventurer_inventory/${idAdv}`);
             const snapshot = await invRef.once('value');
             const items = snapshot.val();
 
             if (!items) {
-                content.innerHTML = '<p style="text-align:center; opacity:0.5;">Storage is empty.</p>';
+                content.innerHTML = `
+                    <div style="text-align:center; opacity:0.5; padding:40px 0;">
+                        <span style="font-size:40px;">📭</span><br>
+                        STORAGE KOSONG
+                    </div>`;
                 return;
             }
 
-            let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">';
+            let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px;">';
             
             Object.keys(items).forEach(key => {
-                const item = items[key];
+                const qty = items[key];
+                // Format nama: ganti underscore jadi spasi & kapital
+                const displayName = key.replace(/_/g, ' ').toUpperCase();
+                
                 html += `
-                    <div class="item-card" style="background: #222; padding: 10px; border: 1px solid #444; border-radius: 5px;">
-                        <div style="font-weight: bold; color: #00ffcc;">${item.name || 'Unknown Item'}</div>
-                        <div style="font-size: 12px; color: #bbb;">Qty: ${item.qty || 1}</div>
-                        <button onclick="App.Inventory.useItem('${key}')" style="margin-top:5px; width:100%; font-size:10px;">USE</button>
+                    <div class="inv-item-card" style="background: #0a0a0a; padding: 12px; border: 1px solid #222; border-radius: 4px; border-left: 2px solid var(--theme-color);">
+                        <div style="font-weight: bold; color: #eee; font-size: 11px; font-family: var(--font-terminal);">${displayName}</div>
+                        <div style="font-size: 14px; color: var(--theme-color); font-weight: 900; margin: 5px 0;">x${qty}</div>
+                        <button onclick="App.Inventory.useItem('${key}')" 
+                                style="width:100%; background:#1a1a1a; color:#888; border:1px solid #333; font-size:9px; padding:4px; cursor:pointer; font-family:var(--font-terminal);">
+                            USE ITEM
+                        </button>
                     </div>
                 `;
             });
@@ -1085,14 +1095,13 @@
 
         } catch (error) {
             console.error("Inventory Render Error:", error);
-            document.getElementById('inventoryContent').innerHTML = '<p style="color:orange;">Failed to load storage.</p>';
+            document.getElementById('inventoryContent').innerHTML = '<p style="color:orange; text-align:center;">SINYAL STORAGE TERGANGGU</p>';
         }
     },
 
     useItem: function(itemId) {
-        console.log("Using item:", itemId);
-        // Logika penggunaan item di sini
-        alert("Item used: " + itemId);
+        AudioEngine.play('sonar');
+        App.UI.showAlert("SYSTEM", `Item [${itemId.toUpperCase()}] tidak bisa digunakan langsung dari storage. Gunakan saat briefing atau di menu yang sesuai.`);
     }
 },
 
