@@ -675,9 +675,10 @@
         <div style="font-family: var(--font-terminal); font-size: 10px; color: #facc15; margin-bottom: 8px;">
             ⚠️ STATUS ENERGI KRITIS / LIMIT HABIS
         </div>
-        <button onclick="App.Ads.showMockAd()" class="btn-expand" style="border-color: #facc15; color: #facc15;">
-            🛰️ PULIHKAN VIA TRANSMISI SATELIT
-        </button>
+<button onclick="App.Ads.showChoice()" class="btn-expand" style="border-color: #facc15; color: #facc15;">
+    🛰️ PULIHKAN STAMINA / LIMIT ANDA
+</button>
+
     </div>
 </div>
 
@@ -1368,71 +1369,112 @@ if (adPanel) {
         }
     }
 },
-                Ads: {
-            rewards: [
-                { type: 'stamina', val: 30, label: '+30 STAMINA BOOST' },
-                { type: 'limit', val: -1, label: '-1 DAILY CONTRACT LIMIT' } // Mengurangi limit terpakai
-            ],
+                
 
-            showMockAd: function() {
+
+        Ads: {
+            // Fungsi untuk menampilkan menu pilihan hadiah
+            showChoice: function() {
                 AudioEngine.play('click');
                 const overlay = document.getElementById('alertOverlay');
                 const title = document.getElementById('alTitle');
                 const msg = document.getElementById('alMsg');
 
-                title.innerText = "TRANSMISI SATELIT BERLANGSUNG";
+                title.innerHTML = `<span style="color:#facc15">TRANSMISI SATELIT</span>`;
+                msg.innerHTML = `
+                    <p style="font-size:12px; margin-bottom:15px;">Pilih jalur sinkronisasi energi yang Anda butuhkan:</p>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <button onclick="App.Ads.startTransmission('STM')" style="background:#111; color:#4ade80; border:1px solid #4ade80; padding:10px; border-radius:4px; font-family:var(--font-terminal); cursor:pointer;">
+                            [ JALUR A ] : RECOVERY STAMINA
+                        </button>
+                        <button onclick="App.Ads.startTransmission('GS')" style="background:#111; color:#facc15; border:1px solid #facc15; padding:10px; border-radius:4px; font-family:var(--font-terminal); cursor:pointer;">
+                            [ JALUR B ] : CRYSTAL RESONANCE (GS)
+                        </button>
+                        <button onclick="App.Ads.startTransmission('LIM')" style="background:#111; color:#60a5fa; border:1px solid #60a5fa; padding:10px; border-radius:4px; font-family:var(--font-terminal); cursor:pointer;">
+                            [ JALUR C ] : RESET LIMIT HARIAN
+                        </button>
+                    </div>
+                `;
+                overlay.style.display = 'flex';
+                overlay.querySelector('button').style.display = 'none'; // Sembunyikan tombol "Mengerti"
+            },
+
+            startTransmission: function(type) {
+                const overlay = document.getElementById('alertOverlay');
+                const title = document.getElementById('alTitle');
+                const msg = document.getElementById('alMsg');
+
+                title.innerText = "SINKRONISASI BERLANGSUNG...";
                 msg.innerHTML = `
                     <div style="width:100%; height:120px; background:#000; border:2px solid #333; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:hidden;">
-                        <div style="font-size:30px; margin-bottom:10px;">🛰️</div>
-                        <div style="color:var(--theme-color); font-size:10px; font-family:var(--font-terminal);">SYNCHRONIZING WITH SOVEREIGN SATELLITE...</div>
+                        <div style="font-size:30px; margin-bottom:10px; animation: pulseText 1s infinite;">🛰️</div>
+                        <div style="color:var(--theme-color); font-size:10px; font-family:var(--font-terminal);">MENGUNDUH DATA DARI SHARD ${App.State.loc.shard}...</div>
                         <div id="adProg" style="position:absolute; bottom:0; left:0; height:4px; background:#facc15; width:0%; animation: progressFull 15s linear forwards;"></div>
                     </div>
-                    <p style="font-size:11px; color:#666; margin-top:10px;">Mohon tunggu 15 detik untuk stabilisasi energi. Jangan tutup terminal.</p>
                 `;
-                
-                overlay.style.display = 'flex';
-                // Sembunyikan tombol "Mengerti" sementara agar tidak di-skip
-                const btnOk = overlay.querySelector('button');
-                btnOk.style.display = 'none';
 
                 setTimeout(() => {
-                    btnOk.style.display = 'block';
-                    this.claimReward();
+                    overlay.querySelector('button').style.display = 'block';
+                    this.claimReward(type);
                 }, 15000);
             },
 
-            claimReward: async function() {
-                const reward = this.rewards[Math.floor(Math.random() * this.rewards.length)];
+            claimReward: async function(type) {
                 try {
                     const idAdv = App.State.idAdv;
                     const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
-                    let updates = {};
+                    let logMsg = "";
 
-                    if(reward.type === 'stamina') {
-                        App.State.rpg.stm = Math.min(App.State.rpg.stmMax, App.State.rpg.stm + reward.val);
-                        updates['current_stamina'] = App.State.rpg.stm;
-                    } else {
-                        App.State.rpg.limit = Math.max(0, App.State.rpg.limit + reward.val);
-                        updates['limit_harian'] = App.State.rpg.limit;
+                    if (type === 'STM') {
+                        // RANDOM: +50 sampai +200 Stamina
+                        const randStm = Math.floor(Math.random() * (200 - 50 + 1)) + 50;
+                        App.State.rpg.stm += randStm;
+                        
+                        // Update Shard: adventurer_experience
+                        await dbShard.ref(`adventurer_experience/${idAdv}`).update({ current_stamina: App.State.rpg.stm });
+                        // Update Master: users
+                        await App.db1.ref(`users/${App.user.uid}`).update({ stamina: App.State.rpg.stm });
+                        
+                        logMsg = `ENERGI PULIHH! <br> <b style="color:#4ade80">+${randStm} STM (OVERCHARGED)</b>`;
+                    } 
+                    else if (type === 'GS') {
+                        // RANDOM: 50 sampai 250 Green Stone
+                        const randGS = Math.floor(Math.random() * (250 - 50 + 1)) + 50;
+                        
+                        // Ambil saldo GS lama di Shard: adventurer_coxin
+                        const snap = await dbShard.ref(`adventurer_coxin/${idAdv}/green_stone`).once('value');
+                        const currentGS = snap.val() || 0;
+                        
+                        // Update Shard: adventurer_coxin
+                        await dbShard.ref(`adventurer_coxin/${idAdv}`).update({ green_stone: currentGS + randGS });
+                        
+                        logMsg = `KRISTAL TERDETEKSI! <br> <b style="color:#facc15">+${randGS} GREEN STONE</b>`;
+                    } 
+                    else if (type === 'LIM') {
+                        // RANDOM: Kurangi limit terpakai 1 atau 2
+                        const randLim = Math.floor(Math.random() * 2) + 1;
+                        App.State.rpg.limit = Math.max(0, App.State.rpg.limit - randLim);
+                        
+                        // Update Shard: adventurer_experience
+                        await dbShard.ref(`adventurer_experience/${idAdv}`).update({ limit_harian: App.State.rpg.limit });
+                        // Update Master: users
+                        await App.db1.ref(`users/${App.user.uid}`).update({ limit_harian: App.State.rpg.limit });
+
+                        logMsg = `LIMIT DIRESET! <br> <b style="color:#60a5fa">-${randLim} CONTRACT LIMIT</b>`;
                     }
 
-                    await Promise.all([
-                        dbShard.ref(`adventurer_experience/${idAdv}`).update(updates),
-                        App.db1.ref(`users/${App.user.uid}`).update(updates)
-                    ]);
-
                     App.UI.updateRPG();
-                    App.UI.showAlert("TRANSMISI SELESAI", `Reward Berhasil Diklaim: <br><b style="color:#facc15;">${reward.label}</b>`);
+                    App.UI.showAlert("TRANSMISI SELESAI", logMsg);
                     AudioEngine.play('sonar');
                     
                 } catch (e) {
-                    App.UI.showAlert("SINYAL TERPUTUS", "Gagal sinkronisasi data: " + e.message);
+                    App.UI.showAlert("ERROR SINKRONISASI", e.message);
                 }
             }
         },
 
 
-
+        
 
         Core: {
             startGPS: function() {
