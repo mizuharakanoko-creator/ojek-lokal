@@ -1150,7 +1150,7 @@
         
         // EXCHANGE GREEN STONE
         { id: 4, cat: 'exchange', name: '12x Kontrak Lusuh', icon: '📜', price: 1000, curr: 'green_stone', target: 'kontrak_lusuh', qty: 12 },
-        { id: 5, cat: 'exchange', name: '2x Small Stamina', icon: '🧪', price: 1000, curr: 'green_stone', target: 'potion_stamina', qty: 2 },
+        { id: 5, cat: 'exchange', name: '2x Small Stamina', icon: '🧪', price: 1000, curr: 'green_stone', target: 'small_stamina_potion', qty: 2 },
 
         // TOP UP (REAL MONEY)
         { id: 101, cat: 'topup', name: '1 Red Stone', icon: '🔴', price: 52000, curr: 'idr', target: 'red_stone', qty: 1 },
@@ -1220,37 +1220,49 @@
     },
 
     processExchange: async function(item) {
-        try {
-            const idAdv = App.State.idAdv;
-            const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
-            
-            // 1. Cek Saldo di Shard (adventurer_coxin)
-            const coxinSnap = await dbShard.ref(`adventurer_coxin/${idAdv}`).once('value');
-            const saldo = coxinSnap.val() || {};
-            const currentBalance = saldo[item.curr] || 0;
+    try {
+        const idAdv = App.State.idAdv;
+        const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+        
+        // 1. Cek Saldo di Shard (adventurer_coxin)
+        const coxinSnap = await dbShard.ref(`adventurer_coxin/${idAdv}`).once('value');
+        const saldo = coxinSnap.val() || {};
+        const currentBalance = saldo[item.curr] || 0;
 
-            if (currentBalance < item.price) {
-                App.UI.showAlert("KRISTAL TIDAK CUKUP", `Butuh ${item.price}, saldo Anda ${currentBalance}.`);
-                return;
-            }
-
-            // 2. Potong Saldo & Tambah Item (Atomic Update)
-            const newBalance = currentBalance - item.price;
-            
-            // Update Saldo
-            await dbShard.ref(`adventurer_coxin/${idAdv}`).update({ [item.curr]: newBalance });
-
-            // Update Item (misal masuk ke contracts)
-            const itemRef = dbShard.ref(`adventurer_contracts/${idAdv}/${item.target}`);
-            const currentItemQty = (await itemRef.once('value')).val() || 0;
-            await itemRef.set(currentItemQty + item.qty);
-
-            App.UI.showAlert("EXCHANGE BERHASIL", `Menerima ${item.qty}x ${item.name.split(' ')[1]}.`);
-            AudioEngine.play('sonar');
-        } catch (e) {
-            App.UI.showAlert("FAILED", "Gagal menghubungi Shard: " + e.message);
+        if (currentBalance < item.price) {
+            App.UI.showAlert("KRISTAL TIDAK CUKUP", `Butuh ${item.price}, saldo Anda ${currentBalance}.`);
+            return;
         }
-    },
+
+        // 2. Potong Saldo
+        const newBalance = currentBalance - item.price;
+        await dbShard.ref(`adventurer_coxin/${idAdv}`).update({ [item.curr]: newBalance });
+
+        // --- PERBAIKAN LOGIKA DISINI ---
+        
+        let tableTarget = "";
+        // Jika target mengandung kata 'potion' atau 'stamina', arahkan ke inventory
+        if (item.target.includes('potion') || item.target.includes('stamina')) {
+            tableTarget = `adventurer_inventory/${idAdv}`;
+        } else {
+            // Selain itu (seperti kontrak), masuk ke tabel contracts
+            tableTarget = `adventurer_contracts/${idAdv}`;
+        }
+
+        // 3. Update Item ke Tabel yang Sesuai
+        const itemRef = dbShard.ref(`${tableTarget}/${item.target}`);
+        const currentItemQty = (await itemRef.once('value')).val() || 0;
+        await itemRef.set(currentItemQty + item.qty);
+
+        // --- SELESAI PERBAIKAN ---
+
+        App.UI.showAlert("EXCHANGE BERHASIL", `Menerima ${item.qty}x ${item.name}.`);
+        AudioEngine.play('sonar');
+    } catch (e) {
+        App.UI.showAlert("FAILED", "Gagal menghubungi Shard: " + e.message);
+    }
+},
+
 
     sendTopupReport: async function(item, nominal) {
         const bukti = prompt("Masukkan No. Referensi / Nama Pengirim:");
