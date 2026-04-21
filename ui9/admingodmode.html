@@ -395,15 +395,27 @@ const App = {
         } catch (e) { panel.innerHTML = e.message; }
     },
 
-    renderTableData: function(tableName, dataObj, panelId) {
+        renderTableData: function(tableName, dataObj, panelId) {
         let html = `<table>`;
         for (let key in dataObj) {
             let val = dataObj[key];
             let displayVal = typeof val === 'object' ? JSON.stringify(val) : val;
-            html += `<tr><td>${key}</td><td id="val_${tableName}_${key}">
-                <span id="text_${tableName}_${key}">${displayVal}</span>
-                <input type="text" id="input_${tableName}_${key}" class="inline-input" value='${displayVal}' style="display:none;">
-            </td><td><button class="btn-action" onclick="App.enableEdit('${tableName}', '${key}')">EDIT</button></td></tr>`;
+            html += `<tr>
+                <td style="width:30%">${key}</td>
+                <td id="val_${tableName}_${key}">
+                    <span id="text_${tableName}_${key}">${displayVal}</span>
+                    <input type="text" id="input_${tableName}_${key}" class="inline-input" value='${displayVal}' style="display:none;">
+                </td>
+                <td style="width:20%">
+                    <div id="btn_group_default_${tableName}_${key}">
+                        <button class="btn-action" onclick="App.enableEdit('${tableName}', '${key}')">EDIT</button>
+                    </div>
+                    <div id="btn_group_edit_${tableName}_${key}" style="display:none;">
+                        <button class="btn-action btn-save-inline" onclick="App.prepareSave('${tableName}', '${key}')">SAVE</button>
+                        <button class="btn-action btn-cancel-inline" onclick="App.disableEdit('${tableName}', '${key}')">X</button>
+                    </div>
+                </td>
+            </tr>`;
         }
         document.getElementById(panelId).innerHTML = html + `</table>`;
     },
@@ -411,12 +423,81 @@ const App = {
     enableEdit: function(tableName, key) {
         document.getElementById(`text_${tableName}_${key}`).style.display = "none";
         document.getElementById(`input_${tableName}_${key}`).style.display = "block";
+        document.getElementById(`btn_group_default_${tableName}_${key}`).style.display = "none";
+        document.getElementById(`btn_group_edit_${tableName}_${key}`).style.display = "block";
     },
 
-    prepareSave: function(tableName, key) { /* Logika Save Sesuai Kode Sebelumnya */ },
-    closeModal: function() { document.getElementById('securityModal').style.display = "none"; },
-    executeSave: async function() { /* Logika Execute Sesuai Kode Sebelumnya */ },
-    addBlankData: async function(tableName, panelId) { /* Logika Init Sesuai Kode Sebelumnya */ }
+    disableEdit: function(tableName, key) {
+        document.getElementById(`text_${tableName}_${key}`).style.display = "block";
+        document.getElementById(`input_${tableName}_${key}`).style.display = "none";
+        document.getElementById(`btn_group_default_${tableName}_${key}`).style.display = "block";
+        document.getElementById(`btn_group_edit_${tableName}_${key}`).style.display = "none";
+    },
+
+    prepareSave: function(tableName, key) {
+        const newVal = document.getElementById(`input_${tableName}_${key}`).value;
+        const oldVal = document.getElementById(`text_${tableName}_${key}`).innerText;
+
+        this.pendingUpdate = {
+            dbShard: this.targetShard,
+            path: `${tableName}/${this.targetId}`,
+            key: key,
+            oldVal: oldVal,
+            newVal: newVal,
+            tableName: tableName
+        };
+
+        document.getElementById('securityMessage').innerHTML = `
+            Mengubah data pada Shard: <span class="highlight-val">${this.targetShard}</span><br>
+            Tabel: <span class="highlight-val">${tableName}</span><br>
+            Key: <span class="highlight-val">${key}</span><br><br>
+            <div style="background:#000; padding:10px; border:1px solid #333; text-align:left;">
+                <small style="color:gray">LAMA:</small> <span style="color:var(--danger)">${oldVal}</span><br>
+                <small style="color:gray">BARU:</small> <span style="color:var(--success)">${newVal}</span>
+            </div>
+        `;
+        document.getElementById('securityModal').style.display = "flex";
+    },
+
+    closeModal: function() { 
+        document.getElementById('securityModal').style.display = "none"; 
+    },
+
+    executeSave: async function() {
+        const { dbShard, path, key, newVal, tableName } = this.pendingUpdate;
+        try {
+            const db = getTerminal(dbShard);
+            
+            // Konversi nilai (jika angka simpan sebagai number, jika JSON simpan sebagai object)
+            let finalVal = newVal;
+            if (!isNaN(newVal) && newVal.trim() !== "") {
+                finalVal = Number(newVal);
+            } else if (newVal.startsWith('{') || newVal.startsWith('[')) {
+                try { finalVal = JSON.parse(newVal); } catch(e) { }
+            }
+
+            await db.ref(`${path}/${key}`).set(finalVal);
+            
+            alert("UPDATE BERHASIL");
+            this.closeModal();
+            // Refresh tampilan data di panel tersebut
+            this.fetchShardData(tableName, `panel_${tableName}`);
+        } catch (e) {
+            alert("GAGAL UPDATE: " + e.message);
+        }
+    },
+
+    addBlankData: async function(tableName, panelId) {
+        if(!confirm(`Inisialisasi data kosong untuk ${tableName}?`)) return;
+        try {
+            const db = getTerminal(this.targetShard);
+            await db.ref(`${tableName}/${this.targetId}`).set({
+                created_at: Date.now(),
+                status: "active"
+            });
+            this.fetchShardData(tableName, panelId);
+        } catch (e) { alert(e.message); }
+    }
 };
 
 // ==========================================
