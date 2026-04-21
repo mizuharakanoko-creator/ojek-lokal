@@ -661,6 +661,12 @@
         <div class="bar-outer"><div id="staminaBar" class="bar-inner"></div></div>
         <span class="stat-val" id="dispStm">0/0</span>
     </div>
+<div id="adRecoveryPanel" style="margin-top: 8px; display: none;">
+    <button onclick="App.Ads.initiate()" 
+            style="width: 100%; background: linear-gradient(90deg, #111, #222); border: 1px solid var(--theme-color); color: var(--theme-color); font-size: 10px; padding: 6px; border-radius: 4px; cursor: pointer; font-family: var(--font-terminal); display: flex; justify-content: center; align-items: center; gap: 8px;">
+        <span>📺</span> PULIHKAN ENERGI (TONTON TRANSMISI)
+    </button>
+</div>
     <div class="rpg-row" style="margin-top: 2px; border-top: 1px solid #111; padding-top: 2px;">
         <span style="color:#666">LIMIT HARIAN</span>
         <span class="limit-tag" id="dispLimit">CONTRACTS: 0/0</span>
@@ -897,6 +903,15 @@
                     }, 300);
                 }, 8000);
             },
+
+            // Di dalam App.UI.updateRPG:
+const adPanel = document.getElementById('adRecoveryPanel');
+if (App.State.rpg.stm < 50 || App.State.rpg.limit >= App.State.rpg.limitMax) {
+    adPanel.style.display = 'block';
+} else {
+    adPanel.style.display = 'none';
+},
+
 
             showAdvancedDebug: function(allData, shardName, idAdv) {
                 const title = document.getElementById('alTitle');
@@ -1342,6 +1357,84 @@
         }
     }
 },
+
+
+App.Ads = {
+    // Konfigurasi Reward
+    rewards: [
+        { type: 'stamina', val: 300, label: '+300 ENERGY' },
+        { type: 'limit', val: -1, label: '-1 CONTRACT LIMIT' }
+    ],
+
+    initiate: function() {
+        AudioEngine.play('click');
+        // Tampilkan simulasi loading iklan
+        App.UI.showAlert("MENGHUBUNGKAN...", "Menjemput sinyal transmisi dari satelit luar...");
+        
+        // Simulasi durasi iklan (5 detik)
+        setTimeout(() => {
+            this.showMockAd();
+        }, 2000);
+    },
+
+    showMockAd: function() {
+        const overlay = document.getElementById('alertOverlay');
+        const title = document.getElementById('alTitle');
+        const msg = document.getElementById('alMsg');
+
+        title.innerText = "TRANSMISI BERLANGSUNG";
+        msg.innerHTML = `
+            <div style="width:100%; height:150px; background:#000; border:2px solid #333; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+                <div id="adTimer" style="position:absolute; top:5px; right:10px; color:var(--theme-color); font-size:12px;">15s</div>
+                <div style="font-size:30px;">🛰️</div>
+                <div style="color:#555; font-size:10px; margin-top:10px;">SOVEREIGN BROADCAST SYSTEM</div>
+                <div id="adProgress" style="position:absolute; bottom:0; left:0; height:4px; background:var(--theme-color); width:0%;"></div>
+            </div>
+            <p style="font-size:11px; color:#888; margin-top:10px;">Jangan tutup terminal selama transmisi berlangsung untuk mendapatkan reward.</p>
+        `;
+        
+        // Animasi Timer & Progress Bar
+        let timeLeft = 15;
+        const interval = setInterval(() => {
+            timeLeft--;
+            document.getElementById('adTimer').innerText = timeLeft + "s";
+            document.getElementById('adProgress').style.width = ((15 - timeLeft) / 15 * 100) + "%";
+            
+            if(timeLeft <= 0) {
+                clearInterval(interval);
+                this.claimReward();
+            }
+        }, 1000);
+    },
+
+    claimReward: async function() {
+        // Pilih reward secara acak atau berikan pilihan (disini kita pilih acak agar seru)
+        const reward = this.rewards[Math.floor(Math.random() * this.rewards.length)];
+        
+        try {
+            const idAdv = App.State.idAdv;
+            const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+            
+            let updates = {};
+            if(reward.type === 'stamina') {
+                App.State.rpg.stm += reward.val;
+                updates['current_stamina'] = App.State.rpg.stm;
+            } else {
+                App.State.rpg.limit = Math.max(0, App.State.rpg.limit + reward.val);
+                updates['limit_harian'] = App.State.rpg.limit;
+            }
+
+            await dbShard.ref(`adventurer_experience/${idAdv}`).update(updates);
+            
+            App.UI.updateRPG();
+            App.UI.showAlert("TRANSMISI SELESAI", `Reward Berhasil Diklaim: <br><b style="color:var(--theme-color);">${reward.label}</b>`);
+            AudioEngine.play('sonar');
+
+        } catch (e) {
+            App.UI.showAlert("SINYAL TERPUTUS", "Gagal memperbarui data: " + e.message);
+        }
+    }
+};
 
 
 
