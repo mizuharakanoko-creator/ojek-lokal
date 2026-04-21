@@ -303,6 +303,10 @@
         @keyframes pulseText { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
         @keyframes pulseRed { 0% { box-shadow: inset 0 0 20px rgba(248, 113, 113, 0.2); } 50% { box-shadow: inset 0 0 50px rgba(248, 113, 113, 0.6); } 100% { box-shadow: inset 0 0 20px rgba(248, 113, 113, 0.2); } }
         @keyframes burnAnim { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@keyframes progressFull {
+    from { width: 0%; }
+    to { width: 100%; }
+}
         @keyframes flashSpawn { 0% { background: #333; box-shadow: 0 0 20px var(--theme-color); transform: scale(1.02); } 100% { background: #111; transform: scale(1); } }
     
 
@@ -661,17 +665,22 @@
         <div class="bar-outer"><div id="staminaBar" class="bar-inner"></div></div>
         <span class="stat-val" id="dispStm">0/0</span>
     </div>
-<div id="adRecoveryPanel" style="margin-top: 8px; display: none;">
-    <button onclick="App.Ads.initiate()" 
-            style="width: 100%; background: linear-gradient(90deg, #111, #222); border: 1px solid var(--theme-color); color: var(--theme-color); font-size: 10px; padding: 6px; border-radius: 4px; cursor: pointer; font-family: var(--font-terminal); display: flex; justify-content: center; align-items: center; gap: 8px;">
-        <span>📺</span> PULIHKAN ENERGI (TONTON TRANSMISI)
-    </button>
-</div>
     <div class="rpg-row" style="margin-top: 2px; border-top: 1px solid #111; padding-top: 2px;">
         <span style="color:#666">LIMIT HARIAN</span>
         <span class="limit-tag" id="dispLimit">CONTRACTS: 0/0</span>
     </div>
 </div>
+<div id="adRecoveryPanel" style="display:none; padding: 0 15px; margin-top: 10px;">
+    <div style="background: rgba(250, 204, 21, 0.1); border: 1px dashed #facc15; padding: 12px; border-radius: 6px; text-align: center;">
+        <div style="font-family: var(--font-terminal); font-size: 10px; color: #facc15; margin-bottom: 8px;">
+            ⚠️ STATUS ENERGI KRITIS / LIMIT HABIS
+        </div>
+        <button onclick="App.Ads.showMockAd()" class="btn-expand" style="border-color: #facc15; color: #facc15;">
+            🛰️ PULIHKAN VIA TRANSMISI SATELIT
+        </button>
+    </div>
+</div>
+
 
 
 <div class="radar-container">
@@ -904,7 +913,6 @@
                 }, 8000);
             },
 
-
             showAdvancedDebug: function(allData, shardName, idAdv) {
                 const title = document.getElementById('alTitle');
                 const msg = document.getElementById('alMsg');
@@ -952,18 +960,19 @@
                 document.getElementById('staminaBar').style.width = (r.stm / r.stmMax * 100) + "%";
                 
                 document.getElementById('dispLimit').innerText = `CONTRACTS: ${r.limit}/${r.limitMax}`;
+
+                // Tambahkan di akhir fungsi App.UI.updateRPG
+const adPanel = document.getElementById('adRecoveryPanel');
+if (adPanel) {
+    // Panel muncul jika Stamina < 20 atau Limit sudah penuh
+    if (r.stm < 20 || r.limit >= r.limitMax) {
+        adPanel.style.display = 'block';
+    } else {
+        adPanel.style.display = 'none';
+    }
+}
             },
 
-            
-// Di dalam App.UI.updateRPG:
-const adPanel = document.getElementById('adRecoveryPanel');
-if (App.State.rpg.stm < 50 || App.State.rpg.limit >= App.State.rpg.limitMax) {
-    adPanel.style.display = 'block';
-} else {
-    adPanel.style.display = 'none';
-},
-
-    
             applyRankTheme: function(rank) {
                 const r = rank.toLowerCase().replace('+', '-plus');
                 document.body.className = `rank-${r}`;
@@ -1359,51 +1368,37 @@ if (App.State.rpg.stm < 50 || App.State.rpg.limit >= App.State.rpg.limitMax) {
         }
     }
 },
-
-
-
-    Ads: {
+                Ads: {
             rewards: [
-                { type: 'stamina', val: 300, label: '+300 ENERGY' },
-                { type: 'limit', val: -1, label: '-1 CONTRACT LIMIT' }
+                { type: 'stamina', val: 30, label: '+30 STAMINA BOOST' },
+                { type: 'limit', val: -1, label: '-1 DAILY CONTRACT LIMIT' } // Mengurangi limit terpakai
             ],
 
-            initiate: function() {
-                AudioEngine.play('click');
-                App.UI.showAlert("MENGHUBUNGKAN...", "Menjemput sinyal transmisi dari satelit luar...");
-                setTimeout(() => { this.showMockAd(); }, 2000);
-            },
-
             showMockAd: function() {
+                AudioEngine.play('click');
                 const overlay = document.getElementById('alertOverlay');
                 const title = document.getElementById('alTitle');
                 const msg = document.getElementById('alMsg');
 
-                overlay.style.display = 'flex';
-                title.innerText = "TRANSMISI BERLANGSUNG";
+                title.innerText = "TRANSMISI SATELIT BERLANGSUNG";
                 msg.innerHTML = `
-                    <div style="width:100%; height:150px; background:#000; border:2px solid #333; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:hidden;">
-                        <div id="adTimer" style="position:absolute; top:5px; right:10px; color:var(--theme-color); font-size:12px;">15s</div>
-                        <div style="font-size:30px;">🛰️</div>
-                        <div style="color:#555; font-size:10px; margin-top:10px;">SOVEREIGN BROADCAST SYSTEM</div>
-                        <div id="adProgress" style="position:absolute; bottom:0; left:0; height:4px; background:var(--theme-color); width:0%;"></div>
+                    <div style="width:100%; height:120px; background:#000; border:2px solid #333; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+                        <div style="font-size:30px; margin-bottom:10px;">🛰️</div>
+                        <div style="color:var(--theme-color); font-size:10px; font-family:var(--font-terminal);">SYNCHRONIZING WITH SOVEREIGN SATELLITE...</div>
+                        <div id="adProg" style="position:absolute; bottom:0; left:0; height:4px; background:#facc15; width:0%; animation: progressFull 15s linear forwards;"></div>
                     </div>
-                    <p style="font-size:11px; color:#888; margin-top:10px;">Jangan tutup terminal selama transmisi berlangsung.</p>
+                    <p style="font-size:11px; color:#666; margin-top:10px;">Mohon tunggu 15 detik untuk stabilisasi energi. Jangan tutup terminal.</p>
                 `;
                 
-                let timeLeft = 15;
-                const interval = setInterval(() => {
-                    timeLeft--;
-                    const timerEl = document.getElementById('adTimer');
-                    const progressEl = document.getElementById('adProgress');
-                    if(timerEl) timerEl.innerText = timeLeft + "s";
-                    if(progressEl) progressEl.style.width = ((15 - timeLeft) / 15 * 100) + "%";
-                    
-                    if(timeLeft <= 0) {
-                        clearInterval(interval);
-                        this.claimReward();
-                    }
-                }, 1000);
+                overlay.style.display = 'flex';
+                // Sembunyikan tombol "Mengerti" sementara agar tidak di-skip
+                const btnOk = overlay.querySelector('button');
+                btnOk.style.display = 'none';
+
+                setTimeout(() => {
+                    btnOk.style.display = 'block';
+                    this.claimReward();
+                }, 15000);
             },
 
             claimReward: async function() {
@@ -1414,22 +1409,29 @@ if (App.State.rpg.stm < 50 || App.State.rpg.limit >= App.State.rpg.limitMax) {
                     let updates = {};
 
                     if(reward.type === 'stamina') {
-                        App.State.rpg.stm += reward.val;
+                        App.State.rpg.stm = Math.min(App.State.rpg.stmMax, App.State.rpg.stm + reward.val);
                         updates['current_stamina'] = App.State.rpg.stm;
                     } else {
                         App.State.rpg.limit = Math.max(0, App.State.rpg.limit + reward.val);
                         updates['limit_harian'] = App.State.rpg.limit;
                     }
 
-                    await dbShard.ref(`adventurer_experience/${idAdv}`).update(updates);
+                    await Promise.all([
+                        dbShard.ref(`adventurer_experience/${idAdv}`).update(updates),
+                        App.db1.ref(`users/${App.user.uid}`).update(updates)
+                    ]);
+
                     App.UI.updateRPG();
-                    App.UI.showAlert("TRANSMISI SELESAI", `Reward Berhasil Diklaim: <br><b style="color:var(--theme-color);">${reward.label}</b>`);
+                    App.UI.showAlert("TRANSMISI SELESAI", `Reward Berhasil Diklaim: <br><b style="color:#facc15;">${reward.label}</b>`);
                     AudioEngine.play('sonar');
+                    
                 } catch (e) {
-                    App.UI.showAlert("SINYAL TERPUTUS", "Gagal memperbarui data: " + e.message);
+                    App.UI.showAlert("SINYAL TERPUTUS", "Gagal sinkronisasi data: " + e.message);
                 }
             }
         },
+
+
 
 
         Core: {
