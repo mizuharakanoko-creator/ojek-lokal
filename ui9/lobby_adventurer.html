@@ -1199,6 +1199,26 @@
 
     sendTopupReport: async function(item, nominal) {
     try {
+
+        // --- TAMBAHKAN LOGIKA BARRIER INI ---
+        const snapshot = await App.db1.ref('transaction_top_coxreal')
+            .orderByChild('id_adventurer')
+            .equalTo(App.State.idAdv)
+            .once('value');
+
+        let adaPending = false;
+        if (snapshot.exists()) {
+            snapshot.forEach(child => {
+                if (child.val().status === "pending") adaPending = true;
+            });
+        }
+
+        if (adaPending) {
+            App.UI.showAlert("TRANSAKSI TERTAHAN", "Kamu masih punya laporan pending. Tunggu verifikasi Admin atau hubungi support.");
+            return; // Berhenti di sini, jangan lanjut kirim
+        }
+        // --- AKHIR LOGIKA BARRIER ---
+
         // Minta input bukti transfer (sebagai simulasi sebelum integrasi upload gambar)
         const bukti = prompt("Masukkan No. Referensi Transfer / Nama Rekening Pengirim:");
         if (!bukti) return;
