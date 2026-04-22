@@ -535,12 +535,12 @@
         /* ==========================================
            GUILD SHOP & EXCHANGE UI
            ========================================== */scale(0.98);
-    .shop-tabs {
+    
+/* Container Tab di bagian atas Shop */
+.shop-tabs {
     display: flex;
     gap: 5px;
-    padding: 10px;
-    background: #000;
-    border-bottom: 1px solid #222;
+    padding: 10px 10px 0 10px;
 }
 
 .shop-tabs button {
@@ -548,110 +548,79 @@
     background: #111;
     border: 1px solid #333;
     color: #666;
-    padding: 8px;
+    padding: 10px;
     font-family: var(--font-terminal);
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     text-transform: uppercase;
     cursor: pointer;
+    transition: 0.3s;
 }
+
 .shop-tabs button.active {
     border-color: var(--theme-color);
     color: var(--theme-color);
-    background: var(--theme-bg-glow);
-    box-shadow: inset 0 0 10px var(--theme-bg-glow);
+    background: rgba(var(--theme-color-rgb), 0.1);
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
 }
 
-        
-        /* KONTINER UTAMA SHOP (Kunci untuk Scroll) */
+/* Area Isi Shop yang Bisa di-Scroll */
 #shopContent {
-    display: block; /* Menggunakan block agar scroll lebih stabil */
-    height: 400px;  /* Tentukan tinggi pasti agar bisa scroll */
-    overflow-y: scroll !important; /* Paksa scroll muncul */
-    -webkit-overflow-scrolling: touch; /* Halus di HP */
-    padding: 10px;
+    display: block; 
+    height: 450px; /* Tinggi pasti agar scroll muncul */
+    overflow-y: auto !important;
+    padding: 15px 10px;
+    box-sizing: border-box;
 }
 
-/* Menghilangkan scrollbar di Chrome agar terlihat elegan */
-#shopContent::-webkit-scrollbar {
-    width: 2px;
-}
-#shopContent::-webkit-scrollbar-thumb {
-    background: var(--theme-color);
-}
-
-
-/* STYLE LIST ITEM (Elegan & Rapi) */
-.shop-item-list {
+/* Desain Item List (Elegan) */
+.shop-card {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: rgba(20, 20, 20, 0.9);
+    background: #0f0f0f;
     border: 1px solid #222;
     border-left: 4px solid var(--theme-color);
-    padding: 12px;
-    margin-bottom: 8px; /* Jarak antar list */
+    padding: 12px 15px;
+    margin-bottom: 10px;
     border-radius: 2px;
 }
 
-
-.shop-item-list:active {
-    background: #151515;
-    transform: scale(0.98);
-}
-
-/* Bagian Kiri: Ikon dan Nama */
-.item-left {
+/* Kiri: Ikon dan Nama */
+.shop-card .item-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 15px;
 }
 
-.item-icon {
-    font-size: 1.2rem;
-    filter: drop-shadow(0 0 5px var(--theme-color));
+.shop-card .item-icon {
+    font-size: 1.5rem;
+    width: 30px;
+    text-align: center;
 }
 
-.item-info {
-    display: flex;
-    flex-direction: column;
-}
-
-.item-name {
+.shop-card .item-name {
     font-family: var(--font-terminal);
-    font-size: 0.8rem;
-    color: #fff;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    text-transform: uppercase;
 }
 
-.item-desc {
-    font-size: 0.65rem;
-    color: #666;
-    margin-top: 2px;
-}
-
-/* Bagian Kanan: Harga/Tombol Beli */
-.item-right {
-    flex-shrink: 0;
-}
-
+/* Kanan: Tombol Harga */
 .price-tag-shop {
-    padding: 5px 10px;
-    font-size: 0.7rem;
+    min-width: 90px;
+    padding: 7px 10px;
+    font-size: 0.75rem;
     font-family: var(--font-terminal);
+    text-align: center;
     background: #000;
-    border: 1px solid var(--theme-color);
-    color: var(--theme-color);
+    border: 1px solid #444;
+    cursor: pointer;
 }
 
-.price-tag-shop:hover {
-    background: var(--theme-color);
-    color: #000;
-}
-
-/* Variasi Warna Berdasarkan Mata Uang */
-.price-idr { border-color: #2ecc71; color: #2ecc71; }
-.price-gold { border-color: #f1c40f; color: #f1c40f; }
-.price-credit { border-color: #3498db; color: #3498db; }
-
+/* Warna dinamis berdasarkan mata uang (Mengembalikan fitur yang hilang) */
+.price-tag-shop.price-idr { border-color: #2ecc71; color: #2ecc71; }
+.price-tag-shop.price-gold { border-color: #f1c40f; color: #f1c40f; }
+.price-tag-shop.price-credit { border-color: #3498db; color: #3498db; }
 
 
 
@@ -931,9 +900,10 @@
         <h3 style="color:var(--theme-color); margin-top:0; font-family:var(--font-terminal); flex-shrink: 0;">GUILD SHOP & EXCHANGE</h3>
 
     <div class="shop-tabs">
-    <button class="active" onclick="App.Shop.changeTab('exchange', this)">Exchange</button>
-    <button onclick="App.Shop.changeTab('realm', this)">Realm Topup</button>
+    <button class="tab-btn active" onclick="App.Shop.render('exchange')">Exchange</button>
+    <button class="tab-btn" onclick="App.Shop.render('realm')">Realm Topup</button>
 </div>
+
 <div id="shopContent">
     </div>
 
@@ -1451,28 +1421,25 @@ if (adPanel) {
 
     render: function(category) {
     const container = document.getElementById('shopContent');
-    if (!container) return; // Keamanan jika container tidak ditemukan
+    if (!container) return;
     
     container.innerHTML = "";
     const filtered = this.data.filter(i => i.cat === category);
 
     filtered.forEach(item => {
         const card = document.createElement('div');
-        card.className = 'shop-item-list'; 
+        card.className = 'shop-card'; // Menggunakan nama class asli agar tidak bentrok
         
+        // Logika Mata Uang (KEMBALI KE KODE AWAL)
         let priceClass = `price-${item.curr.split('_')[0]}`;
         let priceText = item.curr === 'idr' ? 
             `Rp ${item.price.toLocaleString()}` : 
             `${item.price} ${item.curr.replace('_', ' ').toUpperCase()}`;
 
-        // Struktur HTML baru yang lebih rapi
         card.innerHTML = `
             <div class="item-left">
                 <span class="item-icon">${item.icon}</span>
-                <div class="item-info">
-                    <span class="item-name">${item.name}</span>
-                    <span class="item-desc">PURCHASABLE ITEM</span>
-                </div>
+                <span class="item-name">${item.name}</span>
             </div>
             <div class="item-right">
                 <div class="price-tag-shop ${priceClass}" onclick="App.Shop.buy('${item.id}')">
@@ -1483,6 +1450,7 @@ if (adPanel) {
         container.appendChild(card);
     });
 },
+
 
 
 
