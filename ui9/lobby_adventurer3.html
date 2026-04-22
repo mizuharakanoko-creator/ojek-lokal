@@ -622,7 +622,37 @@
         /* ==========================================
            INVENTORY UI
            ========================================== */
-        .inventory-list {
+        .inv-stats-header {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed #333;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px;
+            border-radius: 6px;
+            border-left: 3px solid var(--theme-color);
+        }
+
+        .stat-label {
+            display: block;
+            font-size: 9px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            display: block;
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            font-family: var(--font-terminal);
+        }
+.inventory-list {
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -697,6 +727,41 @@
         .inventory-list::-webkit-scrollbar { width: 4px; }
         .inventory-list::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
 
+
+        .inv-details-section {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid #222;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .details-title {
+            display: block;
+            font-size: 10px;
+            color: var(--theme-color);
+            font-weight: bold;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+            font-family: var(--font-terminal);
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+        }
+
+        .detail-item {
+            font-size: 10px;
+            color: #bbb;
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+        }
+
+        .detail-item b { color: #fff; }
 
     </style>
 </head>
@@ -1319,9 +1384,9 @@ if (adPanel) {
         // EXCHANGE GREEN STONE
         { id: 6, cat: 'exchange', name: '12x Kontrak Lusuh', icon: '📜', price: 1000, curr: 'green_stone', target: 'kontrak_lusuh', qty: 12 },
         { id: 7, cat: 'exchange', name: '5x Kontrak Normal', icon: '📜', price: 1000, curr: 'green_stone', target: 'kontrak_normal', qty: 5 },
-        { id: 8, cat: 'exchange', name: '2x Small Stamina', icon: '🧪', price: 1000, curr: 'green_stone', target: 'small_stamina_potion', qty: 2 },
-        { id: 9, cat: 'exchange', name: '1x Medium Stamina', icon: '🧪', price: 1000, curr: 'green_stone', target: 'medium_stamina_potion', qty: 1 },
-        { id: 10, cat: 'exchange', name: '1x Large Stamina', icon: '⚗️', price: 1500, curr: 'green_stone', target: 'large_stamina_potion', qty: 1 },
+        { id: 8, cat: 'exchange', name: '2x S-STAMINA', icon: '🧪', price: 1000, curr: 'green_stone', target: 'small_stamina_potion', qty: 2 },
+        { id: 9, cat: 'exchange', name: '1x M-STAMINA', icon: '🧪', price: 1000, curr: 'green_stone', target: 'medium_stamina_potion', qty: 1 },
+        { id: 10, cat: 'exchange', name: '1x L-STAMINA', icon: '⚗️', price: 1500, curr: 'green_stone', target: 'large_stamina_potion', qty: 1 },
         
         // TOP UP (REAL MONEY)
         { id: 101, cat: 'topup', name: '1 Red Stone', icon: '🔴', price: 52000, curr: 'idr', target: 'red_stone', qty: 1 },
@@ -1472,34 +1537,123 @@ if (adPanel) {
 },
 
 
-                Inventory: {
-            // Kamus data dengan tambahan Deskripsi
+                                Inventory: {
             itemMaster: {
                 small_stamina_potion: { 
                     name: "S-STAMINA", 
                     icon: "🧪", 
                     effect: 25, 
-                    desc: "Memulihkan 25 poin Stamina secara instan." 
+                    desc: "Ramuan untuk memulihkan 25 poin Stamina secara instan." 
                 },
                 medium_stamina_potion: { 
                     name: "M-STAMINA", 
                     icon: "🧪", 
                     effect: 60, 
-                    desc: "Ramuan standar untuk memulihkan 60 poin Stamina." 
+                    desc: "Ramuan untuk memulihkan 60 poin Stamina secara instan." 
                 },
                 large_stamina_potion: { 
                     name: "L-STAMINA", 
                     icon: "⚗️", 
                     effect: 150, 
-                    desc: "Ramuan murni berenergi tinggi. Memulihkan 150 Stamina." 
+                    desc: "Ramuan untuk memulihkan 150 poin Stamina secara instan." 
                 },
                 exp_scroll: { 
                     name: "EXP SCROLL", 
                     icon: "📜", 
-                    effect: 100, 
-                    desc: "Gulungan kuno yang memberikan 100 EXP tambahan." 
+                    effect: 500, 
+                    desc: "Gulungan kuno yang memberikan 500 EXP tambahan." 
+                }
+                // Tambahkan item lain di sini...
+            },
+
+            
+            render: async function() {
+                const container = document.getElementById('inventoryContent');
+                container.className = "inventory-list";
+                container.innerHTML = '<div style="color:#555; font-size:11px;">Membuka brankas...</div>';
+
+                try {
+                    const idAdv = App.State.idAdv;
+                    const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+                    
+                    const [snapInv, snapCoxin, snapContract] = await Promise.all([
+                        dbShard.ref(`adventurer_inventory/${idAdv}`).once('value'),
+                        dbShard.ref(`adventurer_coxin/${idAdv}`).once('value'),
+                        dbShard.ref(`adventurer_contracts/${idAdv}`).once('value')
+                    ]);
+
+                    const itemsFromDB = snapInv.val() || {};
+                    const cox = snapCoxin.val() || {};
+                    const con = snapContract.val() || {};
+
+                    container.innerHTML = "";
+
+                    // --- 1. SEKSI RINCIAN COXIN (BATU) ---
+                    const coxinSection = document.createElement('div');
+                    coxinSection.className = 'inv-details-section';
+                    coxinSection.innerHTML = `
+                        <span class="details-title">💎 GEM STORAGE (COXIN)</span>
+                        <div class="details-grid">
+                            <div class="detail-item">Purple: <b>${cox.purple_stone || 0}</b></div>
+                            <div class="detail-item">Red: <b>${cox.red_stone || 0}</b></div>
+                            <div class="detail-item">White: <b>${cox.white_stone || 0}</b></div>
+                            <div class="detail-item">Green: <b>${cox.green_stone || 0}</b></div>
+                        </div>
+                    `;
+                    container.appendChild(coxinSection);
+
+                    // --- 2. SEKSI RINCIAN KONTRAK ---
+                    const contractSection = document.createElement('div');
+                    contractSection.className = 'inv-details-section';
+                    contractSection.innerHTML = `
+                        <span class="details-title">📜 CONTRACT ARCHIVE</span>
+                        <div class="details-grid">
+                            <div class="detail-item">Lusuh: <b>${con.kontrak_lusuh || 0}</b></div>
+                            <div class="detail-item">Normal: <b>${con.kontrak_normal || 0}</b></div>
+                            <div class="detail-item">Medium: <b>${con.kontrak_medium || 0}</b></div>
+                            <div class="detail-item">Premium: <b>${con.kontrak_premium || 0}</b></div>
+                            <div class="detail-item">Emas: <b>${con.kontrak_emas || 0}</b></div>
+                        </div>
+                    `;
+                    container.appendChild(contractSection);
+
+                    // --- 3. SEKSI ITEM INVENTORY (USEABLE) ---
+                    const itemLabel = document.createElement('span');
+                    itemLabel.innerHTML = "CONSUMABLES";
+                    itemLabel.style = "font-size:10px; color:#555; margin: 10px 0 5px 5px; display:block; font-weight:bold;";
+                    container.appendChild(itemLabel);
+
+                    Object.keys(this.itemMaster).forEach(key => {
+                        const meta = this.itemMaster[key];
+                        const qty = itemsFromDB[key] || 0;
+                        const isEmpty = qty <= 0;
+                        const row = document.createElement('div');
+                        row.className = 'inv-item-row';
+                        if (isEmpty) { row.style.opacity = "0.4"; row.style.filter = "grayscale(1)"; }
+
+                        row.innerHTML = `
+                            <div class="inv-icon-box">${meta.icon}</div>
+                            <div class="inv-details">
+                                <span class="inv-item-name">${meta.name}</span>
+                                <span class="inv-qty-text">Tersedia: <b style="${isEmpty ? 'color:#ff4444' : 'color:#a855f7'}">${qty}</b></span>
+                            </div>
+                            <div class="inv-actions">
+                                <button class="btn-inv-info" onclick="App.Inventory.showInfo('${key}')">i</button>
+                                <button class="btn-inv-use" ${isEmpty ? 'disabled' : ''} onclick="App.Inventory.useItem('${key}', '${meta.name}')">
+                                    ${isEmpty ? 'OUT' : 'USE'}
+                                </button>
+                            </div>
+                        `;
+                        container.appendChild(row);
+                    });
+
+                } catch (e) {
+                    console.error(e);
+                    container.innerHTML = "Gagal memuat rincian aset.";
                 }
             },
+
+
 
             open: function() {
                 document.getElementById('inventoryModal').style.display = 'flex';
@@ -1507,52 +1661,10 @@ if (adPanel) {
             },
 
             showInfo: function(key) {
-                const item = this.itemMaster[key] || { name: "Unknown", desc: "Tidak ada deskripsi." };
-                App.UI.showAlert(item.name, item.desc);
+                const item = this.itemMaster[key];
+                if(item) App.UI.showAlert(item.name, item.desc);
             },
-
-            render: async function() {
-                const container = document.getElementById('inventoryContent');
-                container.className = "inventory-list"; // Pastikan class list dipakai
-                container.innerHTML = '<div style="color:#555; font-size:11px;">Membuka tas...</div>';
-
-                try {
-                    const idAdv = App.State.idAdv;
-                    const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
-                    const snap = await dbShard.ref(`adventurer_inventory/${idAdv}`).once('value');
-                    const items = snap.val() || {};
-
-                    container.innerHTML = "";
-                    let hasItem = false;
-
-                    for (const [key, qty] of Object.entries(items)) {
-                        if (qty <= 0) continue;
-                        hasItem = true;
-                        const meta = this.itemMaster[key] || { name: key, icon: "📦", desc: "Item misterius." };
-                        
-                        const row = document.createElement('div');
-                        row.className = 'inv-item-row';
-                        row.innerHTML = `
-                            <div class="inv-icon-box">${meta.icon}</div>
-                            <div class="inv-details">
-                                <span class="inv-item-name">${meta.name}</span>
-                                <span class="inv-qty-text">Jumlah: <b>${qty}</b></span>
-                            </div>
-                            <div class="inv-actions">
-                                <button class="btn-inv-info" onclick="App.Inventory.showInfo('${key}')">i</button>
-                                <button class="btn-inv-use" onclick="App.Inventory.useItem('${key}', '${meta.name}')">USE</button>
-                            </div>
-                        `;
-                        container.appendChild(row);
-                    }
-
-                    if (!hasItem) {
-                        container.innerHTML = '<div style="text-align:center; padding:20px; color:#444;">Tas Kosong</div>';
-                    }
-                } catch (e) {
-                    container.innerHTML = "Gagal memproses data.";
-                }
-            },
+            
 
             useItem: async function(key, itemName) {
                 // Konfirmasi Penggunaan
