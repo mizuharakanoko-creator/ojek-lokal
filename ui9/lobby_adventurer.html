@@ -892,6 +892,28 @@
             <button class="btn-reset-small" onclick="App.Bidding.resetNego()">RESET KE HARGA DASAR</button>
         </div>
 
+<div id="intelReportSection" style="display: none; margin-top: 15px; border-top: 1px dashed #333; padding-top: 10px; background: rgba(255, 152, 0, 0.05); padding: 10px; border-radius: 4px;">
+    <p style="font-size: 10px; color: #ff9800; margin-bottom: 8px; font-family: var(--font-terminal);">[!] FIELD INTEL REPORT</p>
+    
+    <div style="display: flex; gap: 5px;">
+        <select id="intelStatus" style="flex: 1; background:#050505; color:#fff; font-size:11px; border:1px solid #333; padding: 4px; font-family: var(--font-terminal);">
+            <option value="closed">TEMPAT TUTUP</option>
+            <option value="moved">PINDAH LOKASI</option>
+            <option value="holiday">SEDANG LIBUR</option>
+            <option value="other">INFO LAINNYA</option>
+        </select>
+        
+        <button onclick="const sel = document.getElementById('intelStatus'); IntelSystem.sendReport(currentMissionId, sel.options[sel.selectedIndex].text, sel.value)" 
+                style="background: #ff9800; color: #000; border: none; padding: 4px 10px; font-size: 10px; font-weight: bold; cursor: pointer; font-family: var(--font-terminal);">
+            KIRIM
+        </button>
+    </div>
+    <p style="font-size: 9px; color: #666; margin-top: 5px;">*Khusus kategori titip beli.</p>
+</div>
+
+
+
+
         <button class="btn-confirm" onclick="App.Bidding.submit()">AMBIL & TERBITKAN SINYAL</button>
         <button onclick="App.UI.closeModal()" style="width:100%; background:none; color:#666; border:none; margin-top:15px; cursor:pointer; font-size:12px;">KEMBALI KE RADAR</button>
     </div>
@@ -1213,6 +1235,18 @@ if (adPanel) {
                     `;
                 }
 
+                // Di dalam fungsi yang merender detail ke modal:
+const intelSection = document.getElementById('intelReportSection');
+
+// Asumsi 'missionData.category' adalah variabel yang menyimpan tipe misi
+// Sesuaikan 'Titip Beli' dengan nama kategori yang ada di database Anda
+if (missionData.category === "Titip Beli") {
+    intelSection.style.display = "block";
+} else {
+    intelSection.style.display = "none";
+}
+
+
                 document.getElementById('bidAmount').value = basePrice.toLocaleString('id-ID');
                 document.getElementById('sovBidModal').style.display = 'flex';
             },
@@ -1391,6 +1425,28 @@ if (adPanel) {
             }
         }, // <-- DITAMBAHKAN PENUTUP OBJECT BIDDING DI SINI
 
+        const IntelSystem = {
+    maskName: function(name) {
+        if (!name) return "Anonymous";
+        if (name.length <= 2) return name + "***";
+        return name.substring(0, 2) + "*****" + name.substring(name.length - 2);
+    },
+
+    sendReport: async function(missionId, infoText, statusType) {
+        // Cek dulu apakah misi ini benar titip beli
+        // (Opsional, tapi bagus untuk keamanan data)
+        const missionRef = await db_shard.ref(`missions/${missionId}`).once('value');
+        const mission = missionRef.val();
+
+        if (mission && mission.category !== "Titip Beli") {
+            App.UI.showAlert("SYSTEM ERROR", "Fitur intel hanya tersedia untuk Titip Beli.");
+            return;
+        }
+    }
+
+};
+
+    
         Shop: {
     data: [
         // EXCHANGE RED STONE
