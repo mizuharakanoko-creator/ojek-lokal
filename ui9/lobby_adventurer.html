@@ -2390,16 +2390,17 @@ window.IntelSystem = {
         if (!confirm(`KONFIRMASI LAPORAN: ${infoValue.toUpperCase()}?`)) return;
 
         try {
-            // SOLUSI: Ambil db_shard dari scope global atau router lokal
-            // Jika db_shard tidak ada, kita coba ambil dari getTerminal atau App.State
-            const db = (typeof db_shard !== 'undefined') ? db_shard : 
-                       (window.db_shard ? window.db_shard : null);
-
-            if (!db) {
-                throw new Error("Koneksi Database (db_shard) tidak ditemukan.");
-            }
-
+            // --- DESKRIPSI KONEKSI DATABASE ---
+            // Kita ambil profile untuk tahu shard mana yang harus digunakan
             const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
+            const shardId = profile.shard_id; // Mengambil lokasi shard user (misal: KNG)
+
+            if (!shardId) throw new Error("Shard ID tidak ditemukan. Silakan login ulang.");
+
+            // Memanggil fungsi getTerminal (fungsi asli di jjk.html Anda) untuk koneksi
+            const db = getTerminal(shardId); 
+
+            // --- PROSES KIRIM DATA ---
             const reporterName = (profile.nickname || "Anonim").substring(0, 3) + "***";
 
             const payload = {
@@ -2409,7 +2410,7 @@ window.IntelSystem = {
                 mission_id: mId
             };
 
-            // Kirim data
+            // Gunakan variabel 'db' yang baru kita deskripsikan di atas
             await db.ref(`mission_reports/${mId}`).push(payload);
             
             // UI Feedback
