@@ -2390,13 +2390,34 @@ window.IntelSystem = {
         if (!confirm(`KIRIM LAPORAN: ${val.toUpperCase()}?`)) return;
 
         try {
-            // LANGSUNG TEMBAK pake db_shard global
-            if (typeof db_shard === 'undefined' || !db_shard) {
-                alert("Koneksi Terminal Belum Siap.");
-                return;
+            // --- LOGIKA KONEKSI OTOMATIS ---
+            let db = null;
+
+            // 1. Cek apakah db_shard global sudah siap
+            if (typeof db_shard !== 'undefined' && db_shard) {
+                db = db_shard;
+            } 
+            // 2. Jika belum, paksa ambil dari fungsi router Anda (getTerminal)
+            else if (typeof getTerminal === 'function') {
+                // Kita coba ambil shard dari mana saja yang tersedia
+                const profileStr = localStorage.getItem('adventurer_profile');
+                const sId = profileStr ? JSON.parse(profileStr).shard_id : null;
+                
+                if (sId) {
+                    db = getTerminal(sId);
+                } else {
+                    // Jika shard tidak ada di profile, coba cari di App.State
+                    const stateShard = (window.App && App.State) ? App.State.activeShard : null;
+                    if (stateShard) db = getTerminal(stateShard);
+                }
             }
 
-            await db_shard.ref(`mission_reports/${mId}`).push({
+            if (!db) {
+                throw new Error("Terminal benar-benar belum siap. Tunggu radar memuat misi atau login ulang.");
+            }
+
+            // --- EKSEKUSI KIRIM ---
+            await db.ref(`mission_reports/${mId}`).push({
                 status: val,
                 timestamp: firebase.database.ServerValue.TIMESTAMP,
                 mission_id: mId
@@ -2404,13 +2425,13 @@ window.IntelSystem = {
 
             // Feedback Visual
             sel.parentElement.innerHTML = `
-                <div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:4px; text-align:center; font-family:var(--font-terminal);">
+                <div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:4px; text-align:center; background:rgba(74,222,128,0.1);">
                     ✓ BERHASIL DILAPORKAN
                 </div>`;
 
         } catch (e) {
-            console.error(e);
-            alert("Gagal kirim: " + e.message);
+            console.error("Intel Error:", e);
+            alert(e.message);
         }
     }
 };
