@@ -2113,9 +2113,8 @@ if (type === 'STM') {
                 };
 
                                                // 1. Tentukan Kategori
-                const isTitipBeli = (m.category === 'Titip Beli');
+                                const isTitipBeli = (m.category === 'Titip Beli');
 
-                // 2. Render Konten Kartu
                 div.innerHTML = `
                 <div class="m-strip-header">
                     <div class="m-icon-box">${icon}</div>
@@ -2150,17 +2149,25 @@ if (type === 'STM') {
                             <span class="detail-label">STAMINA REQ</span>
                             <span style="color:${diffColor};">${rpg.stamina} STM</span>
                         </div>
+                        <div class="detail-item">
+                            <span class="detail-label">KATEGORI</span>
+                            <span style="color:var(--theme-color);">${m.category || 'REGULER'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">KESULITAN</span>
+                            <span style="color:${diffColor};">${m.difficulty_rate}x RATE</span>
+                        </div>
                     </div>
 
                     ${isTitipBeli ? `
-                    <div style="margin:10px 0; padding:8px; background:rgba(255,152,0,0.1); border:1px solid #333; border-radius:4px; display:flex; gap:5px; align-items:center;">
-                        <select id="quickIntel-${m.id_misi}" style="flex:1; background:#000; color:#ff9800; border:1px solid #555; font-size:10px; height:24px; font-family:var(--font-terminal);">
+                    <div class="intel-action-area" style="margin: 10px 0; padding: 8px; background: rgba(255,152,0,0.1); border: 1px solid #333; border-radius: 4px; display: flex; gap: 5px; align-items: center;">
+                        <select id="quickIntel-${m.id_misi}" style="flex: 1; background: #000; color: #ff9800; border: 1px solid #555; font-size: 10px; height: 24px; font-family: var(--font-terminal);">
                             <option value="Tutup">TOKO TUTUP</option>
                             <option value="Libur">SEDANG LIBUR</option>
                             <option value="Pindah">PINDAH LOKASI</option>
                         </select>
                         <button onclick="event.stopPropagation(); IntelSystem.quickSubmit('${m.id_misi}')" 
-                                style="background:#ff9800; color:#000; border:none; padding:0 10px; height:24px; font-size:10px; font-weight:bold; cursor:pointer; border-radius:2px; font-family:var(--font-terminal);">
+                                style="background: #ff9800; color: #000; border: none; padding: 0 10px; height: 24px; font-size: 10px; font-weight: bold; cursor: pointer; font-family: var(--font-terminal); border-radius: 2px;">
                             LAPOR
                         </button>
                     </div>
@@ -2172,7 +2179,6 @@ if (type === 'STM') {
                     }
                 </div>
                 `;
-
 
             },
 
@@ -2359,10 +2365,13 @@ if (type === 'STM') {
 
 
    // ==========================================
-// INTEL SYSTEM ENGINE (OFFICIAL ADD-ON)
+// INTEL SYSTEM ENGINE (SAFE REPLACEMENT)
 // ==========================================
 const IntelSystem = {
     quickSubmit: async function(mId) {
+        // Mencegah klik menembus ke kartu
+        if (window.event) window.event.stopPropagation();
+
         const sel = document.getElementById(`quickIntel-${mId}`);
         if (!sel) return;
         
@@ -2370,7 +2379,6 @@ const IntelSystem = {
         if (!confirm(`Konfirmasi laporan: TOKO ${infoValue.toUpperCase()}?`)) return;
 
         try {
-            // Ambil data user dari sistem terminal Anda
             const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
             const reporterName = (profile.nickname || "Anonim").substring(0, 3) + "***";
 
@@ -2381,13 +2389,12 @@ const IntelSystem = {
                 mission_id: mId
             };
 
-            // Kirim ke database menggunakan router db_shard Anda
+            // Menggunakan database shard sesuai router Anda
             await db_shard.ref(`mission_reports/${mId}`).push(payload);
             
-            // Berikan feedback visual pada kartu
             const parent = sel.parentElement;
             if(parent) {
-                parent.innerHTML = `<div style="color:#4ade80; font-size:10px; font-family:var(--font-terminal); text-align:center; width:100%; letter-spacing:1px;">✓ INTEL TRANSMITTED: ${infoValue.toUpperCase()}</div>`;
+                parent.innerHTML = `<div style="color:#4ade80; font-size:10px; font-family:var(--font-terminal); text-align:center; width:100%;">✓ INTEL TRANSMITTED: ${infoValue.toUpperCase()}</div>`;
             }
             
             App.UI.showAlert("SYSTEM", "Intelijen lapangan berhasil dikirim.");
