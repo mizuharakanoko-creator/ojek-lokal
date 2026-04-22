@@ -2112,7 +2112,6 @@ if (type === 'STM') {
                     }
                 };
 
-
                 div.innerHTML = `
                 <div class="m-strip-header">
                     <div class="m-icon-box">${icon}</div>
@@ -2157,26 +2156,37 @@ if (type === 'STM') {
                         </div>
                     </div>
 
-                    ${isTitipBeli ? `
-                    <div class="intel-action-area" style="margin: 10px 0; padding: 8px; background: rgba(255,152,0,0.1); border: 1px solid #333; border-radius: 4px; display: flex; gap: 5px; align-items: center;">
-                        <select id="quickIntel-${m.id_misi}" style="flex: 1; background: #000; color: #ff9800; border: 1px solid #555; font-size: 10px; height: 24px; font-family: var(--font-terminal);">
-                            <option value="Tutup">TOKO TUTUP</option>
-                            <option value="Libur">SEDANG LIBUR</option>
-                            <option value="Pindah">PINDAH LOKASI</option>
-                        </select>
-                        <button onclick="event.stopPropagation(); IntelSystem.quickSubmit('${m.id_misi}')" 
-                                style="background: #ff9800; color: #000; border: none; padding: 0 10px; height: 24px; font-size: 10px; font-weight: bold; cursor: pointer; font-family: var(--font-terminal); border-radius: 2px;">
-                            LAPOR
-                        </button>
-                    </div>
-                    ` : ''}
-
                     ${isApplied ? 
                         `<button class="btn-bid-card" style="background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
                         `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>`
                     }
                 </div>
                 `;
+                container.appendChild(div);
+
+                    // --- PENYUNTIKAN INTEL (TANPA MENGUBAH INNERHTML ASLI) ---
+                if (m.category === 'Titip Beli') {
+                    const expandBody = div.querySelector('.m-expand-body');
+                    const btnBid = div.querySelector('.btn-bid-card');
+                    
+                    if (expandBody && btnBid) {
+                        const intelHTML = `
+                        <div class="intel-action-area" style="margin: 10px 0; padding: 8px; background: rgba(255,152,0,0.1); border: 1px solid #333; border-radius: 4px; display: flex; gap: 5px; align-items: center;">
+                            <select id="quickIntel-${m.id_misi}" style="flex: 1; background: #000; color: #ff9800; border: 1px solid #555; font-size: 10px; height: 24px; font-family: var(--font-terminal);">
+                                <option value="Tutup">TOKO TUTUP</option>
+                                <option value="Libur">SEDANG LIBUR</option>
+                                <option value="Pindah">PINDAH LOKASI</option>
+                            </select>
+                            <button onclick="event.stopPropagation(); if(window.IntelSystem) window.IntelSystem.quickSubmit('${m.id_misi}')" 
+                                    style="background: #ff9800; color: #000; border: none; padding: 0 10px; height: 24px; font-size: 10px; font-weight: bold; cursor: pointer; font-family: var(--font-terminal); border-radius: 2px;">
+                                LAPOR
+                            </button>
+                        </div>`;
+                        // Menyisipkan tepat di atas tombol "Ambil Kontrak"
+                        btnBid.insertAdjacentHTML('beforebegin', intelHTML);
+                    }
+                }
+                // --- END PENYUNTIKAN ---
 
             },
 
@@ -2361,48 +2371,30 @@ if (type === 'STM') {
         }
     };
 
-
-   // ==========================================
-// INTEL SYSTEM ENGINE (SAFE REPLACEMENT)
-// ==========================================
-const IntelSystem = {
+    const IntelSystem = {
     quickSubmit: async function(mId) {
-        // Mencegah klik menembus ke kartu
         if (window.event) window.event.stopPropagation();
-
         const sel = document.getElementById(`quickIntel-${mId}`);
         if (!sel) return;
-        
         const infoValue = sel.value;
         if (!confirm(`Konfirmasi laporan: TOKO ${infoValue.toUpperCase()}?`)) return;
 
         try {
             const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
             const reporterName = (profile.nickname || "Anonim").substring(0, 3) + "***";
-
-            const payload = {
+            await db_shard.ref(`mission_reports/${mId}`).push({
                 reporter: reporterName,
                 status: infoValue,
                 timestamp: firebase.database.ServerValue.TIMESTAMP,
                 mission_id: mId
-            };
-
-            // Menggunakan database shard sesuai router Anda
-            await db_shard.ref(`mission_reports/${mId}`).push(payload);
-            
-            const parent = sel.parentElement;
-            if(parent) {
-                parent.innerHTML = `<div style="color:#4ade80; font-size:10px; font-family:var(--font-terminal); text-align:center; width:100%;">✓ INTEL TRANSMITTED: ${infoValue.toUpperCase()}</div>`;
-            }
-            
+            });
+            sel.parentElement.innerHTML = `<div style="color:#4ade80; font-size:10px; font-family:var(--font-terminal); text-align:center; width:100%;">✓ INTEL TRANSMITTED: ${infoValue.toUpperCase()}</div>`;
             App.UI.showAlert("SYSTEM", "Intelijen lapangan berhasil dikirim.");
         } catch (e) {
-            console.error(e);
             App.UI.showAlert("ERROR", "Gagal mengirim data intel.");
         }
     }
 };
-
 
 
     window.onload = () => App.init();
