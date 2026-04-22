@@ -536,19 +536,21 @@
            GUILD SHOP & EXCHANGE UI
            ========================================== */scale(0.98);
     
-/* Container Tab di bagian atas Shop */
+/* Container Tab di atas - Dibuat menyatu dengan modal */
 .shop-tabs {
     display: flex;
+    background: #000;
+    border-bottom: 2px solid #222;
+    padding: 5px;
     gap: 5px;
-    padding: 10px 10px 0 10px;
 }
 
 .shop-tabs button {
     flex: 1;
-    background: #111;
+    background: transparent;
     border: 1px solid #333;
-    color: #666;
-    padding: 10px;
+    color: #444;
+    padding: 12px;
     font-family: var(--font-terminal);
     font-size: 0.75rem;
     text-transform: uppercase;
@@ -557,71 +559,87 @@
 }
 
 .shop-tabs button.active {
-    border-color: var(--theme-color);
     color: var(--theme-color);
-    background: rgba(var(--theme-color-rgb), 0.1);
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    border-color: var(--theme-color);
+    background: rgba(255,255,255,0.03);
+    box-shadow: inset 0 0 15px var(--theme-bg-glow);
 }
 
-/* Area Isi Shop yang Bisa di-Scroll */
+/* Kunci Scroll & Tinggi */
 #shopContent {
-    display: block; 
-    height: 450px; /* Tinggi pasti agar scroll muncul */
+    height: 480px; /* Atur agar pas dengan modal Anda */
     overflow-y: auto !important;
     padding: 15px 10px;
-    box-sizing: border-box;
+    background: #050505;
 }
 
-/* Desain Item List (Elegan) */
+/* Desain Card List agar Mirip Inventory */
 .shop-card {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #0f0f0f;
+    background: linear-gradient(90deg, #111 0%, #050505 100%);
     border: 1px solid #222;
-    border-left: 4px solid var(--theme-color);
-    padding: 12px 15px;
-    margin-bottom: 10px;
-    border-radius: 2px;
+    border-left: 3px solid var(--theme-color);
+    margin-bottom: 8px;
+    padding: 10px 15px;
+    position: relative;
 }
 
-/* Kiri: Ikon dan Nama */
-.shop-card .item-left {
+.shop-card::after {
+    content: '';
+    position: absolute;
+    right: 10px; top: 50%; transform: translateY(-50%);
+    width: 4px; height: 4px;
+    background: var(--theme-color);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--theme-color);
+}
+
+.item-left {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
 }
 
-.shop-card .item-icon {
-    font-size: 1.5rem;
-    width: 30px;
-    text-align: center;
+.item-icon {
+    font-size: 1.4rem;
+    filter: drop-shadow(0 0 5px var(--theme-color));
 }
 
-.shop-card .item-name {
+.item-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.item-name {
     font-family: var(--font-terminal);
-    font-size: 0.9rem;
-    color: var(--text-main);
+    font-size: 0.85rem;
+    color: #eee;
+    letter-spacing: 0.5px;
+}
+
+.item-sub {
+    font-size: 0.6rem;
+    color: #555;
     text-transform: uppercase;
 }
 
-/* Kanan: Tombol Harga */
+/* Tombol Harga */
 .price-tag-shop {
-    min-width: 90px;
-    padding: 7px 10px;
-    font-size: 0.75rem;
-    font-family: var(--font-terminal);
-    text-align: center;
     background: #000;
     border: 1px solid #444;
+    padding: 6px 12px;
+    font-family: var(--font-terminal);
+    font-size: 0.7rem;
+    border-radius: 2px;
     cursor: pointer;
+    transition: 0.2s;
 }
 
-/* Warna dinamis berdasarkan mata uang (Mengembalikan fitur yang hilang) */
-.price-tag-shop.price-idr { border-color: #2ecc71; color: #2ecc71; }
-.price-tag-shop.price-gold { border-color: #f1c40f; color: #f1c40f; }
-.price-tag-shop.price-credit { border-color: #3498db; color: #3498db; }
-
+.price-tag-shop:active { transform: scale(0.9); }
+.price-tag-shop.price-idr { color: #2ecc71; border-color: #2ecc71; }
+.price-tag-shop.price-gold { color: #f1c40f; border-color: #f1c40f; }
 
 
         /* ==========================================
@@ -899,13 +917,14 @@
     <div class="modal-box" style="max-width: 450px; width: 95%;">
         <h3 style="color:var(--theme-color); margin-top:0; font-family:var(--font-terminal); flex-shrink: 0;">GUILD SHOP & EXCHANGE</h3>
 
-    <div class="shop-tabs">
-    <button class="tab-btn active" onclick="App.Shop.render('exchange')">Exchange</button>
-    <button class="tab-btn" onclick="App.Shop.render('realm')">Realm Topup</button>
-</div>
-
 <div id="shopContent">
     </div>
+
+<div class="shop-tabs">
+    <button id="btn-exchange" class="active" onclick="App.Shop.switchTab('exchange')">EXCHANGE</button>
+    <button id="btn-realm" onclick="App.Shop.switchTab('realm')">REALM TOPUP</button>
+</div>
+
 
 
 
@@ -1409,47 +1428,57 @@ if (adPanel) {
         this.updateStatusUI();
     },
 
-    changeTab: function(category, element) {
-    // Hapus class active dari semua tombol di shop-tabs
-    document.querySelectorAll('.shop-tabs button').forEach(btn => btn.classList.remove('active'));
-    // Tambah class active ke tombol yang diklik
-    element.classList.add('active');
-    // Jalankan render
-    this.render(category);
-},
+    switchTab: function(category) {
+        // 1. Atur Visual Tombol
+        document.querySelectorAll('.shop-tabs button').forEach(btn => btn.classList.remove('active'));
+        if(category === 'exchange') document.getElementById('btn-exchange').classList.add('active');
+        if(category === 'realm') document.getElementById('btn-realm').classList.add('active');
+        
+        // 2. Render Data
+        this.render(category);
+    },
+
 
 
     render: function(category) {
-    const container = document.getElementById('shopContent');
-    if (!container) return;
-    
-    container.innerHTML = "";
-    const filtered = this.data.filter(i => i.cat === category);
-
-    filtered.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'shop-card'; // Menggunakan nama class asli agar tidak bentrok
+        const container = document.getElementById('shopContent');
+        if (!container) return;
         
-        // Logika Mata Uang (KEMBALI KE KODE AWAL)
-        let priceClass = `price-${item.curr.split('_')[0]}`;
-        let priceText = item.curr === 'idr' ? 
-            `Rp ${item.price.toLocaleString()}` : 
-            `${item.price} ${item.curr.replace('_', ' ').toUpperCase()}`;
+        container.innerHTML = "";
+        const filtered = this.data.filter(i => i.cat === category);
 
-        card.innerHTML = `
-            <div class="item-left">
-                <span class="item-icon">${item.icon}</span>
-                <span class="item-name">${item.name}</span>
-            </div>
-            <div class="item-right">
-                <div class="price-tag-shop ${priceClass}" onclick="App.Shop.buy('${item.id}')">
-                    ${priceText}
+        if (filtered.length === 0) {
+            container.innerHTML = `<div style="color:#444; text-align:center; padding-top:50px; font-family:var(--font-terminal);">NO ITEMS AVAILABLE IN THIS REALM</div>`;
+            return;
+        }
+
+        filtered.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'shop-card';
+            
+            let priceClass = `price-${item.curr.split('_')[0]}`;
+            let priceText = item.curr === 'idr' ? 
+                `Rp ${item.price.toLocaleString()}` : 
+                `${item.price} ${item.curr.replace('_', ' ').toUpperCase()}`;
+
+            card.innerHTML = `
+                <div class="item-left">
+                    <span class="item-icon">${item.icon}</span>
+                    <div class="item-details">
+                        <span class="item-name">${item.name}</span>
+                        <span class="item-sub">ID: ${item.id}</span>
+                    </div>
                 </div>
-            </div>
-        `;
-        container.appendChild(card);
-    });
-},
+                <div class="item-right">
+                    <div class="price-tag-shop ${priceClass}" onclick="App.Shop.buy('${item.id}')">
+                        ${priceText}
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    },
+
 
 
 
