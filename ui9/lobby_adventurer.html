@@ -2375,20 +2375,30 @@ div.onclick = (e) => {
         }
     };
 
-    window.IntelSystem = {
+    
+    // ==========================================
+// INTEL SYSTEM ENGINE (FIXED DATABASE ROUTE)
+// ==========================================
+window.IntelSystem = {
     quickSubmit: async function(mId) {
         if (window.event) window.event.stopPropagation();
-        
+
         const sel = document.getElementById(`quickIntel-${mId}`);
-        if (!sel) {
-            console.error("Elemen select tidak ditemukan untuk ID:", mId);
-            return;
-        }
+        if (!sel) return;
         
         const infoValue = sel.value;
-        if (!confirm(`KONFIRMASI: TOKO ${infoValue.toUpperCase()}?`)) return;
+        if (!confirm(`KONFIRMASI LAPORAN: ${infoValue.toUpperCase()}?`)) return;
 
         try {
+            // SOLUSI: Ambil db_shard dari scope global atau router lokal
+            // Jika db_shard tidak ada, kita coba ambil dari getTerminal atau App.State
+            const db = (typeof db_shard !== 'undefined') ? db_shard : 
+                       (window.db_shard ? window.db_shard : null);
+
+            if (!db) {
+                throw new Error("Koneksi Database (db_shard) tidak ditemukan.");
+            }
+
             const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
             const reporterName = (profile.nickname || "Anonim").substring(0, 3) + "***";
 
@@ -2399,17 +2409,24 @@ div.onclick = (e) => {
                 mission_id: mId
             };
 
-            await db_shard.ref(`mission_reports/${mId}`).push(payload);
+            // Kirim data
+            await db.ref(`mission_reports/${mId}`).push(payload);
             
-            sel.parentElement.innerHTML = `<div style="color:#4ade80; font-size:10px; font-family:var(--font-terminal); text-align:center; width:100%;">✓ TRANSMITTED: ${infoValue.toUpperCase()}</div>`;
+            // UI Feedback
+            const parent = sel.parentElement;
+            if(parent) {
+                parent.innerHTML = `<div style="color:#4ade80; font-size:10px; font-family:var(--font-terminal); text-align:center; width:100%;">✓ TRANSMITTED: ${infoValue.toUpperCase()}</div>`;
+            }
             
-            if(App.UI && App.UI.showAlert) App.UI.showAlert("SYSTEM", "Intelijen terkirim.");
+            if(window.App && App.UI) App.UI.showAlert("SYSTEM", "Intelijen lapangan berhasil dikirim.");
+            
         } catch (e) {
-            console.error(e);
-            alert("Gagal mengirim intel.");
+            console.error("Intel Error:", e);
+            alert("GAGAL: " + e.message);
         }
     }
 };
+
 
 
 
