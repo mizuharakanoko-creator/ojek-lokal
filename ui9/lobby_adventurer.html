@@ -2383,57 +2383,65 @@ window.IntelSystem = {
     quickSubmit: async function(mId) {
         if (window.event) window.event.stopPropagation();
 
-        try {
-            // 1. MENCARI IDENTITAS (ALUR GALI DATA)
-            // Kita ambil dari profile yang sedang aktif di session/state
-            const activeProfile = JSON.parse(localStorage.getItem('adventurer_profile'));
+        const sel = document.getElementById(`quickIntel-${mId}`);
+        if (!sel) return;
+        const val = sel.value;
 
-            if (!activeProfile) {
-                throw new Error("Sesi Aktif tidak ditemukan. Pastikan Anda sudah masuk ke Terminal.");
+        try {
+            // 1. Dapatkan Nickname dari variabel global App atau State
+            // Di jjk.html, biasanya nickname disimpan di App.State.userProfile.nickname
+            const nickname = (window.App && App.State && App.State.userProfile) 
+                             ? App.State.userProfile.nickname 
+                             : null;
+
+            if (!nickname) {
+                throw new Error("Nickname tidak terdeteksi di Sesi Aktif. Silakan Login ulang.");
             }
 
-            const nickname = activeProfile.nickname;
-            const shardTarget = activeProfile.shard_id;
+            // 2. Deskripsikan Koneksi (Cari Shard dari Index Master seperti fungsi galiData)
+            // Kita pakai rdb (Realtime Database Master) untuk nyari info kita sendiri
+            const masterSnap = await rdb.ref('_INDEX_MASTER').once('value');
+            const masterData = masterSnap.val();
             
-            // Pemicu: Ambil ID Adventurer (biasanya disimpan sebagai 'id' atau 'uid' di profile)
-            const advId = activeProfile.id || activeProfile.uid;
+            let myData = null;
+            let myId = null;
 
-            if (!shardTarget) throw new Error("Shard ID (Kecamatan) tidak terdeteksi.");
-
-            const sel = document.getElementById(`quickIntel-${mId}`);
-            if (!sel) return;
-            const val = sel.value;
-
-            if (!confirm(`KIRIM INTEL?\nOperator: ${nickname}\nStatus: ${val.toUpperCase()}`)) return;
-
-            // 2. KONEKSI KE ROUTER FB (MENGGUNAKAN getTerminal SEPERTI FUNGSI GALI DATA)
-            const dbShard = getTerminal(shardTarget);
-
-            // 3. EKSEKUSI PENYIMPANAN
-            const maskedName = nickname.substring(0, 3) + "***";
-
-            await dbShard.ref(`mission_reports/${mId}`).push({
-                reporter: maskedName,
-                reporter_id: advId || "UNKNOWN",
-                status: val,
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
-                shard: shardTarget
+            // Cari data kita di master berdasarkan nickname
+            Object.keys(masterData).forEach(id => {
+                if (masterData[id].nickname === nickname) {
+                    myId = id;
+                    myData = masterData[id];
+                }
             });
 
-            // 4. FEEDBACK VISUAL DI KARTU
-            const parent = sel.parentElement;
-            if (parent) {
-                parent.innerHTML = `
-                <div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:4px; text-align:center; font-family:var(--font-terminal); background:rgba(74,222,128,0.1);">
-                    ✓ INTEL TRANSMITTED TO ${shardTarget}
-                </div>`;
-            }
+            if (!myData) throw new Error("Data Nickname Anda tidak terdaftar di Master Index.");
 
-            if (window.App && App.UI) App.UI.showAlert("BERHASIL", `Informasi [${val}] telah diteruskan ke database ${shardTarget}.`);
+            // 3. Deskripsikan DB Shard tujuan
+            const shardTarget = myData.shard_id;
+            const dbShard = getTerminal(shardTarget);
+
+            if (!confirm(`KIRIM INTEL KE ${shardTarget}?\nOperator: ${nickname}`)) return;
+
+            // 4. Eksekusi Kirim
+            const maskedName = nickname.substring(0, 3) + "***";
+            await dbShard.ref(`mission_reports/${mId}`).push({
+                reporter: maskedName,
+                reporter_id: myId,
+                status: val,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            // Feedback Visual
+            sel.parentElement.innerHTML = `
+                <div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:4px; text-align:center; background:rgba(74,222,128,0.1);">
+                    ✓ INTEL SENT TO ${shardTarget}
+                </div>`;
+
+            if (window.App && App.UI) App.UI.showAlert("BERHASIL", "Laporan intelijen berhasil diteruskan.");
 
         } catch (e) {
             console.error("Intel Error:", e);
-            alert("SISTEM GAGAL: " + e.message);
+            alert("GAGAL: " + e.message);
         }
     }
 };
