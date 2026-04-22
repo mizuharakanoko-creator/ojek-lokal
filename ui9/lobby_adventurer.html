@@ -2181,10 +2181,10 @@ div.onclick = (e) => {
                                 <option value="Libur">SEDANG LIBUR</option>
                                 <option value="Pindah">PINDAH LOKASI</option>
                             </select>
-                            <button onclick="event.stopPropagation(); if(window.IntelSystem) window.IntelSystem.quickSubmit('${m.id_misi}')" 
-                                    style="background: #ff9800; color: #000; border: none; padding: 0 10px; height: 24px; font-size: 10px; font-weight: bold; cursor: pointer; font-family: var(--font-terminal); border-radius: 2px;">
-                                LAPOR
-                            </button>
+<button type="button" onclick="window.IntelSystem.quickSubmit('${m.id_misi}')" 
+        style="background:#ff9800; color:#000; border:none; padding:5px 10px; font-weight:bold; cursor:pointer;">
+    LAPOR
+</button>
                         </div>`;
                         // Menyisipkan tepat di atas tombol "Ambil Kontrak"
                         btnBid.insertAdjacentHTML('beforebegin', intelHTML);
@@ -2382,59 +2382,42 @@ div.onclick = (e) => {
 window.IntelSystem = {
     quickSubmit: async function(mId) {
         if (window.event) window.event.stopPropagation();
-
+        
         const sel = document.getElementById(`quickIntel-${mId}`);
-        if (!sel) return;
-        const val = sel.value;
-
-        if (!confirm(`KIRIM LAPORAN: ${val.toUpperCase()}?`)) return;
+        const val = sel ? sel.value : 'LAPOR';
+        
+        // KONFIRMASI SEDERHANA
+        if (!confirm("KIRIM LAPORAN KE SISTEM?")) return;
 
         try {
-            // --- LOGIKA KONEKSI OTOMATIS ---
-            let db = null;
+            // BYPASS SEMUA: Langsung bikin koneksi baru pake getTerminal
+            // Kita coba ambil paksa kode shard dari mana saja
+            const sId = (window.App && App.State && App.State.activeShard) || 
+                        (JSON.parse(localStorage.getItem('adventurer_profile')) || {}).shard_id;
 
-            // 1. Cek apakah db_shard global sudah siap
-            if (typeof db_shard !== 'undefined' && db_shard) {
-                db = db_shard;
-            } 
-            // 2. Jika belum, paksa ambil dari fungsi router Anda (getTerminal)
-            else if (typeof getTerminal === 'function') {
-                // Kita coba ambil shard dari mana saja yang tersedia
-                const profileStr = localStorage.getItem('adventurer_profile');
-                const sId = profileStr ? JSON.parse(profileStr).shard_id : null;
-                
-                if (sId) {
-                    db = getTerminal(sId);
-                } else {
-                    // Jika shard tidak ada di profile, coba cari di App.State
-                    const stateShard = (window.App && App.State) ? App.State.activeShard : null;
-                    if (stateShard) db = getTerminal(stateShard);
-                }
+            if (!sId) {
+                alert("Pilih Kecamatan/Shard dulu di Radar!");
+                return;
             }
 
-            if (!db) {
-                throw new Error("Terminal benar-benar belum siap. Tunggu radar memuat misi atau login ulang.");
-            }
-
-            // --- EKSEKUSI KIRIM ---
+            // LANGSUNG TEMBAK
+            const db = getTerminal(sId);
+            
             await db.ref(`mission_reports/${mId}`).push({
                 status: val,
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
-                mission_id: mId
+                timestamp: firebase.database.ServerValue.TIMESTAMP
             });
 
-            // Feedback Visual
-            sel.parentElement.innerHTML = `
-                <div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:4px; text-align:center; background:rgba(74,222,128,0.1);">
-                    ✓ BERHASIL DILAPORKAN
-                </div>`;
+            // FEEDBACK INSTAN
+            sel.parentElement.innerHTML = `<div style="color:#4ade80; font-size:10px; text-align:center;">✓ TERKIRIM</div>`;
+            alert("Laporan Berhasil!");
 
         } catch (e) {
-            console.error("Intel Error:", e);
-            alert(e.message);
+            alert("Gagal total: " + e.message);
         }
     }
 };
+
 
 
 
