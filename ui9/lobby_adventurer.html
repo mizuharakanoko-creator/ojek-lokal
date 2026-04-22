@@ -2383,64 +2383,60 @@ window.IntelSystem = {
     quickSubmit: async function(mId) {
         if (window.event) window.event.stopPropagation();
 
-        // 1. AMBIL NICKNAME DULU SEBAGAI PEMICU
-        const profileRaw = localStorage.getItem('adventurer_profile');
-        if (!profileRaw) {
-            alert("⚠️ PROFIL TIDAK DITEMUKAN. Silakan login atau pilih terminal!");
-            return;
-        }
-
-        const profile = JSON.parse(profileRaw);
-        const nickname = profile.nickname || "Adventurer";
-        const shardId = profile.shard_id || profile.shard; // Deteksi shard user
-
-        const sel = document.getElementById(`quickIntel-${mId}`);
-        if (!sel) return;
-        const val = sel.value;
-
-        if (!confirm(`LAPOR: TOKO ${val.toUpperCase()}?\nPelapor: ${nickname}`)) return;
-
         try {
-            // 2. DESKRIPSIKAN KONEKSI DB (TOTAL)
-            let db = null;
+            // 1. MENCARI IDENTITAS (ALUR GALI DATA)
+            // Kita ambil dari profile yang sedang aktif di session/state
+            const activeProfile = window.App && App.State ? App.State.userProfile : null;
             
-            // Cek apakah db_shard global sudah ada (dari radar utama)
-            if (typeof db_shard !== 'undefined' && db_shard !== null) {
-                db = db_shard;
-            } 
-            // Kalau tidak ada, tembak langsung pake router asli jjk.html
-            else if (shardId && typeof getTerminal === 'function') {
-                db = getTerminal(shardId);
+            if (!activeProfile) {
+                throw new Error("Sesi Aktif tidak ditemukan. Pastikan Anda sudah masuk ke Terminal.");
             }
 
-            if (!db) throw new Error("Koneksi Terminal Gagal. Re-Login diperlukan.");
+            const nickname = activeProfile.nickname;
+            const shardTarget = activeProfile.shard_id;
+            
+            // Pemicu: Ambil ID Adventurer (biasanya disimpan sebagai 'id' atau 'uid' di profile)
+            const advId = activeProfile.id || activeProfile.uid;
 
-            // 3. PROSES KIRIM
+            if (!shardTarget) throw new Error("Shard ID (Kecamatan) tidak terdeteksi.");
+
+            const sel = document.getElementById(`quickIntel-${mId}`);
+            if (!sel) return;
+            const val = sel.value;
+
+            if (!confirm(`KIRIM INTEL?\nOperator: ${nickname}\nStatus: ${val.toUpperCase()}`)) return;
+
+            // 2. KONEKSI KE ROUTER FB (MENGGUNAKAN getTerminal SEPERTI FUNGSI GALI DATA)
+            const dbShard = getTerminal(shardTarget);
+
+            // 3. EKSEKUSI PENYIMPANAN
             const maskedName = nickname.substring(0, 3) + "***";
 
-            await db.ref(`mission_reports/${mId}`).push({
+            await dbShard.ref(`mission_reports/${mId}`).push({
                 reporter: maskedName,
+                reporter_id: advId || "UNKNOWN",
                 status: val,
                 timestamp: firebase.database.ServerValue.TIMESTAMP,
-                mission_id: mId
+                shard: shardTarget
             });
 
-            // 4. FEEDBACK VISUAL
-            sel.parentElement.innerHTML = `
-                <div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:4px; text-align:center; font-family:var(--font-terminal);">
-                    ✓ INTEL TRANSMITTED: ${val.toUpperCase()}
+            // 4. FEEDBACK VISUAL DI KARTU
+            const parent = sel.parentElement;
+            if (parent) {
+                parent.innerHTML = `
+                <div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:4px; text-align:center; font-family:var(--font-terminal); background:rgba(74,222,128,0.1);">
+                    ✓ INTEL TRANSMITTED TO ${shardTarget}
                 </div>`;
+            }
 
-            if (window.App && App.UI) App.UI.showAlert("SUCCESS", "Laporan berhasil masuk ke radar Requester.");
+            if (window.App && App.UI) App.UI.showAlert("BERHASIL", `Informasi [${val}] telah diteruskan ke database ${shardTarget}.`);
 
         } catch (e) {
-            console.error("Intel Submission Failed:", e);
-            alert("ERROR: " + e.message);
+            console.error("Intel Error:", e);
+            alert("SISTEM GAGAL: " + e.message);
         }
     }
 };
-
-
 
 
 
