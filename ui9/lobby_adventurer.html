@@ -1427,24 +1427,33 @@ if (missionData.category === "Titip Beli") {
 
         const IntelSystem = {
     maskName: function(name) {
-        if (!name) return "Anonymous";
-        if (name.length <= 2) return name + "***";
+        if (!name) return "Anonim";
         return name.substring(0, 2) + "*****" + name.substring(name.length - 2);
     },
 
     sendReport: async function(missionId, infoText, statusType) {
-        // Cek dulu apakah misi ini benar titip beli
-        // (Opsional, tapi bagus untuk keamanan data)
-        const missionRef = await db_shard.ref(`missions/${missionId}`).once('value');
-        const mission = missionRef.val();
+        if (!missionId) return;
+        
+        try {
+            const userProfile = JSON.parse(localStorage.getItem('adventurer_profile'));
+            const maskedName = this.maskName(userProfile.nickname || "Adventurer");
+            
+            const reportData = {
+                reporter: maskedName,
+                info: infoText,
+                type: statusType,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            };
 
-        if (mission && mission.category !== "Titip Beli") {
-            App.UI.showAlert("SYSTEM ERROR", "Fitur intel hanya tersedia untuk Titip Beli.");
-            return;
+            // Menggunakan db_shard sesuai kode terminal Anda
+            await db_shard.ref(`mission_reports/${missionId}`).push(reportData);
+            App.UI.showAlert("BERHASIL", "Laporan intelijen telah dikirim ke Requester.");
+        } catch (e) {
+            App.UI.showAlert("GAGAL", "Gagal mengirim laporan: " + e.message);
         }
     }
-
 };
+
 
     
         Shop: {
