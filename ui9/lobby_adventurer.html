@@ -903,13 +903,14 @@
             <option value="other">INFO LAINNYA</option>
         </select>
         
-        <button onclick="const sel = document.getElementById('intelStatus'); IntelSystem.sendReport(currentMissionId, sel.options[sel.selectedIndex].text, sel.value)" 
+        <button onclick="const sel = document.getElementById('intelStatus'); IntelSystem.sendReport(App.UI.currentSelectedId, sel.options[sel.selectedIndex].text, sel.value)" 
                 style="background: #ff9800; color: #000; border: none; padding: 4px 10px; font-size: 10px; font-weight: bold; cursor: pointer; font-family: var(--font-terminal);">
             KIRIM
         </button>
     </div>
-    <p style="font-size: 9px; color: #666; margin-top: 5px;">*Khusus kategori titip beli.</p>
+    <p style="font-size: 9px; color: #666; margin-top: 5px;">*Gunakan jika ada kendala di lokasi target.</p>
 </div>
+
 
 
 
@@ -1425,18 +1426,14 @@ if (missionData.category === "Titip Beli") {
             }
         }, // <-- DITAMBAHKAN PENUTUP OBJECT BIDDING DI SINI
 
-        const IntelSystem = {
-    maskName: function(name) {
-        if (!name) return "Anonim";
-        return name.substring(0, 2) + "*****" + name.substring(name.length - 2);
-    },
-
+        // Objek Intel System Baru
+const IntelSystem = {
     sendReport: async function(missionId, infoText, statusType) {
-        if (!missionId) return;
+        if (!missionId) return App.UI.showAlert("ERROR", "ID Misi tidak terbaca.");
         
         try {
-            const userProfile = JSON.parse(localStorage.getItem('adventurer_profile'));
-            const maskedName = this.maskName(userProfile.nickname || "Adventurer");
+            const userProfile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
+            const maskedName = (userProfile.nickname || "Adventurer").substring(0, 2) + "***";
             
             const reportData = {
                 reporter: maskedName,
@@ -1445,14 +1442,37 @@ if (missionData.category === "Titip Beli") {
                 timestamp: firebase.database.ServerValue.TIMESTAMP
             };
 
-            // Menggunakan db_shard sesuai kode terminal Anda
+            // Mengirim ke database menggunakan db_shard (router Anda)
             await db_shard.ref(`mission_reports/${missionId}`).push(reportData);
-            App.UI.showAlert("BERHASIL", "Laporan intelijen telah dikirim ke Requester.");
+            App.UI.showAlert("INTEL TERKIRIM", "Laporan lokasi telah diteruskan ke Requester.");
+            document.getElementById('intelReportSection').style.display = 'none';
         } catch (e) {
-            App.UI.showAlert("GAGAL", "Gagal mengirim laporan: " + e.message);
+            App.UI.showAlert("ERROR", "Gagal mengirim laporan: " + e.message);
         }
     }
 };
+
+// Modifikasi fungsi UI App untuk kontrol tampil/sembunyi
+// Cari fungsi App.UI.showMissionDetail di file Anda dan tambahkan baris ini:
+const originalShowDetail = App.UI.showMissionDetail;
+App.UI.showMissionDetail = function(missionId) {
+    // Jalankan fungsi asli dulu
+    originalShowDetail.apply(this, arguments);
+    
+    // Simpan ID agar bisa dipakai tombol Intel
+    App.UI.currentSelectedId = missionId;
+    
+    const mission = App.Core.allMissions.find(m => m.id === missionId);
+    const intelBox = document.getElementById('intelReportSection');
+    
+    // Logika filter: Hanya muncul jika kategori adalah Titip Beli
+    if (mission && mission.category === "Titip Beli") {
+        intelBox.style.display = "block";
+    } else {
+        intelBox.style.display = "none";
+    }
+};
+
 
 
     
