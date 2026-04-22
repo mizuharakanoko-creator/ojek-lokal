@@ -728,6 +728,41 @@
         .inventory-list::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
 
 
+        .inv-details-section {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid #222;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .details-title {
+            display: block;
+            font-size: 10px;
+            color: var(--theme-color);
+            font-weight: bold;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+            font-family: var(--font-terminal);
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+        }
+
+        .detail-item {
+            font-size: 10px;
+            color: #bbb;
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+        }
+
+        .detail-item b { color: #fff; }
+
     </style>
 </head>
 <body>
@@ -1535,13 +1570,12 @@ if (adPanel) {
             render: async function() {
                 const container = document.getElementById('inventoryContent');
                 container.className = "inventory-list";
-                container.innerHTML = '<div style="color:#555; font-size:11px;">Mengkalkulasi kekayaan...</div>';
+                container.innerHTML = '<div style="color:#555; font-size:11px;">Membuka brankas...</div>';
 
                 try {
                     const idAdv = App.State.idAdv;
                     const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
                     
-                    // Ambil data secara paralel
                     const [snapInv, snapCoxin, snapContract] = await Promise.all([
                         dbShard.ref(`adventurer_inventory/${idAdv}`).once('value'),
                         dbShard.ref(`adventurer_coxin/${idAdv}`).once('value'),
@@ -1549,42 +1583,46 @@ if (adPanel) {
                     ]);
 
                     const itemsFromDB = snapInv.val() || {};
-                    const coxinData = snapCoxin.val() || {};
-                    const contractData = snapContract.val() || {};
-
-                    // --- LOGIKA PENJUMLAHAN BATU (COXIN) ---
-                    // Menjumlahkan semua jenis batu: purple, red, white, green
-                    const totalCoxin = (Number(coxinData.purple_stone) || 0) + 
-                                       (Number(coxinData.red_stone) || 0) + 
-                                       (Number(coxinData.white_stone) || 0) + 
-                                       (Number(coxinData.green_stone) || 0);
-
-                    // --- LOGIKA PENJUMLAHAN KONTRAK ---
-                    // Menjumlahkan semua tier kontrak
-                    const totalContracts = (Number(contractData.kontrak_lusuh) || 0) + 
-                                           (Number(contractData.kontrak_normal) || 0) + 
-                                           (Number(contractData.kontrak_medium) || 0) + 
-                                           (Number(contractData.kontrak_premium) || 0) + 
-                                           (Number(contractData.kontrak_emas) || 0);
+                    const cox = snapCoxin.val() || {};
+                    const con = snapContract.val() || {};
 
                     container.innerHTML = "";
 
-                    // --- 1. HEADER INFORMASI KEKAYAAN (Visual Tetap Sama) ---
-                    const header = document.createElement('div');
-                    header.className = 'inv-stats-header';
-                    header.innerHTML = `
-                        <div class="stat-box">
-                            <span class="stat-label">💰 TOTAL COXIN</span>
-                            <span class="stat-value">${totalCoxin.toLocaleString()}</span>
-                        </div>
-                        <div class="stat-box" style="border-left-color: #fbbf24;">
-                            <span class="stat-label">📜 TOTAL KONTRAK</span>
-                            <span class="stat-value">${totalContracts.toLocaleString()} <small style="font-size:8px">Pcs</small></span>
+                    // --- 1. SEKSI RINCIAN COXIN (BATU) ---
+                    const coxinSection = document.createElement('div');
+                    coxinSection.className = 'inv-details-section';
+                    coxinSection.innerHTML = `
+                        <span class="details-title">💎 GEM STORAGE (COXIN)</span>
+                        <div class="details-grid">
+                            <div class="detail-item">Purple: <b>${cox.purple_stone || 0}</b></div>
+                            <div class="detail-item">Red: <b>${cox.red_stone || 0}</b></div>
+                            <div class="detail-item">White: <b>${cox.white_stone || 0}</b></div>
+                            <div class="detail-item">Green: <b>${cox.green_stone || 0}</b></div>
                         </div>
                     `;
-                    container.appendChild(header);
+                    container.appendChild(coxinSection);
 
-                    // --- 2. LOOPING ITEM INVENTORY (Sama seperti sebelumnya) ---
+                    // --- 2. SEKSI RINCIAN KONTRAK ---
+                    const contractSection = document.createElement('div');
+                    contractSection.className = 'inv-details-section';
+                    contractSection.innerHTML = `
+                        <span class="details-title">📜 CONTRACT ARCHIVE</span>
+                        <div class="details-grid">
+                            <div class="detail-item">Lusuh: <b>${con.kontrak_lusuh || 0}</b></div>
+                            <div class="detail-item">Normal: <b>${con.kontrak_normal || 0}</b></div>
+                            <div class="detail-item">Medium: <b>${con.kontrak_medium || 0}</b></div>
+                            <div class="detail-item">Premium: <b>${con.kontrak_premium || 0}</b></div>
+                            <div class="detail-item">Emas: <b>${con.kontrak_emas || 0}</b></div>
+                        </div>
+                    `;
+                    container.appendChild(contractSection);
+
+                    // --- 3. SEKSI ITEM INVENTORY (USEABLE) ---
+                    const itemLabel = document.createElement('span');
+                    itemLabel.innerHTML = "CONSUMABLES";
+                    itemLabel.style = "font-size:10px; color:#555; margin: 10px 0 5px 5px; display:block; font-weight:bold;";
+                    container.appendChild(itemLabel);
+
                     Object.keys(this.itemMaster).forEach(key => {
                         const meta = this.itemMaster[key];
                         const qty = itemsFromDB[key] || 0;
@@ -1597,7 +1635,7 @@ if (adPanel) {
                             <div class="inv-icon-box">${meta.icon}</div>
                             <div class="inv-details">
                                 <span class="inv-item-name">${meta.name}</span>
-                                <span class="inv-qty-text">Jumlah: <b style="${isEmpty ? 'color:#ff4444' : 'color:#a855f7'}">${qty}</b></span>
+                                <span class="inv-qty-text">Tersedia: <b style="${isEmpty ? 'color:#ff4444' : 'color:#a855f7'}">${qty}</b></span>
                             </div>
                             <div class="inv-actions">
                                 <button class="btn-inv-info" onclick="App.Inventory.showInfo('${key}')">i</button>
@@ -1610,8 +1648,8 @@ if (adPanel) {
                     });
 
                 } catch (e) {
-                    console.error("Render Error:", e);
-                    container.innerHTML = "Gagal memuat data.";
+                    console.error(e);
+                    container.innerHTML = "Gagal memuat rincian aset.";
                 }
             },
 
