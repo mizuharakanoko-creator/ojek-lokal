@@ -1472,26 +1472,20 @@ if (adPanel) {
 },
 
 
-                Inventory: {
-            // Kamus data dengan tambahan Deskripsi
+                        Inventory: {
             itemMaster: {
+                // TAMBAHKAN ITEM BARU DI SINI
                 small_stamina_potion: { 
                     name: "S-STAMINA", 
                     icon: "🧪", 
                     effect: 25, 
                     desc: "Memulihkan 25 poin Stamina secara instan." 
                 },
-                medium_stamina_potion: { 
-                    name: "M-STAMINA", 
-                    icon: "🧪", 
-                    effect: 60, 
-                    desc: "Ramuan standar untuk memulihkan 60 poin Stamina." 
-                },
-                large_stamina_potion: { 
-                    name: "L-STAMINA", 
-                    icon: "⚗️", 
-                    effect: 150, 
-                    desc: "Ramuan murni berenergi tinggi. Memulihkan 150 Stamina." 
+                health_potion: { // Contoh item baru
+                    name: "HP POTION", 
+                    icon: "❤️", 
+                    effect: 50, 
+                    desc: "Memulihkan 50 Health Point." 
                 },
                 exp_scroll: { 
                     name: "EXP SCROLL", 
@@ -1500,6 +1494,57 @@ if (adPanel) {
                     desc: "Gulungan kuno yang memberikan 100 EXP tambahan." 
                 }
             },
+
+            render: async function() {
+                const container = document.getElementById('inventoryContent');
+                container.className = "inventory-list";
+                container.innerHTML = '<div style="color:#555; font-size:11px;">Membuka tas...</div>';
+
+                try {
+                    const idAdv = App.State.idAdv;
+                    const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
+                    const snap = await dbShard.ref(`adventurer_inventory/${idAdv}`).once('value');
+                    const itemsFromDB = snap.val() || {};
+
+                    container.innerHTML = "";
+                    
+                    // Menggunakan itemMaster sebagai acuan agar semua item terdaftar muncul
+                    for (const key in this.itemMaster) {
+                        const meta = this.itemMaster[key];
+                        const qty = itemsFromDB[key] || 0; // Jika tidak ada di DB, anggap stok 0
+
+                        const isEmpty = qty <= 0;
+                        const row = document.createElement('div');
+                        row.className = 'inv-item-row';
+                        
+                        // Memberikan efek visual buram jika stok 0
+                        if (isEmpty) {
+                            row.style.opacity = "0.5";
+                            row.style.filter = "grayscale(1)";
+                        }
+
+                        row.innerHTML = `
+                            <div class="inv-icon-box">${meta.icon}</div>
+                            <div class="inv-details">
+                                <span class="inv-item-name">${meta.name}</span>
+                                <span class="inv-qty-text">Jumlah: <b style="${isEmpty ? 'color:#ff4444' : ''}">${qty}</b></span>
+                            </div>
+                            <div class="inv-actions">
+                                <button class="btn-inv-info" onclick="App.Inventory.showInfo('${key}')">i</button>
+                                <button class="btn-inv-use" 
+                                        ${isEmpty ? 'disabled style="background:#444; color:#888;"' : ''} 
+                                        onclick="App.Inventory.useItem('${key}', '${meta.name}')">
+                                    ${isEmpty ? 'EMPTY' : 'USE'}
+                                </button>
+                            </div>
+                        `;
+                        container.appendChild(row);
+                    }
+                } catch (e) {
+                    container.innerHTML = "Gagal memproses data.";
+                }
+            },
+
 
             open: function() {
                 document.getElementById('inventoryModal').style.display = 'flex';
