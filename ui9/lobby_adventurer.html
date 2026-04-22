@@ -535,16 +535,54 @@
         /* ==========================================
            GUILD SHOP & EXCHANGE UI
            ========================================== */
+/* Ubah container utama dari grid menjadi flex list */
+/* Tampilan List untuk Shop */
 .shop-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-top: 15px;
-    /* TAMBAHKAN INI */
-    overflow-y: auto; 
-    padding-right: 5px; /* Ruang untuk scrollbar */
-    flex: 1; /* Mengambil sisa ruang yang ada di modal */
+    display: flex;
+    flex-direction: column; /* Menyusun item ke bawah */
+    gap: 8px;
+    padding: 10px;
 }
+
+/* Mengubah kartu item dari kotak menjadi baris panjang */
+.shop-item {
+    display: flex;             /* Membuat isi di dalamnya sejajar horizontal */
+    align-items: center;       /* Tengah secara vertikal */
+    background: var(--bg-card);
+    border: 1px solid var(--theme-color);
+    border-left: 4px solid var(--theme-color); /* Aksen garis tebal di kiri */
+    padding: 10px;
+    border-radius: 4px;
+    width: 100%;               /* Memenuhi lebar layar */
+}
+
+/* Mengatur gambar item agar di kiri */
+.item-icon {
+    width: 50px;
+    height: 50px;
+    margin-right: 15px;        /* Jarak antara gambar dan teks */
+    flex-shrink: 0;            /* Gambar tidak boleh gepeng */
+}
+
+/* Membungkus teks (nama & harga) agar rapi */
+.item-info {
+    flex-grow: 1;              /* Mengambil sisa ruang yang ada */
+    text-align: left;
+}
+
+.item-name {
+    display: block;
+    font-weight: bold;
+    color: var(--theme-color);
+    font-size: 0.95rem;
+}
+
+.item-price {
+    font-size: 0.8rem;
+    color: #bbb;
+}
+
+
 
 /* Opsional: Percantik scrollbar agar tetap bernuansa terminal */
 .shop-grid::-webkit-scrollbar { width: 4px; }
@@ -618,6 +656,63 @@
             color: #000;
             border-color: var(--theme-color);
         }
+
+
+        /* Container utama shop harus satu kolom saja */
+#shopContent {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+}
+
+/* Desain baris item */
+.shop-item-list {
+    display: flex;
+    justify-content: space-between; /* Kiri dan kanan terpisah jauh */
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid #333;
+    border-left: 3px solid var(--theme-color); /* Garis warna sesuai Rank */
+    padding: 12px 15px;
+    border-radius: 4px;
+    transition: 0.2s;
+}
+
+.shop-item-list:active {
+    background: #1a1a1a; /* Efek saat ditekan */
+}
+
+/* Bagian kiri (Ikon & Nama) */
+.item-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.item-left .item-icon {
+    font-size: 1.5rem;
+    width: 30px;
+    text-align: center;
+}
+
+.item-left .item-name {
+    font-family: var(--font-terminal);
+    font-size: 0.9rem;
+    color: var(--text-main);
+    text-transform: uppercase;
+}
+
+/* Bagian kanan (Tombol Harga) */
+.item-right .price-tag-shop {
+    min-width: 80px;
+    text-align: center;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    border-radius: 2px;
+    cursor: pointer;
+}
+
 
         /* ==========================================
            INVENTORY UI
@@ -1407,24 +1502,36 @@ if (adPanel) {
     },
 
     render: function(category) {
-        const container = document.getElementById('shopContent');
-        container.innerHTML = "";
-        const filtered = this.data.filter(i => i.cat === category);
+    const container = document.getElementById('shopContent');
+    container.innerHTML = "";
+    const filtered = this.data.filter(i => i.cat === category);
 
-        filtered.forEach(item => {
-            const card = document.createElement('div');
-            card.className = 'shop-card';
-            let priceClass = `price-${item.curr.split('_')[0]}`;
-            let priceText = item.curr === 'idr' ? `Rp ${item.price.toLocaleString()}` : `${item.price} ${item.curr.replace('_', ' ').toUpperCase()}`;
+    filtered.forEach(item => {
+        const card = document.createElement('div');
+        // Ganti class menjadi 'shop-item-list' agar tidak bentrok dengan CSS lama
+        card.className = 'shop-item-list'; 
+        
+        let priceClass = `price-${item.curr.split('_')[0]}`;
+        let priceText = item.curr === 'idr' ? 
+            `Rp ${item.price.toLocaleString()}` : 
+            `${item.price} ${item.curr.replace('_', ' ').toUpperCase()}`;
 
-            card.innerHTML = `
+        // Struktur HTML baru: Ikon & Nama di kiri, Harga/Tombol di kanan
+        card.innerHTML = `
+            <div class="item-left">
                 <span class="item-icon">${item.icon}</span>
                 <span class="item-name">${item.name}</span>
-                <div class="price-tag-shop ${priceClass}" onclick="App.Shop.buy('${item.id}')">${priceText}</div>
-            `;
-            container.appendChild(card);
-        });
-    },
+            </div>
+            <div class="item-right">
+                <div class="price-tag-shop ${priceClass}" onclick="App.Shop.buy('${item.id}')">
+                    ${priceText}
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+},
+
 
     buy: async function(itemId) {
         const item = this.data.find(i => i.id == itemId);
