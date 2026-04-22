@@ -2116,7 +2116,8 @@ if (type === 'STM') {
     };
 
 
-                div.innerHTML = `
+                
+        div.innerHTML = `
     <div class="m-strip-header">
         <div class="m-icon-box">${icon}</div>
         <div class="m-main-info">
@@ -2154,13 +2155,13 @@ if (type === 'STM') {
 
         ${isTitipBeli ? `
         <div class="intel-action-bar" style="margin: 10px 0; padding: 8px; background: rgba(255,152,0,0.1); border: 1px solid #444; display: flex; gap: 5px; align-items: center;">
-            <select id="quickIntel-${m.id_misi}" style="flex: 1; background: #000; color: #ff9800; border: 1px solid #555; font-size: 10px; height: 25px;">
+            <select id="quickIntel-${m.id_misi}" style="flex: 1; background: #000; color: #ff9800; border: 1px solid #555; font-size: 10px; height: 26px;">
                 <option value="Tutup">TOKO TUTUP</option>
                 <option value="Libur">SEDANG LIBUR</option>
                 <option value="Pindah">PINDAH LOKASI</option>
             </select>
             <button onclick="event.stopPropagation(); IntelSystem.quickSubmit('${m.id_misi}')" 
-                    style="background: #ff9800; color: #000; border: none; padding: 0 10px; height: 25px; font-size: 10px; font-weight: bold; cursor: pointer;">
+                    style="background: #ff9800; color: #000; border: none; padding: 0 10px; height: 26px; font-size: 10px; font-weight: bold; cursor: pointer;">
                 LAPOR
             </button>
         </div>
@@ -2171,6 +2172,7 @@ if (type === 'STM') {
             `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>`
         }
     </div>
+
     `;
     container.appendChild(div);
 },
@@ -2361,24 +2363,21 @@ if (type === 'STM') {
 
 
 // GANTI KODE LAMA DENGAN INI (Letakkan di bagian bawah sebelum tag </script>)
+// --- TARUH DI SINI (DI ATAS window.onload) ---
 const IntelSystem = {
     quickSubmit: async function(mId) {
-        // Mencegah klik tombol menembus ke kartu (agar kartu tidak menutup/membuka)
-        if (event) event.stopPropagation();
-
         const sel = document.getElementById(`quickIntel-${mId}`);
         if (!sel) return;
         
         const infoText = sel.value;
-        const confirmReport = confirm(`Kirim laporan intelijen: "${infoText.toUpperCase()}"?`);
+        const confirmReport = confirm(`Kirim laporan "${infoText.toUpperCase()}" ke Requester?`);
         
         if (!confirmReport) return;
 
         try {
-            // Ambil data user dari profil lokal
             const userProfile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
             const nickname = userProfile.nickname || "Adventurer";
-            const maskedName = nickname.substring(0, 2) + "***" + nickname.slice(-1);
+            const maskedName = nickname.substring(0, 2) + "***";
 
             const reportData = {
                 reporter: maskedName,
@@ -2387,24 +2386,23 @@ const IntelSystem = {
                 mission_id: mId
             };
 
-            // Gunakan db_shard sesuai router jjk.html Anda
-            const db = (typeof db_shard !== 'undefined') ? db_shard : firebase.database();
+            // Menggunakan db_shard sesuai terminal router Anda
+            await db_shard.ref(`mission_reports/${mId}`).push(reportData);
             
-            await db.ref(`mission_reports/${mId}`).push(reportData);
+            alert("INTEL TERKIRIM!");
             
-            alert("INTEL TERKIRIM: Requester akan segera menerima informasi ini.");
-            
-            // Ubah tampilan UI agar tidak bisa kirim berkali-kali
+            // Ubah tampilan agar tidak lapor dua kali
             const parent = sel.parentElement;
             if(parent) {
-                parent.innerHTML = `<div style="color:#4ade80; font-size:10px; font-family:var(--font-terminal);">✓ INTEL REPORTED: ${infoText.toUpperCase()}</div>`;
+                parent.innerHTML = `<div style="color:#4ade80; font-size:11px; text-align:center; width:100%;">✓ LAPORAN "${infoText.toUpperCase()}" TERKIRIM</div>`;
             }
         } catch (e) {
-            console.error("Intel Submission Error:", e);
-            alert("Gagal mengirim laporan. Pastikan koneksi stabil.");
+            console.error(e);
+            alert("Gagal kirim intel.");
         }
     }
 };
+
 
 
     
