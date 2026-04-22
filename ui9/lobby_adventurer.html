@@ -2105,16 +2105,12 @@ if (type === 'STM') {
                 div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
                 
                 // Fungsi Toggle Minimize/Expand
-div.onclick = (e) => {
-    // JIKA YANG DIKLIK ADALAH SELECT ATAU BUTTON, JANGAN JALANKAN TOGEL EXPAND
-    if (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON' || e.target.closest('.intel-action-area')) {
-        return; 
-    }
-    
-    div.classList.toggle('active-expand');
-    AudioEngine.play('click');
-};
-
+                div.onclick = (e) => {
+                    if(e.target.tagName !== 'BUTTON') { // Agar klik tombol tidak mentrigger tutup/buka
+                        div.classList.toggle('active-expand');
+                        AudioEngine.play('click');
+                    }
+                };
 
                 div.innerHTML = `
                 <div class="m-strip-header">
@@ -2139,6 +2135,20 @@ div.onclick = (e) => {
                             <span class="detail-label">LOKASI PENJEMPUTAN</span>
                             <span style="color:#eee; font-size:11px;">📍 ${m.origin_name}</span>
                         </div>`
+
+    <div class="intel-area" style="margin-top:10px; border-top:1px dashed #333; padding-top:10px;">
+        <select id="intel-val-${m.id_misi}" style="width:100%; background:#000; color:#ff9800; border:1px solid #333; font-family:var(--font-terminal); margin-bottom:5px;">
+            <option value="Toko Tutup">TOKO TUTUP</option>
+            <option value="Libur">SEDANG LIBUR</option>
+            <option value="Pindah">PINDAH LOKASI</option>
+        </select>
+        <button type="button" class="btn-intel-lapor" data-id="${m.id_misi}" 
+                style="width:100%; background:#444; color:#fff; border:none; padding:5px; font-family:var(--font-terminal); cursor:pointer;">
+            KIRIM INTEL
+        </button>
+    </div>
+    
+
                     }
 
                     <div class="detail-grid">
@@ -2167,30 +2177,35 @@ div.onclick = (e) => {
                 </div>
                 `;
                 container.appendChild(div);
+                // Taruh tepat di bawah container.appendChild(div);
+const btnLapor = div.querySelector('.btn-intel-lapor');
+if (btnLapor) {
+    btnLapor.onclick = async (e) => {
+        e.stopPropagation(); // Biar kartu gak nutup pas diklik
+        
+        const mId = btnLapor.getAttribute('data-id');
+        const val = div.querySelector(`#intel-val-${mId}`).value;
 
-                    // --- PENYUNTIKAN INTEL (TANPA MENGUBAH INNERHTML ASLI) ---
-                if (m.category === 'Titip Beli') {
-                    const expandBody = div.querySelector('.m-expand-body');
-                    const btnBid = div.querySelector('.btn-bid-card');
-                    
-                    if (expandBody && btnBid) {
-                        const intelHTML = `
-                        <div class="intel-action-area" style="margin: 10px 0; padding: 8px; background: rgba(255,152,0,0.1); border: 1px solid #333; border-radius: 4px; display: flex; gap: 5px; align-items: center;">
-                            <select id="quickIntel-${m.id_misi}" style="flex: 1; background: #000; color: #ff9800; border: 1px solid #555; font-size: 10px; height: 24px; font-family: var(--font-terminal);">
-                                <option value="Tutup">TOKO TUTUP</option>
-                                <option value="Libur">SEDANG LIBUR</option>
-                                <option value="Pindah">PINDAH LOKASI</option>
-                            </select>
-<button type="button" onclick="window.IntelSystem.quickSubmit('${m.id_misi}')" 
-        style="background:#ff9800; color:#000; border:none; padding:5px 10px; font-weight:bold; cursor:pointer;">
-    LAPOR
-</button>
-                        </div>`;
-                        // Menyisipkan tepat di atas tombol "Ambil Kontrak"
-                        btnBid.insertAdjacentHTML('beforebegin', intelHTML);
-                    }
-                }
-                // --- END PENYUNTIKAN ---
+        if (!confirm(`Konfirmasi Laporan: ${val}?`)) return;
+
+        try {
+            // Kita pakai db_shard yang sedang aktif di scope ini
+            // Sama persis dengan yang dipakai fungsi bid/lamar misi
+            await db_shard.ref(`mission_reports/${mId}`).push({
+                status: val,
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                reporter_name: (App.State.userProfile?.nickname || "Anon").substring(0,3) + "***"
+            });
+
+            btnLapor.parentElement.innerHTML = `<div style="color:#4ade80; text-align:center; font-size:11px;">✓ INTEL TERKIRIM</div>`;
+            App.UI.showAlert("SYSTEM", "Laporan intelijen berhasil masuk.");
+            
+        } catch (err) {
+            console.error(err);
+            alert("Gagal Kirim: " + err.message);
+        }
+    };
+}
 
             },
 
@@ -2373,54 +2388,7 @@ div.onclick = (e) => {
         } catch (e) {
             App.UI.showAlert("GALI DATA GAGAL", e.message);
         }
-    };
-
-    
-// ==========================================
-// INTEL SYSTEM ENGINE (UNIVERSAL CONNECTION)
-// ==========================================
-window.IntelSystem = {
-    quickSubmit: async function(mId) {
-        if (window.event) window.event.stopPropagation();
-        
-        const sel = document.getElementById(`quickIntel-${mId}`);
-        const val = sel ? sel.value : 'LAPOR';
-        
-        // KONFIRMASI SEDERHANA
-        if (!confirm("KIRIM LAPORAN KE SISTEM?")) return;
-
-        try {
-            // BYPASS SEMUA: Langsung bikin koneksi baru pake getTerminal
-            // Kita coba ambil paksa kode shard dari mana saja
-            const sId = (window.App && App.State && App.State.activeShard) || 
-                        (JSON.parse(localStorage.getItem('adventurer_profile')) || {}).shard_id;
-
-            if (!sId) {
-                alert("Pilih Kecamatan/Shard dulu di Radar!");
-                return;
-            }
-
-            // LANGSUNG TEMBAK
-            const db = getTerminal(sId);
-            
-            await db.ref(`mission_reports/${mId}`).push({
-                status: val,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
-
-            // FEEDBACK INSTAN
-            sel.parentElement.innerHTML = `<div style="color:#4ade80; font-size:10px; text-align:center;">✓ TERKIRIM</div>`;
-            alert("Laporan Berhasil!");
-
-        } catch (e) {
-            alert("Gagal total: " + e.message);
-        }
     }
-};
-
-
-
-
 
     window.onload = () => App.init();
 </script>
