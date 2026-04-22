@@ -622,7 +622,37 @@
         /* ==========================================
            INVENTORY UI
            ========================================== */
-        .inventory-list {
+        .inv-stats-header {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed #333;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px;
+            border-radius: 6px;
+            border-left: 3px solid var(--theme-color);
+        }
+
+        .stat-label {
+            display: block;
+            font-size: 9px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            display: block;
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            font-family: var(--font-terminal);
+        }
+.inventory-list {
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -1501,32 +1531,53 @@ if (adPanel) {
                 // Tambahkan item lain di sini...
             },
 
+            
             render: async function() {
                 const container = document.getElementById('inventoryContent');
                 container.className = "inventory-list";
-                container.innerHTML = '<div style="color:#555; font-size:11px;">Membuka tas...</div>';
+                container.innerHTML = '<div style="color:#555; font-size:11px;">Mengkalkulasi kekayaan...</div>';
 
                 try {
                     const idAdv = App.State.idAdv;
                     const dbShard = getTerminal(App.State.loc.shard || "FB2_RUNNER");
                     
-                    // Ambil data inventory dari database
-                    const snap = await dbShard.ref(`adventurer_inventory/${idAdv}`).once('value');
-                    const itemsFromDB = snap.val() || {};
+                    // Ambil 3 data sekaligus menggunakan Promise.all agar cepat
+                    const [snapInv, snapCoxin, snapContract] = await Promise.all([
+                        dbShard.ref(`adventurer_inventory/${idAdv}`).once('value'),
+                        dbShard.ref(`adventurer_coxin/${idAdv}`).once('value'),
+                        dbShard.ref(`adventurer_contracts/${idAdv}`).once('value')
+                    ]);
+
+                    const itemsFromDB = snapInv.val() || {};
+                    const totalCoxin = snapCoxin.val()?.amount || 0;
+                    const totalContracts = snapContract.val()?.total_active || 0;
 
                     container.innerHTML = "";
-                    
-                    // PERBAIKAN: Looping berdasarkan itemMaster, BUKAN database
-                    // Ini memastikan item stok 0 muncul, dan field "id_adventurer" terabaikan
+
+                    // --- 1. HEADER INFORMASI KEKAYAAN ---
+                    const header = document.createElement('div');
+                    header.className = 'inv-stats-header';
+                    header.innerHTML = `
+                        <div class="stat-box">
+                            <span class="stat-label">💰 TOTAL COXIN</span>
+                            <span class="stat-value">${Number(totalCoxin).toLocaleString()}</span>
+                        </div>
+                        <div class="stat-box" style="border-left-color: #fbbf24;">
+                            <span class="stat-label">📜 KONTRAK AKTIF</span>
+                            <span class="stat-value">${totalContracts} Units</span>
+                        </div>
+                    `;
+                    container.appendChild(header);
+
+                    // --- 2. LOOPING ITEM INVENTORY ---
                     Object.keys(this.itemMaster).forEach(key => {
                         const meta = this.itemMaster[key];
-                        const qty = itemsFromDB[key] || 0; // Jika tidak ada di DB, tampilkan 0
-
+                        const qty = itemsFromDB[key] || 0;
                         const isEmpty = qty <= 0;
+
                         const row = document.createElement('div');
                         row.className = 'inv-item-row';
                         
-                        // Style untuk item yang kosong (buram/grayscale)
                         if (isEmpty) {
                             row.style.opacity = "0.4";
                             row.style.filter = "grayscale(1)";
@@ -1541,7 +1592,7 @@ if (adPanel) {
                             <div class="inv-actions">
                                 <button class="btn-inv-info" onclick="App.Inventory.showInfo('${key}')">i</button>
                                 <button class="btn-inv-use" 
-                                        ${isEmpty ? 'disabled style="background:#222; color:#555; border:1px solid #333;"' : ''} 
+                                        ${isEmpty ? 'disabled style="background:#222; color:#555;"' : ''} 
                                         onclick="App.Inventory.useItem('${key}', '${meta.name}')">
                                     ${isEmpty ? 'OUT' : 'USE'}
                                 </button>
@@ -1552,9 +1603,10 @@ if (adPanel) {
 
                 } catch (e) {
                     console.error(e);
-                    container.innerHTML = "Gagal memproses data task.";
+                    container.innerHTML = "Gagal memuat data finansial.";
                 }
             },
+
 
 
 
