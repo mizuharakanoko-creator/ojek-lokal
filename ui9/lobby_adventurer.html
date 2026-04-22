@@ -2375,30 +2375,42 @@ div.onclick = (e) => {
         }
     };
 
-    const IntelSystem = {
+    window.IntelSystem = {
     quickSubmit: async function(mId) {
         if (window.event) window.event.stopPropagation();
+        
         const sel = document.getElementById(`quickIntel-${mId}`);
-        if (!sel) return;
+        if (!sel) {
+            console.error("Elemen select tidak ditemukan untuk ID:", mId);
+            return;
+        }
+        
         const infoValue = sel.value;
-        if (!confirm(`Konfirmasi laporan: TOKO ${infoValue.toUpperCase()}?`)) return;
+        if (!confirm(`KONFIRMASI: TOKO ${infoValue.toUpperCase()}?`)) return;
 
         try {
             const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
             const reporterName = (profile.nickname || "Anonim").substring(0, 3) + "***";
-            await db_shard.ref(`mission_reports/${mId}`).push({
+
+            const payload = {
                 reporter: reporterName,
                 status: infoValue,
                 timestamp: firebase.database.ServerValue.TIMESTAMP,
                 mission_id: mId
-            });
-            sel.parentElement.innerHTML = `<div style="color:#4ade80; font-size:10px; font-family:var(--font-terminal); text-align:center; width:100%;">✓ INTEL TRANSMITTED: ${infoValue.toUpperCase()}</div>`;
-            App.UI.showAlert("SYSTEM", "Intelijen lapangan berhasil dikirim.");
+            };
+
+            await db_shard.ref(`mission_reports/${mId}`).push(payload);
+            
+            sel.parentElement.innerHTML = `<div style="color:#4ade80; font-size:10px; font-family:var(--font-terminal); text-align:center; width:100%;">✓ TRANSMITTED: ${infoValue.toUpperCase()}</div>`;
+            
+            if(App.UI && App.UI.showAlert) App.UI.showAlert("SYSTEM", "Intelijen terkirim.");
         } catch (e) {
-            App.UI.showAlert("ERROR", "Gagal mengirim data intel.");
+            console.error(e);
+            alert("Gagal mengirim intel.");
         }
     }
 };
+
 
 
     window.onload = () => App.init();
