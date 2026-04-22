@@ -537,68 +537,66 @@
            ========================================== */scale(0.98);
     
 
-/* Container utama agar modal tidak terlihat kosong */
+/* Layout Modal Shop */
 .shop-container {
     display: flex;
     flex-direction: column;
-    max-height: 80vh; /* Modal mengikuti konten, maksimal 80% layar */
+    height: 100%; /* Mengikuti tinggi modal */
 }
 
-/* Status Laporan di Atas */
+/* Kotak Status di Atas */
 .shop-status-area {
-    background: rgba(var(--theme-color-rgb), 0.1);
-    border: 1px dashed var(--theme-color);
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--theme-color);
     color: var(--theme-color);
-    padding: 8px;
-    font-family: var(--font-terminal);
-    font-size: 0.7rem;
-    text-align: center;
+    padding: 10px;
     margin: 10px;
+    font-family: var(--font-terminal);
+    font-size: 0.75rem;
+    text-align: center;
     text-transform: uppercase;
 }
 
-/* Tab Full Lebar Bagi 2 */
+/* Tab Full Lebar */
 .shop-tabs {
     display: flex;
     width: 100%;
-    border-bottom: 2px solid #222;
 }
 
 .shop-tabs button {
-    flex: 1; /* Dibagi 2 sama rata */
-    background: transparent;
+    flex: 1;
+    background: #111;
     border: none;
-    padding: 15px 0;
-    color: #444;
+    border-bottom: 2px solid #222;
+    padding: 15px;
+    color: #555;
     font-family: var(--font-terminal);
-    font-weight: bold; /* Teks Bold sesuai permintaan */
+    font-weight: bold; /* Bold sesuai permintaan */
     font-size: 0.85rem;
     cursor: pointer;
-    transition: 0.3s;
 }
 
 .shop-tabs button.active {
     color: var(--theme-color);
-    background: rgba(255,255,255,0.02);
-    box-shadow: inset 0 -3px 0 var(--theme-color); /* Garis bawah aktif */
+    border-bottom: 2px solid var(--theme-color);
+    background: rgba(255,255,255,0.05);
 }
 
-/* List Item (Scrollable) */
+/* List Item & Scroll */
 #shopContent {
-    overflow-y: auto;
+    flex: 1; /* Mengambil sisa ruang modal */
+    overflow-y: auto; /* Aktifkan Scroll */
     padding: 10px;
-    flex-grow: 1; /* Biarkan konten mengisi ruang yang ada */
 }
 
 .shop-card {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #0a0a0a;
-    border-left: 3px solid var(--theme-color);
+    background: #0f0f0f;
+    border-left: 4px solid var(--theme-color);
+    margin-bottom: 10px;
     padding: 12px 15px;
-    margin-bottom: 8px;
-    border-radius: 0 4px 4px 0;
 }
 
 .item-left {
@@ -607,27 +605,31 @@
     gap: 15px;
 }
 
-.item-icon { font-size: 1.5rem; }
-
 .item-name {
     font-family: var(--font-terminal);
     font-weight: bold;
     font-size: 0.85rem;
     color: #eee;
-    text-transform: uppercase;
 }
 
-/* Tombol Harga (Tanpa ID) */
 .price-tag-shop {
-    padding: 8px 15px;
+    padding: 8px 12px;
     font-family: var(--font-terminal);
-    font-weight: bold;
     font-size: 0.75rem;
     background: #000;
-    border: 1px solid var(--theme-color);
-    color: var(--theme-color);
+    border: 1px solid #333;
     cursor: pointer;
 }
+
+/* Warna Mata Uang */
+.price-red { color: #ff4d4d; border-color: #ff4d4d; }
+.price-green { color: #2ecc71; border-color: #2ecc71; }
+.price-idr { color: #f1c40f; border-color: #f1c40f; }
+
+
+
+.item-icon { font-size: 1.5rem; }
+
 
         
 
@@ -923,11 +925,11 @@
 
         <div class="shop-tabs">
         <button id="tab-exchange" class="active" onclick="App.Shop.switchTab('exchange')">EXCHANGE</button>
-        <button id="tab-realm" onclick="App.Shop.switchTab('realm')">REALM TOPUP</button>
+        <button id="tab-topup" onclick="App.Shop.switchTab('topup')">REALM TOPUP</button>
     </div>
 
-    <div id="shopContent">
-        </div>
+    <div id="shopContent"></div>
+</div>
 
 
         <button onclick="document.getElementById('guildShopModal').style.display='none'" 
@@ -1415,18 +1417,21 @@ if (adPanel) {
         this.updateStatusUI();
     },
 
-    switchTab: function(cat) {
+        switchTab: function(cat) {
+        // Hapus class active dari semua tombol
         document.querySelectorAll('.shop-tabs button').forEach(b => b.classList.remove('active'));
-        document.getElementById('tab-' + cat).classList.add('active');
+        // Tambahkan active ke tombol yang diklik
+        const targetBtn = document.getElementById('tab-' + cat);
+        if (targetBtn) targetBtn.classList.add('active');
+        
         this.render(cat);
     },
-
-
-
 
     render: function(category) {
         const container = document.getElementById('shopContent');
         container.innerHTML = "";
+        
+        // Filter data sesuai kategori ('exchange' atau 'topup')
         const filtered = this.data.filter(i => i.cat === category);
 
         filtered.forEach(item => {
@@ -1438,7 +1443,7 @@ if (adPanel) {
                 `Rp ${item.price.toLocaleString()}` : 
                 `${item.price} ${item.curr.replace('_', ' ').toUpperCase()}`;
 
-            // Render TANPA ID, hanya Nama dan Ikon
+            // Render List Mode: Ikon & Nama di kiri, Harga di kanan
             card.innerHTML = `
                 <div class="item-left">
                     <span class="item-icon">${item.icon}</span>
@@ -1453,6 +1458,19 @@ if (adPanel) {
             container.appendChild(card);
         });
     },
+
+    buy: function(id, name) {
+        // Update laporan status di area atas
+        const statusArea = document.getElementById('shopStatus');
+        if (statusArea) {
+            statusArea.innerHTML = `SUCCESS: [${name}] PURCHASED!`;
+            statusArea.classList.add('success-anim');
+        }
+        
+        // Logika pembelian asli Anda tetap di sini...
+        console.log("Processing ID:", id);
+    },
+
 
 
 
