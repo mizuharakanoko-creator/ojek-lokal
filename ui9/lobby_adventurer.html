@@ -1238,59 +1238,66 @@ if (adPanel) {
                 document.getElementById('alertOverlay').style.display = 'flex';
             },
 
-openModal: function(m, mode = 'BID') {
-    // 1. Ambil data dari objek m
-    const mid = m.id_misi;
-    const basePrice = m.reward || 0;
-    
-    // Set variabel global untuk submit
+openModal: function(mid, basePrice, note, category, origin, dest, rpgData, mode = 'BID') {
+    // A. Simpan Data Global (Sesuai kode awal abang)
+    App.BiddingData = { 
+        mid, 
+        basePrice, 
+        currentPrice: basePrice,
+        rpgReward: rpgData 
+    };
     window.selectedMid = mid;
-    App.BiddingData = { mid, basePrice, rpgReward: m.rpgData || {} };
 
+    const isSpecial = (category === 'Titip Beli' || category === 'Help' || dest.includes('[TITIK'));
+    
+    // B. Render Isi Modal
     const infoDiv = document.getElementById('modalInfo');
     if(infoDiv) {
         infoDiv.innerHTML = `
-            <div class="tag-category">${(m.category || 'REGULER').toUpperCase()}</div>
-            <div class="popup-dest-title">📍 ${m.dest_desa || 'TUJUAN'}</div>
+            <div class="tag-category">${category.toUpperCase()}</div>
+            <div class="popup-dest-title">📍 ${dest.toUpperCase()}</div>
             <div class="popup-note-box">
-                <span class="loc-label">DESKRIPSI</span><br>
-                ${m.note || "Tidak ada deskripsi tambahan."}
+                <span class="loc-label">DESKRIPSI / CATATAN</span><br>
+                ${note || "Tidak ada deskripsi."}
+            </div>
+            <div style="margin-top:10px; font-size:11px; color:#f87171;">
+                ⚡ KEBUTUHAN STAMINA: ${rpgData.stamina} STM
             </div>
 
-            <div id="intelArea" style="display:${mode === 'INTEL' ? 'block' : 'none'}; margin-top:10px; border-top:1px dashed #444; padding-top:10px;">
-                <select id="intelStatus" style="width:100%; background:#000; color:#4ade80; border:1px solid #333; padding:5px; font-size:11px;">
+            <div id="intelArea" style="display:${mode === 'INTEL' ? 'block' : 'none'}; margin-top:15px; border-top:1px dashed #444; padding-top:10px;">
+                <select id="intelStatus" style="width:100%; background:#000; color:#4ade80; border:1px solid #333; padding:8px; font-size:11px;">
                     <option value="TOKO TUTUP">🔒 TOKO TUTUP</option>
                     <option value="ANTRI PANJANG">⏳ ANTRI PANJANG</option>
                     <option value="PINDAH LOKASI">📍 PINDAH LOKASI</option>
                 </select>
-                <input type="text" id="intelNote" placeholder="Info singkat (maks 20 huruf)..." maxlength="20"
+                <input type="text" id="intelNote" placeholder="Catatan singkat (maks 20 huruf)..." maxlength="20"
                        oninput="this.value = this.value.replace(/[0-9]/g, '')"
-                       style="width:100%; background:#111; color:#fff; border:1px solid #333; margin-top:5px; padding:5px; font-size:11px;">
+                       style="width:100%; background:#111; color:#fff; border:1px solid #333; margin-top:5px; padding:8px; font-size:11px;">
             </div>
         `;
     }
 
-    // 2. Switch Tombol Utama
+    // C. Atur Tombol Utama Modal
     const mainBtn = document.getElementById('mainBidBtn');
-    const bidInputArea = document.querySelector('.bid-input-container');
+    const bidContainer = document.querySelector('.bid-input-container');
 
     if (mode === 'INTEL') {
-        if(bidInputArea) bidInputArea.style.display = 'none';
+        if(bidContainer) bidContainer.style.display = 'none';
         if(mainBtn) {
             mainBtn.innerText = "KIRIM LAPORAN INTEL";
-            mainBtn.style.background = "#7f1d1d"; // Warna Merah
+            mainBtn.style.background = "#7f1d1d"; // Merah Intel
             mainBtn.onclick = () => App.Intel.submit();
         }
     } else {
-        if(bidInputArea) bidInputArea.style.display = 'block';
+        if(bidContainer) bidContainer.style.display = 'block';
         if(mainBtn) {
             mainBtn.innerText = "AMBIL KONTRAK / NEGO";
-            mainBtn.style.background = ""; // Balik ke warna tema
+            mainBtn.style.background = ""; // Reset warna tema
             mainBtn.onclick = () => App.Bidding.submit();
         }
     }
 
-    // Tampilkan Modal
+    // D. Tampilkan
     document.getElementById('bidAmount').value = basePrice.toLocaleString('id-ID');
     document.getElementById('sovBidModal').style.display = 'flex';
 },
@@ -2297,23 +2304,21 @@ if (type === 'STM') {
                         </div>
                     </div>
 
-Div.dataset.misi = JSON.stringify(m);
+<div style="display:flex; gap:5px; margin-top:10px;">
+    ${isApplied ? 
+        `<button class="btn-bid-card" style="flex:3; background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
+        `<button class="btn-bid-card" style="flex:3;" 
+            onclick="event.stopPropagation(); App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG}, 'BID')">
+            AMBIL KONTRAK
+        </button>`
+    }
 
-Div.innerHTML = `
-    <div style="display:flex; gap:5px; margin-top:10px;">
-        ${isApplied ? 
-            `<button class="btn-bid-card" style="flex:3; background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
-            `<button class="btn-bid-card" style="flex:3;" 
-                onclick="event.stopPropagation(); const d = JSON.parse(this.closest('.mission-item').dataset.misi); App.UI.openModal(d, 'BID')">
-                AMBIL KONTRAK
-            </button>`
-        }
+    <button class="btn-bid-card" style="flex:1; background:#1a1a1a; border:1px solid #f87171; color:#f87171; font-size:10px;" 
+            onclick="event.stopPropagation(); App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG}, 'INTEL')">
+        INTEL
+    </button>
+</div>
 
-        <button class="btn-bid-card" style="flex:1; background:#1a1a1a; border:1px solid #f87171; color:#f87171; font-size:10px;" 
-                onclick="event.stopPropagation(); const d = JSON.parse(this.closest('.mission-item').dataset.misi); App.UI.openModal(d, 'INTEL')">
-            INTEL
-        </button>
-    </div>
 
 
 
