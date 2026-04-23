@@ -1469,41 +1469,36 @@ if (adPanel) {
 // ==========================================
 window.IntelSystem = {
     send: async function(mId) {
-        if (window.event) window.event.stopPropagation();
+        // PENGAMAN DOUBLE: Hentikan semua aksi luar
+        if (window.event) {
+            window.event.stopPropagation();
+            window.event.stopImmediatePropagation();
+        }
         
         const sel = document.getElementById(`sel-intel-${mId}`);
         if (!sel) return;
+        
         const info = sel.value;
-
         if (!confirm(`Kirim laporan: ${info}?`)) return;
 
         try {
-            // Deskripsi Koneksi: Ambil yang sedang aktif atau buat baru via router
-            let db = (typeof db_shard !== 'undefined' && db_shard) ? db_shard : null;
-            
-            if (!db) {
-                // Ambil shard dari App State jika db_shard global tidak terdeteksi
-                const sId = (window.App && App.State && App.State.loc) ? App.State.loc.shard : null;
-                if (sId && typeof getTerminal === 'function') db = getTerminal(sId);
-            }
+            const db = (typeof db_shard !== 'undefined') ? db_shard : null;
+            if (!db) throw new Error("Database belum siap.");
 
-            if (!db) throw new Error("Koneksi gagal. Pastikan radar sudah memuat misi.");
-
-            // Kirim data minimalis
             await db.ref(`mission_reports/${mId}`).push({
                 status: info,
                 timestamp: firebase.database.ServerValue.TIMESTAMP
             });
 
-            // Feedback Visual
-            const area = sel.parentElement;
-            area.innerHTML = `<div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:5px; text-align:center;">✓ TRANSMITTED</div>`;
+            // Ganti tampilan kotak agar tidak bisa diklik lagi setelah sukses
+            sel.parentElement.innerHTML = `<div style="color:#4ade80; text-align:center; padding:5px;">✓ TRANSMITTED</div>`;
             
         } catch (e) {
-            alert("Sistem Sibuk: " + e.message);
+            alert("Gagal: " + e.message);
         }
     }
 };
+
 
 },
 
@@ -2183,16 +2178,26 @@ if (type === 'STM') {
                         </div>`
                     }
 
-                    ${m.category === 'Titip Beli' ? `
-                        <div style="margin:10px 0; padding:5px; border:1px solid #333; background:#000;">
-                            <select id="sel-intel-${m.id_misi}" style="width:100%; background:#000; color:#ff9800; border:none; margin-bottom:5px; font-family:monospace;">
-                                <option value="Toko Tutup">TOKO TUTUP</option>
-                                <option value="Libur">LIBUR/TUTUP</option>
-                                <option value="Pindah">PINDAH LOKASI</option>
-                            </select>
-                            <button type="button" onclick="IntelSystem.send('${m.id_misi}')" style="width:100%; background:#333; color:#fff; border:none; padding:5px; cursor:pointer; font-size:10px;">LAPOR</button>
-                        </div>
-                    ` : ''}
+${m.category === 'Titip Beli' ? `
+    <div style="margin:10px 0; padding:8px; border:1px solid #444; background:#0a0a0a; position:relative;" 
+         onclick="event.stopPropagation();"> <label style="display:block; font-size:9px; color:#777; margin-bottom:3px;">LAPORAN INTEL:</label>
+        
+        <select id="sel-intel-${m.id_misi}" 
+                onclick="event.stopPropagation();" 
+                style="width:100%; background:#000; color:#ff9800; border:1px solid #333; margin-bottom:8px; height:30px;">
+            <option value="Toko Tutup">TOKO TUTUP</option>
+            <option value="Libur">SEDANG LIBUR</option>
+            <option value="Pindah">PINDAH LOKASI</option>
+        </select>
+        
+        <button type="button" 
+                onclick="event.stopPropagation(); window.IntelSystem.send('${m.id_misi}');" 
+                style="width:100%; background:#ff9800; color:#000; border:none; padding:8px; cursor:pointer; font-weight:bold;">
+            KIRIM DATA
+        </button>
+    </div>
+` : ''}
+
 
 
                     <div class="detail-grid">
