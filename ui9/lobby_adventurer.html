@@ -894,6 +894,32 @@
 
         <button class="btn-confirm" onclick="App.Bidding.submit()">AMBIL & TERBITKAN SINYAL</button>
         <button onclick="App.UI.closeModal()" style="width:100%; background:none; color:#666; border:none; margin-top:15px; cursor:pointer; font-size:12px;">KEMBALI KE RADAR</button>
+
+
+        <div id="reportModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:101;">
+    <div class="modal-content" style="border-color: #f87171;">
+        <h3 style="color:#f87171; margin-top:0;">LAPOR KENDALA</h3>
+        <p id="reportInfo" style="font-size:11px; color: #888;"></p>
+        
+        <label style="font-size:11px;">Status Lokasi:</label>
+        <select id="reportStatus" style="width:100%; padding:10px; margin:10px 0; background:#000; color:#fff; border:1px solid #444;">
+            <option value="TOKO TUTUP">🔒 TOKO TUTUP</option>
+            <option value="ANTRI PANJANG">⏳ ANTRIAN PANJANG</option>
+            <option value="PINDAH LOKASI">📍 PINDAH LOKASI</option>
+            <option value="TOKO LIBUR">🗓️ SEDANG LIBUR</option>
+        </select>
+
+        <label style="font-size:11px;">Catatan Singkat (Maks 20 Huruf):</label>
+        <input type="text" id="reportNote" maxlength="20" placeholder="Contoh: Tutup permanen" 
+               oninput="this.value = this.value.replace(/[0-9]/g, '')"
+               style="width:100%; padding:10px; margin:10px 0; background:#000; color:#fff; border:1px solid #444;">
+
+        <button onclick="submitReport()" style="width: 100%; padding: 10px; background: #f87171; color: #000; border: none; font-weight: bold; cursor: pointer;">KIRIM LAPORAN</button>
+        <button onclick="closeReportModal()" style="width:100%; background:none; color:#888; border:none; margin-top:10px; cursor:pointer;">BATAL</button>
+    </div>
+        </div>
+    
+    
     </div>
 </div>
 
@@ -1210,17 +1236,15 @@ if (adPanel) {
                         <div style="margin-top:10px; font-size:11px; color:#f87171; font-family:var(--font-terminal);">
                             ⚡ KEBUTUHAN STAMINA: ${rpgData.stamina} STM
                         </div>
-<div style="margin-top:15px; padding-top:10px; border-top:1px dashed #444;">
-    <button onclick="App.sendQuickReport('${mid}')" style="width:100%; background:#000; border:1px solid #f87171; color:#f87171; padding:8px; cursor:pointer; font-family:var(--font-terminal); font-size:10px;">
-        ⚠️ LAPOR KENDALA TOKO / MISI
-    </button>
-</div>
                     `;
                 }
 
                 document.getElementById('bidAmount').value = basePrice.toLocaleString('id-ID');
                 document.getElementById('sovBidModal').style.display = 'flex';
             },
+
+
+
 
             showLoginModal: function(dayCount, rewardName) {
                 AudioEngine.play('alert');
@@ -1233,6 +1257,45 @@ if (adPanel) {
             closeModal: function() {
                 document.getElementById('sovBidModal').style.display = 'none';
             },
+
+
+            // Fungsi untuk membuka modal laporan
+function openReportModal(mid) {
+    selectedMid = mid;
+    document.getElementById('reportModal').style.display = 'block';
+    document.getElementById('reportInfo').innerText = `Melaporkan kendala untuk: ${mid}`;
+}
+
+    // Fungsi kirim data (Kembaran submitBid)
+
+    async function submitReport() {
+    const status = document.getElementById('reportStatus').value;
+    const note = document.getElementById('reportNote').value.trim();
+    
+    // Validasi dasar
+    if (!note) return alert("Berikan catatan singkat!");
+
+    try {
+        // Simpan ke tabel 'intel_reports' di FB4 (mengikuti alur db4 abang)
+        await db4.ref(`intel_reports/${selectedMid}/${user.uid}`).set({
+            adventurer_id: user.uid,
+            adventurer_nick: user.nick,
+            status: status,
+            pesan: note,
+            timestamp: Date.now()
+        });
+        
+        alert("Laporan intel terkirim!");
+        closeReportModal();
+    } catch (e) {
+        alert("Gagal kirim intel: " + e.message);
+    }
+}
+
+function closeReportModal() { 
+    document.getElementById('reportModal').style.display = 'none'; 
+    document.getElementById('reportNote').value = ""; // Reset input
+},
 
             toggleRadar: function() {
                 const btn = document.getElementById('btnExpand');
@@ -2163,7 +2226,9 @@ if (type === 'STM') {
 
                     ${isApplied ? 
                         `<button class="btn-bid-card" style="background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
-                        `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>`
+                        `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>` :
+                        `<button class="btn-bid" style="flex:1; background:#444; color:#fff;" onclick="openReportModal('${m.id_misi}')">INTEL</button>`
+
                     }
                 </div>
                 `;
@@ -2349,46 +2414,7 @@ if (type === 'STM') {
         } catch (e) {
             App.UI.showAlert("GALI DATA GAGAL", e.message);
         }
-    },
-
-
-    App.sendQuickReport = async function(missionId) {
-    // 1. Minta input pesan
-    const pesan = prompt("Kirim info singkat (Maks 20 Huruf, Tanpa Angka):");
-    
-    if (!pesan) return; // Batal jika kosong
-
-    // 2. Filter: Maks 20 Karakter & Hapus Angka
-    const cleanMsg = pesan.replace(/[0-9]/g, '').substring(0, 20);
-
-    try {
-        // Ambil Nickname Pelapor
-        const userNick = document.getElementById('dispNick').innerText;
-        
-        // AMBIL SHARD ID (Ini bagian penting agar tidak 'Shard Not Found')
-        // Karena di openModal abang tidak ada shard_id, kita ambil dari master database
-        const masterRef = firebase.database().ref(`misi_master/${missionId}`);
-        const snap = await masterRef.once('value');
-        const mData = snap.val();
-
-        if (!mData || !mData.shard_id) throw new Error("Gagal mengambil data Shard.");
-
-        const dbShard = getTerminal(mData.shard_id);
-
-        // 3. Simpan ke tabel baru 'laporan_misi' di Shard tersebut
-        await dbShard.ref(`laporan_misi/${missionId}`).push({
-            pelapor: userNick,
-            info: cleanMsg,
-            waktu: firebase.database.ServerValue.TIMESTAMP
-        });
-
-        alert("Info berhasil dikirim!");
-    } catch (e) {
-        console.error(e);
-        alert("Gagal kirim: " + e.message);
     }
-}
-
 
     window.onload = () => App.init();
 </script>
