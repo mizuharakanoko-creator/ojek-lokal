@@ -1829,7 +1829,7 @@ if (category === 'Titip Beli') {
         },
 
 
-                            IntelSystem: {
+                                IntelSystem: {
         send: async function(mId) {
             const sel = document.getElementById('sel-intel-modal');
             if (!sel) return;
@@ -1838,58 +1838,64 @@ if (category === 'Titip Beli') {
             if (!confirm(`KONFIRMASI LAPORAN: ${val.toUpperCase()}?`)) return;
 
             try {
-                // TAMPILKAN LOADING PADA TOMBOL
                 const btn = event.target;
-                const originalText = btn.innerText;
-                btn.innerText = "MELACAK JALUR...";
+                btn.innerText = "MENCARI SHARD...";
                 btn.disabled = true;
 
-                // 1. CARI LOKASI TERMINAL LEWAT BUKU INDUK (Fungsi dari terminal_router.js)
-                // Ini akan mengembalikan 'FB4_BOARD', 'FB2_RUNNER', dll.
-                const terminalName = await cariLokasiMisi(mId);
-
-                if (!terminalName) {
-                    throw new Error("Misi tidak ditemukan di Buku Induk.");
+                // 1. AKSES FB1_MASTER KE TABEL misi_index
+                const masterDB = getTerminal('FB1_MASTER');
+                
+                // Sesuai arahan Abang: Masuk ke misi_index, bukan buku_induk
+                const snap = await masterDB.ref(`misi_index/${mId}`).once('value');
+                
+                if (!snap.exists()) {
+                    throw new Error("ID Misi tidak ditemukan di Index Pusat.");
                 }
 
-                // 2. KONEK KE TERMINAL TERSEBUT
-                const dbInstan = getTerminal(terminalName);
+                // 2. AMBIL id_shard DARI DATA TERSEBUT
+                const shardTarget = snap.val().id_shard; 
+                
+                if (!shardTarget) {
+                    throw new Error("Data Shard untuk misi ini kosong.");
+                }
+
+                // 3. KONEK KE SHARD YANG DITEMUKAN
+                const dbInstan = getTerminal(shardTarget);
 
                 if (!dbInstan) {
-                    throw new Error("Gagal membuka jalur ke " + terminalName);
+                    throw new Error("Gagal membangun jalur ke: " + shardTarget);
                 }
 
-                // 3. KIRIM DATA LAPORAN
+                // 4. KIRIM DATA LAPORAN (Menuju tabel mission_reports di Shard terkait)
                 const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
                 
                 await dbInstan.ref(`mission_reports/${mId}`).push({
                     status: val,
                     reporter: (profile.nickname || "Runner").substring(0,3) + "***",
-                    timestamp: firebase.database.ServerValue.TIMESTAMP,
-                    mission_id: mId // Opsional untuk cross-check
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
 
-                // Feedback visual
+                // Feedback visual sukses
                 document.getElementById('intel-form-container').innerHTML = 
                     `<div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); font-size:11px; background:rgba(74,222,128,0.1);">
-                        [ ✓ REPORT DATA TRANSMITTED TO ${terminalName} ]
+                        [ ✓ REPORT DATA TRANSMITTED TO ${shardTarget} ]
                     </div>`;
                 
-                App.UI.showAlert("SYSTEM", "Data intelijen telah masuk ke Buku Induk.");
+                App.UI.showAlert("SUCCESS", "Laporan intelijen berhasil disinkronkan.");
 
             } catch (e) {
                 console.error("Intel Route Error:", e);
-                alert("GAGAL MELACAK: " + e.message);
+                alert("ERROR: " + e.message);
                 
-                // Kembalikan tombol jika gagal
-                const btn = document.querySelector('#intel-form-container button');
-                if(btn) {
-                    btn.innerText = "SUBMIT FIELD DATA";
-                    btn.disabled = false;
+                const btnReload = document.querySelector('#intel-form-container button');
+                if(btnReload) {
+                    btnReload.innerText = "SUBMIT FIELD DATA";
+                    btnReload.disabled = false;
                 }
             }
         }
     },
+
 
 
 
