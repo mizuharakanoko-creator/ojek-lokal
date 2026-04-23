@@ -782,41 +782,6 @@
 
         .detail-item b { color: #fff; }
 
-
-
-
-
-        /* Efek transisi untuk tombol dan judul modal */
-.mode-transition {
-    transition: all 0.3s ease;
-}
-
-/* Warna tema khusus Intel */
-.intel-mode {
-    border-color: #f87171 !important; /* Warna Merah/Orange Intel */
-    color: #f87171 !important;
-}
-
-.intel-btn {
-    background: #7f1d1d !important; /* Merah gelap */
-    color: #fff !important;
-}
-#mainBidBtn {
-    transition: all 0.3s ease-in-out;
-    text-transform: uppercase;
-    font-weight: bold;
-    letter-spacing: 1px;
-}
-
-#intelArea {
-    animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
     </style>
 </head>
 <body>
@@ -1238,72 +1203,49 @@ if (adPanel) {
                 document.getElementById('alertOverlay').style.display = 'flex';
             },
 
-openModal: function(mid, basePrice, note, category, origin, dest, rpgData, mode = 'BID') {
-    // 1. Simpan Data
-    App.BiddingData = { mid, basePrice, currentPrice: basePrice, rpgReward: rpgData };
-    window.selectedMid = mid;
+            openModal: function(mid, basePrice, note, category, origin, dest, rpgData) {
+                App.BiddingData = { 
+                    mid, 
+                    basePrice, 
+                    currentPrice: basePrice,
+                    rpgReward: rpgData // Simpan data RPG di sini
+                };
 
-    const isSpecial = (category === 'Titip Beli' || category === 'Help');
-    const infoDiv = document.getElementById('modalInfo');
+                const isSpecial = (category === 'Titip Beli' || category === 'Help' || dest.includes('[TITIK'));
+                
+                let formattedDest = dest;
+                if(isSpecial && dest.includes('|')) {
+                    formattedDest = dest.split('|')
+                        .map(t => `<div class="popup-titik-item">${t.trim()}</div>`)
+                        .join('');
+                }
 
-    if(infoDiv) {
-        infoDiv.innerHTML = `
-            <div class="tag-category">${category.toUpperCase()}</div>
-            <div class="popup-dest-title">📍 ${dest.toUpperCase()}</div>
-            <div class="popup-note-box">
-                <span class="loc-label">CATATAN / DESKRIPSI</span><br>
-                ${note || "Tidak ada rincian."}
-            </div>
+                const infoDiv = document.getElementById('modalInfo');
+                if(infoDiv) {
+                    infoDiv.innerHTML = `
+                        <div class="tag-category">${category.toUpperCase()}</div>
+                        <div class="popup-dest-title">
+                            <span class="loc-label">${isSpecial ? 'ALAMAT ANTAR / TUJUAN' : 'TUJUAN AKHIR'}</span><br>
+                            ${isSpecial ? '📦 RINCIAN PERMINTAAN' : dest.toUpperCase()}
+                        </div>
+                        ${isSpecial ? `<div class="popup-special-box">${formattedDest}</div>` : ''}
+                        <div class="popup-note-box">
+                            <span class="loc-label">DESKRIPSI / CATATAN</span><br>
+                            ${note || "Tidak ada deskripsi tambahan untuk misi ini."}
+                        </div>
+                        <div class="popup-origin-text">
+                            <span class="loc-label">${isSpecial ? 'TITIK ORIGIN (BELANJA/HELP)' : 'TITIK JEMPUT (START)'}</span><br>
+                            <b style="color:#eee; font-size:12px;">📍 ${origin}</b>
+                        </div>
+                        <div style="margin-top:10px; font-size:11px; color:#f87171; font-family:var(--font-terminal);">
+                            ⚡ KEBUTUHAN STAMINA: ${rpgData.stamina} STM
+                        </div>
+                    `;
+                }
 
-            <div id="intelArea" style="display:${mode === 'INTEL' ? 'block' : 'none'}; margin-top:15px; border-top:1px dashed #444; padding-top:10px;">
-                <select id="intelStatus" style="width:100%; background:#000; color:#4ade80; border:1px solid #333; padding:8px;">
-                    <option value="ANTRI PANJANG">⏳ ANTRI PANJANG</option>
-                    <option value="TOKO TUTUP">🔒 TOKO TUTUP / LIBUR</option>
-                    <option value="PINDAH LOKASI">📍 PINDAH LOKASI</option>
-                </select>
-                <input type="text" id="intelNote" placeholder="Tulis info tambahan..." maxlength="20"
-                       oninput="this.value = this.value.replace(/[0-9]/g, '')"
-                       style="width:100%; background:#111; color:#fff; border:1px solid #333; margin-top:8px; padding:8px;">
-            </div>
-        `;
-    }
-
-    // 2. LOGIKA PAKSA TOMBOL HIJAU
-    const mainBtn = document.querySelector('.btn-main-action');
-    const bidInputBox = document.querySelector('.bid-input-container');
-
-    if (mainBtn) {
-        // --- LANGKAH KRUSIAL: Hapus fungsi bawaan HTML ---
-        mainBtn.removeAttribute('onclick'); 
-
-        if (mode === 'INTEL') {
-            if(bidInputBox) bidInputBox.style.display = 'none';
-            mainBtn.innerText = "TERBITKAN LAPORAN INTEL";
-            mainBtn.style.background = "#f87171";
-            mainBtn.style.color = "#000";
-            
-            // Pasang fungsi Intel lewat listener (lebih kuat)
-            mainBtn.onclick = () => App.Intel.submit();
-            
-        } else {
-            if(bidInputBox) bidInputBox.style.display = 'block';
-            mainBtn.innerText = "AMBIL & TERBITKAN SINYAL";
-            mainBtn.style.background = ""; 
-            mainBtn.style.color = "";
-            
-            // Pasang kembali fungsi Bid bawaan jjk.html
-            mainBtn.onclick = () => App.Bidding.submit();
-        }
-    }
-
-    // 3. Reset input harga
-    const bidInput = document.getElementById('bidAmount');
-    if(bidInput) bidInput.value = basePrice.toLocaleString('id-ID');
-
-    document.getElementById('sovBidModal').style.display = 'flex';
-},
-
-
+                document.getElementById('bidAmount').value = basePrice.toLocaleString('id-ID');
+                document.getElementById('sovBidModal').style.display = 'flex';
+            },
 
             showLoginModal: function(dayCount, rewardName) {
                 AudioEngine.play('alert');
@@ -1846,17 +1788,14 @@ openModal: function(mid, basePrice, note, category, origin, dest, rpgData, mode 
     // --- MASUKKAN DI DALAM OBJEK APP ---
             Intel: {
         open: function(mid) {
-        window.selectedMid = mid;
-        const btn = document.getElementById('mainModalBtn');
-        const title = document.querySelector('.popup-dest-title');
-
-        // Berubah ke mode Intel
-        btn.innerText = "TERBITKAN LAPORAN INTEL";
-        btn.classList.add('intel-btn');
-        btn.onclick = () => App.Intel.submit(); // Fungsi kirim laporan
-
-        document.getElementById('sovBidModal').style.display = 'flex';
-    },
+            // Kita pastikan mid masuk ke variabel global yang benar
+            window.selectedMid = mid; 
+            const modal = document.getElementById('reportModal');
+            if(modal) {
+                modal.style.display = 'flex';
+                document.getElementById('reportInfo').innerText = `Lapor Kendala: ${mid}`;
+            }
+        },
         submit: async function() {
             const status = document.getElementById('reportStatus').value;
             const note = document.getElementById('reportNote').value.trim();
@@ -2303,26 +2242,15 @@ if (type === 'STM') {
                         </div>
                     </div>
 
-<div style="display:flex; gap:5px; margin-top:10px;">
+                    <div style="display:flex; gap:5px; margin-top:10px;">
     ${isApplied ? 
         `<button class="btn-bid-card" style="flex:3; background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
-        `<button class="btn-bid-card" style="flex:3;" 
-            onclick="event.stopPropagation(); App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG}, 'BID')">
-            AMBIL KONTRAK
-        </button>`
+        `<button class="btn-bid-card" style="flex:3;" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>`
     }
-
-    <button class="btn-bid-card" style="flex:1; background:#1a1a1a; border:1px solid #f87171; color:#f87171; font-size:10px;" 
-            onclick="event.stopPropagation(); App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG}, 'INTEL')">
+    <button onclick="App.Intel.open('${m.id_misi}')" style="flex:1; background:#1a1a1a; border:1px solid #f87171; color:#f87171; font-size:10px; cursor:pointer;">
         INTEL
     </button>
 </div>
-
-
-
-
-
-
                 </div>
                 `;
                 container.appendChild(div);
