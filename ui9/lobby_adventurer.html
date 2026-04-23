@@ -782,6 +782,53 @@
 
         .detail-item b { color: #fff; }
 
+
+
+        /* Membuat container tombol presisi 3:1 */
+.action-container {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    width: 100%;
+}
+
+.btn-ambil {
+    flex: 3; /* Lebih lebar */
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-intel-trigger {
+    flex: 1; /* Lebih kecil */
+    height: 45px;
+    background: #1a1a1a;
+    border: 1px solid #f87171;
+    color: #f87171;
+    border-radius: 4px;
+    font-family: var(--font-terminal);
+    font-size: 10px;
+    cursor: pointer;
+}
+
+/* Memperbaiki Modal agar bisa di-scroll jika konten panjang (Titip Beli) */
+.modal-body {
+    max-height: 70vh; /* Maksimal 70% tinggi layar */
+    overflow-y: auto; /* Munculkan scroll jika lewat batas */
+    padding-right: 5px;
+    margin-bottom: 15px;
+}
+
+/* Custom Scrollbar biar tetap estetik dark mode */
+.modal-body::-webkit-scrollbar {
+    width: 4px;
+}
+.modal-body::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 10px;
+}
+
     </style>
 </head>
 <body>
@@ -1783,6 +1830,61 @@ if (adPanel) {
             }
         },
 
+openIntel: function(mid, category, dest, note) {
+    window.selectedMid = mid; // Simpan ID untuk lapor
+
+    // 1. Samakan Header & Info dengan Modal Misi
+    const infoDiv = document.getElementById('modalInfo');
+    if(infoDiv) {
+        infoDiv.innerHTML = `
+            <div class="tag-category" style="background:#f87171; color:#000;">INTEL REPORT</div>
+            <div class="popup-dest-title">📍 ${dest.toUpperCase()}</div>
+            <div class="popup-note-box">
+                <span class="loc-label">KETERANGAN MISI</span><br>
+                ${note || "Tidak ada deskripsi."}
+            </div>
+            
+            <div id="intelForm" style="margin-top:15px; padding-top:15px; border-top:1px dashed #444;">
+                <label style="font-size:10px; color:#f87171;">PILIH KENDALA:</label>
+                <select id="intelStatus" style="width:100%; background:#000; color:#fff; border:1px solid #333; padding:10px; margin:5px 0;">
+                    <option value="ANTRI PANJANG">⏳ ANTRI PANJANG</option>
+                    <option value="TOKO TUTUP">🔒 TOKO TUTUP / LIBUR</option>
+                    <option value="ALAMAT PALSU">🚫 ALAMAT TIDAK AKURAT</option>
+                </select>
+                <textarea id="intelNote" placeholder="Tulis rincian singkat..." style="width:100%; background:#111; color:#fff; border:1px solid #333; padding:10px; font-size:12px; height:60px; resize:none;"></textarea>
+            </div>
+        `;
+    }
+
+    // 2. Sembunyikan Input Harga Bidding
+    const bidInput = document.querySelector('.bid-input-container');
+    if(bidInput) bidInput.style.display = 'none';
+
+    // 3. Ubah Tombol Hijau jadi Tombol Intel (Tanpa Ganti Fungsi Submit Utama)
+    const mainBtn = document.querySelector('.btn-main-action');
+    if(mainBtn) {
+        mainBtn.innerText = "KIRIM LAPORAN INTEL";
+        mainBtn.style.background = "#7f1d1d";
+        mainBtn.onclick = () => {
+            // Logika kirim Intel Abang di sini
+            const status = document.getElementById('intelStatus').value;
+            const pesan = document.getElementById('intelNote').value;
+            if(!pesan) return alert("Wajib isi catatan!");
+            
+            // Contoh tembak ke Firebase (Sesuaikan dengan terminal Abang)
+            const db = getTerminal('FB4_BOARD');
+            const iden = Clearchance.enforceIdentity();
+            db.ref(`intel_reports/${mid}/${iden.uid}`).set({
+                status, pesan, nick: iden.nick, timestamp: Date.now()
+            }).then(() => {
+                alert("Laporan Terkirim!");
+                location.reload();
+            });
+        };
+    }
+
+    document.getElementById('sovBidModal').style.display = 'flex';
+},
 
         
     // --- MASUKKAN DI DALAM OBJEK APP ---
@@ -2242,15 +2344,16 @@ if (type === 'STM') {
                         </div>
                     </div>
 
-                    <div style="display:flex; gap:5px; margin-top:10px;">
-    ${isApplied ? 
-        `<button class="btn-bid-card" style="flex:3; background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
-        `<button class="btn-bid-card" style="flex:3;" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>`
-    }
-    <button onclick="App.Intel.open('${m.id_misi}')" style="flex:1; background:#1a1a1a; border:1px solid #f87171; color:#f87171; font-size:10px; cursor:pointer;">
-        INTEL
-    </button>
-</div>
+                    <div class="action-container">
+        ${isApplied ? 
+            `<button class="btn-bid-card" style="flex:3; background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
+            `<button class="btn-ambil btn-bid-card" onclick="event.stopPropagation(); App.UI.openModal('${m.id_misi}', ${m.reward}, '${safeNote}', '${m.category}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>`
+        }
+        <button class="btn-intel-trigger" onclick="event.stopPropagation(); App.UI.openIntel('${m.id_misi}', '${m.category}', '${safeDest}', '${safeNote}')">
+            INTEL
+        </button>
+    </div>
+
                 </div>
                 `;
                 container.appendChild(div);
