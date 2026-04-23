@@ -1076,6 +1076,44 @@
             }
         },
 
+
+        IntelSystem: {
+        send: async function(mId) {
+            // Ambil elemen select berdasarkan ID misi
+            const sel = document.getElementById(`sel-intel-${mId}`);
+            if (!sel) return;
+            
+            const info = sel.value;
+            if (!confirm(`Konfirmasi Lapor: ${info}?`)) return;
+
+            try {
+                // Karena sudah di dalam App, kita bisa akses db_shard langsung via App.db_shard
+                const db = App.db_shard; 
+                
+                if (!db) {
+                    alert("Koneksi Radar belum siap!");
+                    return;
+                }
+
+                await db.ref(`mission_reports/${mId}`).push({
+                    status: info,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP,
+                    // Opsional: ambil nickname jika ada
+                    reporter: (App.State?.userProfile?.nickname || "Runner").substring(0,3) + "***"
+                });
+
+                // Feedback visual: ganti kotak input jadi teks sukses
+                const container = sel.parentElement;
+                container.innerHTML = `<div style="color:#4ade80; text-align:center; padding:10px; border:1px solid #333; font-size:11px;">✓ LAPORAN TERKIRIM</div>`;
+                
+            } catch (e) {
+                console.error("Intel Error:", e);
+                alert("Gagal Kirim: " + e.message);
+            }
+        }
+    },
+
+
         UI: {
             eduTips: [
                 "TIPS: Memperluas radar (KABUPATEN) menambah daftar misi, namun persaingan dengan Adventurer lain akan lebih ketat.",
@@ -1462,43 +1500,6 @@ if (adPanel) {
         `;
         container.appendChild(card);
     });
-
-
-        // ==========================================
-// PANDORA INTEL SYSTEM (STAND-ALONE)
-// ==========================================
-window.IntelSystem = {
-    send: async function(mId) {
-        // PENGAMAN DOUBLE: Hentikan semua aksi luar
-        if (window.event) {
-            window.event.stopPropagation();
-            window.event.stopImmediatePropagation();
-        }
-        
-        const sel = document.getElementById(`sel-intel-${mId}`);
-        if (!sel) return;
-        
-        const info = sel.value;
-        if (!confirm(`Kirim laporan: ${info}?`)) return;
-
-        try {
-            const db = (typeof db_shard !== 'undefined') ? db_shard : null;
-            if (!db) throw new Error("Database belum siap.");
-
-            await db.ref(`mission_reports/${mId}`).push({
-                status: info,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
-
-            // Ganti tampilan kotak agar tidak bisa diklik lagi setelah sukses
-            sel.parentElement.innerHTML = `<div style="color:#4ade80; text-align:center; padding:5px;">✓ TRANSMITTED</div>`;
-            
-        } catch (e) {
-            alert("Gagal: " + e.message);
-        }
-    }
-};
-
 
 },
 
@@ -2186,10 +2187,13 @@ ${m.category === 'Titip Beli' ? `
             <option value="Libur">SEDANG LIBUR</option>
             <option value="Pindah">PINDAH LOKASI</option>
         </select>
-        <button type="button" class="btn-intel-direct" data-id="${m.id_misi}" 
-                style="width:100%; background:#ff9800; color:#000; border:none; padding:8px; cursor:pointer; font-weight:bold; display:block;">
-            KIRIM DATA
-        </button>
+<button type="button" 
+        style="width:100%; background:#ff9800; color:#000; border:none; padding:8px; cursor:pointer; font-weight:bold; margin-top:5px;"
+        onclick="event.stopPropagation(); App.IntelSystem.send('${m.id_misi}')">
+    KIRIM DATA INTEL
+</button>
+
+
     </div>
 ` : ''}
 
