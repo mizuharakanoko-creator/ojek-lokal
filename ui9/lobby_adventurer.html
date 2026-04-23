@@ -1829,7 +1829,7 @@ if (category === 'Titip Beli') {
         },
 
 
-                    IntelSystem: {
+                        IntelSystem: {
         send: async function(mId) {
             const sel = document.getElementById('sel-intel-modal');
             if (!sel) return;
@@ -1838,37 +1838,49 @@ if (category === 'Titip Beli') {
             if (!confirm(`KONFIRMASI LAPORAN: ${val.toUpperCase()}?`)) return;
 
             try {
-                // PENYEBAB OFFLINE: Variabel db_shard tidak terbaca global.
-                // KITA AMBIL LANGSUNG DARI ROUTER:
-                const activeShard = (App.State && App.State.loc) ? App.State.loc.shard : "FB2_RUNNER";
-                const dbInstan = getTerminal(activeShard); 
+                // 1. CARI TAHU SHARD AKTIF
+                // Di file Abang, Shard disimpan di App.State.loc.shard
+                const activeShard = (App.State && App.State.loc) ? App.State.loc.shard : null;
+
+                if (!activeShard) {
+                    alert("Radar Offline: Lokasi wilayah tidak terdeteksi.");
+                    return;
+                }
+
+                // 2. TODONG KONEKSI (Jangan pakai db_shard, buat baru!)
+                const dbInstan = getTerminal(activeShard);
 
                 if (!dbInstan) {
-                    alert("Radar Offline: Gagal terhubung ke Shard " + activeShard);
+                    alert("Gagal membangun jalur ke Shard: " + activeShard);
                     return;
                 }
 
                 const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
                 
-                // Gunakan dbInstan (hasil getTerminal), bukan db_shard
+                // 3. KIRIM KE DATABASE
                 await dbInstan.ref(`mission_reports/${mId}`).push({
                     status: val,
                     reporter: (profile.nickname || "Runner").substring(0,3) + "***",
                     timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
 
-                document.getElementById('intel-form-container').innerHTML = 
-                    `<div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); font-size:11px;">
-                        [ ✓ REPORT DATA TRANSMITTED ]
-                    </div>`;
+                // Feedback visual di modal
+                const container = document.getElementById('intel-form-container');
+                if (container) {
+                    container.innerHTML = `
+                        <div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); font-size:11px;">
+                            [ ✓ REPORT DATA TRANSMITTED ]
+                        </div>`;
+                }
                 
-                App.UI.showAlert("SYSTEM", "Data intelijen berhasil dikirim.");
+                App.UI.showAlert("SYSTEM", "Data intelijen telah diterima pangkalan.");
             } catch (e) {
-                console.error(e);
-                alert("Sistem Error: " + e.message);
+                console.error("Intel Error:", e);
+                alert("Error Jalur: " + e.message);
             }
         }
     },
+
 
 
 
