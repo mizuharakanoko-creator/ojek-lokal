@@ -1239,19 +1239,13 @@ if (adPanel) {
             },
 
 openModal: function(mid, basePrice, note, category, origin, dest, rpgData, mode = 'BID') {
-    // A. SETUP DATA DASAR
-    App.BiddingData = { 
-        mid, 
-        basePrice, 
-        currentPrice: basePrice,
-        rpgReward: rpgData 
-    };
+    // 1. Simpan Data
+    App.BiddingData = { mid, basePrice, currentPrice: basePrice, rpgReward: rpgData };
     window.selectedMid = mid;
 
-    // B. SETUP TAMPILAN INFORMASI (Sesuai jjk.html)
     const isSpecial = (category === 'Titip Beli' || category === 'Help');
     const infoDiv = document.getElementById('modalInfo');
-    
+
     if(infoDiv) {
         infoDiv.innerHTML = `
             <div class="tag-category">${category.toUpperCase()}</div>
@@ -1259,9 +1253,6 @@ openModal: function(mid, basePrice, note, category, origin, dest, rpgData, mode 
             <div class="popup-note-box">
                 <span class="loc-label">CATATAN / DESKRIPSI</span><br>
                 ${note || "Tidak ada rincian."}
-            </div>
-            <div style="margin-top:10px; font-size:11px; color:#f87171;">
-                ⚡ STAMINA REQ: ${rpgData.stamina} STM
             </div>
 
             <div id="intelArea" style="display:${mode === 'INTEL' ? 'block' : 'none'}; margin-top:15px; border-top:1px dashed #444; padding-top:10px;">
@@ -1272,53 +1263,45 @@ openModal: function(mid, basePrice, note, category, origin, dest, rpgData, mode 
                 </select>
                 <input type="text" id="intelNote" placeholder="Tulis info tambahan..." maxlength="20"
                        oninput="this.value = this.value.replace(/[0-9]/g, '')"
-                       style="width:100%; background:#111; color:#fff; border:1px solid #333; margin-top:8px; padding:8px; font-size:11px;">
+                       style="width:100%; background:#111; color:#fff; border:1px solid #333; margin-top:8px; padding:8px;">
             </div>
         `;
     }
 
-    // C. LOGIKA SWITCH MODE (PENTING!)
-    const mainBtn = document.querySelector('.btn-main-action'); // Tombol Hijau Besar
-    const bidInputBox = document.querySelector('.bid-input-container'); // Kotak tawar harga
+    // 2. LOGIKA PAKSA TOMBOL HIJAU
+    const mainBtn = document.querySelector('.btn-main-action');
+    const bidInputBox = document.querySelector('.bid-input-container');
 
-    if (mode === 'INTEL') {
-        // MODE INTEL
-        if(bidInputBox) bidInputBox.style.display = 'none'; // Sembunyikan input harga
-        
-        if(mainBtn) {
+    if (mainBtn) {
+        // --- LANGKAH KRUSIAL: Hapus fungsi bawaan HTML ---
+        mainBtn.removeAttribute('onclick'); 
+
+        if (mode === 'INTEL') {
+            if(bidInputBox) bidInputBox.style.display = 'none';
             mainBtn.innerText = "TERBITKAN LAPORAN INTEL";
-            mainBtn.style.background = "#f87171"; // Warna Merah/Orange
+            mainBtn.style.background = "#f87171";
             mainBtn.style.color = "#000";
-            // Paksa ganti fungsi klik
-            mainBtn.onclick = (e) => {
-                e.preventDefault();
-                App.Intel.submit();
-            };
-        }
-    } else {
-        // MODE BID (NORMAL)
-        if(bidInputBox) bidInputBox.style.display = 'block'; // Munculkan input harga
-        
-        if(mainBtn) {
+            
+            // Pasang fungsi Intel lewat listener (lebih kuat)
+            mainBtn.onclick = () => App.Intel.submit();
+            
+        } else {
+            if(bidInputBox) bidInputBox.style.display = 'block';
             mainBtn.innerText = "AMBIL & TERBITKAN SINYAL";
-            mainBtn.style.background = ""; // Balik ke warna tema (Hijau)
+            mainBtn.style.background = ""; 
             mainBtn.style.color = "";
-            // Balikkan fungsi klik ke Bidding asli
-            mainBtn.onclick = (e) => {
-                e.preventDefault();
-                App.Bidding.submit();
-            };
+            
+            // Pasang kembali fungsi Bid bawaan jjk.html
+            mainBtn.onclick = () => App.Bidding.submit();
         }
     }
 
-    // D. RESET & TAMPILKAN
+    // 3. Reset input harga
     const bidInput = document.getElementById('bidAmount');
     if(bidInput) bidInput.value = basePrice.toLocaleString('id-ID');
-    
+
     document.getElementById('sovBidModal').style.display = 'flex';
 },
-
-            
 
 
 
