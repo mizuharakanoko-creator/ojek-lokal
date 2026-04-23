@@ -1050,6 +1050,9 @@
         }
     };
 
+    window.currentMission = null; 
+
+
     // Global State App
     const App = {
         db1: null, db4: null, user: null,
@@ -1150,6 +1153,13 @@
                     }, 300);
                 }, 8000);
             },
+
+            function renderMissionDetail(data) {
+    window.currentMission = data; // Simpan data ke global agar bisa dibaca App.Intel
+    
+    const infoDiv = document.getElementById('modalInfo');
+    const category = data.category; // Ambil kategori misi
+
 
             showAdvancedDebug: function(allData, shardName, idAdv) {
                 const title = document.getElementById('alTitle');
@@ -1265,31 +1275,36 @@ if (adPanel) {
                     `;
                 }
 
-if (category === 'Titip Beli') {
-    infoDiv.innerHTML += `
-        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #333;">
-    <label style="font-size: 10px; color: var(--theme-color); display: block; margin-bottom: 5px;">LAPORAN INTEL (STATUS TOKO):</label>
-    
-    <select id="intelStatus" class="input-field" style="width: 100%; margin-bottom: 10px; background: #000; color: #fff; border: 1px solid #444; padding: 5px;">
-        <option value="TOKO BUKA">🏢 TOKO BUKA</option>
-        <option value="ANTRI PANJANG">⏳ SEDANG ANTRI PANJANG</option>
-        <option value="TOKO TIDAK ADA">🚫 TOKO SUDAH TIDAK ADA</option>
-        <option value="TOKO PINDAH">📍 TOKO PINDAH TEMPAT</option>
-        <option value="BELUM BUKA">🕒 TUTUP / BELUM BUKA</option>
-        <option value="TOKO LIBUR">🗓️ TOKO SEDANG LIBUR</option>
-    </select>
-
-    <input type="text" id="intelNote" placeholder="Catatan singkat (maks 20 hurf)..." 
-           maxlength="20"
-           oninput="this.value = this.value.replace(/[0-9]/g, '')"
-           style="width: 100%; background: #111; color: #4ade80; border: 1px solid #333; font-size: 12px; padding: 8px; box-sizing: border-box;">
-    
-    <button onclick="App.Intel.prosesLaporan()" class="btn-main" style="width: 100%; margin-top: 10px; background: #1a1a1a; border: 1px solid #4ade80; color: #4ade80;">
-        KIRIM LAPORAN INTEL
-    </button>
-</div>
-
+infoDiv.innerHTML = `
+        <div class="m-desc-box">${data.deskripsi || 'Tidak ada deskripsi.'}</div>
     `;
+
+    // PERBAIKAN: Gunakan Backtick (`) dengan benar untuk Template String
+    if (category === 'Titip Beli') {
+        infoDiv.innerHTML += `
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #333;">
+                <label style="font-size: 10px; color: var(--theme-color); display: block; margin-bottom: 5px;">LAPORAN INTEL (STATUS TOKO):</label>
+                
+                <select id="intelStatus" class="input-field" style="width: 100%; margin-bottom: 10px; background: #000; color: #fff; border: 1px solid #444; padding: 5px; height: 35px;">
+                    <option value="TOKO BUKA">🏢 TOKO BUKA</option>
+                    <option value="ANTRI PANJANG">⏳ SEDANG ANTRI PANJANG</option>
+                    <option value="TOKO TIDAK ADA">🚫 TOKO SUDAH TIDAK ADA</option>
+                    <option value="TOKO PINDAH">📍 TOKO PINDAH TEMPAT</option>
+                    <option value="BELUM BUKA">🕒 TUTUP / BELUM BUKA</option>
+                    <option value="TOKO LIBUR">🗓️ TOKO SEDANG LIBUR</option>
+                </select>
+
+                <input type="text" id="intelNote" placeholder="Catatan singkat (maks 20 huruf)..." 
+                       maxlength="20"
+                       oninput="this.value = this.value.replace(/[0-9]/g, '')"
+                       style="width: 100%; background: #111; color: #4ade80; border: 1px solid #333; font-size: 12px; padding: 8px; box-sizing: border-box; height: 35px;">
+                
+                <button onclick="App.Intel.prosesLaporan()" class="btn-main" style="width: 100%; margin-top: 10px; background: #1a1a1a; border: 1px solid #4ade80; color: #4ade80; padding: 10px; cursor: pointer;">
+                    KIRIM LAPORAN INTEL
+                </button>
+            </div>
+        `;
+    }
 }
 
                 
@@ -1835,61 +1850,7 @@ if (category === 'Titip Beli') {
         },
 
 
-            App.Intel = {
-    prosesLaporan: async function() {
-        try {
-            // 1. Ambil data dari UI
-            const statusToko = document.getElementById('intelStatus').value;
-            const noteSingkat = document.getElementById('intelNote').value.trim();
-            const userNick = document.getElementById('dispNick').innerText; // Nickname pelapor
-
-            // 2. Validasi Misi Aktif (Agar Shard ID ditemukan)
-            // Pastikan variabel 'currentMission' sudah terisi saat modal dibuka
-            if (!currentMission || !currentMission.shard_id) {
-                throw new Error("Data misi/Shard tidak terdeteksi. Silakan buka ulang modal.");
-            }
-
-            const shardTarget = currentMission.shard_id;
-            const missionId = currentMission.id;
-
-            // 3. Hubungkan ke Shard yang benar menggunakan Terminal Router
-            const dbShard = getTerminal(shardTarget);
-            if (!dbShard) throw new Error(`Koneksi ke Shard ${shardTarget} gagal.`);
-
-            // 4. Kirim ke Database (Tabel: laporan_intel)
-            // Kita gunakan push() agar laporan tidak saling menimpa jika banyak yang lapor
-            const intelRef = dbShard.ref(`laporan_intel/${missionId}`).push();
             
-            await intelRef.set({
-                reporter: userNick,
-                status: statusToko,
-                catatan: noteSingkat || "-", // Jika kosong isi strip
-                waktu: firebase.database.ServerValue.TIMESTAMP,
-                target_lokasi: currentMission.lokasi_name || "Unknown"
-            });
-
-            // Success feedback
-            App.UI.showAlert("INTEL TERKIRIM", `Laporan '${statusToko}' berhasil disimpan.`);
-            
-            // Reset input note setelah berhasil
-            document.getElementById('intelNote').value = "";
-            
-        } catch (e) {
-            console.error(e);
-            App.UI.showAlert("INTEL GAGAL", e.message);
-        }
-    }
-},
-
-
-
-
-
-
-
-
-
-
                 
 
 
@@ -2480,7 +2441,44 @@ if (type === 'STM') {
         } catch (e) {
             App.UI.showAlert("GALI DATA GAGAL", e.message);
         }
+    },
+
+
+
+
+    App.Intel = {
+    prosesLaporan: async function() {
+        try {
+            // Cek Shard ID dari variabel global
+            if (!window.currentMission || !window.currentMission.shard_id) {
+                throw new Error("Shard ID misi tidak ditemukan.");
+            }
+
+            const status = document.getElementById('intelStatus').value;
+            const note = document.getElementById('intelNote').value;
+            const shard = window.currentMission.shard_id;
+            const mID = window.currentMission.id;
+            const user = document.getElementById('dispNick').innerText;
+
+            const dbShard = getTerminal(shard);
+            
+            // Simpan ke tabel 'intel_reports'
+            await dbShard.ref(`intel_reports/${mID}`).push({
+                reporter: user,
+                status: status,
+                note: note,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            App.UI.showAlert("BERHASIL", "Laporan intel telah dikirim.");
+            document.getElementById('sovBidModal').style.display = 'none';
+
+        } catch (e) {
+            App.UI.showAlert("ERROR", e.message);
+        }
     }
+};
+
 
     window.onload = () => App.init();
 </script>
