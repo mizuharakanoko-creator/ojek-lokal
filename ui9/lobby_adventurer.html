@@ -802,11 +802,18 @@
     background: var(--theme-color);
 }
         #sovBidModal .modal-content {
-    max-height: 85vh; /* Batasi tinggi modal agar tidak 'nembus' layar */
-    overflow-y: auto; /* Munculkan scroll jika konten (seperti form intel) terlalu panjang */
-    display: flex;
-    flex-direction: column;
+    background: #0f0f0f;
+    border: 1px solid var(--theme-color);
+    width: 90%;
+    max-width: 450px;
+    max-height: 85vh; /* Batasi tinggi modal */
+    overflow-y: auto; /* Aktifkan scroll vertikal */
+    padding: 20px;
+    position: relative;
+    display: block !important; /* Jangan pakai flex kalau konten panjang agar scroll lancar */
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
 }
+
 
 
     </style>
@@ -1252,11 +1259,11 @@ if (category === 'Titip Beli') {
                 <option value="Pindah">PINDAH LOKASI</option>
                 <option value="Habis">STOK HABIS</option>
             </select>
-            <button type="button" 
-                    onclick="App.IntelSystem.send('${mid}')" 
-                    style="width:100%; background:var(--theme-color); color:#000; border:none; padding:12px; font-weight:bold; cursor:pointer; font-family:var(--font-terminal); text-transform:uppercase; font-size:11px;">
-                SUBMIT FIELD DATA
-            </button>
+<button type="button" 
+        onclick="App.IntelSystem.send('${mid}')" 
+        style="width:100%; background:var(--theme-color); color:#000; border:none; padding:12px; font-weight:bold; cursor:pointer;">
+    SUBMIT FIELD DATA
+</button>
         </div>
     `;
 }
@@ -1804,7 +1811,7 @@ if (category === 'Titip Beli') {
         },
 
 
-            IntelSystem: {
+                IntelSystem: {
         send: async function(mId) {
             const sel = document.getElementById('sel-intel-modal');
             if (!sel) return;
@@ -1813,26 +1820,20 @@ if (category === 'Titip Beli') {
             if (!confirm(`KONFIRMASI LAPORAN: ${val.toUpperCase()}?`)) return;
 
             try {
-                // --- JALUR PENCARIAN DATABASE (ANTI-OFFLINE) ---
-                // Kita coba cek variabel global 'db_shard' dulu
-                let db = window.db_shard || (typeof db_shard !== 'undefined' ? db_shard : null);
-
-                // Jika masih tidak ada, kita panggil getTerminal pakai Shard yang sedang aktif
-                if (!db && typeof getTerminal === 'function') {
-                    // Cari ID shard dari state lokasi aplikasi
-                    const activeShard = (App.State && App.State.loc) ? App.State.loc.shard : "FB2_RUNNER";
-                    db = getTerminal(activeShard);
+                // BYPASS: Jangan cari db_shard, kita buat koneksi baru langsung ke Shard yang aktif
+                // Ambil shard ID dari state atau profile
+                const shardID = (App.State && App.State.loc) ? App.State.loc.shard : "FB2_RUNNER";
+                
+                // Pastikan fungsi getTerminal ada (dari terminal_router.js)
+                if (typeof getTerminal !== 'function') {
+                    throw new Error("Router Terminal tidak ditemukan.");
                 }
 
-                if (!db) {
-                    alert("Gagal menyambung ke Shard Radar. Pastikan Radar sudah menyala.");
-                    return;
-                }
+                const dbDirect = getTerminal(shardID);
 
                 const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
                 
-                // Kirim Data
-                await db.ref(`mission_reports/${mId}`).push({
+                await dbDirect.ref(`mission_reports/${mId}`).push({
                     status: val,
                     reporter: (profile.nickname || "Runner").substring(0,3) + "***",
                     timestamp: firebase.database.ServerValue.TIMESTAMP
@@ -1843,13 +1844,14 @@ if (category === 'Titip Beli') {
                         [ ✓ REPORT DATA TRANSMITTED ]
                     </div>`;
                 
-                App.UI.showAlert("SYSTEM", "Data intelijen berhasil dikirim ke pangkalan.");
+                App.UI.showAlert("SYSTEM", "Data intelijen berhasil dikirim.");
             } catch (e) {
                 console.error("Intel Error:", e);
-                alert("Error Jalur: " + e.message);
+                alert("Gagal Terhubung: " + e.message);
             }
         }
     },
+
 
 
 
