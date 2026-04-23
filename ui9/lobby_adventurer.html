@@ -1786,10 +1786,10 @@ if (adPanel) {
 
         
     // --- MASUKKAN DI DALAM OBJEK APP ---
-        Intel: {
+            Intel: {
         open: function(mid) {
-            // Gunakan variabel global selectedMid yang sudah ada di kode Radar abang
-            selectedMid = mid; 
+            // Kita pastikan mid masuk ke variabel global yang benar
+            window.selectedMid = mid; 
             const modal = document.getElementById('reportModal');
             if(modal) {
                 modal.style.display = 'flex';
@@ -1803,44 +1803,42 @@ if (adPanel) {
             if (!note) return alert("Wajib isi catatan!");
 
             try {
-                // 1. CARI USER (Mencegah "User is not defined")
-                // Kita cek beberapa kemungkinan nama variabel user di kode abang
-                const activeUser = (typeof user !== 'undefined') ? user : 
-                                 (typeof userData !== 'undefined') ? userData : null;
-
-                if (!activeUser || !activeUser.uid) {
-                    throw new Error("Sesi user tidak ditemukan. Silakan refresh.");
+                // CARA PALING AMPUH: Ambil langsung dari Clearchance
+                // Karena abang pake Clearchance di baris awal, kita panggil lagi di sini
+                const identity = Clearchance.enforceIdentity();
+                
+                if (!identity || !identity.uid) {
+                    throw new Error("Identitas Adventurer tidak terdeteksi.");
                 }
 
-                // 2. CARI DATABASE (Mencegah "db4 is not defined")
-                const database = (typeof db4 !== 'undefined') ? db4 : getTerminal('FB4_BOARD');
-                
-                if (!database) throw new Error("Koneksi database (FB4) gagal.");
+                // Ambil database FB4
+                const database = getTerminal('FB4_BOARD');
+                if (!database) throw new Error("Koneksi Shard gagal.");
 
-                // 3. KIRIM DATA
-                await database.ref(`intel_reports/${selectedMid}/${activeUser.uid}`).set({
-                    adventurer_id: activeUser.uid,
-                    adventurer_nick: activeUser.nick || "Anonymous",
+                // Ambil mid dari variabel global
+                const mid = window.selectedMid;
+
+                await database.ref(`intel_reports/${mid}/${identity.uid}`).set({
+                    adventurer_id: identity.uid,
+                    adventurer_nick: identity.nick || "Unknown",
                     status: status,
                     pesan: note,
-                    timestamp: Date.now()
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
                 
-                alert("Info terkirim!");
+                alert("LAPORAN DITERIMA!");
                 this.close();
             } catch (e) {
                 console.error(e);
-                alert("Eror: " + e.message);
+                alert("GAGAL: " + e.message);
             }
         },
         close: function() { 
             const modal = document.getElementById('reportModal');
             if(modal) modal.style.display = 'none';
-            if(document.getElementById('reportNote')) {
-                document.getElementById('reportNote').value = "";
-            }
         }
     },
+
 
                 
 
