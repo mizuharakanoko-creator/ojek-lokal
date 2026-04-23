@@ -2196,8 +2196,9 @@ ${m.category === 'Titip Beli' ? `
             <option value="Pindah">PINDAH LOKASI</option>
         </select>
 <button type="button" 
-        style="width:100%; background:#ff9800; color:#000; border:none; padding:8px; cursor:pointer; font-weight:bold; margin-top:5px;"
-        onclick="event.stopPropagation(); App.IntelSystem.send('${m.id_misi}')"> 
+        class="btn-intel-direct" 
+        data-id="${m.id_misi}"
+        style="width:100%; background:#ff9800; color:#000; border:none; padding:10px; cursor:pointer; font-weight:bold; display:block;">
     KIRIM DATA INTEL
 </button>
 
@@ -2238,28 +2239,34 @@ ${m.category === 'Titip Beli' ? `
                 
                 `;
                 container.appendChild(div);
-                const stopElements = div.querySelectorAll('.intel-stop, .btn-intel-direct');
-stopElements.forEach(el => {
-    el.addEventListener('click', (e) => {
-        e.stopPropagation(); // Stop total agar tidak lari ke expand kartu
+
+// --- PENGUNCI JALUR INTEL (ANTI-EXPAND) ---
+const intelBox = div.querySelector('.intel-box'); // Pastikan div pembungkusnya pakai class "intel-box"
+if (intelBox) {
+    // Kunci semua interaksi di dalam kotak intel agar tidak tembus ke kartu (expand)
+    intelBox.addEventListener('click', (e) => {
+        e.stopPropagation();
     });
-});
+}
 
 const btnKirim = div.querySelector('.btn-intel-direct');
 if (btnKirim) {
     btnKirim.addEventListener('click', async function(e) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopPropagation(); // Double lock
         
         const mId = this.getAttribute('data-id');
-        // Panggil fungsi global yang sudah kita buat sebelumnya
-        if (window.IntelSystem && window.IntelSystem.send) {
-            window.IntelSystem.send(mId);
+        
+        // Panggil jalur baru: App, bukan window
+        if (App.IntelSystem && App.IntelSystem.send) {
+            App.IntelSystem.send(mId);
         } else {
-            alert("Sistem Intel belum termuat sempurna.");
+            console.error("IntelSystem missing in App object");
+            alert("Sistem Intel Internal Error.");
         }
     });
 }
+
             },
 
             listenToContracts: function() {
