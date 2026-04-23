@@ -1462,6 +1462,49 @@ if (adPanel) {
         `;
         container.appendChild(card);
     });
+
+
+        // ==========================================
+// PANDORA INTEL SYSTEM (STAND-ALONE)
+// ==========================================
+window.IntelSystem = {
+    send: async function(mId) {
+        if (window.event) window.event.stopPropagation();
+        
+        const sel = document.getElementById(`sel-intel-${mId}`);
+        if (!sel) return;
+        const info = sel.value;
+
+        if (!confirm(`Kirim laporan: ${info}?`)) return;
+
+        try {
+            // Deskripsi Koneksi: Ambil yang sedang aktif atau buat baru via router
+            let db = (typeof db_shard !== 'undefined' && db_shard) ? db_shard : null;
+            
+            if (!db) {
+                // Ambil shard dari App State jika db_shard global tidak terdeteksi
+                const sId = (window.App && App.State && App.State.loc) ? App.State.loc.shard : null;
+                if (sId && typeof getTerminal === 'function') db = getTerminal(sId);
+            }
+
+            if (!db) throw new Error("Koneksi gagal. Pastikan radar sudah memuat misi.");
+
+            // Kirim data minimalis
+            await db.ref(`mission_reports/${mId}`).push({
+                status: info,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            // Feedback Visual
+            const area = sel.parentElement;
+            area.innerHTML = `<div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:5px; text-align:center;">✓ TRANSMITTED</div>`;
+            
+        } catch (e) {
+            alert("Sistem Sibuk: " + e.message);
+        }
+    }
+};
+
 },
 
 
@@ -1877,47 +1920,7 @@ if (type === 'STM') {
 
 
 
-        // ==========================================
-// PANDORA INTEL SYSTEM (STAND-ALONE)
-// ==========================================
-window.IntelSystem = {
-    send: async function(mId) {
-        if (window.event) window.event.stopPropagation();
         
-        const sel = document.getElementById(`sel-intel-${mId}`);
-        if (!sel) return;
-        const info = sel.value;
-
-        if (!confirm(`Kirim laporan: ${info}?`)) return;
-
-        try {
-            // Deskripsi Koneksi: Ambil yang sedang aktif atau buat baru via router
-            let db = (typeof db_shard !== 'undefined' && db_shard) ? db_shard : null;
-            
-            if (!db) {
-                // Ambil shard dari App State jika db_shard global tidak terdeteksi
-                const sId = (window.App && App.State && App.State.loc) ? App.State.loc.shard : null;
-                if (sId && typeof getTerminal === 'function') db = getTerminal(sId);
-            }
-
-            if (!db) throw new Error("Koneksi gagal. Pastikan radar sudah memuat misi.");
-
-            // Kirim data minimalis
-            await db.ref(`mission_reports/${mId}`).push({
-                status: info,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
-
-            // Feedback Visual
-            const area = sel.parentElement;
-            area.innerHTML = `<div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:5px; text-align:center;">✓ TRANSMITTED</div>`;
-            
-        } catch (e) {
-            alert("Sistem Sibuk: " + e.message);
-        }
-    }
-},
-
 
         
 
