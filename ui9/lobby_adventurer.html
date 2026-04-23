@@ -1268,16 +1268,18 @@ if (adPanel) {
 if (category === 'Titip Beli') {
     infoDiv.innerHTML += `
         <div id="intel-form-container" style="margin-top:20px; border-top:1px dashed #444; padding-top:15px;">
-            <select id="sel-intel-modal" style="width:100%; background:#000; color:#fff; border:1px solid #444; padding:10px; margin-bottom:10px;">
+            <label style="color:var(--theme-color); font-size:9px; display:block; margin-bottom:5px; font-family:var(--font-terminal);">REPORT FIELD SITUATION:</label>
+            <select id="sel-intel-modal" style="width:100%; background:#000; color:#ff9800; border:1px solid #333; padding:10px; margin-bottom:10px; font-family:var(--font-terminal);">
                 <option value="Toko Tutup">TOKO TUTUP</option>
                 <option value="Libur">SEDANG LIBUR</option>
                 <option value="Pindah">PINDAH LOKASI</option>
                 <option value="Habis">STOK HABIS</option>
             </select>
-<button onclick="App.IntelSystem.send('${mid}')" 
-        style="width:100%; background:var(--theme-color); color:#000; border:none; padding:12px; font-weight:bold; cursor:pointer;">
-    SUBMIT FIELD DATA
-</button>
+            <button type="button" 
+                    onclick="App.IntelSystem.send('${mid}')" 
+                    style="width:100%; background:var(--theme-color); color:#000; border:none; padding:12px; font-weight:bold; cursor:pointer; font-family:var(--font-terminal);">
+                SUBMIT FIELD DATA
+            </button>
         </div>
     `;
 }
@@ -1825,7 +1827,7 @@ if (category === 'Titip Beli') {
         },
 
 
-        IntelSystem: {
+            IntelSystem: {
         send: async function(mId) {
             const sel = document.getElementById('sel-intel-modal');
             if (!sel) return;
@@ -1834,49 +1836,51 @@ if (category === 'Titip Beli') {
             if (!confirm(`KONFIRMASI LAPORAN: ${val.toUpperCase()}?`)) return;
 
             try {
-                // MENYONTEK JALUR BIDDING:
-                // Bidding Abang pakai App.State.loc.shard untuk menentukan tujuan.
-                const shardTarget = (App.State && App.State.loc) ? App.State.loc.shard : null;
+                // --- MENYONTEK LOGIKA BIDDING ---
+                // Kita ambil shard yang sedang aktif digunakan oleh Radar saat ini
+                const shardTarget = window.currentTerminalName || (App.State && App.State.loc ? App.State.loc.shard : null);
 
                 if (!shardTarget) {
-                    alert("Gagal: Shard lokasi tidak ditemukan. Pastikan Radar menyala.");
+                    alert("Gagal: Jalur Shard tidak terdeteksi. Silakan muat ulang Radar.");
                     return;
                 }
 
-                // Ambil koneksi pakai getTerminal (sama seperti fungsi Bidding)
+                // Ambil koneksi database (Sama seperti Bidding)
                 const db = getTerminal(shardTarget);
-
+                
                 if (!db) {
-                    alert("Gagal menyambung ke jalur: " + shardTarget);
+                    alert("Gagal menyambung ke terminal: " + shardTarget);
                     return;
                 }
 
                 const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
                 
-                // Eksekusi kirim data ke tabel mission_reports
+                // Eksekusi tulis data (Sama seperti push bidding, cuma beda tabel)
                 await db.ref(`mission_reports/${mId}`).push({
                     status: val,
                     reporter: (profile.nickname || "Runner").substring(0,3) + "***",
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                    timestamp: firebase.database.ServerValue.TIMESTAMP,
+                    type: "INTEL_REPORT"
                 });
 
-                // Ganti tampilan form jadi sukses
+                // Ganti UI Form jadi tanda sukses
                 const container = document.getElementById('intel-form-container');
                 if (container) {
                     container.innerHTML = `
-                        <div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); font-size:11px;">
+                        <div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); background:rgba(74,222,128,0.05);">
                             [ ✓ REPORT DATA TRANSMITTED ]
                         </div>`;
                 }
                 
-                App.UI.showAlert("SUCCESS", "Laporan intelijen berhasil dikirim.");
+                App.UI.showAlert("SUCCESS", "Laporan berhasil masuk database Shard.");
 
             } catch (e) {
                 console.error("Intel Error:", e);
-                alert("Gagal: " + e.message);
+                alert("Gagal mengirim laporan: " + e.message);
             }
         }
     },
+
 
 
 
