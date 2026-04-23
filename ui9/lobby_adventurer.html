@@ -1829,7 +1829,7 @@ if (category === 'Titip Beli') {
         },
 
 
-                        IntelSystem: {
+                            IntelSystem: {
         send: async function(mId) {
             const sel = document.getElementById('sel-intel-modal');
             if (!sel) return;
@@ -1838,48 +1838,59 @@ if (category === 'Titip Beli') {
             if (!confirm(`KONFIRMASI LAPORAN: ${val.toUpperCase()}?`)) return;
 
             try {
-                // 1. CARI TAHU SHARD AKTIF
-                // Di file Abang, Shard disimpan di App.State.loc.shard
-                const activeShard = (App.State && App.State.loc) ? App.State.loc.shard : null;
+                // TAMPILKAN LOADING PADA TOMBOL
+                const btn = event.target;
+                const originalText = btn.innerText;
+                btn.innerText = "MELACAK JALUR...";
+                btn.disabled = true;
 
-                if (!activeShard) {
-                    alert("Radar Offline: Lokasi wilayah tidak terdeteksi.");
-                    return;
+                // 1. CARI LOKASI TERMINAL LEWAT BUKU INDUK (Fungsi dari terminal_router.js)
+                // Ini akan mengembalikan 'FB4_BOARD', 'FB2_RUNNER', dll.
+                const terminalName = await cariLokasiMisi(mId);
+
+                if (!terminalName) {
+                    throw new Error("Misi tidak ditemukan di Buku Induk.");
                 }
 
-                // 2. TODONG KONEKSI (Jangan pakai db_shard, buat baru!)
-                const dbInstan = getTerminal(activeShard);
+                // 2. KONEK KE TERMINAL TERSEBUT
+                const dbInstan = getTerminal(terminalName);
 
                 if (!dbInstan) {
-                    alert("Gagal membangun jalur ke Shard: " + activeShard);
-                    return;
+                    throw new Error("Gagal membuka jalur ke " + terminalName);
                 }
 
+                // 3. KIRIM DATA LAPORAN
                 const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
                 
-                // 3. KIRIM KE DATABASE
                 await dbInstan.ref(`mission_reports/${mId}`).push({
                     status: val,
                     reporter: (profile.nickname || "Runner").substring(0,3) + "***",
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                    timestamp: firebase.database.ServerValue.TIMESTAMP,
+                    mission_id: mId // Opsional untuk cross-check
                 });
 
-                // Feedback visual di modal
-                const container = document.getElementById('intel-form-container');
-                if (container) {
-                    container.innerHTML = `
-                        <div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); font-size:11px;">
-                            [ ✓ REPORT DATA TRANSMITTED ]
-                        </div>`;
-                }
+                // Feedback visual
+                document.getElementById('intel-form-container').innerHTML = 
+                    `<div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); font-size:11px; background:rgba(74,222,128,0.1);">
+                        [ ✓ REPORT DATA TRANSMITTED TO ${terminalName} ]
+                    </div>`;
                 
-                App.UI.showAlert("SYSTEM", "Data intelijen telah diterima pangkalan.");
+                App.UI.showAlert("SYSTEM", "Data intelijen telah masuk ke Buku Induk.");
+
             } catch (e) {
-                console.error("Intel Error:", e);
-                alert("Error Jalur: " + e.message);
+                console.error("Intel Route Error:", e);
+                alert("GAGAL MELACAK: " + e.message);
+                
+                // Kembalikan tombol jika gagal
+                const btn = document.querySelector('#intel-form-container button');
+                if(btn) {
+                    btn.innerText = "SUBMIT FIELD DATA";
+                    btn.disabled = false;
+                }
             }
         }
     },
+
 
 
 
