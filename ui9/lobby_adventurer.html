@@ -1022,6 +1022,10 @@
         }
     };
 
+    const db1 = getTerminal('FB1_MASTER');
+const db4 = getTerminal('FB4_BOARD'); // <--- Baris ini harus ada agar tidak undefined
+
+
     // Global State App
     const App = {
         db1: null, db4: null, user: null,
@@ -1783,38 +1787,45 @@ if (adPanel) {
         
     // --- MASUKKAN DI DALAM OBJEK APP ---
     Intel: {
-        open: function(mid) {
-            selectedMid = mid; 
-            document.getElementById('reportModal').style.display = 'block';
-            document.getElementById('reportInfo').innerText = `Lapor Kendala: ${mid}`;
-        },
-        submit: async function() {
-            const status = document.getElementById('reportStatus').value;
-            const note = document.getElementById('reportNote').value.trim();
-            
-            if (!note) return alert("Wajib isi catatan!");
+    open: function(mid) {
+        // Kita simpan ID misi ke variabel global yang sudah ada di kode abang
+        selectedMid = mid; 
+        document.getElementById('reportModal').style.display = 'flex';
+        document.getElementById('reportInfo').innerText = `Lapor Kendala: ${mid}`;
+    },
+    submit: async function() {
+        const status = document.getElementById('reportStatus').value;
+        const note = document.getElementById('reportNote').value.trim();
+        
+        if (!note) return alert("Wajib isi catatan!");
 
-            try {
-                // Menggunakan db4 dan user.uid sesuai pola bidding abang
-                await db4.ref(`intel_reports/${selectedMid}/${user.uid}`).set({
-                    adventurer_id: user.uid,
-                    adventurer_nick: user.nick,
-                    status: status,
-                    pesan: note,
-                    timestamp: Date.now()
-                });
-                
-                alert("Info terkirim!");
-                this.close();
-            } catch (e) {
-                alert("Eror: " + e.message);
-            }
-        },
-        close: function() { 
-            document.getElementById('reportModal').style.display = 'none';
-            document.getElementById('reportNote').value = "";
+        try {
+            // PERBAIKAN: Gunakan db4 yang didefinisikan di awal script
+            // Jika db4 tidak terbaca, gunakan getTerminal('FB4_BOARD') langsung
+            const database = (typeof db4 !== 'undefined') ? db4 : getTerminal('FB4_BOARD');
+            
+            if (!database) throw new Error("Koneksi database (FB4) tidak ditemukan.");
+
+            await database.ref(`intel_reports/${selectedMid}/${user.uid}`).set({
+                adventurer_id: user.uid,
+                adventurer_nick: user.nick,
+                status: status,
+                pesan: note,
+                timestamp: Date.now()
+            });
+            
+            alert("Info terkirim!");
+            this.close();
+        } catch (e) {
+            console.error(e);
+            alert("Eror: " + e.message);
         }
     },
+    close: function() { 
+        document.getElementById('reportModal').style.display = 'none';
+        document.getElementById('reportNote').value = "";
+    }
+},
 
                 
 
@@ -2218,15 +2229,15 @@ if (type === 'STM') {
                         </div>
                     </div>
 
-                    ${isApplied ? 
-                        `<button class="btn-bid-card" style="flex:3; background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
-                            `<button class="btn-bid-card" style="flex:3;" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>`
-                        }
-                        
-                        <button onclick="App.Intel.open('${m.id_misi}')" style="flex:1; background:#333; border:1px solid #f87171; color:#f87171; font-family:var(--font-terminal); font-size:10px; cursor:pointer;">
-                            INTEL
-                        </button>
- }
+                    <div style="display:flex; gap:5px; margin-top:10px;">
+    ${isApplied ? 
+        `<button class="btn-bid-card" style="flex:3; background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
+        `<button class="btn-bid-card" style="flex:3;" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>`
+    }
+    <button onclick="App.Intel.open('${m.id_misi}')" style="flex:1; background:#1a1a1a; border:1px solid #f87171; color:#f87171; font-size:10px; cursor:pointer;">
+        INTEL
+    </button>
+</div>
                 </div>
                 `;
                 container.appendChild(div);
