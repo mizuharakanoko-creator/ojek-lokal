@@ -1876,6 +1876,49 @@ if (type === 'STM') {
         },
 
 
+
+        // ==========================================
+// PANDORA INTEL SYSTEM (STAND-ALONE)
+// ==========================================
+window.IntelSystem = {
+    send: async function(mId) {
+        if (window.event) window.event.stopPropagation();
+        
+        const sel = document.getElementById(`sel-intel-${mId}`);
+        if (!sel) return;
+        const info = sel.value;
+
+        if (!confirm(`Kirim laporan: ${info}?`)) return;
+
+        try {
+            // Deskripsi Koneksi: Ambil yang sedang aktif atau buat baru via router
+            let db = (typeof db_shard !== 'undefined' && db_shard) ? db_shard : null;
+            
+            if (!db) {
+                // Ambil shard dari App State jika db_shard global tidak terdeteksi
+                const sId = (window.App && App.State && App.State.loc) ? App.State.loc.shard : null;
+                if (sId && typeof getTerminal === 'function') db = getTerminal(sId);
+            }
+
+            if (!db) throw new Error("Koneksi gagal. Pastikan radar sudah memuat misi.");
+
+            // Kirim data minimalis
+            await db.ref(`mission_reports/${mId}`).push({
+                status: info,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            // Feedback Visual
+            const area = sel.parentElement;
+            area.innerHTML = `<div style="color:#4ade80; font-size:10px; border:1px solid #4ade80; padding:5px; text-align:center;">✓ TRANSMITTED</div>`;
+            
+        } catch (e) {
+            alert("Sistem Sibuk: " + e.message);
+        }
+    }
+};
+
+
         
 
         Core: {
@@ -2068,102 +2111,117 @@ if (type === 'STM') {
             },
 
             renderMisi: function(m, container) {
-    // 1. Logika Dasar (Jarak & Waktu)
-    const mLat = m.lat || 0, mLng = m.lng || 0;
-    const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
-    const jarakTeks = jarak > 0 ? `${jarak.toFixed(1)} KM` : `??? KM`;
-    const waktuTeks = this.timeAgo(m.created_at);
+                let mLat = m.lat, mLng = m.lng;
+                if(!mLat && m.origin_desa) {
+                    const detailAsal = getDetailDesa(getKecamatanDariDesa(m.origin_desa), m.origin_desa);
+                    if(detailAsal) { mLat = detailAsal.lat; mLng = detailAsal.lng; }
+                }
+                const jarak = this.calcDist(App.State.loc.lat, App.State.loc.lng, mLat, mLng);
+                const jarakTeks = jarak > 0 ? `${jarak.toFixed(1)} KM` : `??? KM`;
+                const waktuTeks = this.timeAgo(m.created_at);
 
-    // 2. Logika Reward & Bonus
-    const rpg = m.rpg_reward || { exp: 0, greenStone: 0, stamina: 10 }; 
-    let bonusHtml = "";
-    if (rpg.exp > 0) bonusHtml += `<span style="color:#60a5fa;">+${rpg.exp}XP </span>`;
-    if (rpg.greenStone > 0) bonusHtml += `<span style="color:#4ade80;">+${rpg.greenStone}GS</span>`;
-    
-    const rewardDisplay = (m.reward === 0 || !m.reward) ? "NEGO" : `Rp ${m.reward.toLocaleString('id-ID')}`;
-    const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
+                const rpg = m.rpg_reward || { exp: 0, greenStone: 0, stamina: 10 }; 
+                let bonusHtml = "";
+                if (rpg.exp > 0) bonusHtml += `<span style="color:#60a5fa;">+${rpg.exp}XP </span>`;
+                if (rpg.greenStone > 0) bonusHtml += `<span style="color:#4ade80;">+${rpg.greenStone}GS</span>`;
+                    
+                let diffColor = "#4ade80";
+                if (m.difficulty_rate > 1.5) diffColor = "#facc15";
+                if (m.difficulty_rate > 2.0) diffColor = "#f87171";
 
-    // 3. Icon & Special Handling
-    let icon = "🛵";
-    if(m.category === 'Titip Beli') icon = "📦";
-    else if(m.category === 'Help') icon = "🛡️";
-    else if(m.category === 'Car Ride') icon = "🚗";
+                const isApplied = App.State.renderedMissions.has(m.id_misi + "_applied");
+                const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help' || (m.dest_name && m.dest_name.includes('[TITIK')));
+                
+                // Icon berdasarkan kategori
+                let icon = "🛵";
+                if(m.category === 'Titip Beli') icon = "📦";
+                else if(m.category === 'Help') icon = "🛡️";
+                else if(m.category === 'Car Ride') icon = "🚗";
 
-    const isSpecial = (m.category === 'Titip Beli' || m.category === 'Help');
-    const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-    const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+                const rewardDisplay = (m.reward === 0 || !m.reward) ? "NEGO" : `Rp ${m.reward.toLocaleString('id-ID')}`;
 
-    const div = document.createElement('div');
-    div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
-    
-    // Tampilan HTML Lengkap
-    div.innerHTML = `
-        <div class="m-strip-header" onclick="this.parentElement.classList.toggle('active-expand')">
-            <div class="m-icon-box">${icon}</div>
-            <div class="m-main-info">
-                <div class="m-dest-summary">${(m.dest_desa || 'TUJUAN').toUpperCase()}</div>
-                <div class="m-bonus-row">
-                    <span style="color:#555;">ID: ${m.id_misi.slice(-6).toUpperCase()} • </span>
-                    ${bonusHtml || '<span style="color:#444;">NO BONUS</span>'}
+                const safeDest = (m.dest_name || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
+                const safeNote = (m.note || "").replace(/'/g, "&apos;").replace(/"/g, "&quot;").replace(/\n/g, " ");
+                const safeRPG = JSON.stringify(rpg).replace(/"/g, '&quot;');
+
+                const div = document.createElement('div');
+                div.className = `mission-card ${isApplied ? 'applied-locked' : ''}`;
+                
+                // Fungsi Toggle Minimize/Expand
+                div.onclick = (e) => {
+                    if(e.target.tagName !== 'BUTTON') { // Agar klik tombol tidak mentrigger tutup/buka
+                        div.classList.toggle('active-expand');
+                        AudioEngine.play('click');
+                    }
+                };
+
+                div.innerHTML = `
+                <div class="m-strip-header">
+                    <div class="m-icon-box">${icon}</div>
+                    <div class="m-main-info">
+                        <div class="m-dest-summary">${isSpecial ? 'RINCIAN PERMINTAAN' : (m.dest_desa || 'TUJUAN').toUpperCase()}</div>
+                        <div class="m-bonus-row">
+                            <span style="color:#555;">ID: ${m.id_misi.slice(-6).toUpperCase()} • </span>
+                            ${bonusHtml || '<span style="color:#444;">NO BONUS</span>'}
+                        </div>
+                    </div>
+                    <div class="m-side-stats">
+                        <span class="m-side-dist">${jarakTeks}</span>
+                        <span class="m-side-price" style="${rewardDisplay === 'NEGO' ? 'color:#facc15' : ''}">${rewardDisplay}</span>
+                    </div>
                 </div>
-            </div>
-            <div class="m-side-stats">
-                <span class="m-side-dist">${jarakTeks}</span>
-                <span class="m-side-price">${rewardDisplay}</span>
-            </div>
-        </div>
 
-        <div class="m-expand-body">
-            <div style="margin:5px 0; color:#eee; font-size:11px;">📍 ${m.origin_name}</div>
-            
-            ${isSpecial ? `<div style="background:#111; padding:8px; border-left:2px solid var(--theme-color); margin-bottom:10px; font-size:11px; color:#aaa;">${m.dest_name || 'Tanpa rincian.'}</div>` : ''}
+                <div class="m-expand-body">
+                    ${isSpecial ? 
+                        `<div class="special-detail-box" style="margin-top:5px; margin-bottom:5px;">${m.dest_name || 'Tidak ada rincian.'}</div>` : 
+                        `<div class="detail-item" style="margin-top:5px;">
+                            <span class="detail-label">LOKASI PENJEMPUTAN</span>
+                            <span style="color:#eee; font-size:11px;">📍 ${m.origin_name}</span>
+                        </div>`
+                    }
 
-            ${m.category === 'Titip Beli' ? `
-                <div class="intel-box" style="border:1px solid #333; padding:8px; background:#0a0a0a; margin-bottom:10px;">
-                    <select id="intel-val-${m.id_misi}" style="width:100%; background:#000; color:#ff9800; border:1px solid #444; margin-bottom:5px; height:28px;">
-                        <option value="Toko Tutup">TOKO TUTUP</option>
-                        <option value="Libur">SEDANG LIBUR</option>
-                        <option value="Pindah">PINDAH LOKASI</option>
-                    </select>
-                    <button type="button" class="btn-intel-lapor" data-id="${m.id_misi}" style="width:100%; background:#ff9800; color:#000; font-weight:bold; border:none; padding:6px; cursor:pointer; font-size:10px;">KIRIM INTEL</button>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">WAKTU TERBIT</span>
+                            <span style="color:#fff;">${waktuTeks}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">STAMINA REQ</span>
+                            <span style="color:${diffColor};">${rpg.stamina} STM</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">KATEGORI</span>
+                            <span style="color:var(--theme-color);">${m.category || 'REGULER'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">KESULITAN</span>
+                            <span style="color:${diffColor};">${m.difficulty_rate}x RATE</span>
+                        </div>
+                    </div>
+
+                    ${isApplied ? 
+                        `<button class="btn-bid-card" style="background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
+                        `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category || ''}', '${m.origin_name}', '${safeDest}', ${safeRPG})">AMBIL KONTRAK / NEGO</button>`
+                    }
                 </div>
-            ` : ''}
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-bottom:10px; font-size:9px; color:#777;">
-                <div>TERBIT: ${waktuTeks}</div>
-                <div>STAMINA: ${rpg.stamina} STM</div>
-            </div>
+// Selipkan ini di dalam backtick (``) kartu misi Abang:
+${m.category === 'Titip Beli' ? `
+    <div style="margin:10px 0; padding:5px; border:1px solid #333; background:#000;">
+        <select id="sel-intel-${m.id_misi}" style="width:100%; background:#000; color:#ff9800; border:none; margin-bottom:5px; font-family:monospace;">
+            <option value="Toko Tutup">TOKO TUTUP</option>
+            <option value="Libur">LIBUR/TUTUP</option>
+            <option value="Pindah">PINDAH LOKASI</option>
+        </select>
+        <button type="button" onclick="IntelSystem.send('${m.id_misi}')" style="width:100%; background:#333; color:#fff; border:none; padding:5px; cursor:pointer; font-size:10px;">LAPOR</button>
+    </div>
+` : ''}
 
-            ${isApplied ? 
-                `<button class="btn-bid-card" style="background:#222; color:#555;" disabled>[ SINYAL AKTIF ]</button>` :
-                `<button class="btn-bid-card" onclick="App.UI.openModal('${m.id_misi}', ${m.reward || 0}, '${safeNote}', '${m.category}', '${m.origin_name}', '${safeDest}')">AMBIL KONTRAK / NEGO</button>`
-            }
-        </div>
-    `;
 
-    // LOGIKA PENGIRIMAN INTEL
-    const btnLapor = div.querySelector('.btn-intel-lapor');
-    if (btnLapor) {
-        btnLapor.onclick = async (e) => {
-            e.stopPropagation();
-            const val = div.querySelector(`#intel-val-${m.id_misi}`).value;
-            if(!confirm(`Lapor ${val}?`)) return;
-
-            try {
-                // Langsung gunakan db_shard yang sedang aktif di radar
-                await db_shard.ref(`mission_reports/${m.id_misi}`).push({
-                    status: val,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP,
-                    reporter: (App.State.userProfile?.nickname || "Anon").substring(0,3) + "***"
-                });
-                btnLapor.parentElement.innerHTML = `<div style="color:#4ade80; text-align:center; padding:10px; border:1px solid #4ade80; font-size:10px;">✓ INTEL TRANSMITTED</div>`;
-            } catch (err) { alert("Gagal: " + err.message); }
-        };
-    }
-
-    container.appendChild(div);
-},
-
+                
+                `;
+                container.appendChild(div);
+            },
 
             listenToContracts: function() {
                 // 1. Pantau tabel kontrak_mission di FB4 (Board)
