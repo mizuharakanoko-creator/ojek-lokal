@@ -1267,21 +1267,17 @@ if (adPanel) {
 
 if (category === 'Titip Beli') {
     infoDiv.innerHTML += `
-        <div id="intel-form-container" style="margin-top:20px; border-top:1px dashed #444; padding-top:15px; background: rgba(255,152,0,0.03); padding: 10px; border-radius: 4px;">
-            <label style="color:var(--theme-color); font-size:9px; display:block; margin-bottom:5px; font-family:var(--font-terminal); letter-spacing:1px;">
-                [ FIELD REPORT SYSTEM ]
-            </label>
-            <select id="sel-intel-modal" style="width:100%; background:#000; color:#ff9800; border:1px solid #333; padding:10px; margin-bottom:10px; font-family:var(--font-terminal); font-size:12px;">
+        <div id="intel-form-container" style="margin-top:20px; border-top:1px dashed #444; padding-top:15px;">
+            <select id="sel-intel-modal" style="width:100%; background:#000; color:#fff; border:1px solid #444; padding:10px; margin-bottom:10px;">
                 <option value="Toko Tutup">TOKO TUTUP</option>
                 <option value="Libur">SEDANG LIBUR</option>
                 <option value="Pindah">PINDAH LOKASI</option>
                 <option value="Habis">STOK HABIS</option>
             </select>
-<button type="button" 
-        onclick="App.IntelSystem.send('${mid}')" 
-        style="width:100%; background:var(--theme-color); color:#000; border:none; padding:12px; font-weight:bold; cursor:pointer;">
-    SUBMIT FIELD DATA
-</button>
+            <button onclick="App.IntelSystem.send('${mid}')" 
+                    style="width:100%; background:var(--theme-color); color:#000; border:none; padding:12px; font-weight:bold;">
+                SUBMIT FIELD DATA
+            </button>
         </div>
     `;
 }
@@ -1829,73 +1825,48 @@ if (category === 'Titip Beli') {
         },
 
 
-                                IntelSystem: {
+    IntelSystem: {
         send: async function(mId) {
             const sel = document.getElementById('sel-intel-modal');
             if (!sel) return;
             const val = sel.value;
 
+            // Ambil ID Shard dari tempat yang sama dengan sistem Bidding
+            // Di openModal, shard_id biasanya sudah didapat dari proses render
+            const shardTarget = (App.State && App.State.loc) ? App.State.loc.shard : "KNG";
+
             if (!confirm(`KONFIRMASI LAPORAN: ${val.toUpperCase()}?`)) return;
 
             try {
-                const btn = event.target;
-                btn.innerText = "MENCARI SHARD...";
-                btn.disabled = true;
-
-                // 1. AKSES FB1_MASTER KE TABEL misi_index
-                const masterDB = getTerminal('FB1_MASTER');
+                // PAKAI MESIN YANG SAMA DENGAN BIDDING
+                const db = getTerminal(shardTarget);
                 
-                // Sesuai arahan Abang: Masuk ke misi_index, bukan buku_induk
-                const snap = await masterDB.ref(`misi_index/${mId}`).once('value');
-                
-                if (!snap.exists()) {
-                    throw new Error("ID Misi tidak ditemukan di Index Pusat.");
+                if (!db) {
+                    throw new Error("Gagal menyambung ke jalur " + shardTarget);
                 }
 
-                // 2. AMBIL id_shard DARI DATA TERSEBUT
-                const shardTarget = snap.val().id_shard; 
-                
-                if (!shardTarget) {
-                    throw new Error("Data Shard untuk misi ini kosong.");
-                }
-
-                // 3. KONEK KE SHARD YANG DITEMUKAN
-                const dbInstan = getTerminal(shardTarget);
-
-                if (!dbInstan) {
-                    throw new Error("Gagal membangun jalur ke: " + shardTarget);
-                }
-
-                // 4. KIRIM DATA LAPORAN (Menuju tabel mission_reports di Shard terkait)
                 const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
                 
-                await dbInstan.ref(`mission_reports/${mId}`).push({
+                // Kirim ke tabel mission_reports di Shard yang sedang aktif
+                await db.ref(`mission_reports/${mId}`).push({
                     status: val,
                     reporter: (profile.nickname || "Runner").substring(0,3) + "***",
                     timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
 
-                // Feedback visual sukses
+                // Efek visual sukses
                 document.getElementById('intel-form-container').innerHTML = 
-                    `<div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); font-size:11px; background:rgba(74,222,128,0.1);">
-                        [ ✓ REPORT DATA TRANSMITTED TO ${shardTarget} ]
+                    `<div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); font-size:11px;">
+                        [ ✓ REPORT DATA TRANSMITTED ]
                     </div>`;
                 
-                App.UI.showAlert("SUCCESS", "Laporan intelijen berhasil disinkronkan.");
-
+                App.UI.showAlert("SYSTEM", "Data intelijen telah diterima.");
             } catch (e) {
-                console.error("Intel Route Error:", e);
-                alert("ERROR: " + e.message);
-                
-                const btnReload = document.querySelector('#intel-form-container button');
-                if(btnReload) {
-                    btnReload.innerText = "SUBMIT FIELD DATA";
-                    btnReload.disabled = false;
-                }
+                console.error(e);
+                alert("Gagal Kirim: " + e.message);
             }
         }
     },
-
 
 
 
