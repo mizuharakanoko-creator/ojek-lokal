@@ -1274,10 +1274,10 @@ if (category === 'Titip Beli') {
                 <option value="Pindah">PINDAH LOKASI</option>
                 <option value="Habis">STOK HABIS</option>
             </select>
-            <button onclick="App.IntelSystem.send('${mid}')" 
-                    style="width:100%; background:var(--theme-color); color:#000; border:none; padding:12px; font-weight:bold;">
-                SUBMIT FIELD DATA
-            </button>
+<button onclick="App.IntelSystem.send('${mid}')" 
+        style="width:100%; background:var(--theme-color); color:#000; border:none; padding:12px; font-weight:bold; cursor:pointer;">
+    SUBMIT FIELD DATA
+</button>
         </div>
     `;
 }
@@ -1825,48 +1825,59 @@ if (category === 'Titip Beli') {
         },
 
 
-    IntelSystem: {
+        IntelSystem: {
         send: async function(mId) {
             const sel = document.getElementById('sel-intel-modal');
             if (!sel) return;
             const val = sel.value;
 
-            // Ambil ID Shard dari tempat yang sama dengan sistem Bidding
-            // Di openModal, shard_id biasanya sudah didapat dari proses render
-            const shardTarget = (App.State && App.State.loc) ? App.State.loc.shard : "KNG";
-
             if (!confirm(`KONFIRMASI LAPORAN: ${val.toUpperCase()}?`)) return;
 
             try {
-                // PAKAI MESIN YANG SAMA DENGAN BIDDING
+                // MENYONTEK JALUR BIDDING:
+                // Bidding Abang pakai App.State.loc.shard untuk menentukan tujuan.
+                const shardTarget = (App.State && App.State.loc) ? App.State.loc.shard : null;
+
+                if (!shardTarget) {
+                    alert("Gagal: Shard lokasi tidak ditemukan. Pastikan Radar menyala.");
+                    return;
+                }
+
+                // Ambil koneksi pakai getTerminal (sama seperti fungsi Bidding)
                 const db = getTerminal(shardTarget);
-                
+
                 if (!db) {
-                    throw new Error("Gagal menyambung ke jalur " + shardTarget);
+                    alert("Gagal menyambung ke jalur: " + shardTarget);
+                    return;
                 }
 
                 const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
                 
-                // Kirim ke tabel mission_reports di Shard yang sedang aktif
+                // Eksekusi kirim data ke tabel mission_reports
                 await db.ref(`mission_reports/${mId}`).push({
                     status: val,
                     reporter: (profile.nickname || "Runner").substring(0,3) + "***",
                     timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
 
-                // Efek visual sukses
-                document.getElementById('intel-form-container').innerHTML = 
-                    `<div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); font-size:11px;">
-                        [ ✓ REPORT DATA TRANSMITTED ]
-                    </div>`;
+                // Ganti tampilan form jadi sukses
+                const container = document.getElementById('intel-form-container');
+                if (container) {
+                    container.innerHTML = `
+                        <div style="color:#4ade80; text-align:center; padding:15px; border:1px solid #333; font-family:var(--font-terminal); font-size:11px;">
+                            [ ✓ REPORT DATA TRANSMITTED ]
+                        </div>`;
+                }
                 
-                App.UI.showAlert("SYSTEM", "Data intelijen telah diterima.");
+                App.UI.showAlert("SUCCESS", "Laporan intelijen berhasil dikirim.");
+
             } catch (e) {
-                console.error(e);
-                alert("Gagal Kirim: " + e.message);
+                console.error("Intel Error:", e);
+                alert("Gagal: " + e.message);
             }
         }
     },
+
 
 
 
