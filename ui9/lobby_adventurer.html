@@ -801,18 +801,36 @@
 .modal-content::-webkit-scrollbar-thumb {
     background: var(--theme-color);
 }
-        #sovBidModal .modal-content {
-    background: #0f0f0f;
-    border: 1px solid var(--theme-color);
-    width: 90%;
-    max-width: 450px;
-    max-height: 85vh; /* Batasi tinggi modal */
-    overflow-y: auto; /* Aktifkan scroll vertikal */
-    padding: 20px;
-    position: relative;
-    display: block !important; /* Jangan pakai flex kalau konten panjang agar scroll lancar */
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        #sovBidModal .modal-box { 
+    background: var(--bg-card); 
+    border: 2px solid var(--theme-color); 
+    padding: 25px; 
+    width: 90%; 
+    max-width: 400px; 
+    border-radius: 8px; 
+    max-height: 85vh; /* Batasi tinggi box agar tidak tembus layar */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Box utama tetap diam */
 }
+
+/* Bagian ini yang menangani scroll konten di dalam box */
+#modalInfo {
+    flex: 1; 
+    overflow-y: auto !important; /* Paksa scroll muncul di sini */
+    margin-top: 15px;
+    padding-right: 5px;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Tambahkan padding bawah di dalam modalInfo agar tombol tidak tertutup */
+#modalInfo::-webkit-scrollbar {
+    width: 4px;
+}
+#modalInfo::-webkit-scrollbar-thumb {
+    background: var(--theme-color);
+}
+
 
 
 
@@ -1811,7 +1829,7 @@ if (category === 'Titip Beli') {
         },
 
 
-                IntelSystem: {
+                    IntelSystem: {
         send: async function(mId) {
             const sel = document.getElementById('sel-intel-modal');
             if (!sel) return;
@@ -1820,20 +1838,20 @@ if (category === 'Titip Beli') {
             if (!confirm(`KONFIRMASI LAPORAN: ${val.toUpperCase()}?`)) return;
 
             try {
-                // BYPASS: Jangan cari db_shard, kita buat koneksi baru langsung ke Shard yang aktif
-                // Ambil shard ID dari state atau profile
-                const shardID = (App.State && App.State.loc) ? App.State.loc.shard : "FB2_RUNNER";
-                
-                // Pastikan fungsi getTerminal ada (dari terminal_router.js)
-                if (typeof getTerminal !== 'function') {
-                    throw new Error("Router Terminal tidak ditemukan.");
-                }
+                // PENYEBAB OFFLINE: Variabel db_shard tidak terbaca global.
+                // KITA AMBIL LANGSUNG DARI ROUTER:
+                const activeShard = (App.State && App.State.loc) ? App.State.loc.shard : "FB2_RUNNER";
+                const dbInstan = getTerminal(activeShard); 
 
-                const dbDirect = getTerminal(shardID);
+                if (!dbInstan) {
+                    alert("Radar Offline: Gagal terhubung ke Shard " + activeShard);
+                    return;
+                }
 
                 const profile = JSON.parse(localStorage.getItem('adventurer_profile')) || {};
                 
-                await dbDirect.ref(`mission_reports/${mId}`).push({
+                // Gunakan dbInstan (hasil getTerminal), bukan db_shard
+                await dbInstan.ref(`mission_reports/${mId}`).push({
                     status: val,
                     reporter: (profile.nickname || "Runner").substring(0,3) + "***",
                     timestamp: firebase.database.ServerValue.TIMESTAMP
@@ -1846,11 +1864,12 @@ if (category === 'Titip Beli') {
                 
                 App.UI.showAlert("SYSTEM", "Data intelijen berhasil dikirim.");
             } catch (e) {
-                console.error("Intel Error:", e);
-                alert("Gagal Terhubung: " + e.message);
+                console.error(e);
+                alert("Sistem Error: " + e.message);
             }
         }
     },
+
 
 
 
