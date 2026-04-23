@@ -1077,41 +1077,47 @@
         },
 
 
-        IntelSystem: {
+            IntelSystem: {
         send: async function(mId) {
-            // Ambil elemen select berdasarkan ID misi
+            if (window.event) window.event.stopPropagation();
+            
             const sel = document.getElementById(`sel-intel-${mId}`);
             if (!sel) return;
-            
             const info = sel.value;
-            if (!confirm(`Konfirmasi Lapor: ${info}?`)) return;
+
+            if (!confirm(`Kirim laporan: ${info}?`)) return;
 
             try {
-                // Karena sudah di dalam App, kita bisa akses db_shard langsung via App.db_shard
-                const db = App.db_shard; 
-                
+                // --- PENCARIAN KONEKSI RADAR (JALUR PAKSA) ---
+                // 1. Coba ambil dari App induk
+                // 2. Coba ambil dari variabel global db_shard
+                let db = App.db_shard || window.db_shard || (typeof db_shard !== 'undefined' ? db_shard : null);
+
+                // 3. Jika masih null, paksa panggil ulang lewat router
+                if (!db && App.State && App.State.loc) {
+                    const sId = App.State.loc.shard;
+                    if (typeof getTerminal === 'function') db = getTerminal(sId);
+                }
+
                 if (!db) {
-                    alert("Koneksi Radar belum siap!");
+                    alert("Koneksi Radar benar-benar tidak terdeteksi di memori.");
                     return;
                 }
 
                 await db.ref(`mission_reports/${mId}`).push({
                     status: info,
                     timestamp: firebase.database.ServerValue.TIMESTAMP,
-                    // Opsional: ambil nickname jika ada
                     reporter: (App.State?.userProfile?.nickname || "Runner").substring(0,3) + "***"
                 });
 
-                // Feedback visual: ganti kotak input jadi teks sukses
-                const container = sel.parentElement;
-                container.innerHTML = `<div style="color:#4ade80; text-align:center; padding:10px; border:1px solid #333; font-size:11px;">✓ LAPORAN TERKIRIM</div>`;
+                sel.parentElement.innerHTML = `<div style="color:#4ade80; text-align:center; padding:10px; border:1px solid #333; font-size:11px;">✓ DATA TERKIRIM</div>`;
                 
             } catch (e) {
-                console.error("Intel Error:", e);
-                alert("Gagal Kirim: " + e.message);
+                alert("Sistem Sibuk: " + e.message);
             }
         }
     },
+
 
 
         UI: {
