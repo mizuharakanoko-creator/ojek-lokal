@@ -910,9 +910,9 @@
                oninput="this.value = this.value.replace(/[0-9]/g, '')"
                style="width:100%; padding:10px; margin:10px 0; background:#000; color:#fff; border:1px solid #444;">
 
-        <button onclick="submitReport()" style="width: 100%; padding: 10px; background: #f87171; color: #000; border: none; font-weight: bold; cursor: pointer;">KIRIM LAPORAN</button>
-        <button onclick="closeReportModal()" style="width:100%; background:none; color:#888; border:none; margin-top:10px; cursor:pointer;">BATAL</button>
-    </div>
+        <button onclick="App.Intel.submit()" style="width: 100%; padding: 10px; background: #f87171; color: #000; border: none; font-weight: bold; cursor: pointer;">KIRIM LAPORAN</button>
+<button onclick="App.Intel.close()" style="width:100%; background:none; color:#888; border:none; margin-top:10px; cursor:pointer;">BATAL</button>
+</div>
 </div>
 
 
@@ -1781,6 +1781,40 @@ if (adPanel) {
 
 
         
+    // --- MASUKKAN DI DALAM OBJEK APP ---
+    Intel: {
+        open: function(mid) {
+            selectedMid = mid; 
+            document.getElementById('reportModal').style.display = 'block';
+            document.getElementById('reportInfo').innerText = `Lapor Kendala: ${mid}`;
+        },
+        submit: async function() {
+            const status = document.getElementById('reportStatus').value;
+            const note = document.getElementById('reportNote').value.trim();
+            
+            if (!note) return alert("Wajib isi catatan!");
+
+            try {
+                // Menggunakan db4 dan user.uid sesuai pola bidding abang
+                await db4.ref(`intel_reports/${selectedMid}/${user.uid}`).set({
+                    adventurer_id: user.uid,
+                    adventurer_nick: user.nick,
+                    status: status,
+                    pesan: note,
+                    timestamp: Date.now()
+                });
+                
+                alert("Info terkirim!");
+                this.close();
+            } catch (e) {
+                alert("Eror: " + e.message);
+            }
+        },
+        close: function() { 
+            document.getElementById('reportModal').style.display = 'none';
+            document.getElementById('reportNote').value = "";
+        }
+    },
 
                 
 
@@ -2372,44 +2406,9 @@ if (type === 'STM') {
         } catch (e) {
             App.UI.showAlert("GALI DATA GAGAL", e.message);
         }
-    },
-
-
-    // A. Fungsi Buka Modal
-function openReportModal(mid) {
-    selectedMid = mid; // Menggunakan variabel yang sama dengan Bid
-    document.getElementById('reportModal').style.display = 'block';
-    document.getElementById('reportInfo').innerText = `Lapor Kendala: ${mid}`;
-}
-
-// B. Fungsi Kirim Data (Kembaran submitBid)
-async function submitReport() {
-    const status = document.getElementById('reportStatus').value;
-    const note = document.getElementById('reportNote').value.trim();
-    
-    if (!note) return alert("Wajib isi catatan!");
-
-    try {
-        // Kita pakai db4 (FB4_BOARD) sesuai pola bid abang
-        await db4.ref(`intel_reports/${selectedMid}/${user.uid}`).set({
-            adventurer_id: user.uid,
-            adventurer_nick: user.nick,
-            status: status,
-            pesan: note,
-            timestamp: Date.now()
-        });
-        
-        alert("Info terkirim!");
-        closeReportModal();
-    } catch (e) {
-        alert("Eror: " + e.message);
     }
-}
 
-// C. Fungsi Tutup Modal
-function closeReportModal() { 
-    document.getElementById('reportModal').style.display = 'none'; 
-}
+
 
     window.onload = () => App.init();
 </script>
