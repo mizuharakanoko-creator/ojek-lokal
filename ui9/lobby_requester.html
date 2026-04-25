@@ -229,6 +229,16 @@ body {
     <div id="bidList"></div>
 </div>
 
+<div id="intelSection" style="margin-top: 20px;">
+    <h4 style="border-bottom: 1px solid #333; padding-bottom: 8px; color: #ffcc00; font-size: 11px; letter-spacing: 2px;">
+        <span style="animation: typeStatus 2s infinite;">▶</span> INTERNAL INTEL LOGS:
+    </h4>
+    <div id="intelList">
+        <p style='color:#444; font-style:italic; font-size:11px;'>Scanning mission-specific intel...</p>
+    </div>
+</div>
+
+
 <div id="sovAlert" class="modal-overlay">
     <div class="modal-box">
         <h3 class="modal-title">SYSTEM ALERT</h3>
@@ -612,6 +622,47 @@ document.getElementById('missionDetail').innerHTML = `
         rotateSystemIntelligence();
         setInterval(rotateSystemIntelligence, 8000);
     });
+
+
+    // === 8. PANTAU INTEL REPORTS (SPESIFIK ID MISI) ===
+db4.ref(`intel_reports/${activeMid}`).on('value', snap => {
+    const intelList = document.getElementById('intelList');
+    intelList.innerHTML = "";
+    
+    if (!snap.exists()) {
+        intelList.innerHTML = "<p style='color:#333; font-style:italic; font-size:11px;'>No internal intel reported for this mission ID.</p>";
+        return;
+    }
+
+    // Play subtle sound if new intel arrives
+    if (!document.hidden) playSFX('beep');
+
+    snap.forEach(child => {
+        const report = child.val();
+        const div = document.createElement('div');
+        
+        // Style kotak laporan ala berkas rahasia
+        div.style.background = "linear-gradient(90deg, rgba(255, 204, 0, 0.05), transparent)";
+        div.style.borderLeft = "2px solid #ffcc00";
+        div.style.padding = "10px";
+        div.style.marginBottom = "10px";
+        div.style.fontSize = "11px";
+        div.style.fontFamily = "monospace";
+
+        div.innerHTML = `
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,204,0,0.1); padding-bottom: 4px; margin-bottom: 6px;">
+                <span style="color: #ffcc00; font-weight: bold;">[LOG_ENTRY_${child.key.toUpperCase()}]</span>
+                <span style="color: #444;">${report.timestamp ? new Date(report.timestamp).toLocaleTimeString() : 'RECORDED'}</span>
+            </div>
+            <div style="color: #e0e0e0; line-height: 1.5; white-space: pre-wrap;">${report.pesan || report.info || "Data Log Kosong"}</div>
+            <div style="margin-top: 6px; font-size: 9px; color: #666; text-align: right; text-transform: uppercase;">
+                Otoritas: ${report.author || 'System Auto-Gen'}
+            </div>
+        `;
+        intelList.appendChild(div);
+    });
+});
+
 
 
 
