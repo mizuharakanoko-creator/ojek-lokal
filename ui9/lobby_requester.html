@@ -9,15 +9,105 @@
     <script src="terminal_router.js"></script>
     <script src="clearchance.js"></script>
     <style>
+
+
+        :root {
+    --primary: #ff0055;
+    --neon-blue: #00ffff;
+    --neon-green: #00ff00;
+    --bg-dark: #050505;
+    --card-bg: #0a0a0a;
+}
+
+body { 
+    background: var(--bg-dark); 
+    color: #e0e0e0; 
+    font-family: 'Courier New', Courier, monospace; 
+    padding: 15px; 
+    margin: 0;
+    background-image: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #050505 100%);
+}
+
+/* === RADAR SCANNER EFFECT === */
+.radar-container {
+    position: relative;
+    height: 4px;
+    background: #111;
+    overflow: hidden;
+    margin-bottom: 15px;
+    border-radius: 2px;
+}
+.radar-bar {
+    position: absolute;
+    height: 100%;
+    width: 30%;
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    animation: scan 2s linear infinite;
+}
+
+@keyframes scan {
+    0% { left: -30%; }
+    100% { left: 100%; }
+}
+
+/* === REFINED CARDS === */
+.card { 
+    background: var(--card-bg); 
+    border: 1px solid #333; 
+    padding: 20px; 
+    margin-bottom: 20px; 
+    border-top: 3px solid var(--primary); 
+    position: relative;
+    backdrop-filter: blur(10px);
+}
+
+.card::after { /* Efek Scanline */
+    content: " ";
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+    background-size: 100% 4px, 3px 100%;
+    pointer-events: none;
+}
+
+/* === BUTTONS & INTERACTIVE === */
+.btn-acc { 
+    background: rgba(0, 255, 255, 0.05); 
+    color: var(--neon-blue); 
+    border: 1px solid var(--neon-blue); 
+    padding: 10px 20px; 
+    font-weight: bold; 
+    cursor: pointer; 
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-acc:hover { 
+    background: var(--neon-blue); 
+    color: #000; 
+    box-shadow: 0 0 20px var(--neon-blue);
+}
+
+/* Rank Glows */
+.rank-badge { 
+    padding: 3px 8px; 
+    text-transform: uppercase; 
+    letter-spacing: 1px;
+}
+
+/* Tambahkan animasi fade in untuk bid baru */
+.bid-item {
+    animation: fadeInSlide 0.4s ease forwards;
+    border-left: 4px solid #333;
+    margin-bottom: 8px;
+}
+
+@keyframes fadeInSlide {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
         /* === BASE THEME === */
-        body { background: #050505; color: #e0e0e0; font-family: 'Courier New', Courier, monospace; padding: 15px; margin: 0; overflow-x: hidden; }
-        * { box-sizing: border-box; }
-        
-        .card { background: #0a0a0a; border: 1px solid #333; padding: 15px; margin-bottom: 20px; border-top: 3px solid #ff0055; position: relative; box-shadow: 0 0 15px rgba(255, 0, 85, 0.1); }
-        
-        /* === BUTTONS === */
-        .btn-acc { background: transparent; color: #00ffff; border: 1px solid #00ffff; padding: 8px 15px; font-weight: bold; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; }
-        .btn-acc:hover { background: #00ffff; color: #000; box-shadow: 0 0 10px #00ffff; transform: scale(1.05); }
         
         .btn-abort { background: #1a0505; color: #ff4444; border: 1px solid #ff4444; padding: 6px 12px; font-size: 11px; cursor: pointer; float: right; margin-top: -5px; transition: 0.3s; }
         .btn-abort:hover { background: #ff4444; color: #fff; box-shadow: 0 0 10px #ff4444; animation: pulseRed 1s infinite; }
@@ -93,6 +183,15 @@
 
 <div class="card">
     <button class="btn-abort" onclick="reqHancurkanMisi()">[ HANCURKAN MISI ]</button>
+<div class="radar-container">
+    <div class="radar-bar"></div>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <small id="connectionStatus" style="color: #555;">● SYSTEM ONLINE</small>
+    <small id="pingDisplay" style="color: #555;">LATENCY: --ms</small>
+</div>
+
     <h3 id="missionTitle" style="margin: 0; color: #ff0055; letter-spacing: 1px;">MEMINDAI SINYAL...</h3>
     
     <div class="route-map" id="routeMap" style="display: none;">
@@ -281,6 +380,9 @@
         document.getElementById('routeMap').style.display = 'flex';
 
         if (!missionTimer) { missionTimer = setInterval(updateTimer, 1000); }
+        if (snap.exists() && !document.hidden) {
+        playSFX('beep'); // Hanya bunyi jika user sedang melihat halaman
+        }
     });
 
     // === 5. PANTAU BIDS (PENAWARAN) ===
@@ -369,13 +471,21 @@
 
     // === 7. FUNGSI HANCURKAN (UI ke Logika Asli) ===
     function reqHancurkanMisi() {
+    // Menambahkan prompt teks agar tidak asal klik
+    const confirmationText = "HANCURKAN";
+    const userInput = prompt(`PERINGATAN KRITIS!\nKetik "${confirmationText}" untuk mengonfirmasi penghancuran misi:`);
+    
+    if (userInput === confirmationText) {
         showSovereignConfirm(
-            "PERINGATAN KRITIS", 
-            "Menghancurkan misi akan memutus semua sinyal penawaran. Apakah Anda yakin?", 
+            "KONFIRMASI TERAKHIR", 
+            "Semua data transmisi akan dihapus permanen. Lanjutkan?", 
             true, 
             () => executeHancurkan()
         );
+    } else if (userInput !== null) {
+        showSovereignAlert("Verifikasi gagal. Prosedur dibatalkan.");
     }
+}
 
     async function executeHancurkan() {
         document.getElementById('statusPulsing').innerText = "MENGHAPUS JEJAK SINYAL...";
@@ -390,6 +500,34 @@
             showSovereignAlert("Gagal Menghancurkan Misi: " + e.message); 
         }
     }
+
+
+    // --- FITUR BARU: MONITOR KONEKSI ---
+function monitorConnection() {
+    const statusEl = document.getElementById('connectionStatus');
+    const pingEl = document.getElementById('pingDisplay');
+    const connectedRef = db1.ref(".info/connected");
+
+    connectedRef.on("value", (snap) => {
+        if (snap.val() === true) {
+            statusEl.innerText = "● SYSTEM ONLINE";
+            statusEl.style.color = "var(--neon-green)";
+            // Simulasi Ping (Firebase latency)
+            const startTime = Date.now();
+            db1.ref('.info/serverTimeOffset').once('value', () => {
+                const ping = Date.now() - startTime;
+                pingEl.innerText = `LATENCY: ${ping}ms`;
+            });
+        } else {
+            statusEl.innerText = "○ SYSTEM OFFLINE";
+            statusEl.style.color = "var(--primary)";
+        }
+    });
+}
+
+    // Panggil saat window load
+window.addEventListener('load', monitorConnection);
+
 </script>
 </body>
 </html>
