@@ -88,10 +88,15 @@
     <div class="modal-box" id="modalBox">
         <h3 class="modal-title" id="modalTitle">SISTEM</h3>
         <p class="modal-msg" id="modalMsg">Pesan...</p>
+        
+        <input type="text" id="modalInput" placeholder="Ketik di sini..." 
+               style="display:none; width: 80%; background: #000; border: 1px solid #ff4444; color: #ff4444; padding: 10px; text-align: center; font-family: monospace; margin-bottom: 20px; outline: none; margin-left: auto; margin-right: auto;">
+        
         <div class="modal-btn-group" id="modalBtnGroup">
             </div>
     </div>
 </div>
+
 
 <script>
     // === INITIALIZATION ===
@@ -153,7 +158,7 @@
             <div class="data-item"><span>REWARD</span><b style="color:#00ff00;">Rp ${(c.reward || 0).toLocaleString()}</b></div>
             <div class="data-item"><span>PERAN ANDA</span><b style="color:#ffaa00;">${user.role.toUpperCase()}</b></div>
             <div class="data-item"><span>LOKASI ASAL</span><b>${m.origin_name || '-'}</b></div>
-            <div class="data-item"><span>LOKASI TUJUAN</span><b>${m.dest_name || '-'}</b></div>
+            <div class="data-item"><span>LOKASI TUJUAN</span><b>${m.dest_desa || '-'}</b></div>
         `;
 
         const actionArea = document.getElementById('actionArea');
@@ -163,10 +168,10 @@
 
         // BRANCHING BERDASARKAN ROLE
         if (user.role === 'adventurer') {
-            statusMsg.innerText = "Sinyal Anda terdeteksi. Silakan eksekusi kontrak jika Anda sudah berada di lokasi asal.";
+            statusMsg.innerText = "Sinyal Anda terdeteksi. Untuk memulai silahkan tekan tombol terima kontrak dan segera jalin komunikasi dengan pihak pemberi misi, untuk memperjelas detail misi dan menghindari pembatalan sepihak.";
             actionArea.innerHTML = `<button id="btnStart" class="btn-action btn-start" onclick="reqStart()">EKSEKUSI KONTRAK SEKARANG</button>`;
         } else {
-            statusMsg.innerText = "Menunggu Adventurer memulai pergerakan. Anda bisa membatalkan misi jika Adventurer tidak merespons.";
+            statusMsg.innerText = "Menunggu Adventurer menerima kontrak. Anda bisa membatalkan misi jika Adventurer tidak merespons dalam jangka waktu cukup lama.";
             actionArea.innerHTML = `
                 <div style="font-size:10px; color:#555;"><span class="pulse-dot"></span> MENANTI RESPONS ADVENTURER...</div>
                 <button class="btn-abort" onclick="reqAbort('${m.id_misi}', '${c.id_shard}', '${c.id_desa}')">HANCURKAN KONTRAK & MISI</button>
@@ -199,7 +204,7 @@
                 }
             } catch (e) {
                 btn.disabled = false;
-                btn.innerText = "EKSEKUSI KONTRAK SEKARANG";
+                btn.innerText = "TERIMA KONTRAK";
                 btn.classList.remove('btn-disabled');
                 showModal("ERROR", "Gagal menghubungi server: " + e.message, true);
             }
@@ -207,9 +212,19 @@
     }
 
     // === FUNCTIONS: ABORT MISSION (REQUESTER) ===
-    function reqAbort(mid, shard, desa) {
-        showModal("KONFIRMASI PENGHANCURAN", "Misi dan kontrak akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.", true, true, async () => {
+    // Ganti fungsi reqAbort Anda dengan ini
+function reqAbort(mid, shard, desa) {
+    // Tambahkan parameter 'true' di akhir untuk mengaktifkan showInput
+    showModal(
+        "KONFIRMASI PENGHANCURAN", 
+        "Ketik HANCURKAN untuk mengonfirmasi penghancuran misi dan kontrak. Tindakan ini permanen.", 
+        true, 
+        true, 
+        async () => {
             try {
+                // Tampilkan loading di pesan asisten
+                document.getElementById('statusMsg').innerText = "MENGHANCURKAN TRANSMISI KONTRAK...";
+                
                 // 1. Hapus misi di board
                 await db4.ref(`mission-${shard}/${desa}/${mid}`).remove();
                 // 2. Hapus bids terkait
@@ -221,42 +236,71 @@
             } catch (e) {
                 showModal("ERROR", "Gagal menghapus: " + e.message, true);
             }
-        });
-    }
+        }, 
+        true // Parameter ini yang menyalakan input box
+    );
+}
+
 
     // === SYSTEM UTILS ===
-    function showModal(title, msg, isDanger = false, isConfirm = false, onOk = null) {
-        const modal = document.getElementById('sysModal');
-        const box = document.getElementById('modalBox');
-        const btnGroup = document.getElementById('modalBtnGroup');
-        
-        modal.style.display = "flex";
-        document.getElementById('modalTitle').innerText = title;
-        document.getElementById('modalMsg').innerText = msg;
-        box.className = isDanger ? "modal-box danger" : "modal-box";
-        
-        btnGroup.innerHTML = "";
-        if (isConfirm) {
-            const btnCancel = document.createElement('button');
-            btnCancel.className = "modal-btn btn-cancel";
-            btnCancel.innerText = "BATAL";
-            btnCancel.onclick = () => modal.style.display = "none";
-            
-            const btnOk = document.createElement('button');
-            btnOk.className = isDanger ? "modal-btn btn-confirm-danger" : "modal-btn btn-confirm";
-            btnOk.innerText = "YA, EKSEKUSI";
-            btnOk.onclick = () => { modal.style.display = "none"; if(onOk) onOk(); };
-            
-            btnGroup.appendChild(btnCancel);
-            btnGroup.appendChild(btnOk);
-        } else {
-            const btnClose = document.createElement('button');
-            btnClose.className = "modal-btn btn-confirm";
-            btnClose.innerText = "MENGERTI";
-            btnClose.onclick = () => { modal.style.display = "none"; if(onOk) onOk(); };
-            btnGroup.appendChild(btnClose);
-        }
+    // Ganti fungsi showModal Anda dengan ini
+function showModal(title, msg, isDanger = false, isConfirm = false, onOk = null, showInput = false) {
+    const modal = document.getElementById('sysModal');
+    const box = document.getElementById('modalBox');
+    const btnGroup = document.getElementById('modalBtnGroup');
+    const inputField = document.getElementById('modalInput'); // Ambil elemen input
+    
+    modal.style.display = "flex";
+    document.getElementById('modalTitle').innerText = title;
+    document.getElementById('modalMsg').innerText = msg;
+    box.className = isDanger ? "modal-box danger" : "modal-box";
+    
+    // Logika Tampilkan/Sembunyikan Input
+    if (showInput) {
+        inputField.style.display = "block";
+        inputField.value = "";
+        inputField.focus();
+    } else {
+        inputField.style.display = "none";
     }
+    
+    btnGroup.innerHTML = "";
+    if (isConfirm) {
+        const btnCancel = document.createElement('button');
+        btnCancel.className = "modal-btn btn-cancel";
+        btnCancel.innerText = "BATAL";
+        btnCancel.onclick = () => modal.style.display = "none";
+        
+        const btnOk = document.createElement('button');
+        btnOk.className = isDanger ? "modal-btn btn-confirm-danger" : "modal-btn btn-confirm";
+        btnOk.innerText = "YA, EKSEKUSI";
+        
+        btnOk.onclick = () => { 
+            // Jika butuh input konfirmasi
+            if (showInput) {
+                if (inputField.value === "HANCURKAN") {
+                    modal.style.display = "none"; 
+                    if(onOk) onOk();
+                } else {
+                    alert("Verifikasi gagal. Ketik HANCURKAN dengan benar.");
+                }
+            } else {
+                modal.style.display = "none"; 
+                if(onOk) onOk();
+            }
+        };
+        
+        btnGroup.appendChild(btnCancel);
+        btnGroup.appendChild(btnOk);
+    } else {
+        const btnClose = document.createElement('button');
+        btnClose.className = "modal-btn btn-confirm";
+        btnClose.innerText = "MENGERTI";
+        btnClose.onclick = () => { modal.style.display = "none"; if(onOk) onOk(); };
+        btnGroup.appendChild(btnClose);
+    }
+}
+
 
     function handleError(title, msg, isRedirect = true) {
         showModal(title, msg, true, false, () => {
