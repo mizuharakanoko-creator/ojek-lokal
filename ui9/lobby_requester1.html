@@ -218,16 +218,26 @@ body {
     <div class="status-msg pulsing-text" id="statusPulsing">MENYIARKAN SINYAL KE GUILD LOBBY...</div>
 
 <div id="systemIntelligence" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #111; min-height: 40px;">
-    <small style="color: #555; display: block; font-size: 9px; letter-spacing: 1px;">KUTIPAN INFORMASI:</small>
+    <small style="color: #555; display: block; font-size: 9px; letter-spacing: 1px;">PANDUAN PENGGUNA:</small>
     <div id="intelText" style="color: #008888; font-size: 11px; font-style: italic; margin-top: 4px;">Menginisialisasi modul edukasi...</div>
 </div>
 
 </div>
 
 <div id="bidSection">
-    <h4 style="border-bottom: 1px solid #333; padding-bottom: 5px; color: #aaa;">PENELUSURAN SINYAL (BIDS):</h4>
+    <h4 style="border-bottom: 1px solid #333; padding-bottom: 5px; color: #aaa;">PELAMAR MISI (BIDS):</h4>
     <div id="bidList"></div>
 </div>
+
+<div id="intelSection" style="margin-top: 20px;">
+    <h4 style="border-bottom: 1px solid #333; padding-bottom: 8px; color: #ffcc00; font-size: 11px; letter-spacing: 2px;">
+        <span style="animation: typeStatus 2s infinite;">▶</span> LAPORAN KENDALA LAPANGAN:
+    </h4>
+    <div id="intelList">
+        <p style='color:#444; font-style:italic; font-size:11px;'>Informasi mengenai kendala lapangan akan ditampilkan pada panel ini...</p>
+    </div>
+</div>
+
 
 <div id="sovAlert" class="modal-overlay">
     <div class="modal-box">
@@ -255,7 +265,7 @@ body {
             <div class="profile-stat"><span>Codename:</span> <b id="profNick" style="color:#fff;">-</b></div>
             <div class="profile-stat"><span>Guild Rank:</span> <span id="profRankBadge" class="rank-badge">-</span></div>
             <div class="profile-stat"><span>Reputasi:</span> <b style="color:#4ade80;">98% Berhasil</b></div>
-            <div class="profile-stat"><span>Sistem Combat:</span> <b style="color:#aaa;">Terverifikasi</b></div>
+            <div class="profile-stat"><span>Akun:</span> <b style="color:#aaa;">Terverifikasi</b></div>
         </div>
         <button class="btn-modal secondary" onclick="closeProfile()" style="width: 100%;">TUTUP PROFIL</button>
     </div>
@@ -375,14 +385,22 @@ body {
         document.getElementById('missionTitle').innerText = `ID: ${m.id_misi}`;
         document.getElementById('rewardTag').innerText = `Rp ${m.reward.toLocaleString()}`;
         
-        document.getElementById('missionDetail').innerHTML = `
-            <span style="color:#888">Tipe Transaksi:</span> Pengiriman Dokumen/Barang<br>
-            <span style="color:#888">Instruksi Khusus:</span> <span style="color:#ccc">${m.catatan || 'Standar Operasional'}</span>
-        `;
+const typeMap = {
+    'Motor Ride': 'Pengantaran dengan Motor',
+    'Car Ride': 'Pengantaran dengan Mobil',
+    'Pick & Drop': 'Pengiriman paket Dokumen/Barang',
+    'Help': 'Butuh Pertolongan untuk suatu Tugas',
+    'Titip Beli': 'Pemesanan Makanan/Belanja'
+};
+
+document.getElementById('missionDetail').innerHTML = `
+    <span style="color:#888">Tipe Misi:</span> ${typeMap[m.category] || m.category || 'Umum'}<br>
+    <span style="color:#888">Penawaran Anda:</span> <span style="color:#ccc">${m.catatan || 'Bukan Harga Final'}</span>
+`;
 
         // Update Map Route
         document.getElementById('mapOrigin').innerText = m.origin_name.toUpperCase();
-        document.getElementById('mapDest').innerText = m.dest_name.toUpperCase();
+        document.getElementById('mapDest').innerText = m.dest_desa.toUpperCase();
         document.getElementById('routeMap').style.display = 'flex';
 
         if (!missionTimer) { missionTimer = setInterval(updateTimer, 1000); }
@@ -397,13 +415,13 @@ body {
         list.innerHTML = "";
         
         if (!snap.exists()) {
-            list.innerHTML = "<p style='color:#444; font-style:italic; font-size:12px;'>Belum ada sinyal masuk dari Adventurer...</p>";
+            list.innerHTML = "<p style='color:#E0FFFF; font-style:italic; font-size:12px;'>Belum ada lamaran masuk dari Adventurer...</p>";
             document.getElementById('statusPulsing').innerText = "MENUNGGU ADVENTURER MERESPON...";
             return;
         }
 
         playSFX('beep'); // SFX saat ada bid masuk/update
-        document.getElementById('statusPulsing').innerText = `${snap.numChildren()} ADVENTURER MENGIRIM SINYAL!`;
+        document.getElementById('statusPulsing').innerText = `${snap.numChildren()} ADVENTURER SUDAH MENGIRIM LAMARAN, SEGERA PILIH PELAKSANA MISI!`;
         document.getElementById('statusPulsing').style.color = "#00ffff";
 
         snap.forEach(child => {
@@ -604,6 +622,47 @@ body {
         rotateSystemIntelligence();
         setInterval(rotateSystemIntelligence, 8000);
     });
+
+
+    // === 8. PANTAU INTEL REPORTS (SPESIFIK ID MISI) ===
+db4.ref(`intel_reports/${activeMid}`).on('value', snap => {
+    const intelList = document.getElementById('intelList');
+    intelList.innerHTML = "";
+    
+    if (!snap.exists()) {
+        intelList.innerHTML = "<p style='color:#E0FFFF; font-style:italic; font-size:11px;'>Informasi mengenai kendala lapangan akan ditampilkan pada panel ini...</p>";
+        return;
+    }
+
+    // Play subtle sound if new intel arrives
+    if (!document.hidden) playSFX('beep');
+
+    snap.forEach(child => {
+        const report = child.val();
+        const div = document.createElement('div');
+        
+        // Style kotak laporan ala berkas rahasia
+        div.style.background = "linear-gradient(90deg, rgba(255, 204, 0, 0.05), transparent)";
+        div.style.borderLeft = "2px solid #ffcc00";
+        div.style.padding = "10px";
+        div.style.marginBottom = "10px";
+        div.style.fontSize = "11px";
+        div.style.fontFamily = "monospace";
+
+        div.innerHTML = `
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,204,0,0.1); padding-bottom: 4px; margin-bottom: 6px;">
+                <span style="color: #ffcc00; font-weight: bold;">[LOG_ENTRY_${child.key.toUpperCase()}]</span>
+                <span style="color: #444;">${report.timestamp ? new Date(report.timestamp).toLocaleTimeString() : 'RECORDED'}</span>
+            </div>
+            <div style="color: #e0e0e0; line-height: 1.5; white-space: pre-wrap;">${report.pesan || report.info || "Data Log Kosong"}</div>
+            <div style="margin-top: 6px; font-size: 9px; color: #666; text-align: right; text-transform: uppercase;">
+                Pengirim: ${report.author || 'Adventurer'}
+            </div>
+        `;
+        intelList.appendChild(div);
+    });
+});
+
 
 
 
