@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Briefing Room</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        /* === THEME SOVEREIGN (100% VISUAL) === */
+        body { background: #050505; color: #e0e0e0; font-family: 'Courier New', Courier, monospace; padding: 10px; margin: 0; overflow-x: hidden; }
+        .container { max-width: 600px; margin: auto; padding-bottom: 50px; }
+        
+        .assistant-box { background: #111; border: 1px solid #333; display: flex; padding: 10px; margin-bottom: 15px; border-radius: 4px; align-items: center; position: relative; }
+        .assistant-box::before { content: "COMM-LINK ACTIVE"; position: absolute; top: 2px; right: 5px; font-size: 8px; color: #00ffff; }
+        .assistant-img { width: 70px; height: 70px; border: 2px solid #00ffff; background: #222; image-rendering: pixelated; margin-right: 15px; }
+        .assistant-chat { flex-grow: 1; }
+        .assistant-name { font-weight: bold; color: #00ffff; font-size: 12px; margin-bottom: 4px; display: block; }
+        .assistant-msg { font-size: 11px; line-height: 1.4; color: #ccc; }
+
+        .contract-card { background: #0a0a0a; border: 1px solid #333; border-top: 3px solid #00ffff; padding: 15px; position: relative; box-shadow: 0 0 20px rgba(0, 255, 255, 0.05); }
+        .contract-id { font-size: 10px; color: #555; letter-spacing: 2px; }
+        .mission-title { color: #00ffff; margin: 10px 0; font-size: 18px; text-transform: uppercase; }
+        
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; border-top: 1px solid #222; padding-top: 15px; }
+        .data-item span { display: block; font-size: 10px; color: #666; }
+        .data-item b { font-size: 13px; color: #fff; }
+
+        .disclaimer-box { background: rgba(255, 0, 0, 0.05); border: 1px dashed #442222; padding: 12px; margin: 20px 0; font-size: 10px; color: #888; text-align: justify; }
+
+        .status-panel { text-align: center; padding: 15px; border: 1px solid #222; background: #0d0d0d; margin-top: 10px; }
+        .pulse-dot { height: 8px; width: 8px; background-color: #00ff00; border-radius: 50%; display: inline-block; margin-right: 5px; animation: blink 1s infinite; }
+        
+        .btn-action { width: 100%; padding: 15px; font-weight: bold; cursor: pointer; border: none; text-transform: uppercase; letter-spacing: 2px; margin-top: 10px; }
+        .btn-start { background: #00ff00; color: #000; }
+        .btn-abort { background: transparent; color: #444; border: 1px solid #222; padding: 8px; font-size: 10px; width: 100%; margin-top: 20px; cursor: pointer; }
+        .btn-abort:hover { color: #ff4444; border-color: #ff4444; }
+        .btn-disabled { background: #222 !important; color: #444 !important; pointer-events: none; }
+
+        /* === CUSTOM MODAL (REPLACING BROWSER ALERT) === */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 10000; padding: 20px; backdrop-filter: blur(5px); }
+        .modal-box { background: #0a0a0a; border: 1px solid #00ffff; padding: 25px; width: 100%; max-width: 350px; text-align: center; }
+        .modal-box.danger { border-color: #ff4444; }
+        .modal-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #00ffff; text-transform: uppercase; }
+        .modal-box.danger .modal-title { color: #ff4444; }
+        .modal-msg { font-size: 12px; color: #ccc; margin-bottom: 25px; line-height: 1.6; }
+        .modal-btn-group { display: flex; gap: 10px; }
+        .modal-btn { flex: 1; padding: 12px; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        .btn-confirm { background: #00ffff; color: #000; }
+        .btn-confirm-danger { background: #ff4444; color: #fff; }
+        .btn-cancel { background: #222; color: #888; }
+
+        @keyframes blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="assistant-box">
+        <img id="asisImg" src="https://via.placeholder.com/70/111/00ffff?text=..." class="assistant-img">
+        <div class="assistant-chat">
+            <span class="assistant-name" id="asisName">SYSTEM</span>
+            <div class="assistant-msg" id="statusMsg">MENGHUBUNGKAN KE FREKUENSI KONTRAK...</div>
+        </div>
+    </div>
+
+    <div class="contract-card">
+        <div class="contract-id" id="displayCid">CONTRACT ID: ---</div>
+        <h2 class="mission-title" id="displayTitle">SINKRONISASI DATA...</h2>
+        
+        <div class="data-grid" id="dataDisplay">
+            </div>
+
+        <div class="disclaimer-box">
+            <b>PROTOKOL:</b> Kontrak ini bersifat mengikat secara digital. Segala bentuk kecurangan akan tercatat permanen di sistem reputasi Sovereign.
+        </div>
+
+        <div class="status-panel">
+            <div id="actionArea">
+                </div>
+        </div>
+    </div>
+</div>
+
+<div id="sysModal" class="modal-overlay">
+    <div class="modal-box" id="modalBox">
+        <h3 class="modal-title" id="modalTitle">SISTEM</h3>
+        <p class="modal-msg" id="modalMsg">Pesan...</p>
+        <div class="modal-btn-group" id="modalBtnGroup">
+            </div>
+    </div>
+</div>
+
+<script>
+    // === INITIALIZATION ===
+    const user = Clearchance.enforceIdentity();
+    const contractId = sessionStorage.getItem('active_contract_id');
+    const db4 = getTerminal('FB4_BOARD');
+    
+    if (!contractId) {
+        handleError("AKSES ILEGAL", "ID Kontrak hilang dari memori sesi.");
+    }
+
+    let isInitialLoad = true;
+    let currentC = null;
+
+    // === FIREBASE LISTENER (UTAMA) ===
+    const contractRef = db4.ref(`kontrak_mission/${contractId}`);
+
+    contractRef.on('value', snap => {
+        if (!snap.exists()) {
+            if (isInitialLoad) { isInitialLoad = false; return; }
+            handleError("KONTRAK MATI", "Kontrak telah ditarik atau dihancurkan.", true);
+            return;
+        }
+
+        isInitialLoad = false;
+        const c = snap.val();
+        currentC = c;
+
+        // VERIFIKASI IDENTITAS KETAT
+        if (user.uid !== c.id_requester && user.uid !== c.id_adventurer) {
+            handleError("AKSES DITOLAK", "Anda bukan bagian dari kontrak ini.");
+            return;
+        }
+
+        // SIMPAN DATA MISI UNTUK TRACKING
+        if (c.full_mission_data) {
+            sessionStorage.setItem('current_mission_full', JSON.stringify(c.full_mission_data));
+        }
+
+        renderUI(c);
+
+        // AUTO REDIRECT JIKA DIMULAI
+        if (c.is_started === true) {
+            contractRef.off();
+            window.location.href = "mission_progress.html";
+        }
+    });
+
+    // === RENDER UI (FULL TANPA RINGKASAN) ===
+    function renderUI(c) {
+        const m = c.full_mission_data || {};
+        
+        document.getElementById('displayCid').innerText = `CONTRACT ID: ${c.id_kontrak}`;
+        document.getElementById('displayTitle').innerText = m.id_misi || "MISI KONTRAK";
+        
+        document.getElementById('dataDisplay').innerHTML = `
+            <div class="data-item"><span>REQUESTER</span><b>${c.requester_nick}</b></div>
+            <div class="data-item"><span>ADVENTURER</span><b>${c.adventurer_nick}</b></div>
+            <div class="data-item"><span>REWARD</span><b style="color:#00ff00;">Rp ${(c.reward || 0).toLocaleString()}</b></div>
+            <div class="data-item"><span>PERAN ANDA</span><b style="color:#ffaa00;">${user.role.toUpperCase()}</b></div>
+            <div class="data-item"><span>LOKASI ASAL</span><b>${m.origin_name || '-'}</b></div>
+            <div class="data-item"><span>LOKASI TUJUAN</span><b>${m.dest_name || '-'}</b></div>
+        `;
+
+        const actionArea = document.getElementById('actionArea');
+        const statusMsg = document.getElementById('statusMsg');
+        
+        actionArea.innerHTML = "";
+
+        // BRANCHING BERDASARKAN ROLE
+        if (user.role === 'adventurer') {
+            statusMsg.innerText = "Sinyal Anda terdeteksi. Silakan eksekusi kontrak jika Anda sudah berada di lokasi asal.";
+            actionArea.innerHTML = `<button id="btnStart" class="btn-action btn-start" onclick="reqStart()">EKSEKUSI KONTRAK SEKARANG</button>`;
+        } else {
+            statusMsg.innerText = "Menunggu Adventurer memulai pergerakan. Anda bisa membatalkan misi jika Adventurer tidak merespons.";
+            actionArea.innerHTML = `
+                <div style="font-size:10px; color:#555;"><span class="pulse-dot"></span> MENANTI RESPONS ADVENTURER...</div>
+                <button class="btn-abort" onclick="reqAbort('${m.id_misi}', '${c.id_shard}', '${c.id_desa}')">HANCURKAN KONTRAK & MISI</button>
+            `;
+        }
+        
+        updateAssistant();
+    }
+
+    // === FUNCTIONS: START MISSION (ADVENTURER) ===
+    function reqStart() {
+        showModal("MULAI KONTRAK?", "Dengan menekan YA, sistem akan mencatat waktu mulai dan memberitahu Requester.", false, true, async () => {
+            const btn = document.getElementById('btnStart');
+            btn.disabled = true;
+            btn.innerText = "SYNCHRONIZING...";
+            btn.classList.add('btn-disabled');
+
+            try {
+                // 1. Update status kontrak
+                await contractRef.update({ 
+                    is_started: true, 
+                    start_time: Date.now() 
+                });
+
+                // 2. Update status di Board Desa (Fitur Penting!)
+                if (currentC.id_shard && currentC.id_desa && currentC.id_misi) {
+                    await db4.ref(`mission-${currentC.id_shard}/${currentC.id_desa}/${currentC.id_misi}`).update({
+                        status: 'on-going'
+                    });
+                }
+            } catch (e) {
+                btn.disabled = false;
+                btn.innerText = "EKSEKUSI KONTRAK SEKARANG";
+                btn.classList.remove('btn-disabled');
+                showModal("ERROR", "Gagal menghubungi server: " + e.message, true);
+            }
+        });
+    }
+
+    // === FUNCTIONS: ABORT MISSION (REQUESTER) ===
+    function reqAbort(mid, shard, desa) {
+        showModal("KONFIRMASI PENGHANCURAN", "Misi dan kontrak akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.", true, true, async () => {
+            try {
+                // 1. Hapus misi di board
+                await db4.ref(`mission-${shard}/${desa}/${mid}`).remove();
+                // 2. Hapus bids terkait
+                await db4.ref(`bids/${mid}`).remove();
+                // 3. Hapus kontrak
+                await contractRef.remove();
+                
+                window.location.href = "lobby_requester.html";
+            } catch (e) {
+                showModal("ERROR", "Gagal menghapus: " + e.message, true);
+            }
+        });
+    }
+
+    // === SYSTEM UTILS ===
+    function showModal(title, msg, isDanger = false, isConfirm = false, onOk = null) {
+        const modal = document.getElementById('sysModal');
+        const box = document.getElementById('modalBox');
+        const btnGroup = document.getElementById('modalBtnGroup');
+        
+        modal.style.display = "flex";
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalMsg').innerText = msg;
+        box.className = isDanger ? "modal-box danger" : "modal-box";
+        
+        btnGroup.innerHTML = "";
+        if (isConfirm) {
+            const btnCancel = document.createElement('button');
+            btnCancel.className = "modal-btn btn-cancel";
+            btnCancel.innerText = "BATAL";
+            btnCancel.onclick = () => modal.style.display = "none";
+            
+            const btnOk = document.createElement('button');
+            btnOk.className = isDanger ? "modal-btn btn-confirm-danger" : "modal-btn btn-confirm";
+            btnOk.innerText = "YA, EKSEKUSI";
+            btnOk.onclick = () => { modal.style.display = "none"; if(onOk) onOk(); };
+            
+            btnGroup.appendChild(btnCancel);
+            btnGroup.appendChild(btnOk);
+        } else {
+            const btnClose = document.createElement('button');
+            btnClose.className = "modal-btn btn-confirm";
+            btnClose.innerText = "MENGERTI";
+            btnClose.onclick = () => { modal.style.display = "none"; if(onOk) onOk(); };
+            btnGroup.appendChild(btnClose);
+        }
+    }
+
+    function handleError(title, msg, isRedirect = true) {
+        showModal(title, msg, true, false, () => {
+            if (isRedirect) window.location.href = "index.html";
+        });
+    }
+
+    function updateAssistant() {
+    const hour = new Date().getHours();
+    
+    // 1. Urutan 8 asisten sesuai jam picket (masing-masing 3 jam)
+    // Berdasarkan gambar image_15.png:
+    const assists = [
+        "irene",   // 00-03 (Night-Ops)
+        "amy",     // 03-06 (Focused Red)
+        "aldis",   // 06-09 (Senior grey)
+        "ruby",    // 09-12 (Energetic Orange)
+        "tessia",  // 12-15 (Analytical Pink)
+        "aria",    // 15-18 (Serene Purple)
+        "asia",   // 18-21 (Knowledgeable Older)
+        "sissy"     // 21-00 (Sturdy Male)
+        // Tambahkan "nex" jika Anda ingin menukar salah satu
+    ];
+    
+    // 2. Logika pembagian waktu yang benar untuk 8 shift (24 / 8 = 3)
+    const shiftLength = 3; 
+    const selected = assists[Math.floor(hour / shiftLength)];
+    
+    // 3. Update UI
+    document.getElementById('asisName').innerText = selected.toUpperCase();
+    
+    // 4. Memanggil file lokal (misal: irene.png, aldis.png, dll.)
+    // Pastikan Anda sudah memotong gambar sheet menjadi file individual dengan nama ini.
+    document.getElementById('asisImg').src = selected + ".png"; 
+}
+
+// Jalankan fungsi saat halaman dimuat
+updateAssistant();
+// Opsional: Update setiap menit agar sinkron jika jam berganti saat halaman terbuka
+setInterval(updateAssistant, 60000); 
+
+</script>
+
+</body>
+</html>
