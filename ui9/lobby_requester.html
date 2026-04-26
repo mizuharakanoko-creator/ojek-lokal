@@ -271,6 +271,21 @@ body {
     </div>
 </div>
 
+
+<div id="sovPrompt" class="modal-overlay">
+    <div class="modal-box danger">
+        <h3 class="modal-title">PERINGATAN KRITIS!</h3>
+        <p class="modal-msg">Ketik <b style="color: #fff;">HANCURKAN</b> untuk mengonfirmasi penghancuran misi:</p>
+        <input type="text" id="promptInput" placeholder="..." 
+               style="width: 80%; background: #000; border: 1px solid #ff4444; color: #ff4444; padding: 10px; text-align: center; font-family: monospace; margin-bottom: 20px; outline: none;">
+        <div class="modal-btn-group">
+            <button class="btn-modal secondary" onclick="closePrompt()">BATAL</button>
+            <button class="btn-modal danger-fill" onclick="validatePrompt()">PROSES</button>
+        </div>
+    </div>
+</div>
+
+
 <script>
     // === 1. SISTEM AUDIO (SFX Synth tanpa file eksternal) ===
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -495,21 +510,35 @@ document.getElementById('missionDetail').innerHTML = `
 
     // === 7. FUNGSI HANCURKAN (UI ke Logika Asli) ===
     function reqHancurkanMisi() {
-    // Menambahkan prompt teks agar tidak asal klik
+    playSFX('alert');
+    document.getElementById('promptInput').value = ""; // Reset input
+    document.getElementById('sovPrompt').style.display = 'flex';
+    document.getElementById('promptInput').focus();
+}
+
+function closePrompt() {
+    document.getElementById('sovPrompt').style.display = 'none';
+}
+
+function validatePrompt() {
+    const input = document.getElementById('promptInput').value;
     const confirmationText = "HANCURKAN";
-    const userInput = prompt(`PERINGATAN KRITIS!\nKetik "${confirmationText}" untuk mengonfirmasi penghancuran misi:`);
-    
-    if (userInput === confirmationText) {
+
+    if (input === confirmationText) {
+        closePrompt();
+        // Lanjut ke konfirmasi kedua (Final Handshake)
         showSovereignConfirm(
             "KONFIRMASI TERAKHIR", 
             "Semua data transmisi akan dihapus permanen. Lanjutkan?", 
             true, 
             () => executeHancurkan()
         );
-    } else if (userInput !== null) {
-        showSovereignAlert("Verifikasi gagal. Prosedur dibatalkan.");
+    } else {
+        playSFX('alert');
+        alert("Verifikasi gagal. Teks harus sesuai."); // Bisa diganti showSovereignAlert
     }
 }
+
 
     async function executeHancurkan() {
         document.getElementById('statusPulsing').innerText = "MENGHAPUS JEJAK SINYAL...";
