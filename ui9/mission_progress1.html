@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BATTLEFIELD | SOVEREIGN HUB</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        /* === THEMES (From Code 1) === */
+        :root[data-theme="dark"] {
+            --bg-main: #050508; --bg-glass: rgba(10, 10, 15, 0.9);
+            --text-main: #ffffff; --neon: #00f3ff; --neon-alt: #ff00ea;
+        }
+        :root[data-theme="light"] {
+            --bg-main: #f0f2f5; --bg-glass: rgba(255, 255, 255, 0.9);
+            --text-main: #1a1a1a; --neon: #0077ff; --neon-alt: #d400ff;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg-main); color: var(--text-main); overflow: hidden; margin: 0; }
+        
+        /* Map Layer */
+        #map { width: 100%; height: 100vh; position: absolute; z-index: 1; }
+        [data-theme="dark"] #map { filter: brightness(0.6) invert(1) hue-rotate(180deg); }
+
+        /* Floating HUD */
+        .hud-top, .hud-bottom { position: absolute; left: 0; width: 100%; z-index: 10; padding: 15px; box-sizing: border-box; pointer-events: none; }
+        .hud-top { top: 0; background: linear-gradient(to bottom, var(--bg-main), transparent); }
+        .hud-bottom { bottom: 0; background: linear-gradient(to top, var(--bg-main), transparent); }
+        .hud-top > *, .hud-bottom > * { pointer-events: auto; }
+
+        .info-card { 
+            background: var(--bg-glass); backdrop-filter: blur(10px); border: 1px solid var(--neon);
+            border-radius: 15px; padding: 12px; display: flex; align-items: center; gap: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .pfp-circle { width: 45px; height: 45px; border-radius: 50%; border: 2px solid var(--neon); }
+
+        /* Action Buttons */
+        .btn-circle { width: 50px; height: 50px; border-radius: 50%; border: none; background: var(--bg-glass); color: var(--text-main); cursor: pointer; font-size: 18px; border: 1px solid #444; }
+        .btn-finish { width: 100%; padding: 15px; border-radius: 12px; border: none; background: #00ff88; color: #000; font-weight: bold; font-size: 16px; margin-top: 10px; cursor: pointer; transition: 0.3s; }
+        .btn-finish:disabled { background: #555; color: #888; cursor: not-allowed; }
+
+        /* Chat System */
+        .chat-drawer {
+            position: fixed; bottom: -100%; left: 0; width: 100%; height: 80vh;
+            background: var(--bg-main); z-index: 1000; border-radius: 20px 20px 0 0;
+            transition: 0.4s; display: flex; flex-direction: column; border-top: 2px solid var(--neon);
+        }
+        .chat-drawer.open { bottom: 0; }
+        .chat-body { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 14px; position: relative; }
+        .msg.me { align-self: flex-end; background: var(--neon); color: #000; border-bottom-right-radius: 4px;}
+        .msg.them { align-self: flex-start; background: #333; color: #fff; border-bottom-left-radius: 4px;}
+        
+        .quick-replies { display: flex; gap: 8px; padding: 10px 15px; overflow-x: auto; background: var(--bg-glass); border-bottom: 1px solid #333; white-space: nowrap; }
+        .qr-btn { background: #111; border: 1px solid var(--neon); color: var(--neon); padding: 6px 15px; border-radius: 15px; font-size: 12px; cursor: pointer; }
+
+        /* Rating Modal (Adapted for Code 3 Logic) */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 5000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-content { background: var(--bg-main); border: 1px solid var(--neon); padding: 25px; border-radius: 20px; width: 100%; max-width: 400px; text-align: center; }
+        .rating-row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; }
+        .star-rating { font-size: 24px; color: #444; }
+        .star-rating i { cursor: pointer; transition: 0.2s; }
+        .star-rating .active { color: #ffcc00; text-shadow: 0 0 10px rgba(255, 204, 0, 0.5); }
+    </style>
+</head>
+<body>
+
+    <audio id="sfx-msg" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
+
+    <div id="map"></div>
+
+    <div class="hud-top">
+        <div class="info-card">
+            <img id="target-pfp" src="https://via.placeholder.com/100" class="pfp-circle">
+            <div style="flex:1">
+                <div id="mission-id" style="font-size:10px; color: #888;">ID: LOAD...</div>
+                <div id="target-name" style="font-weight:bold; font-size:16px;">MEMUAT...</div>
+                <div id="target-status" style="font-size:11px; color: var(--neon);">Jalur Aktif</div>
+            </div>
+            <button class="btn-circle" onclick="toggleTheme()"><i class="fa-solid fa-circle-half-stroke"></i></button>
+            <button class="btn-circle" id="btn-wa" onclick="directWA()"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i></button>
+        </div>
+    </div>
+
+    <div class="hud-bottom">
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <button class="btn-circle" style="flex:1; border-radius: 12px;" onclick="toggleChat()">
+                <i class="fa-solid fa-comments"></i> COMMS <span id="chat-notif" style="display:none; color:red;">●</span>
+            </button>
+            <button id="btn-nav" class="btn-circle" style="flex:1; border-radius: 12px;" onclick="openGmaps()">
+                <i class="fa-solid fa-location-arrow"></i> NAVIGASI
+            </button>
+        </div>
+        <div id="roleActions"></div>
+    </div>
+
+    <div id="chatDrawer" class="chat-drawer">
+        <div style="padding:15px; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center;">
+            <strong><i class="fa-solid fa-lock"></i> SECURE COMMS</strong>
+            <i class="fa-solid fa-xmark" style="font-size:20px; cursor:pointer;" onclick="toggleChat()"></i>
+        </div>
+        
+        <div class="quick-replies">
+            <button class="qr-btn" onclick="sendMsg('Saya sedang menuju lokasi.')">🛵 OTW</button>
+            <button class="qr-btn" onclick="sendMsg('Saya sudah sampai di titik.')">📍 Sampai</button>
+            <button class="qr-btn" onclick="sendMsg('Tunggu sebentar, ada kendala.')">⚠️ Kendala</button>
+        </div>
+
+        <div class="chat-body" id="chat-body"></div>
+        
+        <div style="padding:10px; display:flex; gap:8px; background: rgba(0,0,0,0.2);">
+            <button class="btn-circle" style="width:40px; height:40px;" onclick="alert('Kamera disiapkan untuk update berikutnya')">
+                <i class="fa-solid fa-camera"></i>
+            </button>
+            <input type="text" id="chat-input" placeholder="Kirim pesan..." style="flex:1; background:#222; border:none; border-radius:20px; padding:0 15px; color:#fff;" onkeypress="if(event.key === 'Enter') sendManualMsg()">
+            <button class="btn-circle" style="width:40px; height:40px; background:var(--neon); color:#000;" onclick="sendManualMsg()">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="modalRating" class="modal">
+        <div class="modal-content">
+            <h2>EVALUASI KONTRAK</h2>
+            <p style="font-size:13px; color:#888;">Silakan nilai performa partner Anda.</p>
+            
+            <div class="rating-row">
+                <span style="font-size: 12px; text-align: left;">Ketepatan Waktu:</span>
+                <div class="star-rating" id="stars-time">
+                    <i class="fa-solid fa-star" onclick="setRating('time', 1)"></i>
+                    <i class="fa-solid fa-star" onclick="setRating('time', 2)"></i>
+                    <i class="fa-solid fa-star" onclick="setRating('time', 3)"></i>
+                    <i class="fa-solid fa-star" onclick="setRating('time', 4)"></i>
+                    <i class="fa-solid fa-star" onclick="setRating('time', 5)"></i>
+                </div>
+            </div>
+
+            <div class="rating-row">
+                <span style="font-size: 12px; text-align: left;">Sikap & Pelayanan:</span>
+                <div class="star-rating" id="stars-attitude">
+                    <i class="fa-solid fa-star" onclick="setRating('attitude', 1)"></i>
+                    <i class="fa-solid fa-star" onclick="setRating('attitude', 2)"></i>
+                    <i class="fa-solid fa-star" onclick="setRating('attitude', 3)"></i>
+                    <i class="fa-solid fa-star" onclick="setRating('attitude', 4)"></i>
+                    <i class="fa-solid fa-star" onclick="setRating('attitude', 5)"></i>
+                </div>
+            </div>
+
+            <textarea id="reviewText" placeholder="Berikan ulasan untuk reputasi..." style="width:100%; background:#111; border:1px solid #333; color:#fff; padding:10px; border-radius:10px; resize:none; height:60px; margin-top:10px;"></textarea>
+            
+            <button class="btn-finish" style="margin-top:20px;" onclick="finishMission()">KIRIM & TUTUP KONTRAK</button>
+            <button class="btn-finish" style="background:#333; color:#fff; margin-top:5px;" onclick="document.getElementById('modalRating').style.display='none'">BATAL</button>
+        </div>
+    </div>
+
+    <script>
+        // ========================================================
+        // 01. INIT IDENTITAS & DATABASE (100% Logic Kode 3)
+        // ========================================================
+        const user = Clearchance.enforceIdentity();
+        const contractId = sessionStorage.getItem('active_contract_id');
+        const mission = JSON.parse(sessionStorage.getItem('current_mission_full'));
+
+        const dealDB = getTerminal('FB5_DEAL');
+        const boardDB = getTerminal('FB4_BOARD');
+        const masterDB = getTerminal('FB1_MASTER');
+
+        let map, myMarker, targetMarker;
+        let ratings = { time: 0, attitude: 0 };
+        let isDrawerOpen = false;
+
+        window.onload = () => {
+            initMap();
+            loadUIInfo();
+            startTracking();
+            listenChat();
+            listenStatus();
+        };
+
+        // ========================================================
+        // 02. UI & ROLE RENDER (Layout Kode 1)
+        // ========================================================
+        function loadUIInfo() {
+            document.getElementById('mission-id').innerText = `ID: ${mission.id_misi || contractId}`;
+            
+            const area = document.getElementById('roleActions');
+            
+            // Logika Role Based (Kode 3)
+            if (user.role === 'adventurer') {
+                document.getElementById('target-name').innerText = mission.origin_name || "Requester";
+                document.getElementById('btn-wa').style.display = 'none'; // Adv tidak inisiasi WA
+                area.innerHTML = `<button class="btn-finish" disabled>MENUNGGU REQUESTER MENUTUP KONTRAK</button>`;
+            } else {
+                document.getElementById('target-name').innerText = "Adventurer Dalam Perjalanan";
+                area.innerHTML = `<button class="btn-finish" onclick="openRating()">KONFIRMASI SELESAI & BAYAR</button>`;
+            }
+        }
+
+        function toggleTheme() {
+            const root = document.documentElement;
+            const current = root.getAttribute('data-theme');
+            root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+        }
+
+        // ========================================================
+        // 03. MAP & TRACKING SYSTEM (Penggabungan)
+        // ========================================================
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([-6.97, 108.48], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            myMarker = L.marker([0,0]).addTo(map);
+            targetMarker = L.marker([0,0], { opacity: 0.8 }).addTo(map);
+        }
+
+        function startTracking() {
+            if(navigator.geolocation) {
+                navigator.geolocation.watchPosition(pos => {
+                    const { latitude, longitude } = pos.coords;
+                    myMarker.setLatLng([latitude, longitude]);
+                    map.panTo([latitude, longitude]);
+                    
+                    // Simpan koordinat di FB5_DEAL untuk testing (Tanpa Delete)
+                    dealDB.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({ 
+                        lat: latitude, lng: longitude, role: user.role 
+                    });
+
+                    // Pantau pergerakan partner
+                    dealDB.ref(`kontrak_detail/${contractId}/tracking`).on('value', snap => {
+                        snap.forEach(child => {
+                            if(child.key !== user.uid) {
+                                targetMarker.setLatLng([child.val().lat, child.val().lng]);
+                            }
+                        });
+                    });
+                });
+            }
+        }
+
+        function openGmaps() {
+    // Ambil data koordinat dari objek mission (Pondasi Kode 3)
+    let coords = mission.origin_coords || mission.coords;
+    
+    if (!coords) {
+        alert("SISTEM ERROR: Koordinat lokasi tidak ditemukan di database.");
+        return;
+    }
+
+    // URL Standar Google Maps
+    let url = "";
+
+    if (typeof coords === 'string') {
+        // Jika formatnya string "lat,lng", pastikan tidak ada spasi
+        const cleanCoords = coords.trim();
+        url = `https://www.google.com/maps/dir/?api=1&destination=${cleanCoords}`;
+    } else if (coords.lat && coords.lng) {
+        // Jika formatnya objek {lat: -6.x, lng: 108.x}
+        url = `https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}`;
+    }
+
+    if (url) {
+        window.open(url, '_blank');
+    } else {
+        alert("Format koordinat tidak dikenali: " + JSON.stringify(coords));
+    }
+}
+
+
+        function directWA() {
+            window.open(`https://wa.me/?text=Halo, saya Requester untuk kontrak ${contractId}`);
+        }
+
+        // ========================================================
+        // 04. COMMS / CHAT SYSTEM
+        // ========================================================
+        function toggleChat() { 
+            isDrawerOpen = !isDrawerOpen;
+            document.getElementById('chatDrawer').classList.toggle('open'); 
+            document.getElementById('chat-notif').style.display = 'none';
+        }
+
+        function sendManualMsg() {
+            const val = document.getElementById('chat-input').value;
+            if(!val.trim()) return;
+            sendMsg(val.trim());
+            document.getElementById('chat-input').value = "";
+        }
+
+        function sendMsg(text) {
+            dealDB.ref(`kontrak_detail/${contractId}/chats`).push({
+                senderUid: user.uid,
+                senderRole: user.role,
+                msg: text,
+                time: Date.now()
+            });
+        }
+
+        function listenChat() {
+            let isInit = true;
+            dealDB.ref(`kontrak_detail/${contractId}/chats`).on('child_added', snap => {
+                const data = snap.val();
+                const isMe = data.senderUid === user.uid;
+                
+                const div = document.createElement('div');
+                div.className = `msg ${isMe ? 'me' : 'them'}`;
+                div.innerText = data.msg;
+                
+                document.getElementById('chat-body').appendChild(div);
+                document.getElementById('chat-body').scrollTop = document.getElementById('chat-body').scrollHeight;
+
+                if (!isInit && !isMe) {
+                    document.getElementById('sfx-msg').play().catch(e=>console.log(e));
+                    if(!isDrawerOpen) document.getElementById('chat-notif').style.display = 'inline';
+                }
+            });
+            setTimeout(() => { isInit = false; }, 1500);
+        }
+
+        // ========================================================
+        // 05. CORE LOGIC: RATING & FINISH (100% Kode 3)
+        // ========================================================
+        function openRating() { document.getElementById('modalRating').style.display = 'flex'; }
+
+        function setRating(type, val) {
+            ratings[type] = val;
+            const container = document.getElementById(`stars-${type}`).children;
+            for(let i=0; i<5; i++) {
+                container[i].classList.toggle('active', i < val);
+            }
+        }
+
+        async function finishMission() {
+            if (ratings.time === 0 || ratings.attitude === 0) {
+                const proceed = confirm("Rating belum lengkap. Tetap selesaikan misi?");
+                if(!proceed) return;
+            }
+
+            try {
+                // 1. Update FB5_DEAL
+                await dealDB.ref(`kontrak_detail/${contractId}`).update({
+                    status: 'completed',
+                    ratings: ratings, 
+                    review: document.getElementById('reviewText').value,
+                    end_at: Date.now()
+                });
+
+                // 2. Update FB1_MASTER
+                await masterDB.ref(`buku_induk/misi/${mission.id_misi}`).update({
+                    status: 'completed',
+                    finish_timestamp: Date.now()
+                });
+
+                alert("Misi sukses diselesaikan! Kontrak ditutup.");
+                document.getElementById('modalRating').style.display = 'none';
+
+            } catch (e) {
+                alert("Sistem Error: " + e.message);
+            }
+        }
+
+        // Listener untuk Auto-Redirect (Kode 3)
+        function listenStatus() {
+            dealDB.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
+                if (snap.val() === 'completed') {
+                    setTimeout(() => {
+                        Clearchance.clearActiveMission();
+                        window.location.href = "index.html"; // Kembali ke dashboard
+                    }, 2000);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
