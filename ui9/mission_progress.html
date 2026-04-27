@@ -191,35 +191,60 @@
         // 02. UI & ROLE RENDER (Layout Kode 1)
         // ========================================================
         async function loadUIInfo() {
-    document.getElementById('mission-id').innerText = `ID: ${mission.id_misi || contractId}`;
-    
-    // Gali Reward dari Database
-    const rewardData = await fetchMissionRewards(mission.id_misi || contractId);
-    
-    const area = document.getElementById('roleActions');
-    
-    // Tampilkan Reward jika data berhasil diambil
-    if (rewardData) {
-        // Menambahkan Badge Reward di bawah ID Misi
-        const rewardHTML = `
-            <div style="display:flex; gap:8px; margin-top:5px; font-size:11px;">
-                <span style="color:#00ff88;"><i class="fa-solid fa-star"></i> ${rewardData.exp} EXP</span>
-                <span style="color:#4dff4d;"><i class="fa-solid fa-gem"></i> ${rewardData.greenStone} Stones</span>
-            </div>
-        `;
-        document.getElementById('mission-id').insertAdjacentHTML('afterend', rewardHTML);
+    // A. Referensi Elemen UI
+    const missionIdText = document.getElementById('mission-id');
+    const targetNameText = document.getElementById('target-name');
+    const targetStatusText = document.getElementById('target-status');
+    const roleArea = document.getElementById('roleActions');
+    const targetPfp = document.getElementById('target-pfp');
+
+    // B. Identifikasi Misi
+    const idMisi = mission.id_misi || contractId;
+    missionIdText.innerText = `ID: ${idMisi}`;
+
+    // C. Proses Penggalian Data Reward (ASYNCHRONOUS)
+    const rewards = await fetchMissionRewards(idMisi);
+
+    // D. Render Informasi Berdasarkan Role
+    if (user.role === 'adventurer') {
+        // Tampilan untuk Adventurer (Melihat nama Requester)
+        targetNameText.innerText = mission.origin_name || "Requester";
+        document.getElementById('btn-wa').style.display = 'none'; // Sesuai aturan: Adv tidak inisiasi WA
+        
+        roleArea.innerHTML = `
+            <button class="btn-finish" style="background: #333; color: #888;" disabled>
+                <i class="fa-solid fa-hourglass-half"></i> MENUNGGU KONFIRMASI SELESAI
+            </button>`;
+    } else {
+        // Tampilan untuk Requester (Melihat status Adventurer)
+        targetNameText.innerText = "Adventurer Dalam Perjalanan";
+        
+        roleArea.innerHTML = `
+            <button class="btn-finish" onclick="openRating()">
+                <i class="fa-solid fa-check-double"></i> KONFIRMASI SELESAI & BAYAR
+            </button>`;
     }
 
-    // Logika Role (Tetap seperti sebelumnya)
-    if (user.role === 'adventurer') {
-        document.getElementById('target-name').innerText = mission.origin_name || "Requester";
-        document.getElementById('btn-wa').style.display = 'none';
-        area.innerHTML = `<button class="btn-finish" disabled>MENUNGGU REQUESTER MENUTUP KONTRAK</button>`;
-    } else {
-        document.getElementById('target-name').innerText = "Adventurer Dalam Perjalanan";
-        area.innerHTML = `<button class="btn-finish" onclick="openRating()">KONFIRMASI SELESAI & BAYAR</button>`;
+    // E. Injeksi Badge Reward ke HUD (Jika Data Ditemukan)
+    if (rewards) {
+        const rewardBadgeHTML = `
+            <div id="reward-stats" style="display: flex; gap: 12px; margin-top: 5px; border-top: 1px solid rgba(0,243,255,0.2); padding-top: 5px;">
+                <span style="color: #00f3ff; font-size: 11px; font-weight: bold; text-shadow: 0 0 5px rgba(0,243,255,0.5);">
+                    <i class="fa-solid fa-angles-up"></i> ${rewards.exp} EXP
+                </span>
+                <span style="color: #00ff88; font-size: 11px; font-weight: bold; text-shadow: 0 0 5px rgba(0,255,136,0.5);">
+                    <i class="fa-solid fa-gem"></i> ${rewards.greenStone} GS
+                </span>
+            </div>
+        `;
+        
+        // Cek agar tidak terjadi duplikasi saat re-render
+        if (!document.getElementById('reward-stats')) {
+            targetStatusText.insertAdjacentHTML('afterend', rewardBadgeHTML);
+        }
     }
 }
+
 
 
         function toggleTheme() {
