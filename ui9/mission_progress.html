@@ -190,21 +190,37 @@
         // ========================================================
         // 02. UI & ROLE RENDER (Layout Kode 1)
         // ========================================================
-        function loadUIInfo() {
-            document.getElementById('mission-id').innerText = `ID: ${mission.id_misi || contractId}`;
-            
-            const area = document.getElementById('roleActions');
-            
-            // Logika Role Based (Kode 3)
-            if (user.role === 'adventurer') {
-                document.getElementById('target-name').innerText = mission.origin_name || "Requester";
-                document.getElementById('btn-wa').style.display = 'none'; // Adv tidak inisiasi WA
-                area.innerHTML = `<button class="btn-finish" disabled>MENUNGGU REQUESTER MENUTUP KONTRAK</button>`;
-            } else {
-                document.getElementById('target-name').innerText = "Adventurer Dalam Perjalanan";
-                area.innerHTML = `<button class="btn-finish" onclick="openRating()">KONFIRMASI SELESAI & BAYAR</button>`;
-            }
-        }
+        async function loadUIInfo() {
+    document.getElementById('mission-id').innerText = `ID: ${mission.id_misi || contractId}`;
+    
+    // Gali Reward dari Database
+    const rewardData = await fetchMissionRewards(mission.id_misi || contractId);
+    
+    const area = document.getElementById('roleActions');
+    
+    // Tampilkan Reward jika data berhasil diambil
+    if (rewardData) {
+        // Menambahkan Badge Reward di bawah ID Misi
+        const rewardHTML = `
+            <div style="display:flex; gap:8px; margin-top:5px; font-size:11px;">
+                <span style="color:#00ff88;"><i class="fa-solid fa-star"></i> ${rewardData.exp} EXP</span>
+                <span style="color:#4dff4d;"><i class="fa-solid fa-gem"></i> ${rewardData.greenStone} Stones</span>
+            </div>
+        `;
+        document.getElementById('mission-id').insertAdjacentHTML('afterend', rewardHTML);
+    }
+
+    // Logika Role (Tetap seperti sebelumnya)
+    if (user.role === 'adventurer') {
+        document.getElementById('target-name').innerText = mission.origin_name || "Requester";
+        document.getElementById('btn-wa').style.display = 'none';
+        area.innerHTML = `<button class="btn-finish" disabled>MENUNGGU REQUESTER MENUTUP KONTRAK</button>`;
+    } else {
+        document.getElementById('target-name').innerText = "Adventurer Dalam Perjalanan";
+        area.innerHTML = `<button class="btn-finish" onclick="openRating()">KONFIRMASI SELESAI & BAYAR</button>`;
+    }
+}
+
 
         function toggleTheme() {
             const root = document.documentElement;
@@ -378,6 +394,42 @@
                 }
             });
         }
+
+        // Fungsi untuk menggali detail reward dari FB4
+async function fetchMissionRewards(idMisi) {
+    try {
+        // 1. Tanya Buku Induk (FB1) di mana lokasi shard misi ini
+        const masterDB = getTerminal('FB1_MASTER');
+        const masterSnap = await masterDB.ref(`buku_induk/misi/${idMisi}`).once('value');
+        
+        if (!masterSnap.exists()) throw new Error("Misi tidak terdaftar di Master.");
+        
+        const idShard = masterSnap.val().id_shard; // Contoh: "CGR", "KNG"
+        if (!idShard) throw new Error("ID Shard tidak ditemukan.");
+
+        // 2. Gunakan ID Shard untuk buka pintu yang benar di FB4_BOARD
+        const boardDB = getTerminal('FB4_BOARD');
+        const boardSnap = await boardDB.ref(`missions/${idShard}/${idMisi}`).once('value');
+        
+        if (!boardSnap.exists()) throw new Error("Detail misi tidak ditemukan di Board.");
+
+        const dataMisi = boardSnap.val();
+        
+        // 3. Ambil data RPG Reward
+        const rewards = {
+            exp: dataMisi.rpg_reward?.exp || 0,
+            greenStone: dataMisi.rpg_reward?.greenStone || 0,
+            namaMisi: dataMisi.title || "Misi Tanpa Nama"
+        };
+
+        return rewards;
+
+    } catch (e) {
+        console.error("Gagal menggali reward:", e);
+        return null;
+    }
+}
+
     </script>
 </body>
 </html>
