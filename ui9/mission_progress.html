@@ -191,59 +191,63 @@
         // 02. UI & ROLE RENDER (Layout Kode 1)
         // ========================================================
         async function loadUIInfo() {
-    // A. Referensi Elemen UI
+    // 1. Ambil referensi elemen
     const missionIdText = document.getElementById('mission-id');
-    const targetNameText = document.getElementById('target-name');
     const targetStatusText = document.getElementById('target-status');
     const roleArea = document.getElementById('roleActions');
-    const targetPfp = document.getElementById('target-pfp');
 
-    // B. Identifikasi Misi
+    // 2. Tampilkan ID Misi dasar
     const idMisi = mission.id_misi || contractId;
     missionIdText.innerText = `ID: ${idMisi}`;
 
-    // C. Proses Penggalian Data Reward (ASYNCHRONOUS)
+    // 3. Ambil data dari database (Proses Mining)
     const rewards = await fetchMissionRewards(idMisi);
 
-    // D. Render Informasi Berdasarkan Role
-    if (user.role === 'adventurer') {
-        // Tampilan untuk Adventurer (Melihat nama Requester)
-        targetNameText.innerText = mission.origin_name || "Requester";
-        document.getElementById('btn-wa').style.display = 'none'; // Sesuai aturan: Adv tidak inisiasi WA
-        
-        roleArea.innerHTML = `
-            <button class="btn-finish" style="background: #333; color: #888;" disabled>
-                <i class="fa-solid fa-hourglass-half"></i> MENUNGGU KONFIRMASI SELESAI
-            </button>`;
-    } else {
-        // Tampilan untuk Requester (Melihat status Adventurer)
-        targetNameText.innerText = "Adventurer Dalam Perjalanan";
-        
-        roleArea.innerHTML = `
-            <button class="btn-finish" onclick="openRating()">
-                <i class="fa-solid fa-check-double"></i> KONFIRMASI SELESAI & BAYAR
-            </button>`;
-    }
-
-    // E. Injeksi Badge Reward ke HUD (Jika Data Ditemukan)
+    // 4. Injeksi Data ke UI (Muncul di bawah "Jalur Aktif")
     if (rewards) {
-        const rewardBadgeHTML = `
-            <div id="reward-stats" style="display: flex; gap: 12px; margin-top: 5px; border-top: 1px solid rgba(0,243,255,0.2); padding-top: 5px;">
-                <span style="color: #00f3ff; font-size: 11px; font-weight: bold; text-shadow: 0 0 5px rgba(0,243,255,0.5);">
-                    <i class="fa-solid fa-angles-up"></i> ${rewards.exp} EXP
-                </span>
-                <span style="color: #00ff88; font-size: 11px; font-weight: bold; text-shadow: 0 0 5px rgba(0,255,136,0.5);">
-                    <i class="fa-solid fa-gem"></i> ${rewards.greenStone} GS
-                </span>
+        // Hapus info reward lama jika ada agar tidak double
+        const oldReward = document.getElementById('reward-display');
+        if (oldReward) oldReward.remove();
+
+        // Buat container reward dengan gaya Quantum
+        const rewardHTML = `
+            <div id="reward-display" style="
+                display: flex; 
+                gap: 15px; 
+                margin-top: 6px; 
+                padding-top: 4px; 
+                border-top: 1px solid rgba(0, 243, 255, 0.15);
+            ">
+                <div style="color: #00f3ff; font-size: 11px; font-weight: bold; letter-spacing: 1px;">
+                    <i class="fa-solid fa-star-half-stroke" style="margin-right: 4px;"></i>
+                    ${rewards.exp} EXP
+                </div>
+                <div style="color: #00ff88; font-size: 11px; font-weight: bold; letter-spacing: 1px;">
+                    <i class="fa-solid fa-gem" style="margin-right: 4px;"></i>
+                    ${rewards.greenStone} GS
+                </div>
             </div>
         `;
-        
-        // Cek agar tidak terjadi duplikasi saat re-render
-        if (!document.getElementById('reward-stats')) {
-            targetStatusText.insertAdjacentHTML('afterend', rewardBadgeHTML);
-        }
+
+        // Masukkan ke dalam DOM setelah teks "Jalur Aktif"
+        targetStatusText.insertAdjacentHTML('afterend', rewardHTML);
+    }
+
+    // 5. Logika Tombol Bawah (Sesuai gambar kamu: Menunggu Konfirmasi)
+    if (user.role === 'adventurer') {
+        document.getElementById('target-name').innerText = "Kedungarum"; // Nama lokasi/target
+        roleArea.innerHTML = `
+            <button class="btn-finish" style="background: #222; color: #666; border: 1px solid #333;" disabled>
+                <i class="fa-solid fa-hourglass-start"></i> MENUNGGU KONFIRMASI SELESAI
+            </button>`;
+    } else {
+        roleArea.innerHTML = `
+            <button class="btn-finish" onclick="openRating()">
+                <i class="fa-solid fa-check-circle"></i> SELESAI & BAYAR KONTRAK
+            </button>`;
     }
 }
+
 
 
 
