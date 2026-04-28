@@ -177,33 +177,35 @@
                 </div>
 
 <div class="dossier-body">
-    <h1 id="m-title" class="m-title">Memuat Misi...</h1>
+    <h1 id="m-title" class="m-title" style="margin-bottom:5px;">Memuat Misi...</h1>
     
-    <div id="mission-timer" style="font-family: var(--font-mono); color: var(--neon-purple); font-size: 12px; margin-bottom: 15px; border: 1px solid #222; padding: 5px 10px; border-radius: 5px; display: inline-block;">
-        DURASI: <span id="timer-val">00:00:00</span>
+    <div id="mission-timer-hub" style="font-family: var(--font-mono); color: var(--neon-purple); font-size: 11px; margin-bottom: 15px; display:none;">
+        <i class="fa-solid fa-clock"></i> DURASI: <span id="timer-val">00:00:00</span>
     </div>
 
-    <p id="m-desc" class="m-desc">Sedang mengambil detail kontrak...</p>
-
-    <div id="location-blocks" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-        <div style="background: #111; padding: 12px; border-radius: 10px; border-left: 3px solid var(--neon-blue);">
-            <div style="font-size: 9px; color: #555; margin-bottom: 4px;">TITIK JEMPUT / ASAL</div>
-            <div id="m-origin-text" style="font-size: 13px; margin-bottom: 8px;">Memuat alamat...</div>
-            <button id="btn-maps-origin" class="hide" style="background: none; border: 1px solid var(--neon-blue); color: var(--neon-blue); font-size: 10px; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
-                <i class="fa-solid fa-location-dot"></i> BUKA GMAPS
-            </button>
+    <div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.1); border: 1px dashed var(--neon-purple); padding: 12px; border-radius: 10px; margin-bottom: 15px;">
+        <div style="font-size: 9px; color: var(--neon-purple); font-weight: bold; margin-bottom: 8px; letter-spacing: 1px;">
+            <i class="fa-solid fa-box-open"></i> DETAIL MUATAN / TITIPAN
         </div>
+        <div id="m-cargo-detail" style="font-size: 13px; color: #fff; line-height: 1.5; white-space: pre-line;">--</div>
+    </div>
 
-        <div style="background: #111; padding: 12px; border-radius: 10px; border-left: 3px solid var(--neon-green);">
-            <div style="font-size: 9px; color: #555; margin-bottom: 4px;">TITIK TUJUAN AKHIR</div>
-            <div id="m-dest-text" style="font-size: 13px; margin-bottom: 8px;">Memuat alamat...</div>
-            <button id="btn-maps-dest" class="hide" style="background: none; border: 1px solid var(--neon-green); color: var(--neon-green); font-size: 10px; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
-                <i class="fa-solid fa-location-dot"></i> BUKA GMAPS
-            </button>
+    <p id="m-desc" class="m-desc" style="margin-bottom: 15px;">--</p>
+
+    <div id="location-hub" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
+        <div style="background: #111; padding: 10px; border-radius: 8px; border: 1px solid #222;">
+            <div style="font-size: 8px; color: #555;">TITIK JEMPUT / TOKO</div>
+            <div id="m-origin-text" style="font-size: 12px; margin: 4px 0;">--</div>
+            <button id="btn-maps-origin" class="hide" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); font-size:9px; padding:4px 8px; border-radius:4px;">NAVIGASI KE SINI</button>
+        </div>
+        <div style="background: #111; padding: 10px; border-radius: 8px; border: 1px solid #222;">
+            <div style="font-size: 8px; color: #555;">TITIK ANTAR / TUJUAN</div>
+            <div id="m-dest-text" style="font-size: 12px; margin: 4px 0;">--</div>
+            <button id="btn-maps-dest" class="hide" style="background:none; border:1px solid var(--neon-green); color:var(--neon-green); font-size:9px; padding:4px 8px; border-radius:4px;">NAVIGASI KE TUJUAN</button>
         </div>
     </div>
-    
-    <div style="display: flex; gap: 20px; border-top: 1px solid #222; padding-top: 20px;">
+
+    <div style="display: flex; gap: 20px; border-top: 1px solid #222; padding-top: 15px;">
         <div>
             <div style="font-size: 9px; color: #555;">REWARD EXP</div>
             <div id="m-exp" style="color: var(--neon-blue); font-weight: bold; font-family: var(--font-mono);">--</div>
@@ -214,6 +216,7 @@
         </div>
     </div>
 </div>
+
 
 
                 <div id="adv-status-hub" class="hide">
@@ -381,49 +384,58 @@ const isAdv = String(user.role).toLowerCase() === 'adventurer';
         // 2. UI ENGINE & NAVIGATION
         // ==========================================
 function initUI() {
-    const area = document.getElementById('role-action-area');
-    const aiText = document.getElementById('ai-text');
-    
-    // Reset tampilan awal agar tidak "numpuk" dari sisa role lain
-    document.getElementById('adv-status-hub').classList.add('hide');
-    document.getElementById('btn-maps-origin').classList.add('hide');
-    document.getElementById('btn-maps-dest').classList.add('hide');
+    // 1. Data Dasar
+    document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
+    document.getElementById('m-desc').innerText = mission.description || "Tidak ada deskripsi tambahan.";
+    document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
+    document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
+    document.getElementById('m-id-display').innerText = "ID: " + contractId;
 
-    // Cek apakah data mission tersedia
-    if (Object.keys(mission).length === 0) {
-        aiText.innerText = "Sinkronisasi Shard tertunda... Mencoba menghubungkan kembali.";
-        return;
+    // 2. Logika Muatan (Titip Beli / Kurir)
+    const cargoDetail = mission.cargo_detail || mission.items_to_buy || ""; 
+    if(cargoDetail) {
+        document.getElementById('cargo-hub').classList.remove('hide');
+        document.getElementById('m-cargo-detail').innerText = cargoDetail;
     }
 
-    // Isi Data
-    document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
-    document.getElementById('m-origin-text').innerText = mission.location_origin?.address || "Alamat tidak tersedia";
-    document.getElementById('m-dest-text').innerText = mission.location_dest?.address || "Alamat tidak tersedia";
+    // 3. Lokasi & Alamat
+    document.getElementById('m-origin-text').innerText = mission.location_origin?.address || "Alamat asal tidak diset";
+    document.getElementById('m-dest-text').innerText = mission.location_dest?.address || "Alamat tujuan tidak diset";
 
-    if (isAdv) {
-        // --- LOGIKA ADVENTURER ---
+    const area = document.getElementById('role-action-area');
+    const aiText = document.getElementById('ai-text');
+
+    if(isAdv) {
+        // Sisi Adventurer
         document.getElementById('adv-status-hub').classList.remove('hide');
+        document.getElementById('nota-input-hub').classList.remove('hide');
         document.getElementById('btn-maps-origin').classList.remove('hide');
         document.getElementById('btn-maps-dest').classList.remove('hide');
         
-        // Setup Link dengan URL yang bersih
-        const latO = mission.location_origin?.lat;
-        const lngO = mission.location_origin?.lng;
-        document.getElementById('btn-maps-origin').onclick = () => window.open(`https://www.google.com/maps?q=${latO},${lngO}`);
+        document.getElementById('btn-maps-origin').onclick = () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${mission.location_origin?.lat},${mission.location_origin?.lng}`);
+        document.getElementById('btn-maps-dest').onclick = () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${mission.location_dest?.lat},${mission.location_dest?.lng}`);
 
-        area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">PERSONIL: ${user.name || 'ADVENTURER'}</button>`;
+        area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">SINKRONISASI AKTIF</button>`;
+        aiText.innerText = cargoDetail ? "Master, pastikan muatan barang sesuai dengan list di atas sebelum bergerak ke lokasi tujuan." : "Analisis rute selesai. Silakan tekan OTW jika Anda mulai bergerak.";
     } else {
-        // --- LOGIKA REQUESTER ---
+        // Sisi Requester
         area.innerHTML = `
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <button class="btn-main" style="background:#25d366; color:#fff;" onclick="contactPartnerWA()">
                     <i class="fa-brands fa-whatsapp"></i> HUBUNGI VIA WHATSAPP
                 </button>
-                <button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI</button>
+                <button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>
+                <div style="font-size:8px; color:#555; text-align:center;">Nomor WhatsApp Anda hanya terlihat jika Anda mengirim pesan duluan.</div>
             </div>
         `;
+        aiText.innerText = "Master, Partner sedang memproses titipan Anda. Anda bisa memantau nota biaya di Tab NOTA secara real-time.";
     }
+
+    // Jalankan Timer
+    document.getElementById('mission-timer-hub').style.display = 'block';
+    startMissionTimer();
 }
+
 
 
 
