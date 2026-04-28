@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BATTLEFIELD | SOVEREIGN HUB</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="router_lokal.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        /* === TEMA QUANTUM === */
+        :root[data-theme="dark"] {
+            --bg-main: #050508; 
+            --bg-glass: rgba(10, 10, 15, 0.85);
+            --bg-solid: #050508;
+            --text-main: #ffffff; 
+            --neon-blue: #00f3ff; 
+            --neon-green: #00ff88;
+            --neon-red: #ff3366;
+            --border-glow: 0 0 10px rgba(0, 243, 255, 0.3);
+        }
+
+        body, html { font-family: 'Segoe UI', sans-serif; background: var(--bg-main); color: var(--text-main); overflow: hidden; margin: 0; height: 100%; width: 100%; }
+        
+        /* === TAB SYSTEM ARCHITECTURE === */
+        #map-layer { position: absolute; inset: 0; z-index: 1; }
+        [data-theme="dark"] #map-layer { filter: brightness(0.5) invert(1) hue-rotate(180deg); }
+
+        .tab-content { position: absolute; top: 0; left: 0; right: 0; bottom: 70px; z-index: 10; display: none; overflow-y: auto; background: var(--bg-solid); }
+        .tab-content.active { display: block; }
+        #tab-map { background: transparent; pointer-events: none; } /* Biarkan map di bawahnya bisa diklik */
+        #tab-map > * { pointer-events: auto; }
+
+        /* Bottom Nav */
+        .bottom-nav { position: absolute; bottom: 0; left: 0; width: 100%; height: 70px; background: rgba(5,5,8,0.95); border-top: 1px solid var(--neon-blue); display: flex; z-index: 20; justify-content: space-around; align-items: center; padding-bottom: env(safe-area-inset-bottom); }
+        .nav-btn { background: transparent; border: none; color: #666; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; flex: 1; transition: 0.3s; }
+        .nav-btn i { font-size: 20px; }
+        .nav-btn.active { color: var(--neon-blue); text-shadow: var(--border-glow); }
+
+        /* === HUD TOP (KHUSUS TAB MAP) === */
+        .hud-top { padding: 15px; background: linear-gradient(to bottom, rgba(5,5,8,0.9), transparent); }
+        .info-card { background: var(--bg-glass); backdrop-filter: blur(12px); border: 1px solid var(--neon-blue); border-radius: 15px; padding: 12px; display: flex; align-items: center; gap: 12px; box-shadow: var(--border-glow); }
+        .pfp-circle { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--neon-blue); object-fit: cover; }
+        
+        /* === TAB MISSION HUB (DATA & AI) === */
+        .hub-container { padding: 20px; padding-bottom: 40px; }
+        .ai-assistant-large { background: linear-gradient(145deg, #0a0a0a, #111); border: 1px solid #333; border-top: 2px solid var(--neon-blue); border-radius: 15px; padding: 20px; margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-start; }
+        .ai-avatar { width: 80px; height: 80px; border-radius: 10px; border: 1px solid var(--neon-blue); object-fit: cover; background: #000; }
+        .data-vault { background: #000; border: 1px dashed var(--neon-green); border-radius: 10px; padding: 15px; font-family: monospace; font-size: 11px; color: var(--neon-green); overflow-x: auto; white-space: pre-wrap; margin-top: 15px; display: none; }
+        
+        .rpg-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .rpg-box { background: rgba(255,255,255,0.05); border: 1px solid #333; padding: 15px 5px; text-align: center; border-radius: 10px; font-size: 10px; color: #888; }
+        .rpg-box b { font-size: 14px; display: block; margin-top: 5px; color: var(--text-main); }
+
+        /* === TAB COMMS (CHAT) === */
+        .chat-container { display: flex; flex-direction: column; height: 100%; background: var(--bg-solid); }
+        .chat-body { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 13px; position: relative; }
+        .msg.me { align-self: flex-end; background: var(--neon-blue); color: #000; border-bottom-right-radius: 4px; }
+        .msg.them { align-self: flex-start; background: #222; color: #fff; border-bottom-left-radius: 4px; border: 1px solid #333; }
+        .chat-input-area { padding: 15px; background: rgba(5,5,8,0.9); border-top: 1px solid #333; display: flex; gap: 10px; }
+
+        /* Tombol Universal */
+        .btn-finish { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.3s; text-transform: uppercase; }
+        .btn-finish.active { background: linear-gradient(45deg, #00b359, var(--neon-green)); color: #000; box-shadow: 0 0 15px rgba(0, 255, 136, 0.4); }
+        .btn-finish.disabled { background: #1a1a1a; color: #666; border: 1px solid #333; cursor: not-allowed; }
+        .btn-circle { width: 45px; height: 45px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: var(--bg-glass); color: var(--text-main); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+        /* Modals & Rating */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); z-index: 5000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal.show { display: flex; }
+        .modal-content { background: var(--bg-solid); border: 1px solid var(--neon-blue); padding: 25px; border-radius: 20px; width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto; position: relative; text-align: center; }
+        .modal-close { position: absolute; top: 15px; right: 15px; font-size: 20px; color: #888; cursor: pointer; }
+        
+        .rating-row { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; background: rgba(255,255,255,0.05); padding: 10px 15px; border-radius: 10px; }
+        .star-rating i { font-size: 20px; color: #444; cursor: pointer; margin-left: 5px; }
+        .star-rating .active { color: #ffcc00; text-shadow: 0 0 10px rgba(255, 204, 0, 0.6); }
+        .btn-boolean { flex: 1; padding: 10px; border: 1px solid #444; background: #111; color: #fff; border-radius: 8px; cursor: pointer; margin: 0 5px;}
+        .btn-boolean.selected-yes { background: rgba(0, 255, 136, 0.2); border-color: var(--neon-green); color: var(--neon-green); }
+        .btn-boolean.selected-no { background: rgba(255, 51, 102, 0.2); border-color: var(--neon-red); color: var(--neon-red); }
+
+        /* Arcade */
+        .arcade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .arcade-slot { background: #0a0a0a; border: 1px dashed #333; border-radius: 10px; padding: 20px 10px; cursor: pointer; }
+        .arcade-slot.active { border-style: solid; border-color: var(--neon-blue); background: rgba(0, 243, 255, 0.05); }
+        .mana-orb { width: 80px; height: 80px; border-radius: 50%; background: radial-gradient(circle, var(--neon-blue), #000); margin: 20px auto; cursor: pointer; box-shadow: 0 0 20px var(--neon-blue); }
+    </style>
+</head>
+<body>
+
+    <audio id="sfx-click" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
+    <audio id="sfx-msg" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
+
+    <div id="map-layer"></div>
+
+    <div id="tab-map" class="tab-content active">
+        <div class="hud-top">
+            <div class="info-card">
+                <img id="target-pfp" src="https://via.placeholder.com/100" class="pfp-circle" onclick="switchTab('tab-hub')">
+                <div style="flex:1;">
+                    <div id="map-target-name" style="font-weight:bold; font-size:15px;">MEMUAT...</div>
+                    <div id="map-asis-talk" style="font-size:11px; color: var(--neon-blue); font-style: italic;">Sistem aktif. Buka Mission Hub untuk detail.</div>
+                </div>
+                <button class="btn-circle" onclick="openGmaps()" style="width: 35px; height: 35px;"><i class="fa-solid fa-location-arrow"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-hub" class="tab-content">
+        <div class="hub-container">
+            <div class="ai-assistant-large">
+                <img id="hub-asis-avatar" src="" class="ai-avatar">
+                <div style="flex:1;">
+                    <div style="font-size:10px; color:#888; letter-spacing:1px; margin-bottom:5px;">SYSTEM OPERATOR</div>
+                    <div id="hub-asis-name" style="color:var(--neon-blue); font-weight:bold; font-size:14px; margin-bottom:5px;">AI</div>
+                    <div id="hub-asis-briefing" style="font-size:12px; color:#ccc; line-height:1.4;">
+                        Memuat data enkripsi dari Guild...
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="font-size: 12px; color: #888; border-bottom: 1px solid #333; padding-bottom: 5px;"><i class="fa-solid fa-cube"></i> KONTRAK PARAMETER</h3>
+            <div class="rpg-grid" id="hub-rpg-grid"></div>
+
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 10px; padding: 15px; margin-bottom: 20px; font-size: 12px;">
+                <div style="margin-bottom: 10px; border-bottom: 1px dashed #333; padding-bottom: 10px;">
+                    <span style="color: #ff3366;"><i class="fa-solid fa-map-pin"></i> ASAL:</span> <br>
+                    <b id="hub-alamat-asal" style="color: #fff;">...</b>
+                </div>
+                <div>
+                    <span style="color: var(--neon-blue);"><i class="fa-solid fa-location-dot"></i> TUJUAN:</span> <br>
+                    <b id="hub-alamat-tujuan" style="color: #fff;">...</b>
+                </div>
+            </div>
+
+            <button class="btn-finish" style="background: transparent; border: 1px solid var(--neon-blue); color: var(--neon-blue); margin-bottom: 10px;" onclick="runDeepMining()">
+                <i class="fa-solid fa-database"></i> EKSTRAK PROFIL LAWAN
+            </button>
+            <div id="data-vault" class="data-vault"></div>
+
+            <div id="roleActions" style="margin-top: 30px;"></div>
+        </div>
+    </div>
+
+    <div id="tab-comms" class="tab-content">
+        <div class="chat-container">
+            <div style="padding:15px; background:rgba(0,0,0,0.5); border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:bold; color:var(--neon-blue);"><i class="fa-solid fa-lock"></i> SECURE COMMS</span>
+                <button class="btn-circle" style="width: 30px; height: 30px; font-size: 12px;" onclick="directWA()"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i></button>
+            </div>
+            
+            <div style="display:flex; gap:8px; padding:10px 15px; overflow-x:auto; background:var(--bg-glass); border-bottom:1px solid #333;">
+                <button class="btn-boolean" style="padding:5px 10px; font-size:11px;" onclick="sendMsg('Saya sedang menuju lokasi.')">🛵 OTW</button>
+                <button class="btn-boolean" style="padding:5px 10px; font-size:11px;" onclick="sendMsg('Saya sudah sampai di titik.')">📍 Sampai</button>
+                <button class="btn-boolean" style="padding:5px 10px; font-size:11px;" onclick="sendMsg('Ada kendala, mohon tunggu.')">⚠️ Kendala</button>
+            </div>
+
+            <div class="chat-body" id="chat-body"></div>
+            
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Ketik transmisi..." style="flex:1; background:#111; border:1px solid #333; border-radius:10px; padding:0 15px; color:#fff;" onkeypress="if(event.key === 'Enter') sendManualMsg()">
+                <button class="btn-circle" style="background:var(--neon-blue); color:#000;" onclick="sendManualMsg()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-btn active" onclick="switchTab('tab-map', this)">
+            <i class="fa-solid fa-map"></i><span>BATTLEFIELD</span>
+        </button>
+        <button class="nav-btn" onclick="switchTab('tab-hub', this)">
+            <i class="fa-solid fa-server"></i><span>MISSION HUB</span>
+        </button>
+        <button class="nav-btn" onclick="switchTab('tab-comms', this)">
+            <i class="fa-solid fa-comments"></i><span>COMMS</span>
+            <span id="chat-notif" style="position:absolute; top:10px; right:30px; width:8px; height:8px; background:red; border-radius:50%; display:none;"></span>
+        </button>
+    </div>
+
+    <div id="modalEvalAdv" class="modal">
+        <div class="modal-content">
+            <h3 style="color: var(--neon-green); margin-top: 0;"><i class="fa-solid fa-clipboard-check"></i> EVALUASI KONTRAK</h3>
+            <p style="font-size: 12px; color: #888;">Nilai performa Adventurer (1-5 Bintang)</p>
+            <div id="hex-rating-container"></div>
+            <button class="btn-finish active" style="margin-top: 25px;" onclick="executeSettlementAdv()">KIRIM & TRANSFER REWARD</button>
+        </div>
+    </div>
+
+    <div id="modalEvalReq" class="modal">
+        <div class="modal-content">
+            <h3 style="color: var(--neon-blue); margin-top: 0;"><i class="fa-solid fa-clipboard-question"></i> LAPORAN KLIEN</h3>
+            <p style="font-size: 12px; color: #888;">Bantu Guild menilai Requester ini.</p>
+            <div id="bool-rating-container"></div>
+            <button class="btn-finish active" style="margin-top: 25px;" onclick="executeSettlementReq()">SELESAI & KEMBALI KE GUILD</button>
+        </div>
+    </div>
+
+    <div id="modalArcade" class="modal">
+        <div class="modal-content">
+            <i class="fa-solid fa-xmark modal-close" onclick="closeModal('modalArcade')"></i>
+            <h3 style="color: var(--neon-blue); margin-top: 0;"><i class="fa-solid fa-microchip"></i> QUANTUM ARCADE</h3>
+            <div class="arcade-grid">
+                <div class="arcade-slot active" onclick="startGame()">
+                    <i class="fa-solid fa-gem" style="font-size: 24px; color: var(--neon-blue);"></i>
+                    <div style="margin-top: 10px; font-size: 12px; font-weight: bold;">MANA REFINER</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalGame" class="modal">
+        <div class="modal-content">
+            <i class="fa-solid fa-arrow-left modal-close" style="left: 15px; right: auto;" onclick="closeModal('modalGame'); document.getElementById('modalArcade').classList.add('show');"></i>
+            <h3 style="color: var(--neon-blue); margin-top: 0;">MANA REFINER</h3>
+            <div class="mana-orb" onclick="mineMana()"></div>
+            <div style="font-size: 24px; font-weight: bold;"><span id="mana-score">0</span> <span style="font-size: 12px; color: var(--neon-blue);">REFINED</span></div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. STATE & INITIALIZATION
+        // ==========================================
+        const user = Clearchance.enforceIdentity();
+        const contractId = sessionStorage.getItem('active_contract_id');
+        const missionRaw = sessionStorage.getItem('current_mission_full');
+        const mission = JSON.parse(missionRaw || "{}");
+
+        const dealDB = getTerminal('FB5_DEAL');
+        const masterDB = getTerminal('FB1_MASTER');
+        const boardDB = getTerminal('FB4_BOARD');
+
+        let map, myMarker, targetMarker;
+        let isStranger = false;
+        let hexRatings = { keamanan: 0, kecerdasan: 0, kepercayaan: 0, keramahan: 0, penampilan: 0 };
+        let boolRatings = { baik: null, tips: null, cash: null, extra: null };
+        let manaScore = 0;
+        let activeTab = 'tab-map';
+
+        window.onload = async () => {
+            initMap();
+            loadUIInfo();       // Load UI dari Session Storage (Prioritas Cepat)
+            startTracking();    // Mulai GPS
+            listenChat();       // Mulai Chat Listener
+            listenStatus();     // Dengarkan penyelesaian kontrak
+            await checkStrangerStatus(); // Verifikasi ringan FB1
+        };
+
+        function switchTab(tabId, btnElement = null) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            activeTab = tabId;
+
+            if (btnElement) {
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                btnElement.classList.add('active');
+            } else {
+                // Manual switch via code
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    if(btn.getAttribute('onclick').includes(tabId)) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                });
+            }
+
+            if(tabId === 'tab-comms') document.getElementById('chat-notif').style.display = 'none';
+            if(tabId === 'tab-map' && map) setTimeout(() => map.invalidateSize(), 100);
+            playSfx('sfx-click');
+        }
+
+        function playSfx(id) {
+            const a = document.getElementById(id);
+            if(a) { a.currentTime = 0; a.play().catch(()=>{}); }
+        }
+
+        // ==========================================
+        // 2. UI & ASSISTANT LOGIC (SESSION BASED)
+        // ==========================================
+        function loadUIInfo() {
+            const m = mission || {};
+            const fullData = m.full_mission_data || m; // Handle nesting jika ada
+            const rpg = m.rpg_reward || fullData.rpg_reward || { exp: 0, greenStone: 0 };
+            const rewardCash = m.reward || fullData.reward || 0;
+
+            const oppNick = user.role === 'adventurer' ? (m.requester_nick || fullData.requester_nick || fullData.client_name || "Requester") : (m.adventurer_nick || fullData.adventurer_nick || "Adventurer");
+
+            // --- TAB MAP HUD ---
+            document.getElementById('map-target-name').innerText = oppNick;
+
+            // --- ASISTEN LOGIC ---
+            const hour = new Date().getHours();
+            const assists = ["irene", "amy", "aldis", "ruby", "tessia", "aria", "asia", "sissy"];
+            const selectedAsis = assists[Math.floor(hour / 3)];
+            
+            document.getElementById('hub-asis-avatar').src = `${selectedAsis}.png`;
+            document.getElementById('hub-asis-name').innerText = `OPERATOR: ${selectedAsis.toUpperCase()}`;
+
+            const briefingMap = document.getElementById('map-asis-talk');
+            const briefingHub = document.getElementById('hub-asis-briefing');
+
+            if (user.role === 'adventurer') {
+                briefingMap.innerText = `[${selectedAsis.toUpperCase()}] Target: ${oppNick}. Navigasi aktif.`;
+                briefingHub.innerHTML = `Selamat bekerja, Master. Klien Anda adalah <b>${oppNick}</b>.<br><br>Sistem telah mengunci hadiah untuk kontrak ini. Selesaikan tugas dengan baik untuk mendapatkan penilaian positif yang akan meningkatkan reputasi Guild Anda.`;
+            } else {
+                briefingMap.innerText = `[${selectedAsis.toUpperCase()}] Memantau pergerakan ${oppNick}.`;
+                briefingHub.innerHTML = `Adventurer <b>${oppNick}</b> sedang dalam perjalanan.<br><br>Anda dapat memantau pergerakannya di tab BATTLEFIELD. Jangan lupa siapkan uang tunai sesuai estimasi biaya. Anda bisa memainkan Quantum Arcade selagi menunggu.`;
+            }
+
+            // --- RPG GRID ---
+            const rpgGrid = document.getElementById('hub-rpg-grid');
+            if (user.role === 'adventurer') {
+                rpgGrid.innerHTML = `
+                    <div class="rpg-box">EXP <b style="color:var(--neon-blue);">+${rpg.exp}</b></div>
+                    <div class="rpg-box">G-STONE <b style="color:var(--neon-green);">${rpg.greenStone}</b></div>
+                    <div class="rpg-box">REWARD <b style="color:#fff;">Rp ${rewardCash.toLocaleString()}</b></div>
+                `;
+            } else {
+                rpgGrid.style.gridTemplateColumns = '1fr';
+                rpgGrid.innerHTML = `<div class="rpg-box">ESTIMASI BIAYA <b style="color:var(--neon-green); font-size:18px;">Rp ${rewardCash.toLocaleString()}</b></div>`;
+            }
+
+            // --- ALAMAT ---
+            document.getElementById('hub-alamat-asal').innerText = `${fullData.origin_desa || 'N/A'} - ${fullData.origin_details || 'Tanpa Detail'}`;
+            document.getElementById('hub-alamat-tujuan').innerText = `${fullData.dest_desa || 'N/A'} - ${fullData.dest_details || 'Tanpa Detail'}`;
+
+            // --- ACTION AREA ---
+            const roleArea = document.getElementById('roleActions');
+            if (user.role === 'adventurer') {
+                roleArea.innerHTML = `<button class="btn-finish disabled" disabled>MENUNGGU REQUESTER MENUTUP KONTRAK</button>`;
+            } else {
+                roleArea.innerHTML = `
+                    <button class="btn-finish active" onclick="openRatingAdv()"><i class="fa-solid fa-check-double"></i> KONFIRMASI SELESAI & BAYAR</button>
+                    <button class="btn-finish" style="background:transparent; border:1px solid #333; margin-top:10px; color:#aaa;" onclick="document.getElementById('modalArcade').classList.add('show');"><i class="fa-solid fa-gamepad"></i> BUKA ARCADE</button>
+                `;
+            }
+        }
+
+        // ==========================================
+        // 3. DEEP MINING & INSPECTOR LOGIC (DARI KODE 1)
+        // ==========================================
+        async function checkStrangerStatus() {
+            // Verifikasi awal untuk flag stranger
+            const m = mission || {};
+            const oppNick = user.role === 'adventurer' ? (m.requester_nick || m.full_mission_data?.client_name) : m.adventurer_nick;
+            if(!oppNick) return;
+
+            const indexPath = user.role === 'adventurer' ? `requester_index` : `adventurer_index`;
+            const snapIdx = await masterDB.ref(indexPath).orderByChild('nickname').equalTo(oppNick).once('value');
+            if(!snapIdx.exists()) isStranger = true;
+        }
+
+        async function runDeepMining() {
+            playSfx('sfx-click');
+            const vault = document.getElementById('data-vault');
+            vault.style.display = 'block';
+            vault.innerHTML = "Memulai Injeksi Data & Deep Mining lintas Shard...\n";
+
+            try {
+                const m = mission || {};
+                const advNick = m.adventurer_nick || (user.role==='adventurer' ? user.nickname : null);
+                const reqNick = m.requester_nick || m.full_mission_data?.client_name || (user.role==='requester' ? user.nickname : null);
+
+                let finalReport = {
+                    "SYSTEM_STATUS": { contract: contractId, your_role: user.role },
+                    "DEEP_MINING": {}
+                };
+
+                // Gali Data Adventurer (Sesuai Struktur Kode 1)
+                if (advNick) {
+                    vault.innerHTML += `> Melacak Shard Adventurer: ${advNick}...\n`;
+                    const snapIdx = await masterDB.ref(`adventurer_index`).orderByChild('nickname').equalTo(advNick).once('value');
+                    
+                    if (snapIdx.exists()) {
+                        const key = Object.keys(snapIdx.val())[0];
+                        const idx = snapIdx.val()[key];
+                        const shardDB = getTerminal(idx.shard_id);
+                        const id = idx.id_adv;
+
+                        vault.innerHTML += `> Shard Ditemukan. Mengekstrak tabel Box, Diagram, Reputation...\n`;
+                        const [coxin, diag, profile, exp, rep] = await Promise.all([
+                            shardDB.ref(`adventurer_cox/${id}`).once('value'),
+                            shardDB.ref(`adventurer_diagram/${id}`).once('value'),
+                            shardDB.ref(`adventurer_profile/${id}`).once('value'),
+                            shardDB.ref(`adventurer_experience/${id}`).once('value'),
+                            shardDB.ref(`adventurer_reputation/${id}`).once('value')
+                        ]);
+
+                        finalReport.DEEP_MINING.ADVENTURER = {
+                            meta: idx,
+                            experience: exp.val(),
+                            reputation: rep.val(),
+                            inventory: coxin.val(),
+                            diagram: diag.val()
+                        };
+                    } else {
+                        finalReport.DEEP_MINING.ADVENTURER = { status: "Tidak terdaftar di Index Master." };
+                    }
+                }
+
+                // Gali Data Requester (Sesuai Struktur Kode 1)
+                if (reqNick) {
+                    vault.innerHTML += `> Memeriksa Status Requester: ${reqNick}...\n`;
+                    const snapReqIdx = await masterDB.ref(`requester_index`).orderByChild('nickname').equalTo(reqNick).once('value');
+                    
+                    if (snapReqIdx.exists()) {
+                        const rKey = Object.keys(snapReqIdx.val())[0];
+                        const rIdx = snapReqIdx.val()[rKey];
+                        const rShardDB = getTerminal(rIdx.shard_id);
+                        const rid = rIdx.id_req;
+
+                        const [rProfile, rHistory] = await Promise.all([
+                            rShardDB.ref(`requester_profile/${rid}`).once('value'),
+                            rShardDB.ref(`requester_history/${rid}`).once('value')
+                        ]);
+
+                        finalReport.DEEP_MINING.REQUESTER = {
+                            meta: rIdx,
+                            profile: rProfile.val(),
+                            history: rHistory.val()
+                        };
+                    } else {
+                        finalReport.DEEP_MINING.REQUESTER = {
+                            status: "❗ MODE STRANGER",
+                            warning: "Requester ini tidak terdaftar di Index resmi Guild."
+                        };
+                    }
+                }
+
+                vault.innerText = JSON.stringify(finalReport, null, 4);
+
+            } catch (err) {
+                vault.innerHTML += `\n❌ CRITICAL ERROR: ${err.message}`;
+            }
+        }
+
+        // ==========================================
+        // 4. MAPS & NAVIGATION
+        // ==========================================
+        function initMap() {
+            map = L.map('map-layer', { zoomControl: false }).setView([-6.97, 108.48], 15);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            
+            const createIcon = (color) => L.divIcon({ className: 'custom', html: `<div style="background:${color}; width:15px; height:15px; border-radius:50%; box-shadow:0 0 10px ${color};"></div>` });
+            myMarker = L.marker([0,0], {icon: createIcon(user.role === 'adventurer' ? 'var(--neon-green)' : 'var(--neon-blue)')}).addTo(map);
+            targetMarker = L.marker([0,0], {icon: createIcon(user.role === 'adventurer' ? 'var(--neon-blue)' : 'var(--neon-green)')}).addTo(map);
+        }
+
+        function startTracking() {
+            if(navigator.geolocation) {
+                navigator.geolocation.watchPosition(pos => {
+                    const { latitude, longitude } = pos.coords;
+                    myMarker.setLatLng([latitude, longitude]);
+                    if(activeTab === 'tab-map') map.panTo([latitude, longitude]);
+                    
+                    dealDB.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({ lat: latitude, lng: longitude });
+
+                    dealDB.ref(`kontrak_detail/${contractId}/tracking`).on('value', snap => {
+                        snap.forEach(child => {
+                            if(child.key !== user.uid) targetMarker.setLatLng([child.val().lat, child.val().lng]);
+                        });
+                    });
+                });
+            }
+        }
+
+        function openGmaps() {
+            let coords = mission.origin_coords || mission.coords;
+            if (!coords) return alert("Koordinat tidak tersedia.");
+            let url = typeof coords === 'string' ? `https://www.google.com/maps/dir/?api=1&destination=$$${coords.trim()}` : `https://www.google.com/maps/dir/?api=1&destination=$$${coords.lat},${coords.lng}`;
+            window.open(url, '_blank');
+        }
+
+        function directWA() { window.open(`https://wa.me/?text=Halo, saya dari kontrak Sovereign ID ${contractId}`); }
+
+        // ==========================================
+        // 5. CHAT SYSTEM
+        // ==========================================
+        function sendManualMsg() {
+            const val = document.getElementById('chat-input').value;
+            if(!val.trim()) return;
+            sendMsg(val.trim());
+            document.getElementById('chat-input').value = "";
+        }
+
+        function sendMsg(text) {
+            dealDB.ref(`kontrak_detail/${contractId}/chats`).push({ senderUid: user.uid, msg: text, time: Date.now() });
+        }
+
+        function listenChat() {
+            let isInit = true;
+            dealDB.ref(`kontrak_detail/${contractId}/chats`).on('child_added', snap => {
+                const data = snap.val();
+                const isMe = data.senderUid === user.uid;
+                
+                const div = document.createElement('div');
+                div.className = `msg ${isMe ? 'me' : 'them'}`;
+                div.innerText = data.msg;
+                
+                document.getElementById('chat-body').appendChild(div);
+                document.getElementById('chat-body').scrollTop = document.getElementById('chat-body').scrollHeight;
+
+                if (!isInit && !isMe) {
+                    playSfx('sfx-msg');
+                    if(activeTab !== 'tab-comms') document.getElementById('chat-notif').style.display = 'block';
+                }
+            });
+            setTimeout(() => { isInit = false; }, 1500);
+        }
+
+        // ==========================================
+        // 6. EVALUATION & SETTLEMENT LOGIC
+        // ==========================================
+        function closeModal(id) { playSfx('sfx-click'); document.getElementById(id).classList.remove('show'); }
+        function mineMana() { manaScore++; document.getElementById('mana-score').innerText = manaScore; }
+
+        function openRatingAdv() {
+            playSfx('sfx-click');
+            const cats = ['Keamanan', 'Kecerdasan', 'Kepercayaan', 'Keramahan', 'Penampilan'];
+            const container = document.getElementById('hex-rating-container');
+            container.innerHTML = cats.map(cat => `<div class="rating-row"><span style="font-size: 13px;">${cat}</span><div class="star-rating" id="stars-${cat.toLowerCase()}">${[1,2,3,4,5].map(i => `<i class="fa-solid fa-star" onclick="setHexRating('${cat.toLowerCase()}', ${i})"></i>`).join('')}</div></div>`).join('');
+            document.getElementById('modalEvalAdv').classList.add('show');
+        }
+
+        function setHexRating(cat, val) {
+            playSfx('sfx-click');
+            hexRatings[cat] = val;
+            const stars = document.getElementById(`stars-${cat}`).children;
+            for(let i=0; i<5; i++) stars[i].classList.toggle('active', i < val);
+        }
+
+        async function executeSettlementAdv() {
+            if(Object.values(hexRatings).includes(0)) return alert("Isi semua rating 1-5 bintang!");
+            try {
+                const m = mission || {};
+                const rpg = m.rpg_reward || m.full_mission_data?.rpg_reward || {exp:0, greenStone:0};
+                const advNick = m.adventurer_nick;
+
+                if (!isStranger && advNick) {
+                    const totalScore = Object.values(hexRatings).reduce((a, b) => a + b, 0);
+                    let starTier = totalScore === 25 ? 'star_5' : (totalScore >= 20 ? 'star_4' : (totalScore >= 15 ? 'star_3' : 'star_2'));
+
+                    // Cari Shard ID & Internal ID
+                    const snapIdx = await masterDB.ref(`adventurer_index`).orderByChild('nickname').equalTo(advNick).once('value');
+                    if (snapIdx.exists()) {
+                        const idx = snapIdx.val()[Object.keys(snapIdx.val())[0]];
+                        const shardDB = getTerminal(idx.shard_id);
+                        const id = idx.id_adv;
+
+                        let up = {};
+                        up[`adventurer_cox/${id}/green_stone`] = firebase.database.ServerValue.increment(rpg.greenStone);
+                        up[`adventurer_experience/${id}/exp`] = firebase.database.ServerValue.increment(rpg.exp);
+                        up[`adventurer_diagram/${id}/nilai_keamanan`] = firebase.database.ServerValue.increment(hexRatings.keamanan);
+                        up[`adventurer_diagram/${id}/nilai_kecerdasan`] = firebase.database.ServerValue.increment(hexRatings.kecerdasan);
+                        up[`adventurer_diagram/${id}/nilai_kepercayaan`] = firebase.database.ServerValue.increment(hexRatings.kepercayaan);
+                        up[`adventurer_diagram/${id}/nilai_keramahan`] = firebase.database.ServerValue.increment(hexRatings.keramahan);
+                        up[`adventurer_diagram/${id}/nilai_penampilan`] = firebase.database.ServerValue.increment(hexRatings.penampilan);
+                        up[`adventurer_reputation/${id}/total_mission_completed`] = firebase.database.ServerValue.increment(1);
+                        up[`adventurer_reputation/${id}/${starTier}`] = firebase.database.ServerValue.increment(1);
+                        
+                        await shardDB.ref().update(up);
+                    }
+                }
+                await masterDB.ref(`buku_induk/misi/${m.id_misi || contractId}`).update({ status: 'completed', finish_timestamp: Date.now() });
+                await dealDB.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_req', end_at: Date.now() });
+                
+                alert("Kontrak Selesai!"); window.location.href = "index.html";
+            } catch (e) { alert("Error: " + e.message); }
+        }
+
+        function listenStatus() {
+            dealDB.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
+                if (snap.val() === 'completed_req' && user.role === 'adventurer') {
+                    playSfx('sfx-click');
+                    const c = document.getElementById('bool-rating-container');
+                    c.innerHTML = ['baik', 'tips', 'cash', 'extra'].map(k => `<div style="margin-bottom:10px; text-align:left; font-size:12px;">Q: ${k.toUpperCase()}?<div style="display:flex; gap:10px; margin-top:5px;"><button class="btn-boolean" id="btn-${k}-y" onclick="setBoolRating('${k}', true)">YA</button><button class="btn-boolean" id="btn-${k}-n" onclick="setBoolRating('${k}', false)">TIDAK</button></div></div>`).join('');
+                    document.getElementById('modalEvalReq').classList.add('show');
+                }
+            });
+        }
+
+        function setBoolRating(key, val) {
+            playSfx('sfx-click'); boolRatings[key] = val;
+            document.getElementById(`btn-${key}-y`).classList.toggle('selected-yes', val);
+            document.getElementById(`btn-${key}-n`).classList.toggle('selected-no', !val);
+        }
+
+        async function executeSettlementReq() {
+            if(Object.values(boolRatings).includes(null)) return alert("Jawab semua pertanyaan.");
+            try {
+                const reqNick = mission?.requester_nick || mission?.full_mission_data?.client_name;
+                if (!isStranger && reqNick) {
+                    const snapIdx = await masterDB.ref(`requester_index`).orderByChild('nickname').equalTo(reqNick).once('value');
+                    if (snapIdx.exists()) {
+                        const idx = snapIdx.val()[Object.keys(snapIdx.val())[0]];
+                        const rShardDB = getTerminal(idx.shard_id);
+                        let up = {};
+                        if(boolRatings.baik) up[`requester_profile/${idx.id_req}/reputasi_baik`] = firebase.database.ServerValue.increment(1);
+                        await rShardDB.ref().update(up);
+                    }
+                }
+                Clearchance.clearActiveMission();
+                alert("Laporan Selesai."); window.location.href = "index.html";
+            } catch(e) { alert("Error: " + e.message); }
+        }
+    </script>
+</body>
+</html>
