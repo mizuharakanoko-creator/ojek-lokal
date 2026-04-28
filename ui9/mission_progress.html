@@ -322,6 +322,13 @@
     </div>
 
     <script>
+
+
+
+// Pastikan ini di baris paling atas setelah pemanggilan Clearchance
+const user = Clearchance.enforceIdentity();
+const isAdv = (user.role === 'adventurer'); // Pastikan menghasilkan boolean true/false
+
         // ==========================================
         // 1. GLOBAL STATE & SYNC
         // ==========================================
@@ -354,44 +361,55 @@
         // 2. UI ENGINE & NAVIGATION
         // ==========================================
 function initUI() {
+    // 1. Load Data Dasar
     document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
     document.getElementById('m-desc').innerText = mission.description || "Detail tidak ditemukan.";
     document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
     document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
     document.getElementById('m-id-display').innerText = "ID: " + contractId;
 
-    // Isi Alamat & Link Gmaps
+    // 2. Load Alamat
     document.getElementById('m-origin-text').innerText = mission.location_origin?.address || "Alamat asal tidak diset";
     document.getElementById('m-dest-text').innerText = mission.location_dest?.address || "Alamat tujuan tidak diset";
 
     const area = document.getElementById('role-action-area');
     const aiText = document.getElementById('ai-text');
 
-    if(isAdv) {
-        // --- SISI ADVENTURER ---
+    // 3. LOGIKA ROLE (DIPERKETAT)
+    if (isAdv === true) {
+        // --- KHUSUS PELAKSANA (ADVENTURER) ---
         document.getElementById('adv-status-hub').classList.remove('hide');
         document.getElementById('nota-input-hub').classList.remove('hide');
         
-        // Tampilkan tombol Gmaps (Hanya Adventurer yang butuh klik navigasi)
-        document.getElementById('btn-maps-origin').classList.remove('hide');
-        document.getElementById('btn-maps-dest').classList.remove('hide');
+        // Tampilkan tombol Maps
+        const btnO = document.getElementById('btn-maps-origin');
+        const btnD = document.getElementById('btn-maps-dest');
+        btnO.classList.remove('hide');
+        btnD.classList.remove('hide');
         
-        // Setup Klik Gmaps
-        document.getElementById('btn-maps-origin').onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${mission.location_origin?.lat},${mission.location_origin?.lng}`);
-        document.getElementById('btn-maps-dest').onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${mission.location_dest?.lat},${mission.location_dest?.lng}`);
+        // Fix Link Maps (Gunakan backticks yang benar)
+        btnO.onclick = () => window.open(`https://www.google.com/maps?q=${mission.location_origin?.lat},${mission.location_origin?.lng}`);
+        btnD.onclick = () => window.open(`https://www.google.com/maps?q=${mission.location_dest?.lat},${mission.location_dest?.lng}`);
 
-        area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">SINKRONISASI AKTIF</button>`;
+        area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); cursor:default;">SINKRONISASI AKTIF (ADVENTURER)</button>`;
         aiText.innerText = "Master, gunakan tombol progres di bawah untuk update real-time. Gunakan fitur Maps jika rute tidak familiar.";
+
     } else {
-        // --- SISI REQUESTER ---
-        // Tombol WhatsApp & Edukasi
+        // --- KHUSUS PEMESAN (REQUESTER) ---
+        document.getElementById('adv-status-hub').classList.add('hide'); // Pastikan tombol OTW hilang
+        document.getElementById('nota-input-hub').classList.add('hide'); // Pastikan input nota hilang
+        
+        // Sembunyikan tombol Maps (Sesuai instruksi Master)
+        document.getElementById('btn-maps-origin').classList.add('hide');
+        document.getElementById('btn-maps-dest').classList.add('hide');
+
         area.innerHTML = `
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <button class="btn-main" style="background:#25d366; color:#fff;" onclick="contactPartnerWA()">
                     <i class="fa-brands fa-whatsapp"></i> HUBUNGI VIA WHATSAPP
                 </button>
                 <button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>
-                <div style="font-size:8px; color:#555; text-align:center;">Nomor Anda tetap tersembunyi sampai Anda memulai percakapan.</div>
+                <div style="font-size:8px; color:#555; text-align:center;">Privasi Terjamin: Nomor Master tetap tersembunyi hingga Master mengirim pesan duluan.</div>
             </div>
         `;
         aiText.innerText = "Master Requester, Partner Anda sedang memproses kontrak. Hubungi via WhatsApp jika ada instruksi mendesak.";
