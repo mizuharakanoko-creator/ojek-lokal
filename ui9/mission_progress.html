@@ -436,6 +436,97 @@
 function closeInspector() {
     document.getElementById('debug-panel').style.display = 'none';
 }
+
+
+
+// ========================================================
+// LOGIKA GALI DATA (DEEP MINING)
+// ========================================================
+
+async function mineDeepData() {
+    const content = document.getElementById('debug-content');
+    content.innerHTML = "🔍 Memulai Penggalian Deep Data...\n";
+
+    try {
+        // 1. Ambil Data Dasar dari Session
+        const contractId = sessionStorage.getItem('active_contract_id');
+        const mission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
+        
+        // Data Nickname (Biasanya dibawa dari halaman board/kontrak)
+        const advNick = mission.adventurer_nick;
+        const reqNick = mission.requester_nick;
+
+        let results = {
+            CONTRACT_ID: contractId,
+            ADVENTURER_NODE: { status: "Searching..." },
+            REQUESTER_NODE: { status: "Searching..." }
+        };
+
+        // --- PROSES GALI DATA ADVENTURER ---
+        if (advNick) {
+            content.innerHTML += `> Melacak Shard Adventurer: ${advNick}...\n`;
+            const snapIdx = await masterDB.ref(`adventurer_index/${advNick}`).once('value');
+            
+            if (snapIdx.exists()) {
+                const { shard_id, id_adv } = snapIdx.val();
+                results.ADVENTURER_NODE = {
+                    nick: advNick,
+                    shard_target: shard_id,
+                    id_internal: id_adv
+                };
+
+                // Ambil Alamat Database Shard
+                const shardDB = getTerminal(shard_id); 
+                const snapDetail = await shardDB.ref(`adventurers/${id_adv}`).once('value');
+                
+                if (snapDetail.exists()) {
+                    results.ADVENTURER_NODE.full_data = snapDetail.val();
+                }
+            } else {
+                results.ADVENTURER_NODE.status = "Index Tidak Ditemukan";
+            }
+        }
+
+        // --- PROSES GALI DATA REQUESTER ---
+        if (reqNick) {
+            content.innerHTML += `> Memeriksa Status Requester: ${reqNick}...\n`;
+            const snapReqIdx = await masterDB.ref(`requester_index/${reqNick}`).once('value');
+            
+            if (snapReqIdx.exists()) {
+                const { shard_id, id_req } = snapReqIdx.val();
+                const shardDB = getTerminal(shard_id);
+                const snapReqDetail = await shardDB.ref(`requesters/${id_req}`).once('value');
+                
+                results.REQUESTER_NODE = {
+                    nick: reqNick,
+                    shard: shard_id,
+                    full_data: snapReqDetail.exists() ? snapReqDetail.val() : "Data shard detail kosong"
+                };
+            } else {
+                // LOGIKA STRANGER
+                results.REQUESTER_NODE = {
+                    nick: reqNick,
+                    status: "❗ MODE STRANGER",
+                    warning: "Tidak ada data yang bisa ditampilkan atau dikirim. Berhati-hatilah!",
+                    can_sync: false
+                };
+            }
+        }
+
+        // Tampilkan Hasil Akhir
+        content.innerText = JSON.stringify(results, null, 4);
+
+    } catch (error) {
+        content.innerHTML += `\n❌ CRITICAL_ERROR: ${error.message}`;
+    }
+}
+
+// Fungsi Trigger untuk Tombol
+function openInspector() {
+    document.getElementById('debug-panel').style.display = 'flex';
+    mineDeepData(); // Langsung gali saat dibuka
+}
+
     </script>
 </body>
 </html>
