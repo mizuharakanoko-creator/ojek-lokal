@@ -211,13 +211,20 @@
     <div style="background: #111; padding: 12px; border-radius: 10px; border: 1px solid #222; margin-bottom: 10px;">
         <div style="font-size: 8px; color: #555; letter-spacing: 1px;">TITIK ASAL / TOKO</div>
         <div id="m-origin-name" style="font-size: 14px; font-weight: bold; color: #fff; margin: 4px 0;">--</div>
-        <div id="m-origin-details" style="font-size: 11px; color: #888; margin-bottom: 10px;">--</div>
-        
-        <button id="btn-maps-origin" class="hide" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); font-size:10px; padding:8px; border-radius:8px; width:100%; cursor:pointer;">
-            <i class="fa-solid fa-location-arrow"></i> BUKA NAVIGASI MAPS
+        <button id="btn-maps-origin" class="hide" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); font-size:10px; padding:8px; border-radius:8px; width:100%; margin-top:5px;">
+            <i class="fa-solid fa-location-arrow"></i> NAVIGASI ASAL
+        </button>
+    </div>
+
+    <div id="dest-hub" class="hide" style="background: #111; padding: 12px; border-radius: 10px; border: 1px solid #222; margin-bottom: 10px;">
+        <div style="font-size: 8px; color: var(--neon-green); letter-spacing: 1px;">TITIK TUJUAN PENGIRIMAN</div>
+        <div id="m-dest-name" style="font-size: 14px; font-weight: bold; color: #fff; margin: 4px 0;">--</div>
+        <button id="btn-maps-dest" class="hide" style="background:none; border:1px solid var(--neon-green); color:var(--neon-green); font-size:10px; padding:8px; border-radius:8px; width:100%; margin-top:5px;">
+            <i class="fa-solid fa-map-pin"></i> NAVIGASI TUJUAN
         </button>
     </div>
 </div>
+
 
 <div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
     <div style="font-size: 10px; color: var(--neon-purple); font-weight: bold; margin-bottom: 8px;">
@@ -754,41 +761,49 @@ async function injectSovereignDetails() {
         const m = DATA.mission;
         const detail = m.full_mission_data || {};
 
-        // 1. Sinkronisasi Alamat
-        const elName = document.getElementById('m-origin-name');
-        const elDet = document.getElementById('m-origin-details');
-        if (elName) elName.innerText = detail.origin_name || "Lokasi tidak terdeteksi";
-        if (elDet) elDet.innerText = detail.origin_details || "Tidak ada detail patokan";
-
-        // 2. Memunculkan Tombol Maps
-        // Kita cek koordinat di origin_coords sesuai log Master
+        // --- 1. LOGIKA TITIK ASAL & MAPS ---
+        if (document.getElementById('m-origin-name')) {
+            document.getElementById('m-origin-name').innerText = detail.origin_name || "---";
+        }
         if (detail.origin_coords && detail.origin_coords !== "NEGO") {
-            const btnMaps = document.getElementById('btn-maps-origin');
-            if (btnMaps) {
-                btnMaps.classList.remove('hide');
-                btnMaps.onclick = () => {
-                    playSfx();
-                    window.open(`https://www.google.com/maps?q=${detail.origin_coords}`);
-                };
+            const btnO = document.getElementById('btn-maps-origin');
+            if (btnO) {
+                btnO.classList.remove('hide');
+                btnO.onclick = () => window.open(`https://www.google.com/maps?q=${detail.origin_coords}`);
             }
         }
 
-        // 3. Mengurai Multi-Point (Daftar Pesanan)
+        // --- 2. LOGIKA TITIK TUJUAN (NEW) ---
+        if (detail.dest_desa) {
+            const destHub = document.getElementById('dest-hub');
+            const destName = document.getElementById('m-dest-name');
+            if (destHub && destName) {
+                destHub.classList.remove('hide');
+                destName.innerText = detail.dest_name || detail.dest_desa;
+            }
+        }
+        if (detail.dest_coords && detail.dest_coords !== "NEGO") {
+            const btnD = document.getElementById('btn-maps-dest');
+            if (btnD) {
+                btnD.classList.remove('hide');
+                btnD.onclick = () => window.open(`https://www.google.com/maps?q=${detail.dest_coords}`);
+            }
+        }
+
+        // --- 3. LOGIKA MULTI-POINT (PESANAN) ---
         if (detail.multi_points && Array.isArray(detail.multi_points)) {
-            const cargoBox = document.getElementById('cargo-hub');
-            const cargoText = document.getElementById('m-cargo-detail');
-            
-            if (cargoBox && cargoText) {
-                cargoBox.classList.remove('hide');
-                // Mengonversi array menjadi list dengan nomor urut
-                cargoText.innerText = detail.multi_points
-                    .map((item, i) => `${i + 1}. ${item}`)
+            const cargoHub = document.getElementById('cargo-hub');
+            const cargoDetail = document.getElementById('m-cargo-detail');
+            if (cargoHub && cargoDetail) {
+                cargoHub.classList.remove('hide');
+                cargoDetail.innerText = detail.multi_points
+                    .map((txt, i) => `${i + 1}. ${txt}`)
                     .join('\n');
             }
         }
 
-    } catch (err) {
-        console.error("Sovereign Error:", err);
+    } catch (e) {
+        console.error("Irene Trace: Gagal Sinkronisasi.", e);
     }
 }
 
