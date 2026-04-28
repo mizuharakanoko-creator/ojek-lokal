@@ -370,29 +370,40 @@
         }
 
         async function performDeepMining() {
-            // Tentukan target UID
-            const targetUid = isAdv ? (mission.requester_uid || "UNKNOWN") : (mission.adventurer_uid || "UNKNOWN");
-            
-            try {
-                const snap = await dbMaster.ref(`users/${targetUid}`).once('value');
-                if(snap.exists()) {
-                    const p = snap.val();
-                    document.getElementById('u-name').innerText = p.nama || "Partner Entity";
-                    document.getElementById('u-role').innerText = isAdv ? "REQUESTER" : "ADVENTURER";
-                    
-                    if(isAdv) {
-                        document.getElementById('u-rank').innerText = "T" + (p.requester_profile?.tier || 1);
-                        document.getElementById('v-stat-1').innerText = (p.requester_reputation?.yabaik || 0) + " Votes";
-                        document.getElementById('b-stat-1').style.width = "70%"; // Dummy bar logic
-                    } else {
-                        document.getElementById('u-rank').innerText = p.adventurer_stats?.rank || "F";
-                        document.getElementById('v-stat-1').innerText = (p.adventurer_diagram?.nilai_kepercayaan || 0) + " pts";
-                        document.getElementById('b-stat-1').style.width = (p.adventurer_diagram?.nilai_kepercayaan || 0) + "%";
-                        document.getElementById('v-stat-2').innerText = "Lv." + (p.adventurer_experience?.level || 1);
-                    }
-                }
-            } catch(e) { console.error("Mining Failed", e); }
+    try {
+        // Tarik segalanya menggunakan Aggregator
+        const DATA = await getSupremeData(contractId);
+        if (!DATA) return;
+
+        // Tentukan siapa partner kita
+        const partner = isAdv ? DATA.requester : DATA.adventurer;
+        if (!partner) return;
+
+        // UPDATE UI DENGAN DATA SHARD ASLI
+        document.getElementById('u-name').innerText = partner.profile?.nama || "Partner Entity";
+        document.getElementById('u-role').innerText = isAdv ? "REQUESTER" : "ADVENTURER";
+        
+        if (isAdv) {
+            // Data untuk Requester (Tier & Reputation)
+            document.getElementById('u-rank').innerText = "T" + (partner.profile?.tier || 1);
+            document.getElementById('v-stat-1').innerText = (partner.reputation?.yabaik || 0) + " Votes";
+            document.getElementById('b-stat-1').style.width = "70%";
+        } else {
+            // Data untuk Adventurer (Rank & Diagram Trust)
+            document.getElementById('u-rank').innerText = partner.profile?.rank || "F";
+            document.getElementById('v-stat-1').innerText = (partner.diagram?.nilai_kepercayaan || 0) + " pts";
+            document.getElementById('b-stat-1').style.width = (partner.diagram?.nilai_kepercayaan || 0) + "%";
+            document.getElementById('v-stat-2').innerText = "Lv." + (partner.experience?.level || 1);
         }
+
+        // Simpan ke Global Variable agar bisa diakses fungsi lain tanpa panggil DB lagi
+        window.SUPREME_DATA = DATA;
+
+    } catch (e) { 
+        console.error("Deep Mining Aggregator Failed", e); 
+    }
+}
+
 
         // ==========================================
         // 3. NOTA PROTOCOL (CRUD)
@@ -646,4 +657,4 @@
     
     </script>
 </body>
-</htm\u003C/html>l>
+</html>
