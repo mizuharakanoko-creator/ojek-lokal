@@ -176,27 +176,45 @@
                     <div id="live-status-text" style="color: #fff;">Menunggu laporan pertama dari lapangan...</div>
                 </div>
 
-                <div class="dossier">
-                    <div class="dossier-head">
-                        <span>MISSION_FILE_ACTIVE</span>
-                        <span id="m-id-display">ID: ---</span>
-                    </div>
-                    <div class="dossier-body">
-                        <h1 id="m-title" class="m-title">Memuat Misi...</h1>
-                        <p id="m-desc" class="m-desc">Sedang mengambil detail kontrak dari session storage...</p>
-                        
-                        <div style="display: flex; gap: 20px; border-top: 1px solid #222; padding-top: 20px;">
-                            <div>
-                                <div style="font-size: 9px; color: #555;">REWARD EXP</div>
-                                <div id="m-exp" style="color: var(--neon-blue); font-weight: bold; font-family: var(--font-mono);">--</div>
-                            </div>
-                            <div>
-                                <div style="font-size: 9px; color: #555;">GREEN STONES</div>
-                                <div id="m-stone" style="color: var(--neon-green); font-weight: bold; font-family: var(--font-mono);">--</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+<div class="dossier-body">
+    <h1 id="m-title" class="m-title">Memuat Misi...</h1>
+    
+    <div id="mission-timer" style="font-family: var(--font-mono); color: var(--neon-purple); font-size: 12px; margin-bottom: 15px; border: 1px solid #222; padding: 5px 10px; border-radius: 5px; display: inline-block;">
+        DURASI: <span id="timer-val">00:00:00</span>
+    </div>
+
+    <p id="m-desc" class="m-desc">Sedang mengambil detail kontrak...</p>
+
+    <div id="location-blocks" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+        <div style="background: #111; padding: 12px; border-radius: 10px; border-left: 3px solid var(--neon-blue);">
+            <div style="font-size: 9px; color: #555; margin-bottom: 4px;">TITIK JEMPUT / ASAL</div>
+            <div id="m-origin-text" style="font-size: 13px; margin-bottom: 8px;">Memuat alamat...</div>
+            <button id="btn-maps-origin" class="hide" style="background: none; border: 1px solid var(--neon-blue); color: var(--neon-blue); font-size: 10px; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
+                <i class="fa-solid fa-location-dot"></i> BUKA GMAPS
+            </button>
+        </div>
+
+        <div style="background: #111; padding: 12px; border-radius: 10px; border-left: 3px solid var(--neon-green);">
+            <div style="font-size: 9px; color: #555; margin-bottom: 4px;">TITIK TUJUAN AKHIR</div>
+            <div id="m-dest-text" style="font-size: 13px; margin-bottom: 8px;">Memuat alamat...</div>
+            <button id="btn-maps-dest" class="hide" style="background: none; border: 1px solid var(--neon-green); color: var(--neon-green); font-size: 10px; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
+                <i class="fa-solid fa-location-dot"></i> BUKA GMAPS
+            </button>
+        </div>
+    </div>
+    
+    <div style="display: flex; gap: 20px; border-top: 1px solid #222; padding-top: 20px;">
+        <div>
+            <div style="font-size: 9px; color: #555;">REWARD EXP</div>
+            <div id="m-exp" style="color: var(--neon-blue); font-weight: bold; font-family: var(--font-mono);">--</div>
+        </div>
+        <div>
+            <div style="font-size: 9px; color: #555;">GREEN STONES</div>
+            <div id="m-stone" style="color: var(--neon-green); font-weight: bold; font-family: var(--font-mono);">--</div>
+        </div>
+    </div>
+</div>
+
 
                 <div id="adv-status-hub" class="hide">
                     <div style="font-size: 10px; color: #444; margin-bottom: 8px; font-weight: bold;">KIRIM UPDATE PROGRES</div>
@@ -335,30 +353,51 @@
         // ==========================================
         // 2. UI ENGINE & NAVIGATION
         // ==========================================
-        function initUI() {
-            // Data Dasar dari Session Storage
-            document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
-            document.getElementById('m-desc').innerText = mission.description || "Detail misi tidak ditemukan.";
-            document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
-            document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
-            document.getElementById('m-id-display').innerText = "ID: " + contractId;
+function initUI() {
+    document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
+    document.getElementById('m-desc').innerText = mission.description || "Detail tidak ditemukan.";
+    document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
+    document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
+    document.getElementById('m-id-display').innerText = "ID: " + contractId;
 
-            const area = document.getElementById('role-action-area');
-            if(isAdv) {
-                document.getElementById('adv-status-hub').classList.remove('hide');
-                document.getElementById('nota-input-hub').classList.remove('hide');
-                area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">MENUNGGU KONFIRMASI REQUESTER</button>`;
-            } else {
-                area.innerHTML = `<button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>`;
-                // Tambah tombol Arcade khusus Requester di Header
-                const head = document.getElementById('global-header');
-                const arcBtn = document.createElement('button');
-                arcBtn.innerHTML = `<i class="fa-solid fa-gamepad"></i>`;
-                arcBtn.style = "background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); width:35px; height:35px; border-radius:50%; margin-right:10px;";
-                arcBtn.onclick = () => document.getElementById('modalArcade').style.display = 'flex';
-                head.insertBefore(arcBtn, head.lastElementChild);
-            }
-        }
+    // Isi Alamat & Link Gmaps
+    document.getElementById('m-origin-text').innerText = mission.location_origin?.address || "Alamat asal tidak diset";
+    document.getElementById('m-dest-text').innerText = mission.location_dest?.address || "Alamat tujuan tidak diset";
+
+    const area = document.getElementById('role-action-area');
+    const aiText = document.getElementById('ai-text');
+
+    if(isAdv) {
+        // --- SISI ADVENTURER ---
+        document.getElementById('adv-status-hub').classList.remove('hide');
+        document.getElementById('nota-input-hub').classList.remove('hide');
+        
+        // Tampilkan tombol Gmaps (Hanya Adventurer yang butuh klik navigasi)
+        document.getElementById('btn-maps-origin').classList.remove('hide');
+        document.getElementById('btn-maps-dest').classList.remove('hide');
+        
+        // Setup Klik Gmaps
+        document.getElementById('btn-maps-origin').onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${mission.location_origin?.lat},${mission.location_origin?.lng}`);
+        document.getElementById('btn-maps-dest').onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${mission.location_dest?.lat},${mission.location_dest?.lng}`);
+
+        area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">SINKRONISASI AKTIF</button>`;
+        aiText.innerText = "Master, gunakan tombol progres di bawah untuk update real-time. Gunakan fitur Maps jika rute tidak familiar.";
+    } else {
+        // --- SISI REQUESTER ---
+        // Tombol WhatsApp & Edukasi
+        area.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <button class="btn-main" style="background:#25d366; color:#fff;" onclick="contactPartnerWA()">
+                    <i class="fa-brands fa-whatsapp"></i> HUBUNGI VIA WHATSAPP
+                </button>
+                <button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>
+                <div style="font-size:8px; color:#555; text-align:center;">Nomor Anda tetap tersembunyi sampai Anda memulai percakapan.</div>
+            </div>
+        `;
+        aiText.innerText = "Master Requester, Partner Anda sedang memproses kontrak. Hubungi via WhatsApp jika ada instruksi mendesak.";
+    }
+}
+
 
         function switchTab(id, el) {
             playSfx();
@@ -673,6 +712,33 @@ async function inspectData() {
         aiText.innerText = "System Error: " + err.message;
     }
 }
+
+
+
+// --- WHATSAPP PROTOCOL ---
+async function contactPartnerWA() {
+    const DATA = await getSupremeData(contractId);
+    const partnerPhone = DATA.adventurer?.profile?.phone; // Pastikan database shard punya field phone
+    if(!partnerPhone) return alert("Partner tidak mencantumkan nomor WhatsApp.");
+    
+    const text = `Halo, saya Requester dari Sovereign Guild (Kontrak ID: ${contractId}). Saya ingin menanyakan progres misi...`;
+    window.open(`https://wa.me/${partnerPhone}?text=${encodeURIComponent(text)}`);
+}
+
+// --- MISSION TIMER LOGIC ---
+let missionStartTime = mission.ts_start || Date.now();
+function updateMissionTimer() {
+    const now = Date.now();
+    const diff = now - missionStartTime;
+
+    const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+    const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+    const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+
+    document.getElementById('timer-val').innerText = `${h}:${m}:${s}`;
+}
+setInterval(updateMissionTimer, 1000);
+
 
 
 
