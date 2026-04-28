@@ -405,94 +405,93 @@
         async function openInspector() {
     const panel = document.getElementById('debug-panel');
     const content = document.getElementById('debug-content');
-    
     panel.style.display = 'flex';
-    content.innerHTML = "🔍 [SYSTEM] Menghubungkan ke Shard & Menarik Sesi...\n";
+    
+    // 1. Ambil data dasar (Data yang Anda bilang berjalan lebih baik)
+    const systemData = {
+        "1. USER_IDENTITY (From: clearchance.js)": {
+            uid: user?.uid || "NULL",
+            role: user?.role || "NULL",
+            auth_status: "Verified"
+        },
+        "2. SESSION_DATA (From: Browser Storage)": {
+            active_contract_id: sessionStorage.getItem('active_contract_id') || "NOT_FOUND",
+            mission_raw_object: mission || "NOT_FOUND"
+        },
+        "3. DATABASE_REFERENCE (From: terminal_router.js)": {
+            FB1_MASTER: masterDB?.repo || "Connected",
+            FB4_BOARD: boardDB?.repo || "Connected",
+            FB5_DEAL: dealDB?.repo || "Connected"
+        },
+        "4. LIVE_VARIABLES (Memory)": {
+            current_ratings: ratings,
+            is_drawer_open: isDrawerOpen,
+            device_location: myMarker?.getLatLng() || "Waiting GPS..."
+        }
+    };
 
+    // Tampilkan data awal dulu agar tidak kosong
+    content.innerText = JSON.stringify(systemData, null, 4);
+
+    // 2. Mulai proses Gali Data (Menambahkan, bukan mengganti)
     try {
-        // --- 1. DATA SESI & SYSTEM (Data Langsung) ---
-        const contractId = sessionStorage.getItem('active_contract_id');
-        const missionRaw = sessionStorage.getItem('current_mission_full');
-        const missionData = JSON.parse(missionRaw || "{}");
-        
-        // Ambil Nickname dari Sesi (Kunci untuk gali data)
-        const advNick = missionData.adventurer_nick || "nezza"; // Default ke nezza sesuai foto jika kosong
-        const reqNick = missionData.requester_nick || missionData.full_mission_data?.client_name;
+        const advNick = mission?.adventurer_nick || "nezza";
+        const reqNick = mission?.requester_nick;
 
-        // Wadah Laporan Utama
-        let finalReport = {
-            "IDENTITAS_SISTEM": {
-                user_uid: user?.uid || "NULL",
-                user_role: user?.role || "NULL",
-                contract_id: contractId
-            },
-            "SESSION_STORAGE": {
-                raw_mission: missionData
-            },
-            "DEEP_MINING_ADVENTURER": { status: "Not_Searched" },
-            "DEEP_MINING_REQUESTER": { status: "Not_Searched" }
+        // Tambahkan kategori baru di dalam objek systemData
+        systemData["5. DEEP_MINING_RESULTS"] = {
+            ADVENTURER: { status: "Searching..." },
+            REQUESTER: { status: "Searching..." }
         };
 
-        // --- 2. GALI DATA ADVENTURER (Berdasarkan Foto FB1) ---
-        if (advNick) {
-            content.innerHTML += `> Mencari Index Adventurer: ${advNick}...\n`;
-            // Sesuaikan path dengan foto: adventurer_index/adv-kng-15979117
-            // Catatan: Jika advNick adalah "nezza", kita cari di index
-            const snapIdx = await masterDB.ref(`adventurer_index`).orderByChild('nickname').equalTo(advNick).once('value');
+        // Gali Adventurer dari FB1 & Shard
+        const snapIdx = await masterDB.ref(`adventurer_index`).orderByChild('nickname').equalTo(advNick).once('value');
+        
+        if (snapIdx.exists()) {
+            const key = Object.keys(snapIdx.val())[0];
+            const idx = snapIdx.val()[key];
+            const shardDB = getTerminal(idx.shard_id);
             
-            if (snapIdx.exists()) {
-                const key = Object.keys(snapIdx.val())[0];
-                const indexData = snapIdx.val()[key];
-                const { shard_id, id_adv } = indexData;
+            // Ambil semua node dari Shard (Experience, Reputation, Box)
+            const [exp, rep, box] = await Promise.all([
+                shardDB.ref(`adventurer_experience/${idx.id_adv}`).once('value'),
+                shardDB.ref(`adventurer_reputation/${idx.id_adv}`).once('value'),
+                shardDB.ref(`adventurer_cox/${idx.id_adv}`).once('value')
+            ]);
 
-                content.innerHTML += `> Shard Ditemukan: ${shard_id}. Menembus Database...\n`;
-                
-                const shardDB = getTerminal(shard_id);
-                // Ambil semua node (cox, diagram, exp, reputation) seperti di foto
-                const [snapCox, snapDiag, snapExp, snapRep] = await Promise.all([
-                    shardDB.ref(`adventurer_box/${id_adv}`).once('value'),
-                    shardDB.ref(`adventurer_diagram/${id_adv}`).once('value'),
-                    shardDB.ref(`adventurer_experience/${id_adv}`).once('value'),
-                    shardDB.ref(`adventurer_reputation/${id_adv}`).once('value')
-                ]);
-
-                finalReport.DEEP_MINING_ADVENTURER = {
-                    nickname: advNick,
-                    internal_id: id_adv,
-                    shard: shard_id,
-                    stats: snapExp.val(),
-                    inventory: snapCox.val(),
-                    diagram: snapDiag.val(),
-                    reputation: snapRep.val()
-                };
-            } else {
-                finalReport.DEEP_MINING_ADVENTURER.status = `Nick [${advNick}] tidak ada di FB1`;
-            }
+            systemData["5. DEEP_MINING_RESULTS"].ADVENTURER = {
+                index_info: idx,
+                experience: exp.val(),
+                reputation: rep.val(),
+                inventory: box.val()
+            };
+        } else {
+            systemData["5. DEEP_MINING_RESULTS"].ADVENTURER = { status: "Nick tidak ditemukan di Index" };
         }
 
-        // --- 3. GALI DATA REQUESTER (Logika Stranger) ---
+        // Gali Requester & Logika Stranger
         if (reqNick) {
-            content.innerHTML += `> Memeriksa Status Requester: ${reqNick}...\n`;
             const snapReq = await masterDB.ref(`requester_index`).orderByChild('nickname').equalTo(reqNick).once('value');
-
             if (snapReq.exists()) {
-                const reqKey = Object.keys(snapReq.val())[0];
-                finalReport.DEEP_MINING_REQUESTER = snapReq.val()[reqKey];
+                const rKey = Object.keys(snapReq.val())[0];
+                systemData["5. DEEP_MINING_RESULTS"].REQUESTER = snapReq.val()[rKey];
             } else {
-                finalReport.DEEP_MINING_REQUESTER = {
+                systemData["5. DEEP_MINING_RESULTS"].REQUESTER = {
                     status: "❗ MODE STRANGER",
-                    warning: "Berhati-hati, requester ini tidak memiliki identitas resmi di Guild!",
+                    warning: "Berhati-hati, requester tidak terdaftar!",
                     client_name: reqNick
                 };
             }
         }
 
-        // --- 4. TAMPILKAN SEMUA ---
-        content.innerText = JSON.stringify(finalReport, null, 4);
+        // Update tampilan dengan data yang sudah lengkap
+        content.innerText = JSON.stringify(systemData, null, 4);
 
-    } catch (error) {
-        content.innerHTML = `<span style="color:#ff3366;">❌ ERROR: ${error.message}</span>`;
-        console.error("Inspector Error:", error);
+    } catch (err) {
+        console.error("Gali data gagal:", err);
+        // Tetap tampilkan data yang ada meski gali data gagal
+        systemData["ERROR_LOG"] = err.message;
+        content.innerText = JSON.stringify(systemData, null, 4);
     }
 }
 
