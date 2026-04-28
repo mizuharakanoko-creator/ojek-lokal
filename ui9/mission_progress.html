@@ -389,70 +389,71 @@
         // ==========================================
         // 2. UI ENGINE & NAVIGATION
         // ==========================================
+        
         async function initUI() {
     try {
-        // 1. Tarik Data Terpusat menggunakan Aggregator
-        // contractId harus sudah didefinisikan sebelumnya (misal dari URL params)
+        // Ambil data menggunakan router yang sudah ada
         const supreme = await getSupremeData(contractId);
         
         if (!supreme || !supreme.mission) {
-            console.error("Master, data misi gagal ditarik dari Shard!");
+            console.error("Gagal sinkronisasi dengan Shard!");
             return;
         }
 
-        // Shortcut biar ngetiknya gampang
         const m = supreme.mission;
-        const adv = supreme.adventurer;
-        const req = supreme.requester;
 
-        // 2. Isi Data Header & Deskripsi
-        document.getElementById('m-title').innerText = m.title || "Unknown Contract";
-        document.getElementById('m-desc').innerText = m.description || "Tidak ada deskripsi.";
-        document.getElementById('m-id-display').innerText = "ID: " + contractId;
+        // --- INI KUNCINYA ---
+        // Data alamat & multi_points ada di dalam full_mission_data
+        const detail = m.full_mission_data || {}; 
 
-        // 3. Isi Data RPG (EXP & Stone)
-        // Sesuaikan dengan struktur path di Firebase Master
-        document.getElementById('m-exp').innerText = (m.rpg_reward?.exp || 0) + " EXP";
-        document.getElementById('m-stone').innerText = (m.rpg_reward?.greenStone || 0) + " STONES";
+        // 1. Tampilkan Alamat (Origin)
+        // Gunakan properti yang ada di gambar Master
+        document.getElementById('m-origin-name').innerText = detail.origin_name || "---";
+        document.getElementById('m-origin-details').innerText = detail.origin_details || "---";
 
-        // 4. Isi Detail Khusus (Sesuai list yang Master minta)
-        document.getElementById('m-category-badge').innerText = m.category || "GENERAL";
-        document.getElementById('m-client-name').innerText = m.client_name || req?.profile?.display_name || "Guest";
-        document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Searching...";
-        document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
-        document.getElementById('m-distance').innerText = m.distance_est || "0";
+        // 2. Tampilkan Daftar Belanja (Multi Points)
+        // Kita gabungkan isi array menjadi teks
+        if (detail.multi_points && detail.multi_points.length > 0) {
+            const cargoHub = document.getElementById('cargo-hub');
+            const cargoDetail = document.getElementById('m-cargo-detail');
+            
+            if (cargoHub && cargoDetail) {
+                cargoHub.classList.remove('hide');
+                // Menggabungkan array menjadi list dengan nomor
+                cargoDetail.innerText = detail.multi_points
+                    .map((item, index) => `${index + 1}. ${item}`)
+                    .join('\n');
+            }
+        }
 
-        // 5. Logika Lokasi (Origin & Destination)
-        document.getElementById('m-origin-name').innerText = m.origin_name || "---";
-        document.getElementById('m-origin-details').innerText = m.origin_details || "---";
-
-        if (m.dest_name) {
+        // 3. Tampilkan Tujuan (Jika ada)
+        if (detail.dest_name) {
             document.getElementById('dest-container').classList.remove('hide');
-            document.getElementById('m-dest-name').innerText = m.dest_name;
-            document.getElementById('m-dest-details').innerText = m.dest_details || "---";
+            document.getElementById('m-dest-name').innerText = detail.dest_name;
+            document.getElementById('m-dest-details').innerText = detail.dest_details || "---";
         }
 
-        // 6. Logika Tombol Navigasi (Hanya untuk Adventurer)
-        if (isAdv) {
-            if (m.origin_coords) {
-                const bO = document.getElementById('btn-maps-origin');
-                bO.classList.remove('hide');
-                bO.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${m.origin_coords}`);
-            }
-            if (m.dest_coords) {
-                const bD = document.getElementById('btn-maps-dest');
-                bD.classList.remove('hide');
-                bD.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${m.dest_coords}`);
+        // 4. Update Header & Footer (Data yang sudah muncul di gambar Master)
+        document.getElementById('m-title').innerText = detail.category || "General Mission";
+        document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+        document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Searching...";
+
+        // 5. Jalankan Navigasi & Timer
+        if (isAdv && detail.origin_coords) {
+            const btnO = document.getElementById('btn-maps-origin');
+            if(btnO) {
+                btnO.classList.remove('hide');
+                btnO.onclick = () => window.open(`https://www.google.com/maps?q=${detail.origin_coords}`);
             }
         }
+        
+        startMissionTimer(m.created_at);
 
-        // 7. Jalankan Fitur Tambahan (Timer, dll)
-        startMissionTimer(m.ts_start);
-
-    } catch (error) {
-        console.error("CRASH LOKAL:", error);
+    } catch (err) {
+        console.error("Irene Error pada Injeksi Data:", err);
     }
 }
+
 
 
         function switchTab(id, el) {
