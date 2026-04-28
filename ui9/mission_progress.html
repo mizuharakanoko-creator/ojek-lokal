@@ -184,7 +184,32 @@
                     <div class="dossier-body">
                         <h1 id="m-title" class="m-title">Memuat Misi...</h1>
                         <p id="m-desc" class="m-desc">Sedang mengambil detail kontrak dari session storage...</p>
-                        
+
+<div id="extra-hq-features" style="margin-top: 15px;">
+    
+    <div id="mission-timer-hub" style="font-family: var(--font-mono); color: var(--neon-purple); font-size: 11px; margin-bottom: 15px; display:none; border: 1px solid #222; padding: 5px 10px; border-radius: 5px; width: fit-content;">
+        <i class="fa-solid fa-clock-rotate-left"></i> DURASI: <span id="timer-val">00:00:00</span>
+    </div>
+
+    <div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 12px; border-radius: 10px; margin-bottom: 15px;">
+        <div style="font-size: 9px; color: var(--neon-purple); font-weight: bold; margin-bottom: 5px;">DETAIL TITIPAN / BARANG</div>
+        <div id="m-cargo-detail" style="font-size: 13px; color: #eee; white-space: pre-line;">--</div>
+    </div>
+
+    <div id="location-hub" style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="background: #111; padding: 10px; border-radius: 8px; border: 1px solid #222;">
+            <div style="font-size: 8px; color: #555;">TITIK JEMPUT / TOKO</div>
+            <div id="m-origin-text" style="font-size: 12px; margin: 4px 0;">--</div>
+            <button id="btn-maps-origin" class="hide" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); font-size:9px; padding:5px 8px; border-radius:5px; cursor:pointer;">NAVIGASI KE SINI</button>
+        </div>
+        <div style="background: #111; padding: 10px; border-radius: 8px; border: 1px solid #222;">
+            <div style="font-size: 8px; color: #555;">TITIK TUJUAN AKHIR</div>
+            <div id="m-dest-text" style="font-size: 12px; margin: 4px 0;">--</div>
+            <button id="btn-maps-dest" class="hide" style="background:none; border:1px solid var(--neon-green); color:var(--neon-green); font-size:9px; padding:5px 8px; border-radius:5px; cursor:pointer;">NAVIGASI KE SINI</button>
+        </div>
+    </div>
+</div>
+
                         <div style="display: flex; gap: 20px; border-top: 1px solid #222; padding-top: 20px;">
                             <div>
                                 <div style="font-size: 9px; color: #555;">REWARD EXP</div>
@@ -674,6 +699,73 @@ async function inspectData() {
     }
 }
 
+
+        // FITUR TAMBAHAN TANPA MENGUBAH LOGIKA LAMA
+function injectSovereignFeatures() {
+    // 1. Sinkronisasi Data Lokasi & Cargo
+    document.getElementById('m-origin-text').innerText = mission.location_origin?.address || "Alamat tidak tersedia";
+    document.getElementById('m-dest-text').innerText = mission.location_dest?.address || "Alamat tidak tersedia";
+    
+    if(mission.cargo_detail || mission.items_to_buy) {
+        document.getElementById('cargo-hub').classList.remove('hide');
+        document.getElementById('m-cargo-detail').innerText = mission.cargo_detail || mission.items_to_buy;
+    }
+
+    const aiText = document.getElementById('ai-text');
+    const area = document.getElementById('role-action-area');
+
+    if(isAdv) {
+        // EDUKASI & NAVIGASI ADVENTURER
+        document.getElementById('btn-maps-origin').classList.remove('hide');
+        document.getElementById('btn-maps-dest').classList.remove('hide');
+        
+        document.getElementById('btn-maps-origin').onclick = () => window.open(`http://maps.google.com/?q=${mission.location_origin?.lat},${mission.location_origin?.lng}`);
+        document.getElementById('btn-maps-dest').onclick = () => window.open(`http://maps.google.com/?q=${mission.location_dest?.lat},${mission.location_dest?.lng}`);
+
+        aiText.innerText = "Sovereign AI: Navigasi aktif. Master, tekan status 'OTW' agar Requester bisa memantau pergerakan Anda secara real-time.";
+    } else {
+        // WHATSAPP & EDUKASI REQUESTER
+        // Kita sisipkan tombol WA di atas tombol konfirmasi tanpa menghapus tombol lama
+        const waBtn = document.createElement('button');
+        waBtn.className = "btn-main";
+        waBtn.style = "background:#25d366; color:#fff; margin-bottom:10px; display:block;";
+        waBtn.innerHTML = `<i class="fa-brands fa-whatsapp"></i> HUBUNGI VIA WHATSAPP`;
+        waBtn.onclick = () => contactPartnerWA();
+        
+        const privacyNote = document.createElement('div');
+        privacyNote.style = "font-size:8px; color:#555; text-align:center; margin-bottom:10px;";
+        privacyNote.innerText = "Privasi Terjamin: Nomor Master tersembunyi hingga Master memulai chat.";
+        
+        area.prepend(privacyNote);
+        area.prepend(waBtn);
+
+        aiText.innerText = "Sovereign AI: Master, Anda dapat menghubungi Partner via WhatsApp atau memantau progres biaya di tab NOTA.";
+    }
+
+    // Jalankan Timer
+    document.getElementById('mission-timer-hub').style.display = 'block';
+    startMissionTimer();
+}
+
+// FUNGSI PENDUKUNG (WA & TIMER)
+async function contactPartnerWA() {
+    const DATA = await getSupremeData(contractId);
+    const partnerPhone = DATA.adventurer?.profile?.phone; 
+    if(!partnerPhone) return alert("Partner tidak mencantumkan nomor WhatsApp.");
+    const msg = encodeURIComponent(`Halo, saya Requester Sovereign (ID: ${contractId}). Bisa dibantu info progresnya?`);
+    window.open(`https://wa.me/${partnerPhone}?text=${msg}`);
+}
+
+function startMissionTimer() {
+    const startTs = mission.ts_start || Date.now();
+    setInterval(() => {
+        const diff = Date.now() - startTs;
+        const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+        const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+        const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+        document.getElementById('timer-val').innerText = `${h}:${m}:${s}`;
+    }, 1000);
+}
 
 
     
