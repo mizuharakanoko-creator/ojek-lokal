@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BATTLEFIELD | SOVEREIGN HUB</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="router_lokal.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        /* === TEMA QUANTUM === */
+        :root[data-theme="dark"] {
+            --bg-main: #050508; 
+            --bg-glass: rgba(10, 10, 15, 0.85);
+            --text-main: #ffffff; 
+            --neon-blue: #00f3ff; 
+            --neon-green: #00ff88;
+            --neon-red: #ff3366;
+            --border-glow: 0 0 10px rgba(0, 243, 255, 0.3);
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg-main); color: var(--text-main); overflow: hidden; margin: 0; }
+        
+        /* Map Layer */
+        #map { width: 100%; height: 100vh; position: absolute; z-index: 1; }
+        [data-theme="dark"] #map { filter: brightness(0.5) invert(1) hue-rotate(180deg); }
+
+        /* Floating HUD */
+        .hud-top, .hud-bottom { position: absolute; left: 0; width: 100%; z-index: 10; padding: 15px; box-sizing: border-box; pointer-events: none; }
+        .hud-top { top: 0; background: linear-gradient(to bottom, rgba(5,5,8,0.95), rgba(5,5,8,0.6), transparent); }
+        .hud-bottom { bottom: 0; background: linear-gradient(to top, rgba(5,5,8,0.95), rgba(5,5,8,0.6), transparent); }
+        .hud-top > *, .hud-bottom > * { pointer-events: auto; }
+
+        /* Info Card (Top HUD) */
+        .info-card { 
+            background: var(--bg-glass); backdrop-filter: blur(12px); border: 1px solid var(--neon-blue);
+            border-radius: 15px; padding: 12px; display: flex; align-items: flex-start; gap: 12px;
+            box-shadow: var(--border-glow); position: relative;
+        }
+        
+        /* PFP Interaktif */
+        .pfp-container { position: relative; cursor: pointer; }
+        .pfp-circle { width: 50px; height: 50px; border-radius: 50%; border: 2px solid var(--neon-blue); object-fit: cover; }
+        .pfp-hint { position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); font-size: 8px; background: var(--neon-blue); color: #000; padding: 2px 6px; border-radius: 10px; font-weight: bold; white-space: nowrap;}
+
+        /* Action Buttons */
+        .btn-circle { width: 45px; height: 45px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); background: var(--bg-glass); color: var(--text-main); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: 0.3s; }
+        .btn-circle:hover { border-color: var(--neon-blue); box-shadow: 0 0 8px var(--neon-blue); }
+        
+        .btn-finish { width: 100%; padding: 16px; border-radius: 12px; border: none; font-weight: bold; font-size: 14px; margin-top: 10px; cursor: pointer; transition: 0.3s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .btn-finish.active { background: linear-gradient(45deg, #00b359, var(--neon-green)); color: #000; box-shadow: 0 0 15px rgba(0, 255, 136, 0.4); }
+        .btn-finish.disabled { background: rgba(20,20,20,0.8); color: #666; border: 1px solid #333; cursor: not-allowed; backdrop-filter: blur(5px); }
+
+        /* Universal Modal (Glassmorphism) */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); z-index: 5000; display: none; align-items: center; justify-content: center; padding: 20px; opacity: 0; transition: opacity 0.3s; }
+        .modal.show { display: flex; opacity: 1; }
+        .modal-content { background: var(--bg-glass); border: 1px solid var(--neon-blue); padding: 25px; border-radius: 20px; width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto; text-align: center; box-shadow: 0 0 20px rgba(0, 243, 255, 0.2); position: relative; }
+        .modal-close { position: absolute; top: 15px; right: 15px; font-size: 20px; color: #888; cursor: pointer; z-index: 10; }
+
+        /* Rating System (Hexagonal & Boolean) */
+        .rating-row { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; background: rgba(255,255,255,0.05); padding: 10px 15px; border-radius: 10px; }
+        .star-rating i { font-size: 20px; color: #444; cursor: pointer; transition: 0.2s; margin-left: 5px; }
+        .star-rating .active { color: #ffcc00; text-shadow: 0 0 10px rgba(255, 204, 0, 0.6); }
+        
+        .btn-boolean { flex: 1; padding: 10px; border: 1px solid #444; background: #111; color: #fff; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; }
+        .btn-boolean.selected-yes { background: rgba(0, 255, 136, 0.2); border-color: var(--neon-green); color: var(--neon-green); }
+        .btn-boolean.selected-no { background: rgba(255, 51, 102, 0.2); border-color: var(--neon-red); color: var(--neon-red); }
+
+        /* Quantum Arcade */
+        .arcade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .arcade-slot { background: #0a0a0a; border: 1px dashed #333; border-radius: 10px; padding: 20px 10px; cursor: pointer; transition: 0.3s; }
+        .arcade-slot.active { border-style: solid; border-color: var(--neon-blue); background: rgba(0, 243, 255, 0.05); }
+        .arcade-slot:hover.active { box-shadow: 0 0 10px var(--neon-blue) inset; }
+        .mana-orb { width: 80px; height: 80px; border-radius: 50%; background: radial-gradient(circle, var(--neon-blue), #000); margin: 20px auto; cursor: pointer; box-shadow: 0 0 20px var(--neon-blue); transition: transform 0.1s; }
+        .mana-orb:active { transform: scale(0.9); }
+
+        /* Message Box */
+        .info-msg-box { background: rgba(0, 243, 255, 0.1); border-left: 3px solid var(--neon-blue); padding: 10px; border-radius: 4px; font-size: 11px; color: #ccc; text-align: left; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <audio id="sfx-click" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
+    <audio id="sfx-success" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
+
+    <div id="map"></div>
+
+    <div class="hud-top">
+        <div class="info-card">
+            <div class="pfp-container" onclick="openProfileCard()">
+                <img id="target-pfp" src="https://via.placeholder.com/100" class="pfp-circle">
+                <div class="pfp-hint">TAP INFO</div>
+            </div>
+            
+            <div style="flex:1; padding-top: 2px;">
+                <div id="mission-id" style="font-size:10px; color: #888; letter-spacing: 1px;">SINKRONISASI DATA...</div>
+                <div id="target-name" style="font-weight:bold; font-size:15px; margin-bottom: 2px;">MEMUAT JARINGAN...</div>
+                <div id="target-status" style="font-size:11px; color: var(--neon-blue); font-weight: bold;"><i class="fa-solid fa-satellite-dish"></i> JALUR AKTIF</div>
+                
+                <div id="reward-container"></div>
+            </div>
+
+            <div id="top-action-buttons" style="display: flex; flex-direction: column; gap: 8px;">
+                </div>
+        </div>
+    </div>
+
+    <div class="hud-bottom">
+        <div id="requester-msg" style="display: none;" class="info-msg-box">
+            <i class="fa-solid fa-info-circle" style="color:var(--neon-blue)"></i> <b>Misi sedang dikerjakan, mohon ditunggu.</b> Proses membutuhkan waktu yang tidak singkat. Hubungi Adventurer via Chat Comms jika ada info tambahan.
+        </div>
+        
+        <div id="bottom-controls" style="display:flex; gap:10px; margin-bottom:10px;">
+            <button class="btn-circle" style="flex:1; border-radius: 12px; width: auto;" onclick="alert('Membuka jalur komunikasi aman...')">
+                <i class="fa-solid fa-comments"></i> COMMS
+            </button>
+            <button id="btn-nav" class="btn-circle" style="flex:1; border-radius: 12px; width: auto; display: none;" onclick="openGmaps()">
+                <i class="fa-solid fa-location-arrow"></i> NAVIGASI
+            </button>
+        </div>
+        
+        <div id="roleActions">
+            </div>
+    </div>
+
+    <div id="modalProfile" class="modal">
+        <div class="modal-content">
+            <i class="fa-solid fa-xmark modal-close" onclick="closeModal('modalProfile')"></i>
+            <h3 style="margin-top: 0; color: var(--neon-blue); border-bottom: 1px solid #333; padding-bottom: 10px; text-transform: uppercase;">Identity Card</h3>
+            
+            <img id="modal-pfp" src="https://via.placeholder.com/100" style="width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--neon-blue); margin: 10px 0;">
+            <h2 id="modal-name" style="margin: 5px 0; text-transform: uppercase;">-</h2>
+            <div id="modal-role-badge" style="font-size: 12px; color: #888; margin-bottom: 15px;">-</div>
+
+            <div id="modal-stats-container" style="background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; text-align: left; font-size: 13px;">
+                </div>
+        </div>
+    </div>
+
+    <div id="modalArcade" class="modal">
+        <div class="modal-content">
+            <i class="fa-solid fa-xmark modal-close" onclick="closeModal('modalArcade')"></i>
+            <h3 style="color: var(--neon-blue); margin-top: 0;"><i class="fa-solid fa-microchip"></i> QUANTUM ARCADE</h3>
+            <p style="font-size: 12px; color: #888;">Habiskan waktu sembari menunggu Adventurer.</p>
+            
+            <div class="arcade-grid">
+                <div class="arcade-slot active" onclick="startGame()">
+                    <i class="fa-solid fa-gem" style="font-size: 24px; color: var(--neon-blue);"></i>
+                    <div style="margin-top: 10px; font-size: 12px; font-weight: bold;">MANA REFINER</div>
+                </div>
+                <div class="arcade-slot"><i class="fa-solid fa-lock" style="color: #444;"></i><div style="margin-top: 10px; font-size: 12px; color: #666;">ENCRYPTED</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalGame" class="modal">
+        <div class="modal-content">
+            <i class="fa-solid fa-arrow-left modal-close" style="left: 15px; right: auto;" onclick="closeGame()"></i>
+            <h3 style="color: var(--neon-blue); margin-top: 0;">MANA REFINER</h3>
+            <div class="mana-orb" onclick="mineMana()"></div>
+            <div style="font-size: 24px; font-weight: bold; color: #fff;">
+                <span id="mana-score">0</span> <span style="font-size: 12px; color: var(--neon-blue);">REFINED</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalEvalAdv" class="modal">
+        <div class="modal-content">
+            <h3 style="color: var(--neon-green); margin-top: 0;"><i class="fa-solid fa-clipboard-check"></i> EVALUASI KONTRAK</h3>
+            <p style="font-size: 12px; color: #888; margin-bottom: 20px;">Berikan rating performa kerja. (Wajib Bintang 1-5)</p>
+            
+            <div id="hex-rating-container"></div>
+            
+            <button class="btn-finish active" style="margin-top: 25px;" onclick="executeSettlementAdv()">
+                <i class="fa-solid fa-file-signature"></i> KIRIM & TRANSFER REWARD
+            </button>
+        </div>
+    </div>
+
+    <div id="modalEvalReq" class="modal">
+        <div class="modal-content">
+            <h3 style="color: var(--neon-blue); margin-top: 0;"><i class="fa-solid fa-clipboard-question"></i> LAPORAN KLIEN</h3>
+            <p style="font-size: 12px; color: #888; margin-bottom: 20px;">Bantu Guild menilai kualitas Requester ini.</p>
+            
+            <div id="bool-rating-container"></div>
+            
+            <button class="btn-finish active" style="margin-top: 25px;" onclick="executeSettlementReq()">
+                <i class="fa-solid fa-door-open"></i> SELESAI & KEMBALI
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. INIT & DATABASE REFERENCE
+        // ==========================================
+        const user = Clearchance.enforceIdentity(); 
+        const contractId = sessionStorage.getItem('active_contract_id'); // e.g. CTR-1777...
+        
+        // Asumsi Terminal Router FB1 (Induk/User) dan FB4 (Misi/Board)
+        const masterDB = getTerminal('FB1_MASTER'); 
+        const dealDB = getTerminal('FB4_BOARD'); 
+
+        let map, myMarker, targetMarker;
+        let contractData = null;
+        let finalAdvId = null; 
+        let targetProfileData = { isStranger: true, nama: "Mencari Data..." };
+        let coordsData = { lat: 0, lng: 0 };
+
+        // State Evaluasi
+        let hexRatings = { keamanan: 0, kecerdasan: 0, kepercayaan: 0, keramahan: 0, penampilan: 0 };
+        let boolRatings = { baik: null, tips: null, cash: null, extra: null };
+        let manaScore = 0;
+
+        window.onload = async () => {
+            initMap();
+            await fetchDataAndIdentify();
+            buildUI();
+            startTracking();
+            listenStatus();
+        };
+
+        function playSfx(id) {
+            const audio = document.getElementById(id);
+            if(audio) { audio.currentTime = 0; audio.play().catch(()=>{}); }
+        }
+
+        // ==========================================
+        // 2. DATA DISCOVERY & REVERSE LOOKUP
+        // ==========================================
+        async function fetchDataAndIdentify() {
+            if (!contractId) return alert("Error: ID Kontrak tidak ditemukan!");
+            document.getElementById('mission-id').innerText = `KONTRAK: ${contractId}`;
+
+            try {
+                // A. Ambil Data Kontrak dari FB4
+                const snapContract = await dealDB.ref(contractId).once('value');
+                if (!snapContract.exists()) throw new Error("Data kontrak tidak ada di database FB4.");
+                
+                contractData = snapContract.val();
+                
+                // Set Koordinat Navigasi (Ambil Dest atau Origin)
+                if (contractData.full_mission_data) {
+                    const cStr = contractData.full_mission_data.dest_coords || contractData.full_mission_data.origin_coords;
+                    if (cStr) {
+                        const splitted = cStr.split(',');
+                        coordsData = { lat: parseFloat(splitted[0]), lng: parseFloat(splitted[1]) };
+                    }
+                }
+
+                // B. Identifikasi Adventurer (Reverse Lookup jika butuh)
+                let tempAdvId = contractData.id_adventurer;
+                let advNick = contractData.adventurer_nick;
+
+                // Jika ID Adventurer belum format adv-kng-xxx, cari via nickname di FB1
+                if (!tempAdvId || !tempAdvId.startsWith("adv-")) {
+                    const snapIndex = await masterDB.ref('adventurer_index').orderByChild('nickname').equalTo(advNick).once('value');
+                    if (snapIndex.exists()) {
+                        snapIndex.forEach(child => { finalAdvId = child.key; }); // Mendapat adv-kng-15979117
+                    } else {
+                        // Fallback darurat
+                        finalAdvId = "adv-unknown";
+                    }
+                } else {
+                    finalAdvId = tempAdvId;
+                }
+
+                // C. Tarik Data Target Profil untuk ditampilkan
+                if (user.role === 'adventurer') {
+                    // Adventurer melihat Requester
+                    const reqId = contractData.full_mission_data?.id_requester || contractData.id_requester;
+                    const snapReq = await masterDB.ref(`requester_index/${reqId}`).once('value');
+                    if (snapReq.exists()) {
+                        targetProfileData = snapReq.val();
+                        targetProfileData.isStranger = false;
+                        targetProfileData.uid = reqId;
+                    } else {
+                        targetProfileData = { isStranger: true, nama: contractData.full_mission_data?.client_name || "Stranger" };
+                    }
+                } else {
+                    // Requester melihat Adventurer
+                    const snapAdv = await masterDB.ref(`adventurer_index/${finalAdvId}`).once('value');
+                    if (snapAdv.exists()) {
+                        targetProfileData = snapAdv.val();
+                        targetProfileData.isStranger = false;
+                        targetProfileData.uid = finalAdvId;
+                        targetProfileData.nama = advNick;
+                    }
+                }
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('target-name').innerText = "ERROR JARINGAN";
+            }
+        }
+
+        // ==========================================
+        // 3. RENDER UI SESUAI ROLE
+        // ==========================================
+        function buildUI() {
+            const roleArea = document.getElementById('roleActions');
+            const topActions = document.getElementById('top-action-buttons');
+            const rewardBox = document.getElementById('reward-container');
+
+            // Nama Target PFP
+            document.getElementById('target-name').innerText = targetProfileData.nama || targetProfileData.nickname || "Entitas Tidak Dikenal";
+            
+            // Set Reward (Hanya visualisasi)
+            const reward = contractData?.full_mission_data?.rpg_reward || { exp: 0, greenStone: 0 };
+            rewardBox.innerHTML = `
+                <div style="margin-top: 8px; border-top: 1px solid rgba(0,243,255,0.2); padding-top: 6px;">
+                    <div style="font-size: 9px; color: #888; margin-bottom: 4px; letter-spacing: 1px;">KONTRAK REWARD:</div>
+                    <div style="display: flex; gap: 15px;">
+                        <span style="color: var(--neon-blue); font-size: 11px; font-weight: bold;"><i class="fa-solid fa-bolt"></i> ${reward.exp} EXP</span>
+                        <span style="color: var(--neon-green); font-size: 11px; font-weight: bold;"><i class="fa-solid fa-gem"></i> ${reward.greenStone} STONES</span>
+                    </div>
+                </div>
+            `;
+
+            // Filter Tombol Berdasarkan Role
+            if (user.role === 'adventurer') {
+                // SISI ADVENTURER
+                document.getElementById('btn-nav').style.display = 'flex'; // Navigasi ON
+                document.getElementById('requester-msg').style.display = 'none'; // Pesan OFF
+                
+                roleArea.innerHTML = `
+                    <button class="btn-finish disabled" disabled>
+                        <i class="fa-solid fa-hourglass-half"></i>
+                        <span>MENUNGGU KONFIRMASI SELESAI</span>
+                        <span style="font-size: 10px; font-weight: normal;">Hanya Requester yang bisa menutup kontrak</span>
+                    </button>`;
+            } else {
+                // SISI REQUESTER
+                document.getElementById('btn-nav').style.display = 'none'; // Navigasi OFF
+                document.getElementById('requester-msg').style.display = 'block'; // Pesan ON
+                
+                topActions.innerHTML = `
+                    <button class="btn-circle" onclick="directWA()" title="Hubungi via WA"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i></button>
+                    <button class="btn-circle" onclick="openArcade()" title="Quantum Arcade"><i class="fa-solid fa-gamepad" style="color:var(--neon-blue)"></i></button>
+                `;
+
+                roleArea.innerHTML = `
+                    <button class="btn-finish active" onclick="openRatingAdv()">
+                        <i class="fa-solid fa-check-double"></i>
+                        <span>KONFIRMASI SELESAI & BAYAR</span>
+                        <span style="font-size: 10px; font-weight: normal; color: #222;">Tutup kontrak dan transfer reward ke Adventurer</span>
+                    </button>`;
+            }
+        }
+
+        // ==========================================
+        // 4. MAP & FUNGSI UTILITAS
+        // ==========================================
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([-6.97, 108.48], 15);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            
+            const myIcon = L.divIcon({ className: 'custom-icon', html: `<div style="background:${user.role==='adventurer'?'var(--neon-green)':'var(--neon-blue)'}; width:15px; height:15px; border-radius:50%; box-shadow:0 0 10px ${user.role==='adventurer'?'var(--neon-green)':'var(--neon-blue)'};"></div>` });
+            myMarker = L.marker([0,0], {icon: myIcon}).addTo(map);
+        }
+
+        function startTracking() {
+            if(navigator.geolocation) {
+                navigator.geolocation.watchPosition(pos => {
+                    const { latitude, longitude } = pos.coords;
+                    myMarker.setLatLng([latitude, longitude]);
+                    map.panTo([latitude, longitude]);
+                    // Kirim lokasi ke Firebase
+                    dealDB.ref(`${contractId}/tracking/${user.uid}`).set({ lat: latitude, lng: longitude });
+                });
+            }
+        }
+
+        function openGmaps() {
+            if (!coordsData.lat) return alert("Koordinat target belum tersedia.");
+            window.open(`https://www.google.com/maps/dir/?api=1&destination=$$${coordsData.lat},${coordsData.lng}`, '_blank');
+        }
+
+        function directWA() { window.open(`https://wa.me/?text=Halo, saya Requester untuk kontrak ${contractId}`); }
+
+        // ==========================================
+        // 5. MODAL INTERAKSI & PROFIL
+        // ==========================================
+        function openProfileCard() {
+            playSfx('sfx-click');
+            const p = targetProfileData;
+            document.getElementById('modal-name').innerText = p.nama || p.nickname || "Stranger";
+            
+            const badge = document.getElementById('modal-role-badge');
+            const stats = document.getElementById('modal-stats-container');
+
+            if (p.isStranger) {
+                badge.innerHTML = `<span style="color: var(--neon-red);">UNREGISTERED ENTITY</span>`;
+                stats.innerHTML = `<div style="text-align:center; color:#888;">Data rekam jejak tidak tersedia untuk entitas asing.</div>`;
+            } else if (user.role === 'adventurer') {
+                badge.innerHTML = `<span style="color: var(--neon-blue);">VERIFIED REQUESTER</span>`;
+                stats.innerHTML = `<div>ID: ${p.uid}</div><div style="color:var(--neon-green); margin-top:5px;">Reputasi Baik (Bypass View)</div>`;
+            } else {
+                badge.innerHTML = `<span style="color: var(--neon-green);">VERIFIED ADVENTURER</span>`;
+                stats.innerHTML = `<div>ID: ${finalAdvId}</div><div style="color:var(--neon-blue); margin-top:5px;">Spesialisasi: ${p.kategori || 'Umum'}</div>`;
+            }
+
+            document.getElementById('modalProfile').classList.add('show');
+        }
+
+        function closeModal(id) { playSfx('sfx-click'); document.getElementById(id).classList.remove('show'); }
+
+        // Arcade Functions
+        function openArcade() { playSfx('sfx-click'); document.getElementById('modalArcade').classList.add('show'); }
+        function startGame() { closeModal('modalArcade'); document.getElementById('modalGame').classList.add('show'); }
+        function closeGame() { closeModal('modalGame'); openArcade(); }
+        function mineMana() {
+            manaScore++;
+            document.getElementById('mana-score').innerText = manaScore;
+            document.querySelector('.mana-orb').style.boxShadow = `0 0 ${20 + (manaScore%10)*2}px var(--neon-blue)`;
+        }
+
+        // ==========================================
+        // 6. SISTEM SETTLEMENT & DATABASE UPDATE
+        // ==========================================
+        
+        // A. Requester Menilai Adventurer & Trigger Update Poin
+        function openRatingAdv() {
+            playSfx('sfx-click');
+            const categories = ['Keamanan', 'Kecerdasan', 'Kepercayaan', 'Keramahan', 'Penampilan'];
+            const container = document.getElementById('hex-rating-container');
+            container.innerHTML = '';
+            
+            categories.forEach(cat => {
+                const key = cat.toLowerCase();
+                container.innerHTML += `
+                    <div class="rating-row">
+                        <span style="font-size: 13px;">${cat}</span>
+                        <div class="star-rating" id="stars-${key}">
+                            ${[1,2,3,4,5].map(i => `<i class="fa-solid fa-star" onclick="setHexRating('${key}', ${i})"></i>`).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('modalEvalAdv').classList.add('show');
+        }
+
+        function setHexRating(cat, val) {
+            playSfx('sfx-click');
+            hexRatings[cat] = val;
+            const stars = document.getElementById(`stars-${cat}`).children;
+            for(let i=0; i<5; i++) stars[i].classList.toggle('active', i < val);
+        }
+
+        async function executeSettlementAdv() {
+            if(Object.values(hexRatings).includes(0)) return alert("Mohon berikan rating (1-5 Bintang) untuk semua kategori.");
+            
+            try {
+                // 1. Kalkulasi Bintang Berdasarkan Skor (1-25)
+                const totalScore = Object.values(hexRatings).reduce((a, b) => a + b, 0);
+                let starTier = 'star_1';
+                if(totalScore === 25) starTier = 'star_5';
+                else if(totalScore >= 20) starTier = 'star_4';
+                else if(totalScore >= 15) starTier = 'star_3';
+                else if(totalScore >= 10) starTier = 'star_2';
+
+                // 2. Ambil Reward dari Kontrak
+                const reward = contractData.full_mission_data.rpg_reward || { exp: 0, greenStone: 0 };
+                
+                // 3. Siapkan Multi-Update ke ROOT NODE Firebase 1
+                let updates = {};
+
+                // Update Ekonomi & Level
+                updates[`adventurer_coxin/${finalAdvId}/green_stone`] = firebase.database.ServerValue.increment(reward.greenStone);
+                updates[`adventurer_experience/${finalAdvId}/exp`] = firebase.database.ServerValue.increment(reward.exp);
+                
+                // Update Diagram Hexagonal
+                updates[`adventurer_diagram/${finalAdvId}/nilai_keamanan`] = firebase.database.ServerValue.increment(hexRatings.keamanan);
+                updates[`adventurer_diagram/${finalAdvId}/nilai_kecerdasan`] = firebase.database.ServerValue.increment(hexRatings.kecerdasan);
+                updates[`adventurer_diagram/${finalAdvId}/nilai_kepercayaan`] = firebase.database.ServerValue.increment(hexRatings.kepercayaan);
+                updates[`adventurer_diagram/${finalAdvId}/nilai_keramahan`] = firebase.database.ServerValue.increment(hexRatings.keramahan);
+                updates[`adventurer_diagram/${finalAdvId}/nilai_penampilan`] = firebase.database.ServerValue.increment(hexRatings.penampilan);
+                
+                // Update Reputasi Total & Tier Bintang
+                updates[`adventurer_reputation/${finalAdvId}/total_mission_completed`] = firebase.database.ServerValue.increment(1);
+                updates[`adventurer_reputation/${finalAdvId}/${starTier}`] = firebase.database.ServerValue.increment(1);
+                
+                // Eksekusi Tembakan ke FB1 Master
+                await masterDB.ref().update(updates);
+
+                // 4. Ubah Status Kontrak di FB4 menjadi 'completed_req' agar memicu layar Adventurer
+                await dealDB.ref(`${contractId}`).update({ status: 'completed_req', finish_time: Date.now() });
+
+                playSfx('sfx-success');
+                alert("Kontrak Ditutup! Reward berhasil dikirim ke Adventurer.");
+                window.location.href = "index.html"; // Kembali ke home
+
+            } catch (error) {
+                alert("Error Settlement: " + error.message);
+            }
+        }
+
+        // B. Adventurer Mendengar Status Selesai
+        function listenStatus() {
+            if(user.role !== 'adventurer') return;
+            dealDB.ref(`${contractId}/status`).on('value', snap => {
+                if (snap.val() === 'completed_req') openRatingReq();
+            });
+        }
+
+        function openRatingReq() {
+            playSfx('sfx-success');
+            const container = document.getElementById('bool-rating-container');
+            container.innerHTML = `
+                ${createBoolRow('baik', 'Apakah Requester bersikap baik?')}
+                ${createBoolRow('tips', 'Apakah Requester memberikan Tips tambahan?')}
+                ${createBoolRow('cash', 'Apakah Uang Tunai yang diberikan sesuai?')}
+                ${createBoolRow('extra', 'Apakah Requester meminta kerja ekstra tanpa bayaran?')}
+            `;
+            document.getElementById('modalEvalReq').classList.add('show');
+        }
+
+        function createBoolRow(key, question) {
+            return `
+                <div style="margin-bottom: 15px; text-align: left;">
+                    <div style="font-size: 12px; margin-bottom: 8px;">${question}</div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn-boolean" id="btn-${key}-yes" onclick="setBoolRating('${key}', true)">YA</button>
+                        <button class="btn-boolean" id="btn-${key}-no" onclick="setBoolRating('${key}', false)">TIDAK</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function setBoolRating(key, isYes) {
+            playSfx('sfx-click');
+            boolRatings[key] = isYes;
+            document.getElementById(`btn-${key}-yes`).classList.toggle('selected-yes', isYes);
+            document.getElementById(`btn-${key}-no`).classList.toggle('selected-no', !isYes);
+        }
+
+        async function executeSettlementReq() {
+            if(Object.values(boolRatings).includes(null)) return alert("Mohon jawab seluruh pertanyaan evaluasi.");
+
+            try {
+                // Update hanya jika Requester bukan Stranger
+                if (!targetProfileData.isStranger && targetProfileData.uid) {
+                    const reqUid = targetProfileData.uid;
+                    let updates = {};
+
+                    if(boolRatings.baik === true) updates[`requester_reputation/${reqUid}/yabaik`] = firebase.database.ServerValue.increment(1);
+                    if(boolRatings.baik === false) updates[`requester_reputation/${reqUid}/tidakbaik`] = firebase.database.ServerValue.increment(1);
+                    if(boolRatings.tips === true) updates[`requester_reputation/${reqUid}/plustips`] = firebase.database.ServerValue.increment(1);
+                    if(boolRatings.cash === true) updates[`requester_reputation/${reqUid}/cashpas`] = firebase.database.ServerValue.increment(1);
+                    if(boolRatings.cash === false) updates[`requester_reputation/${reqUid}/cashminus`] = firebase.database.ServerValue.increment(1);
+                    if(boolRatings.extra === true) updates[`requester_reputation/${reqUid}/extraworknopaid`] = firebase.database.ServerValue.increment(1);
+
+                    if (Object.keys(updates).length > 0) await masterDB.ref().update(updates);
+                }
+
+                Clearchance.clearActiveMission();
+                alert("Laporan terekam. Terima kasih atas kerja keras Anda!");
+                window.location.href = "index.html"; 
+
+            } catch(e) {
+                alert("Gagal mengirim laporan: " + e.message);
+            }
+        }
+    </script>
+</body>
+</html>
