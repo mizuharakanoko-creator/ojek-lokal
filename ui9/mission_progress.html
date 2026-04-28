@@ -370,39 +370,39 @@
         }
 
         async function performDeepMining() {
+    try async function performDeepMining() {
     try {
-        // Tarik segalanya menggunakan Aggregator
         const DATA = await getSupremeData(contractId);
         if (!DATA) return;
 
-        // Tentukan siapa partner kita
         const partner = isAdv ? DATA.requester : DATA.adventurer;
         if (!partner) return;
 
-        // UPDATE UI DENGAN DATA SHARD ASLI
-        document.getElementById('u-name').innerText = partner.profile?.nama || "Partner Entity";
+        // Update Info di Header secara otomatis
+        document.getElementById('u-name').innerText = partner.profile?.nama || "Unknown";
         document.getElementById('u-role').innerText = isAdv ? "REQUESTER" : "ADVENTURER";
         
         if (isAdv) {
-            // Data untuk Requester (Tier & Reputation)
+            // Jika kita Adventurer, tampilkan info Requester (Lawan)
             document.getElementById('u-rank').innerText = "T" + (partner.profile?.tier || 1);
-            document.getElementById('v-stat-1').innerText = (partner.reputation?.yabaik || 0) + " Votes";
+            document.getElementById('v-stat-1').innerText = (partner.reputation?.poin || 0) + " REP";
             document.getElementById('b-stat-1').style.width = "70%";
         } else {
-            // Data untuk Adventurer (Rank & Diagram Trust)
+            // Jika kita Requester, tampilkan info Adventurer (Lawan)
             document.getElementById('u-rank').innerText = partner.profile?.rank || "F";
             document.getElementById('v-stat-1').innerText = (partner.diagram?.nilai_kepercayaan || 0) + " pts";
             document.getElementById('b-stat-1').style.width = (partner.diagram?.nilai_kepercayaan || 0) + "%";
             document.getElementById('v-stat-2').innerText = "Lv." + (partner.experience?.level || 1);
         }
 
-        // Simpan ke Global Variable agar bisa diakses fungsi lain tanpa panggil DB lagi
-        window.SUPREME_DATA = DATA;
+        // Tampilkan pesan di AI Terminal
+        document.getElementById('ai-text').innerText = `Data ${isAdv ? 'Klien' : 'Partner'} berhasil disinkronisasi.`;
 
     } catch (e) { 
-        console.error("Deep Mining Aggregator Failed", e); 
+        console.error("Deep Mining Failed", e); 
     }
 }
+
 
 
         // ==========================================
@@ -638,21 +638,42 @@
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         
       
-      async function inspectData() {
-    console.log("🛠️ Memulai Supreme Inspection...");
-    // Memanggil fungsi Aggregator yang Master pasang di terminal_router.js
-    const DATA = await getSupremeData(contractId); 
-    
-    if (DATA) {
-        console.log("FULL_SHARD_DATA:", DATA);
-        alert("SUPREME_INSPECT_SUCCESS!\nLihat Console (F12) untuk struktur data lengkap.");
-        
-        // Opsional: Jika ingin menampilkan data di layar (pre-tag)
-        // Master bisa melihat detail tabel tabel Adventurer & Requester di sini
-    } else {
-        alert("Gagal menarik data dari Shard. Pastikan ID Kontrak valid.");
+async function inspectData() {
+    playSfx();
+    // 1. Tampilkan indikator loading sederhana
+    const aiText = document.getElementById('ai-text');
+    const originalText = aiText.innerText;
+    aiText.innerText = "Sovereign System: Menembus Shard Database... Mohon tunggu.";
+
+    try {
+        // 2. Tarik Data Supreme (Aggregator)
+        const DATA = await getSupremeData(contractId); 
+
+        if (DATA) {
+            // 3. Tampilkan hasil ke dalam UI Dossier (biar gampang dibaca di HP)
+            // Kita gunakan format JSON.stringify agar rapi
+            const debugPayload = JSON.stringify(DATA, null, 2);
+            
+            // Masukkan ke dalam deskripsi misi atau buat modal baru
+            document.getElementById('m-desc').innerHTML = `
+                <div style="background:#000; color:#00ff88; padding:10px; font-family:monospace; font-size:10px; overflow:auto; max-height:300px; border:1px solid #333;">
+                    <b style="color:#bc13fe">--- SUPREME DATA INSPECTED ---</b><br>
+                    ${debugPayload}
+                </div>
+            `;
+            
+            aiText.innerText = "Data berhasil ditarik dari Shard. Silakan periksa Dossier Misi.";
+            
+            // Scroll otomatis ke area data
+            document.getElementById('tab-hq').scrollTop = 200;
+        } else {
+            aiText.innerText = "Gagal: Data tidak ditemukan di Shard.";
+        }
+    } catch (err) {
+        aiText.innerText = "System Error: " + err.message;
     }
 }
+
 
     
     </script>
