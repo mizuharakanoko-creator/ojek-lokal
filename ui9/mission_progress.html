@@ -325,9 +325,10 @@
 
 
 
-// Pastikan ini di baris paling atas setelah pemanggilan Clearchance
+// Gunakan pengecekan langsung ke user object
 const user = Clearchance.enforceIdentity();
-const isAdv = (user.role === 'adventurer'); // Pastikan menghasilkan boolean true/false
+const isAdv = String(user.role).toLowerCase() === 'adventurer'; 
+// Paksa ke string dan lowercase agar tidak salah deteksi
 
         // ==========================================
         // 1. GLOBAL STATE & SYNC
@@ -346,14 +347,33 @@ const isAdv = (user.role === 'adventurer'); // Pastikan menghasilkan boolean tru
         let reports = { baik:null, tips:null, cash:null, extra:null };
 
         window.onload = async () => {
-            initUI();
-            initMap();
-            await performDeepMining(); // Gali profil lawan di Shard
-            syncNota();
-            syncChat();
-            syncTracking();
-            syncStatus();
-        };
+    // Pastikan data esensial ada sebelum lanjut
+    if (!contractId || !mission.id_misi) {
+        console.error("Critical: Data kontrak tidak ditemukan!");
+        document.getElementById('ai-text').innerText = "System Error: Parameter Shard tidak ditemukan. Silakan muat ulang.";
+        return;
+    }
+
+    try {
+        // Jalankan UI dulu dengan data yang ada
+        initUI();
+        
+        // Baru jalankan sinkronisasi background
+        initMap();
+        await performDeepMining(); 
+        syncNota();
+        syncChat();
+        syncTracking();
+        syncStatus();
+        
+        // Mulai Timer
+        startMissionTimer();
+    } catch (err) {
+        console.error("Initialization Crash:", err);
+        document.getElementById('ai-text').innerText = "Protokol terganggu: " + err.message;
+    }
+};
+
 
         function playSfx() { document.getElementById('click-sfx').play().catch(()=>{}); }
 
@@ -361,60 +381,50 @@ const isAdv = (user.role === 'adventurer'); // Pastikan menghasilkan boolean tru
         // 2. UI ENGINE & NAVIGATION
         // ==========================================
 function initUI() {
-    // 1. Load Data Dasar
-    document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
-    document.getElementById('m-desc').innerText = mission.description || "Detail tidak ditemukan.";
-    document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
-    document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
-    document.getElementById('m-id-display').innerText = "ID: " + contractId;
-
-    // 2. Load Alamat
-    document.getElementById('m-origin-text').innerText = mission.location_origin?.address || "Alamat asal tidak diset";
-    document.getElementById('m-dest-text').innerText = mission.location_dest?.address || "Alamat tujuan tidak diset";
-
     const area = document.getElementById('role-action-area');
     const aiText = document.getElementById('ai-text');
+    
+    // Reset tampilan awal agar tidak "numpuk" dari sisa role lain
+    document.getElementById('adv-status-hub').classList.add('hide');
+    document.getElementById('btn-maps-origin').classList.add('hide');
+    document.getElementById('btn-maps-dest').classList.add('hide');
 
-    // 3. LOGIKA ROLE (DIPERKETAT)
-    if (isAdv === true) {
-        // --- KHUSUS PELAKSANA (ADVENTURER) ---
+    // Cek apakah data mission tersedia
+    if (Object.keys(mission).length === 0) {
+        aiText.innerText = "Sinkronisasi Shard tertunda... Mencoba menghubungkan kembali.";
+        return;
+    }
+
+    // Isi Data
+    document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
+    document.getElementById('m-origin-text').innerText = mission.location_origin?.address || "Alamat tidak tersedia";
+    document.getElementById('m-dest-text').innerText = mission.location_dest?.address || "Alamat tidak tersedia";
+
+    if (isAdv) {
+        // --- LOGIKA ADVENTURER ---
         document.getElementById('adv-status-hub').classList.remove('hide');
-        document.getElementById('nota-input-hub').classList.remove('hide');
+        document.getElementById('btn-maps-origin').classList.remove('hide');
+        document.getElementById('btn-maps-dest').classList.remove('hide');
         
-        // Tampilkan tombol Maps
-        const btnO = document.getElementById('btn-maps-origin');
-        const btnD = document.getElementById('btn-maps-dest');
-        btnO.classList.remove('hide');
-        btnD.classList.remove('hide');
-        
-        // Fix Link Maps (Gunakan backticks yang benar)
-        btnO.onclick = () => window.open(`https://www.google.com/maps?q=${mission.location_origin?.lat},${mission.location_origin?.lng}`);
-        btnD.onclick = () => window.open(`https://www.google.com/maps?q=${mission.location_dest?.lat},${mission.location_dest?.lng}`);
+        // Setup Link dengan URL yang bersih
+        const latO = mission.location_origin?.lat;
+        const lngO = mission.location_origin?.lng;
+        document.getElementById('btn-maps-origin').onclick = () => window.open(`https://www.google.com/maps?q=${latO},${lngO}`);
 
-        area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); cursor:default;">SINKRONISASI AKTIF (ADVENTURER)</button>`;
-        aiText.innerText = "Master, gunakan tombol progres di bawah untuk update real-time. Gunakan fitur Maps jika rute tidak familiar.";
-
+        area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">PERSONIL: ${user.name || 'ADVENTURER'}</button>`;
     } else {
-        // --- KHUSUS PEMESAN (REQUESTER) ---
-        document.getElementById('adv-status-hub').classList.add('hide'); // Pastikan tombol OTW hilang
-        document.getElementById('nota-input-hub').classList.add('hide'); // Pastikan input nota hilang
-        
-        // Sembunyikan tombol Maps (Sesuai instruksi Master)
-        document.getElementById('btn-maps-origin').classList.add('hide');
-        document.getElementById('btn-maps-dest').classList.add('hide');
-
+        // --- LOGIKA REQUESTER ---
         area.innerHTML = `
             <div style="display:flex; flex-direction:column; gap:10px;">
                 <button class="btn-main" style="background:#25d366; color:#fff;" onclick="contactPartnerWA()">
                     <i class="fa-brands fa-whatsapp"></i> HUBUNGI VIA WHATSAPP
                 </button>
-                <button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>
-                <div style="font-size:8px; color:#555; text-align:center;">Privasi Terjamin: Nomor Master tetap tersembunyi hingga Master mengirim pesan duluan.</div>
+                <button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI</button>
             </div>
         `;
-        aiText.innerText = "Master Requester, Partner Anda sedang memproses kontrak. Hubungi via WhatsApp jika ada instruksi mendesak.";
     }
 }
+
 
 
         function switchTab(id, el) {
