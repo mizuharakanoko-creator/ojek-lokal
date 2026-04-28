@@ -748,51 +748,42 @@ async function injectSovereignDetails() {
         if (!DATA || !DATA.mission) return;
 
         const m = DATA.mission;
-        // Data detail utama Master ada di sini berdasarkan log gambar
-        const detail = m.full_mission_data || {}; 
+        const detail = m.full_mission_data || {};
 
-        // --- A. UPDATE ALAMAT ---
-        const originNameEl = document.getElementById('m-origin-name');
-        const originDetailEl = document.getElementById('m-origin-details');
-        if (originNameEl) originNameEl.innerText = detail.origin_name || "---";
-        if (originDetailEl) originDetailEl.innerText = detail.origin_details || "Tidak ada patokan";
+        // --- 1. UPDATE ALAMAT (SAFE CHECK) ---
+        const elOrigin = document.getElementById('m-origin-name');
+        if (elOrigin) elOrigin.innerText = detail.origin_name || "---";
 
-        // --- B. UPDATE DAFTAR PESANAN (MULTI-POINTS) ---
-        // Sesuai gambar Master: detail.multi_points adalah array
-        if (detail.multi_points && Array.isArray(detail.multi_points) && detail.multi_points.length > 0) {
+        const elOriginDet = document.getElementById('m-origin-details');
+        if (elOriginDet) elOriginDet.innerText = detail.origin_details || "Tidak ada patokan";
+
+        // --- 2. UPDATE DAFTAR PESANAN (MULTI-POINTS) ---
+        // Sesuai gambar Master, ini adalah Array
+        if (detail.multi_points && Array.isArray(detail.multi_points)) {
             const cargoHub = document.getElementById('cargo-hub');
             const cargoDetail = document.getElementById('m-cargo-detail');
             
             if (cargoHub && cargoDetail) {
-                cargoHub.classList.remove('hide'); // Pastikan box pesanan muncul
-                // Render list belanja 1, 2, 3...
+                cargoHub.classList.remove('hide');
+                // Gabungkan array jadi list teks
                 cargoDetail.innerText = detail.multi_points
                     .map((item, index) => `${index + 1}. ${item}`)
                     .join('\n');
             }
         }
 
-        // --- C. UPDATE TOMBOL NAVIGASI ---
-        if (isAdv && detail.origin_coords && detail.origin_coords !== "NEGO") {
-            const btnO = document.getElementById('btn-maps-origin');
-            if (btnO) {
-                btnO.classList.remove('hide');
-                btnO.onclick = () => window.open(`https://www.google.com/maps?q=${detail.origin_coords}`);
-            }
-        }
+        // --- 3. UPDATE DATA TAMBAHAN (Sesuai Log Gambar Master) ---
+        const elNick = document.getElementById('m-adv-nick');
+        if (elNick) elNick.innerText = m.adventurer_nick || "nezza";
 
-        // --- D. UPDATE INFO TAMBAHAN (REWARD & NICK) ---
-        // Gunakan m.reward (30.000) bukan detail.reward (0) sesuai gambar Master
-        if(document.getElementById('m-reward-cash'))
-            document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
-        
-        if(document.getElementById('m-adv-nick'))
-            document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "--";
+        const elCash = document.getElementById('m-reward-cash');
+        if (elCash) elCash.innerText = "Rp " + Number(m.reward || 0).toLocaleString();
 
-        console.log("Irene Trace: Data Multi-Point Terdeteksi & Terpasang.");
-
-    } catch (e) {
-        console.warn("Irene: Gagal sinkronisasi detail spesifik.", e);
+    } catch (err) {
+        // Jika ada error, tampilkan di AI Terminal tapi jangan crash-kan aplikasi
+        const aiText = document.getElementById('ai-text');
+        if(aiText) aiText.innerText = "Sovereign Trace: Sinkronisasi detail terbatas.";
+        console.warn("Irene Trace Error:", err);
     }
 }
 
