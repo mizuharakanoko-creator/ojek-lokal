@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BATTLEFIELD | SOVEREIGN HUB</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        /* === TEMA QUANTUM SOVEREIGN === */
+        :root[data-theme="dark"] {
+            --bg-main: #050508; 
+            --bg-glass: rgba(10, 10, 15, 0.9);
+            --text-main: #ffffff; 
+            --neon-blue: #00f3ff; 
+            --neon-green: #00ff88;
+            --neon-red: #ff3366;
+            --border-glow: 0 0 10px rgba(0, 243, 255, 0.3);
+            --font-mono: 'Courier New', Courier, monospace;
+        }
+
+        body, html { font-family: 'Segoe UI', sans-serif; background: var(--bg-main); color: var(--text-main); overflow: hidden; margin: 0; height: 100%; width: 100%; }
+        
+        /* === GLOBAL HEADER (LIVE STATUS & RECEIPT) === */
+        #global-header { position: absolute; top: 0; left: 0; width: 100%; z-index: 50; background: rgba(5,5,8,0.95); border-bottom: 2px solid var(--neon-blue); padding: 15px; box-sizing: border-box; backdrop-filter: blur(10px); }
+        .ai-status-text { font-family: var(--font-mono); font-size: 11px; color: var(--neon-blue); margin-bottom: 8px; line-height: 1.4; }
+        
+        /* The Badge System (Replacing PFP) */
+        .identity-badge { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+        .badge-icon { width: 45px; height: 45px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; border: 2px solid; background: #000; text-shadow: 0 0 5px; }
+        .badge-adv { border-color: var(--neon-green); color: var(--neon-green); box-shadow: 0 0 10px rgba(0,255,136,0.3); }
+        .badge-req { border-color: var(--neon-blue); color: var(--neon-blue); box-shadow: 0 0 10px rgba(0,243,255,0.3); }
+        
+        /* Live Receipt UI */
+        .live-receipt-box { display: none; background: rgba(255, 51, 102, 0.05); border: 1px dashed var(--neon-red); border-radius: 8px; padding: 10px; margin-top: 10px; }
+        .warning-ss { font-size: 9px; color: var(--neon-red); font-weight: bold; margin-bottom: 5px; text-transform: uppercase; animation: blink 1.5s infinite; }
+        .receipt-input { background: #000; border: 1px solid #333; color: var(--neon-blue); padding: 8px; font-family: var(--font-mono); font-size: 11px; width: 100%; box-sizing: border-box; margin-bottom: 5px; border-radius: 4px; }
+        .receipt-view { font-family: var(--font-mono); font-size: 12px; color: #fff; display: flex; flex-direction: column; gap: 5px; }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* === TAB SYSTEM === */
+        #map-layer { position: absolute; inset: 0; z-index: 1; }
+        [data-theme="dark"] #map-layer { filter: brightness(0.4) invert(1) hue-rotate(180deg); }
+
+        .tab-content { position: absolute; top: 120px; left: 0; right: 0; bottom: 70px; z-index: 10; display: none; overflow-y: auto; background: var(--bg-main); padding: 15px; }
+        .tab-content.active { display: flex; flex-direction: column; }
+        #tab-map { background: transparent; pointer-events: none; padding: 0; }
+        #tab-map > * { pointer-events: auto; }
+
+        .bottom-nav { position: absolute; bottom: 0; left: 0; width: 100%; height: 70px; background: rgba(5,5,8,0.95); border-top: 1px solid var(--neon-blue); display: flex; z-index: 20; }
+        .nav-btn { background: transparent; border: none; color: #666; font-size: 11px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; cursor: pointer; flex: 1; transition: 0.3s; font-weight: bold; }
+        .nav-btn i { font-size: 20px; }
+        .nav-btn.active { color: var(--neon-blue); text-shadow: var(--border-glow); }
+
+        /* === COMPONENTS === */
+        .btn-finish { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.3s; text-transform: uppercase; margin-top: 10px; }
+        .btn-finish.active { background: linear-gradient(45deg, #00b359, var(--neon-green)); color: #000; box-shadow: 0 0 15px rgba(0, 255, 136, 0.4); }
+        .btn-finish.disabled { background: #111; color: #555; border: 1px solid #333; cursor: not-allowed; }
+        
+        .btn-status { background: #111; border: 1px solid var(--neon-blue); color: var(--neon-blue); padding: 8px 12px; border-radius: 20px; font-size: 10px; cursor: pointer; font-weight: bold; flex: 1; text-align: center; }
+        .btn-status.active { background: var(--neon-blue); color: #000; }
+
+        .rpg-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .rpg-box { background: rgba(255,255,255,0.02); border: 1px solid #222; text-align: center; border-radius: 8px; padding: 10px 5px; font-size: 9px; color: #888; }
+        .rpg-box b { font-size: 13px; display: block; margin-top: 5px; color: #fff; }
+
+        .data-vault { background: #000; border: 1px dashed var(--neon-green); border-radius: 10px; padding: 15px; font-family: var(--font-mono); font-size: 10px; color: var(--neon-green); overflow-x: auto; white-space: pre-wrap; margin-top: 15px; display: none; }
+        
+        /* Chat */
+        .msg { max-width: 80%; padding: 10px 14px; border-radius: 10px; font-size: 12px; margin-bottom: 10px; }
+        .msg.me { align-self: flex-end; background: var(--neon-blue); color: #000; border-bottom-right-radius: 0; }
+        .msg.them { align-self: flex-start; background: #222; color: #fff; border-bottom-left-radius: 0; border: 1px solid #444; }
+
+        /* Modals */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 5000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal.show { display: flex; }
+        .modal-content { background: var(--bg-main); border: 1px solid var(--neon-blue); padding: 20px; border-radius: 15px; width: 100%; max-width: 350px; text-align: center; }
+        .rating-row { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; background: #111; padding: 10px; border-radius: 8px; }
+        .star-rating i { color: #444; cursor: pointer; margin-left: 5px; font-size: 18px; }
+        .star-rating .active { color: #ffcc00; text-shadow: 0 0 10px rgba(255, 204, 0, 0.5); }
+        .btn-boolean { flex: 1; padding: 10px; border: 1px solid #444; background: #000; color: #fff; border-radius: 6px; cursor: pointer; margin: 0 5px; }
+        .btn-boolean.selected-yes { background: rgba(0, 255, 136, 0.2); border-color: var(--neon-green); color: var(--neon-green); }
+        .btn-boolean.selected-no { background: rgba(255, 51, 102, 0.2); border-color: var(--neon-red); color: var(--neon-red); }
+
+        .floating-action { position: absolute; bottom: 85px; right: 15px; width: 50px; height: 50px; border-radius: 50%; background: var(--neon-green); color: #000; border: none; font-size: 20px; cursor: pointer; box-shadow: 0 0 15px var(--neon-green); z-index: 15; display: flex; justify-content: center; align-items: center; }
+    </style>
+</head>
+<body>
+
+    <audio id="sfx-click" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
+    <audio id="sfx-msg" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
+
+    <div id="map-layer"></div>
+
+    <div id="global-header">
+        <div class="identity-badge" id="header-identity">
+            <div id="badge-icon" class="badge-icon badge-adv">?</div>
+            <div style="flex: 1;">
+                <div id="header-role" style="font-size: 9px; color: #888; letter-spacing: 1px;">SINKRONISASI...</div>
+                <div id="header-name" style="font-weight: bold; font-size: 15px; margin-bottom: 2px;">MEMUAT DATA</div>
+            </div>
+        </div>
+
+        <div class="ai-status-text" id="ai-status-text">
+            [SYSTEM]: Menghubungkan frekuensi kontrak...
+        </div>
+
+        <div id="adv-status-controls" style="display: none; gap: 8px; margin-top: 10px; overflow-x: auto; padding-bottom: 5px;">
+            <button class="btn-status" onclick="setLiveStatus('OTW_STORE')">OTW STORE</button>
+            <button class="btn-status" onclick="setLiveStatus('SHOPPING')">SHOPPING</button>
+            <button class="btn-status" onclick="setLiveStatus('HEADING_TARGET')">OTW TARGET</button>
+            <button class="btn-status" style="border-color: var(--neon-red); color: var(--neon-red);" onclick="setLiveStatus('EMERGENCY')">KENDALA</button>
+        </div>
+
+        <div id="live-receipt-box" class="live-receipt-box">
+            <div class="warning-ss"><i class="fa-solid fa-triangle-exclamation"></i> DATA SEMENTARA! HARAP SCREENSHOT SEBAGAI BUKTI.</div>
+            
+            <div id="receipt-view" class="receipt-view" style="display: none;">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #444; padding-bottom: 5px;">
+                    <span style="color: #888;">Item:</span> <span id="rv-item">-</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #444; padding-bottom: 5px; padding-top: 5px;">
+                    <span style="color: #888;">Harga Brg:</span> <span id="rv-price">Rp 0</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #444; padding-bottom: 5px; padding-top: 5px;">
+                    <span style="color: #888;">Parkir/Lainnya:</span> <span id="rv-extra">Rp 0</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding-top: 5px; font-weight: bold; color: var(--neon-green);">
+                    <span>TOTAL TAGIHAN:</span> <span id="rv-total">Rp 0</span>
+                </div>
+            </div>
+
+            <div id="receipt-input-area" style="display: none; flex-direction: column;">
+                <input type="text" id="ri-item" class="receipt-input" placeholder="Nama Barang / Detail Jasa" oninput="pushLiveReceipt()">
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" id="ri-price" class="receipt-input" placeholder="Harga Brg (Rp)" oninput="pushLiveReceipt()">
+                    <input type="number" id="ri-extra" class="receipt-input" placeholder="Parkir/Lainnya (Rp)" oninput="pushLiveReceipt()">
+                </div>
+                <div style="text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--neon-green); margin-top: 5px;">
+                    ESTIMASI: <b id="ri-total">Rp 0</b>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-map" class="tab-content active">
+        <button id="float-action-btn" class="floating-action" onclick="openGmaps()">
+            <i class="fa-solid fa-location-arrow"></i>
+        </button>
+    </div>
+
+    <div id="tab-hub" class="tab-content">
+        <div style="font-size: 11px; color: #888; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 15px;">
+            <i class="fa-solid fa-file-contract"></i> KONTRAK PARAMETER
+        </div>
+        
+        <div class="rpg-grid" id="hub-rpg-grid"></div>
+
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid #222; border-radius: 10px; padding: 15px; margin-bottom: 15px; font-size: 11px;">
+            <div style="margin-bottom: 10px; border-bottom: 1px dashed #333; padding-bottom: 10px;">
+                <span style="color: var(--neon-red);"><i class="fa-solid fa-map-pin"></i> ASAL:</span> <br>
+                <b id="hub-alamat-asal" style="color: #fff;">...</b>
+            </div>
+            <div>
+                <span style="color: var(--neon-blue);"><i class="fa-solid fa-location-dot"></i> TUJUAN:</span> <br>
+                <b id="hub-alamat-tujuan" style="color: #fff;">...</b>
+            </div>
+        </div>
+
+        <div id="roleActions"></div>
+
+        <button class="btn-finish" style="background: transparent; border: 1px dashed var(--neon-blue); color: var(--neon-blue); margin-top: 30px;" onclick="runDeepMining()">
+            <i class="fa-solid fa-database"></i> INSPECT DATA SYSTEM (DEEP MINING)
+        </button>
+        <div id="data-vault" class="data-vault"></div>
+    </div>
+
+    <div id="tab-comms" class="tab-content">
+        <div style="flex: 1; display: flex; flex-direction: column; height: 100%;">
+            <div style="font-weight:bold; color:var(--neon-blue); border-bottom:1px solid #333; padding-bottom: 10px; margin-bottom: 10px;">
+                <i class="fa-solid fa-shield-halved"></i> SECURE CHAT
+            </div>
+            <div class="chat-body" id="chat-body" style="flex:1; overflow-y: auto; display: flex; flex-direction: column; padding-bottom: 15px;"></div>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="chat-input" placeholder="Ketik transmisi..." style="flex:1; background:#000; border:1px solid #333; border-radius:8px; padding:10px; color:#fff;" onkeypress="if(event.key === 'Enter') sendManualMsg()">
+                <button class="btn-circle" style="background:var(--neon-blue); color:#000; width: 40px; height: 40px; border-radius: 8px;" onclick="sendManualMsg()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-btn active" onclick="switchTab('tab-map', this)">
+            <i class="fa-solid fa-map-location-dot"></i><span>BATTLE</span>
+        </button>
+        <button class="nav-btn" onclick="switchTab('tab-hub', this)">
+            <i class="fa-solid fa-server"></i><span>HUB</span>
+        </button>
+        <button class="nav-btn" style="position: relative;" onclick="switchTab('tab-comms', this)">
+            <i class="fa-solid fa-comment-dots"></i><span>COMMS</span>
+            <span id="chat-notif" style="position:absolute; top:8px; right:25px; width:8px; height:8px; background:var(--neon-red); border-radius:50%; display:none; box-shadow: 0 0 8px var(--neon-red);"></span>
+        </button>
+    </div>
+
+    <div id="modalEvalAdv" class="modal">
+        <div class="modal-content">
+            <h3 style="color: var(--neon-green); margin-top: 0;"><i class="fa-solid fa-clipboard-check"></i> EVALUASI KONTRAK</h3>
+            <p style="font-size: 11px; color: #888;">Nilai performa kerja Adventurer. (1-5 Bintang)</p>
+            <div id="hex-rating-container"></div>
+            <button class="btn-finish active" style="margin-top: 20px;" onclick="executeSettlementAdv()">KIRIM & TRANSFER REWARD</button>
+        </div>
+    </div>
+
+    <div id="modalEvalReq" class="modal">
+        <div class="modal-content">
+            <h3 style="color: var(--neon-blue); margin-top: 0;"><i class="fa-solid fa-clipboard-question"></i> LAPORAN KLIEN</h3>
+            <p style="font-size: 11px; color: #888;">Bantu Guild menilai Requester ini.</p>
+            <div id="bool-rating-container"></div>
+            <button class="btn-finish active" style="margin-top: 20px;" onclick="executeSettlementReq()">SELESAI & TUTUP</button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. CORE SYSTEM & VARIABLES
+        // ==========================================
+        const user = Clearchance.enforceIdentity();
+        const contractId = sessionStorage.getItem('active_contract_id');
+        const missionRaw = sessionStorage.getItem('current_mission_full');
+        const mission = JSON.parse(missionRaw || "{}");
+
+        const dealDB = getTerminal('FB5_DEAL');
+        const masterDB = getTerminal('FB1_MASTER');
+        const boardDB = getTerminal('FB4_BOARD');
+
+        let map, myMarker, targetMarker;
+        let isStranger = false;
+        let activeTab = 'tab-map';
+        let hexRatings = { keamanan: 0, kecerdasan: 0, kepercayaan: 0, keramahan: 0, penampilan: 0 };
+        let boolRatings = { baik: null, tips: null, cash: null, extra: null };
+
+        // Data Ekstraksi dari FB1 (Untuk Badge)
+        let opponentData = { rank: '?', tier: '?' }; 
+
+        window.onload = async () => {
+            initMap();
+            loadStaticUI();
+            await performHandshake(); // Ambil Badge/Rank
+            startTracking();
+            listenLiveStatus();
+            listenLiveReceipt();
+            listenChat();
+            listenStatus();
+            adjustLayout();
+        };
+
+        function playSfx(id) { const a = document.getElementById(id); if(a) { a.currentTime = 0; a.play().catch(()=>{}); } }
+
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            activeTab = tabId;
+
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            if(tabId === 'tab-comms') document.getElementById('chat-notif').style.display = 'none';
+            if(tabId === 'tab-map' && map) setTimeout(() => map.invalidateSize(), 100);
+            playSfx('sfx-click');
+        }
+
+        function adjustLayout() {
+            // Sesuaikan tinggi tab content karena header absolute bisa berubah ukurannya
+            const h = document.getElementById('global-header').offsetHeight;
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.style.top = `${h}px`;
+            });
+        }
+
+        // ==========================================
+        // 2. DATA MINING & HANDSHAKE
+        // ==========================================
+        async function performHandshake() {
+            const m = mission || {};
+            const oppNick = user.role === 'adventurer' ? (m.requester_nick || m.full_mission_data?.client_name) : m.adventurer_nick;
+            const indexPath = user.role === 'adventurer' ? `requester_index` : `adventurer_index`;
+            
+            if(!oppNick) return;
+
+            try {
+                const snapIdx = await masterDB.ref(indexPath).orderByChild('nickname').equalTo(oppNick).once('value');
+                const badgeIcon = document.getElementById('badge-icon');
+                
+                if(snapIdx.exists()) {
+                    const key = Object.keys(snapIdx.val())[0];
+                    const idx = snapIdx.val()[key];
+                    const shardDB = getTerminal(idx.shard_id);
+
+                    if (user.role === 'requester') {
+                        // Tarik Rank Adventurer
+                        const stat = await shardDB.ref(`adventurer_stats/${idx.id_adv}`).once('value');
+                        opponentData.rank = stat.val()?.rank || 'F';
+                        badgeIcon.innerText = opponentData.rank;
+                        document.getElementById('header-role').innerText = "VERIFIED ADVENTURER RANK " + opponentData.rank;
+                    } else {
+                        // Tarik Tier Requester
+                        const prof = await shardDB.ref(`requester_profile/${idx.id_req}`).once('value');
+                        opponentData.tier = prof.val()?.tier || '1';
+                        badgeIcon.innerText = `T${opponentData.tier}`;
+                        document.getElementById('header-role').innerText = "VERIFIED REQUESTER TIER " + opponentData.tier;
+                    }
+                } else {
+                    isStranger = true;
+                    badgeIcon.innerText = "X";
+                    badgeIcon.style.borderColor = "var(--neon-red)";
+                    badgeIcon.style.color = "var(--neon-red)";
+                    document.getElementById('header-role').innerText = "UNREGISTERED ENTITY";
+                }
+            } catch (e) { console.error("Handshake fail", e); }
+        }
+
+        // THE SECRET INSPECTOR (DARI KODE 1)
+        async function runDeepMining() {
+            playSfx('sfx-click');
+            const vault = document.getElementById('data-vault');
+            vault.style.display = 'block';
+            vault.innerHTML = "Memulai Injeksi Data & Deep Mining lintas Shard...\n";
+
+            try {
+                const m = mission || {};
+                const advNick = m.adventurer_nick || (user.role==='adventurer' ? user.nickname : null);
+                const reqNick = m.requester_nick || m.full_mission_data?.client_name || (user.role==='requester' ? user.nickname : null);
+
+                let finalReport = { "SYSTEM_STATUS": { contract: contractId }, "DEEP_MINING": {} };
+
+                // Gali Adventurer (Promise.all Lengkap)
+                if (advNick) {
+                    vault.innerHTML += `> Melacak Shard Adventurer: ${advNick}...\n`;
+                    const snapIdx = await masterDB.ref(`adventurer_index`).orderByChild('nickname').equalTo(advNick).once('value');
+                    if (snapIdx.exists()) {
+                        const idx = snapIdx.val()[Object.keys(snapIdx.val())[0]];
+                        const shardDB = getTerminal(idx.shard_id);
+                        const id = idx.id_adv;
+                        vault.innerHTML += `> Shard Ditemukan. Mengekstrak tabel paralel...\n`;
+                        
+                        const [coxin, diag, exp, rep, contracts, judge] = await Promise.all([
+                            shardDB.ref(`adventurer_cox/${id}`).once('value'),
+                            shardDB.ref(`adventurer_diagram/${id}`).once('value'),
+                            shardDB.ref(`adventurer_experience/${id}`).once('value'),
+                            shardDB.ref(`adventurer_reputation/${id}`).once('value'),
+                            shardDB.ref(`adventurer_contracts/${id}`).once('value'),
+                            shardDB.ref(`adventurer_judge/${id}`).once('value')
+                        ]);
+
+                        finalReport.DEEP_MINING.ADVENTURER = { meta: idx, exp: exp.val(), rep: rep.val(), inventory: coxin.val(), diagram: diag.val(), judge: judge.val() };
+                    } else { finalReport.DEEP_MINING.ADVENTURER = "Tidak terdaftar."; }
+                }
+
+                // Gali Requester
+                if (reqNick) {
+                    const snapReqIdx = await masterDB.ref(`requester_index`).orderByChild('nickname').equalTo(reqNick).once('value');
+                    if (snapReqIdx.exists()) {
+                        const rIdx = snapReqIdx.val()[Object.keys(snapReqIdx.val())[0]];
+                        const rShardDB = getTerminal(rIdx.shard_id);
+                        const [rProf, rHist] = await Promise.all([ rShardDB.ref(`requester_profile/${rIdx.id_req}`).once('value'), rShardDB.ref(`requester_history/${rIdx.id_req}`).once('value') ]);
+                        finalReport.DEEP_MINING.REQUESTER = { meta: rIdx, profile: rProf.val(), history: rHist.val() };
+                    } else { finalReport.DEEP_MINING.REQUESTER = "STRANGER MODE"; }
+                }
+
+                vault.innerText = JSON.stringify(finalReport, null, 4);
+                adjustLayout();
+            } catch (err) { vault.innerHTML += `\n❌ ERROR: ${err.message}`; }
+        }
+
+        // ==========================================
+        // 3. UI RENDER & ROLE SETUP
+        // ==========================================
+        function loadStaticUI() {
+            const m = mission || {};
+            const full = m.full_mission_data || m;
+            const rpg = m.rpg_reward || full.rpg_reward || { exp: 0, greenStone: 0 };
+            const rewardCash = m.reward || full.reward || 0;
+            const oppNick = user.role === 'adventurer' ? (m.requester_nick || full.client_name || "Requester") : (m.adventurer_nick || "Adventurer");
+
+            document.getElementById('header-name').innerText = oppNick;
+
+            // Setup Badge Color
+            const badgeIcon = document.getElementById('badge-icon');
+            badgeIcon.className = user.role === 'adventurer' ? 'badge-icon badge-req' : 'badge-icon badge-adv';
+
+            // Setup Role Actions & Floats
+            const roleArea = document.getElementById('roleActions');
+            const floatBtn = document.getElementById('float-action-btn');
+
+            if (user.role === 'adventurer') {
+                document.getElementById('adv-status-controls').style.display = 'flex';
+                floatBtn.innerHTML = '<i class="fa-solid fa-location-arrow"></i>';
+                floatBtn.onclick = openGmaps;
+                roleArea.innerHTML = `<button class="btn-finish disabled" disabled>MENUNGGU REQUESTER MENUTUP KONTRAK</button>`;
+                
+                // RPG
+                document.getElementById('hub-rpg-grid').innerHTML = `
+                    <div class="rpg-box">EXP <b style="color:var(--neon-blue);">+${rpg.exp}</b></div>
+                    <div class="rpg-box">G-STONE <b style="color:var(--neon-green);">${rpg.greenStone}</b></div>
+                    <div class="rpg-box">REWARD <b style="color:#fff;">Rp ${rewardCash.toLocaleString()}</b></div>
+                `;
+            } else {
+                floatBtn.innerHTML = '<i class="fa-brands fa-whatsapp"></i>';
+                floatBtn.onclick = directWA;
+                roleArea.innerHTML = `<button class="btn-finish active" onclick="openRatingAdv()"><i class="fa-solid fa-check-double"></i> KONFIRMASI SELESAI & BAYAR</button>`;
+                
+                // RPG
+                document.getElementById('hub-rpg-grid').style.gridTemplateColumns = '1fr';
+                document.getElementById('hub-rpg-grid').innerHTML = `<div class="rpg-box">ESTIMASI BIAYA KONTRAK<b style="color:var(--neon-green); font-size:16px;">Rp ${rewardCash.toLocaleString()}</b></div>`;
+            }
+
+            document.getElementById('hub-alamat-asal').innerText = `${full.origin_desa || 'N/A'} - ${full.origin_details || '-'}`;
+            document.getElementById('hub-alamat-tujuan').innerText = `${full.dest_desa || 'N/A'} - ${full.dest_details || '-'}`;
+        }
+
+        function openGmaps() {
+            let coords = mission.origin_coords || mission.coords;
+            if (!coords) return alert("Koordinat tidak tersedia.");
+            let url = typeof coords === 'string' ? `https://www.google.com/maps/dir/?api=1&destination=$$${coords.trim()}` : `https://www.google.com/maps/dir/?api=1&destination=$$${coords.lat},${coords.lng}`;
+            window.open(url, '_blank');
+        }
+
+        function directWA() { window.open(`https://wa.me/?text=Halo, referensi Sovereign ID ${contractId}`); }
+
+        // ==========================================
+        // 4. LIVE STATUS & RECEIPT (REAL-TIME)
+        // ==========================================
+        function setLiveStatus(statusCode) {
+            playSfx('sfx-click');
+            dealDB.ref(`kontrak_detail/${contractId}/live_status`).set(statusCode);
+        }
+
+        function listenLiveStatus() {
+            dealDB.ref(`kontrak_detail/${contractId}/live_status`).on('value', snap => {
+                const status = snap.val();
+                const textEl = document.getElementById('ai-status-text');
+                const receiptBox = document.getElementById('live-receipt-box');
+                const btnCols = document.querySelectorAll('.btn-status');
+
+                // Update visual tombol aktif (untuk adv)
+                btnCols.forEach(btn => {
+                    if(btn.getAttribute('onclick').includes(status)) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                });
+
+                let msg = "[SYSTEM] Standby.";
+                if(status === 'OTW_STORE') msg = "[UPDATE]: Adventurer sedang menuju lokasi toko/pembelian.";
+                if(status === 'SHOPPING') msg = "[UPDATE]: Adventurer sedang melakukan pembelian item.";
+                if(status === 'HEADING_TARGET') msg = "[UPDATE]: Menuju lokasi target / Requester.";
+                if(status === 'EMERGENCY') msg = "<span style='color:var(--neon-red);'>[EMERGENCY]: Terjadi kendala teknis. Cek Comms!</span>";
+
+                textEl.innerHTML = msg;
+
+                // Tampilkan Live Receipt Jika Shopping
+                if (status === 'SHOPPING') {
+                    receiptBox.style.display = 'block';
+                    if (user.role === 'adventurer') {
+                        document.getElementById('receipt-input-area').style.display = 'flex';
+                        document.getElementById('receipt-view').style.display = 'none';
+                    } else {
+                        document.getElementById('receipt-input-area').style.display = 'none';
+                        document.getElementById('receipt-view').style.display = 'flex';
+                    }
+                } else {
+                    receiptBox.style.display = 'none';
+                }
+                adjustLayout();
+            });
+        }
+
+        // Fungsi Adventurer Mengetik Nota
+        function pushLiveReceipt() {
+            const item = document.getElementById('ri-item').value || "-";
+            const price = parseInt(document.getElementById('ri-price').value) || 0;
+            const extra = parseInt(document.getElementById('ri-extra').value) || 0;
+            const total = price + extra;
+
+            document.getElementById('ri-total').innerText = `Rp ${total.toLocaleString()}`;
+
+            dealDB.ref(`kontrak_detail/${contractId}/live_receipt`).set({
+                item_name: item, price: price, extra: extra, total: total
+            });
+        }
+
+        // Fungsi Mendengarkan Nota
+        function listenLiveReceipt() {
+            dealDB.ref(`kontrak_detail/${contractId}/live_receipt`).on('value', snap => {
+                const data = snap.val();
+                if (data && user.role === 'requester') {
+                    document.getElementById('rv-item').innerText = data.item_name;
+                    document.getElementById('rv-price').innerText = `Rp ${data.price.toLocaleString()}`;
+                    document.getElementById('rv-extra').innerText = `Rp ${data.extra.toLocaleString()}`;
+                    document.getElementById('rv-total').innerText = `Rp ${data.total.toLocaleString()}`;
+                }
+            });
+        }
+
+        // ==========================================
+        // 5. MAPS TRACKING
+        // ==========================================
+        function initMap() {
+            map = L.map('map-layer', { zoomControl: false }).setView([-6.97, 108.48], 15);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            
+            const createIcon = (color) => L.divIcon({ className: 'custom', html: `<div style="background:${color}; width:15px; height:15px; border-radius:50%; box-shadow:0 0 10px ${color}; border:2px solid #000;"></div>` });
+            myMarker = L.marker([0,0], {icon: createIcon(user.role === 'adventurer' ? 'var(--neon-green)' : 'var(--neon-blue)')}).addTo(map);
+            targetMarker = L.marker([0,0], {icon: createIcon(user.role === 'adventurer' ? 'var(--neon-blue)' : 'var(--neon-green)')}).addTo(map);
+        }
+
+        function startTracking() {
+            if(navigator.geolocation) {
+                navigator.geolocation.watchPosition(pos => {
+                    const { latitude, longitude } = pos.coords;
+                    myMarker.setLatLng([latitude, longitude]);
+                    if(activeTab === 'tab-map') map.panTo([latitude, longitude]);
+                    
+                    dealDB.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({ lat: latitude, lng: longitude });
+
+                    dealDB.ref(`kontrak_detail/${contractId}/tracking`).on('value', snap => {
+                        snap.forEach(child => { if(child.key !== user.uid) targetMarker.setLatLng([child.val().lat, child.val().lng]); });
+                    });
+                });
+            }
+        }
+
+        // ==========================================
+        // 6. CHAT COMMS
+        // ==========================================
+        function sendManualMsg() {
+            const val = document.getElementById('chat-input').value;
+            if(!val.trim()) return;
+            dealDB.ref(`kontrak_detail/${contractId}/chats`).push({ senderUid: user.uid, msg: val.trim(), time: Date.now() });
+            document.getElementById('chat-input').value = "";
+        }
+
+        function listenChat() {
+            let isInit = true;
+            dealDB.ref(`kontrak_detail/${contractId}/chats`).on('child_added', snap => {
+                const data = snap.val();
+                const isMe = data.senderUid === user.uid;
+                
+                const div = document.createElement('div');
+                div.className = `msg ${isMe ? 'me' : 'them'}`;
+                div.innerText = data.msg;
+                
+                document.getElementById('chat-body').appendChild(div);
+                document.getElementById('chat-body').scrollTop = document.getElementById('chat-body').scrollHeight;
+
+                if (!isInit && !isMe) {
+                    playSfx('sfx-msg');
+                    if(activeTab !== 'tab-comms') document.getElementById('chat-notif').style.display = 'block';
+                }
+            });
+            setTimeout(() => { isInit = false; }, 1500);
+        }
+
+        // ==========================================
+        // 7. EVALUATION SETTLEMENT
+        // ==========================================
+        function openRatingAdv() { playSfx('sfx-click'); const cats = ['Keamanan', 'Kecerdasan', 'Kepercayaan', 'Keramahan', 'Penampilan']; const container = document.getElementById('hex-rating-container'); container.innerHTML = cats.map(cat => `<div class="rating-row"><span>${cat}</span><div class="star-rating" id="stars-${cat.toLowerCase()}">${[1,2,3,4,5].map(i => `<i class="fa-solid fa-star" onclick="setHexRating('${cat.toLowerCase()}', ${i})"></i>`).join('')}</div></div>`).join(''); document.getElementById('modalEvalAdv').classList.add('show'); }
+        function setHexRating(cat, val) { playSfx('sfx-click'); hexRatings[cat] = val; const stars = document.getElementById(`stars-${cat}`).children; for(let i=0; i<5; i++) stars[i].classList.toggle('active', i < val); }
+
+        async function executeSettlementAdv() {
+            if(Object.values(hexRatings).includes(0)) return alert("Isi semua rating 1-5 bintang!");
+            try {
+                const m = mission || {};
+                const rpg = m.rpg_reward || m.full_mission_data?.rpg_reward || {exp:0, greenStone:0};
+                if (!isStranger && m.adventurer_nick) {
+                    const total = Object.values(hexRatings).reduce((a, b) => a + b, 0);
+                    let sTier = total === 25 ? 'star_5' : (total >= 20 ? 'star_4' : (total >= 15 ? 'star_3' : 'star_2'));
+                    const snapIdx = await masterDB.ref(`adventurer_index`).orderByChild('nickname').equalTo(m.adventurer_nick).once('value');
+                    if (snapIdx.exists()) {
+                        const idx = snapIdx.val()[Object.keys(snapIdx.val())[0]];
+                        const sDB = getTerminal(idx.shard_id);
+                        let up = {};
+                        up[`adventurer_cox/${idx.id_adv}/green_stone`] = firebase.database.ServerValue.increment(rpg.greenStone);
+                        up[`adventurer_experience/${idx.id_adv}/exp`] = firebase.database.ServerValue.increment(rpg.exp);
+                        up[`adventurer_diagram/${idx.id_adv}/nilai_keamanan`] = firebase.database.ServerValue.increment(hexRatings.keamanan);
+                        up[`adventurer_diagram/${idx.id_adv}/nilai_kecerdasan`] = firebase.database.ServerValue.increment(hexRatings.kecerdasan);
+                        up[`adventurer_diagram/${idx.id_adv}/nilai_kepercayaan`] = firebase.database.ServerValue.increment(hexRatings.kepercayaan);
+                        up[`adventurer_diagram/${idx.id_adv}/nilai_keramahan`] = firebase.database.ServerValue.increment(hexRatings.keramahan);
+                        up[`adventurer_diagram/${idx.id_adv}/nilai_penampilan`] = firebase.database.ServerValue.increment(hexRatings.penampilan);
+                        up[`adventurer_reputation/${idx.id_adv}/total_mission_completed`] = firebase.database.ServerValue.increment(1);
+                        up[`adventurer_reputation/${idx.id_adv}/${sTier}`] = firebase.database.ServerValue.increment(1);
+                        await sDB.ref().update(up);
+                    }
+                }
+                await masterDB.ref(`buku_induk/misi/${m.id_misi || contractId}`).update({ status: 'completed', finish_timestamp: Date.now() });
+                await dealDB.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_req', end_at: Date.now() });
+                alert("Kontrak Selesai!"); window.location.href = "index.html";
+            } catch (e) { alert("Error: " + e.message); }
+        }
+
+        function listenStatus() {
+            dealDB.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
+                if (snap.val() === 'completed_req' && user.role === 'adventurer') {
+                    playSfx('sfx-click');
+                    document.getElementById('bool-rating-container').innerHTML = ['baik', 'tips', 'cash', 'extra'].map(k => `<div style="margin-bottom:10px; text-align:left; font-size:11px;">Q: ${k.toUpperCase()}?<div style="display:flex; gap:10px; margin-top:5px;"><button class="btn-boolean" id="btn-${k}-y" onclick="setBoolRating('${k}', true)">YA</button><button class="btn-boolean" id="btn-${k}-n" onclick="setBoolRating('${k}', false)">TIDAK</button></div></div>`).join('');
+                    document.getElementById('modalEvalReq').classList.add('show');
+                }
+            });
+        }
+
+        function setBoolRating(key, val) { playSfx('sfx-click'); boolRatings[key] = val; document.getElementById(`btn-${key}-y`).classList.toggle('selected-yes', val); document.getElementById(`btn-${key}-n`).classList.toggle('selected-no', !val); }
+
+        async function executeSettlementReq() {
+            if(Object.values(boolRatings).includes(null)) return alert("Jawab semua pertanyaan.");
+            try {
+                const reqNick = mission?.requester_nick || mission?.full_mission_data?.client_name;
+                if (!isStranger && reqNick) {
+                    const snapIdx = await masterDB.ref(`requester_index`).orderByChild('nickname').equalTo(reqNick).once('value');
+                    if (snapIdx.exists()) {
+                        const idx = snapIdx.val()[Object.keys(snapIdx.val())[0]];
+                        let up = {}; if(boolRatings.baik) up[`requester_profile/${idx.id_req}/reputasi_baik`] = firebase.database.ServerValue.increment(1);
+                        await getTerminal(idx.shard_id).ref().update(up);
+                    }
+                }
+                Clearchance.clearActiveMission(); alert("Laporan Selesai."); window.location.href = "index.html";
+            } catch(e) { alert("Error: " + e.message); }
+        }
+    </script>
+</body>
+</html>
