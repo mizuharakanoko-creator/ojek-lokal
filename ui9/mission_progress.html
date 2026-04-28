@@ -207,23 +207,27 @@
 
     <p id="m-desc" class="m-desc" style="margin-bottom: 15px;">Sedang mengambil detail kontrak...</p>
 
-    <div id="location-hub" style="margin-bottom: 15px;">
-    <div style="background: #111; padding: 10px; border-radius: 8px; border: 1px solid #222; margin-bottom: 8px;">
-        <div style="font-size: 8px; color: #555;">TITIK ASAL / TOKO</div>
-        <div id="m-origin-name" style="font-size: 13px; font-weight: bold; color: #fff; margin: 3px 0;">--</div>
-        <div id="m-origin-details" style="font-size: 11px; color: #888;">--</div>
-        <button id="btn-maps-origin" class="hide" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); font-size:9px; padding:5px 8px; border-radius:5px; margin-top:8px; width:100%;">BUKA NAVIGASI</button>
+<div id="location-hub" style="margin-top: 15px;">
+    <div style="background: #111; padding: 12px; border-radius: 10px; border: 1px solid #222; margin-bottom: 10px;">
+        <div style="font-size: 8px; color: #555; letter-spacing: 1px;">TITIK ASAL / TOKO</div>
+        <div id="m-origin-name" style="font-size: 14px; font-weight: bold; color: #fff; margin: 4px 0;">--</div>
+        <div id="m-origin-details" style="font-size: 11px; color: #888; margin-bottom: 10px;">--</div>
+        
+        <button id="btn-maps-origin" class="hide" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); font-size:10px; padding:8px; border-radius:8px; width:100%; cursor:pointer;">
+            <i class="fa-solid fa-location-arrow"></i> BUKA NAVIGASI MAPS
+        </button>
     </div>
 </div>
 
-<div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 15px; border-radius: 12px; margin-top: 15px; margin-bottom: 20px;">
-    <div style="font-size: 10px; color: var(--neon-purple); font-weight: bold; margin-bottom: 8px; letter-spacing: 1px;">
-        <i class="fa-solid fa-list-check"></i> DAFTAR PESANAN / TITIPAN
+<div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+    <div style="font-size: 10px; color: var(--neon-purple); font-weight: bold; margin-bottom: 8px;">
+        <i class="fa-solid fa-layer-group"></i> DAFTAR PESANAN (MULTI-POINT)
     </div>
-    <div id="m-cargo-detail" style="font-size: 13px; color: #eee; line-height: 1.6; white-space: pre-line; font-family: var(--font-mono);">
+    <div id="m-cargo-detail" style="font-size: 13px; color: #eee; white-space: pre-line; line-height: 1.6; font-family: var(--font-mono);">
         --
     </div>
 </div>
+
 
 
     <div style="display: flex; flex-wrap: wrap; gap: 15px; border-top: 1px solid #222; padding-top: 15px;">
@@ -750,42 +754,44 @@ async function injectSovereignDetails() {
         const m = DATA.mission;
         const detail = m.full_mission_data || {};
 
-        // --- 1. UPDATE ALAMAT (SAFE CHECK) ---
-        const elOrigin = document.getElementById('m-origin-name');
-        if (elOrigin) elOrigin.innerText = detail.origin_name || "---";
+        // 1. Sinkronisasi Alamat
+        const elName = document.getElementById('m-origin-name');
+        const elDet = document.getElementById('m-origin-details');
+        if (elName) elName.innerText = detail.origin_name || "Lokasi tidak terdeteksi";
+        if (elDet) elDet.innerText = detail.origin_details || "Tidak ada detail patokan";
 
-        const elOriginDet = document.getElementById('m-origin-details');
-        if (elOriginDet) elOriginDet.innerText = detail.origin_details || "Tidak ada patokan";
+        // 2. Memunculkan Tombol Maps
+        // Kita cek koordinat di origin_coords sesuai log Master
+        if (detail.origin_coords && detail.origin_coords !== "NEGO") {
+            const btnMaps = document.getElementById('btn-maps-origin');
+            if (btnMaps) {
+                btnMaps.classList.remove('hide');
+                btnMaps.onclick = () => {
+                    playSfx();
+                    window.open(`https://www.google.com/maps?q=${detail.origin_coords}`);
+                };
+            }
+        }
 
-        // --- 2. UPDATE DAFTAR PESANAN (MULTI-POINTS) ---
-        // Sesuai gambar Master, ini adalah Array
+        // 3. Mengurai Multi-Point (Daftar Pesanan)
         if (detail.multi_points && Array.isArray(detail.multi_points)) {
-            const cargoHub = document.getElementById('cargo-hub');
-            const cargoDetail = document.getElementById('m-cargo-detail');
+            const cargoBox = document.getElementById('cargo-hub');
+            const cargoText = document.getElementById('m-cargo-detail');
             
-            if (cargoHub && cargoDetail) {
-                cargoHub.classList.remove('hide');
-                // Gabungkan array jadi list teks
-                cargoDetail.innerText = detail.multi_points
-                    .map((item, index) => `${index + 1}. ${item}`)
+            if (cargoBox && cargoText) {
+                cargoBox.classList.remove('hide');
+                // Mengonversi array menjadi list dengan nomor urut
+                cargoText.innerText = detail.multi_points
+                    .map((item, i) => `${i + 1}. ${item}`)
                     .join('\n');
             }
         }
 
-        // --- 3. UPDATE DATA TAMBAHAN (Sesuai Log Gambar Master) ---
-        const elNick = document.getElementById('m-adv-nick');
-        if (elNick) elNick.innerText = m.adventurer_nick || "nezza";
-
-        const elCash = document.getElementById('m-reward-cash');
-        if (elCash) elCash.innerText = "Rp " + Number(m.reward || 0).toLocaleString();
-
     } catch (err) {
-        // Jika ada error, tampilkan di AI Terminal tapi jangan crash-kan aplikasi
-        const aiText = document.getElementById('ai-text');
-        if(aiText) aiText.innerText = "Sovereign Trace: Sinkronisasi detail terbatas.";
-        console.warn("Irene Trace Error:", err);
+        console.error("Sovereign Error:", err);
     }
 }
+
 
 
 
