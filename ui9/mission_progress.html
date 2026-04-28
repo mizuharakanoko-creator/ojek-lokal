@@ -211,21 +211,20 @@
 
     <p id="m-desc" class="m-desc" style="margin-bottom: 15px;">Sedang mengambil detail kontrak...</p>
 
-    <div id="location-hub" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
-        <div style="background: #0a0a0a; padding: 10px; border-radius: 8px; border: 1px solid #222;">
-            <div id="label-origin" style="font-size: 8px; color: #555; font-weight: bold;">TITIK ASAL</div>
-            <div id="m-origin-name" style="font-size: 12px; font-weight: bold; color: #fff; margin-top: 3px;">--</div>
-            <div id="m-origin-details" style="font-size: 10px; color: #777;">--</div>
-            <button id="btn-maps-origin" class="hide" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); font-size:9px; padding:6px; border-radius:5px; margin-top:8px; width: 100%; cursor: pointer;">BUKA NAVIGASI</button>
-        </div>
-
-        <div id="dest-container" class="hide" style="background: #0a0a0a; padding: 10px; border-radius: 8px; border: 1px solid #222;">
-            <div id="label-dest" style="font-size: 8px; color: #555; font-weight: bold;">TITIK TUJUAN</div>
-            <div id="m-dest-name" style="font-size: 12px; font-weight: bold; color: #fff; margin-top: 3px;">--</div>
-            <div id="m-dest-details" style="font-size: 10px; color: #777;">--</div>
-            <button id="btn-maps-dest" class="hide" style="background:none; border:1px solid var(--neon-green); color:var(--neon-green); font-size:9px; padding:6px; border-radius:5px; margin-top:8px; width: 100%; cursor: pointer;">NAVIGASI TUJUAN</button>
-        </div>
+    <div id="location-hub" style="margin-bottom: 15px;">
+    <div style="background: #111; padding: 10px; border-radius: 8px; border: 1px solid #222; margin-bottom: 8px;">
+        <div style="font-size: 8px; color: #555;">TITIK ASAL / TOKO</div>
+        <div id="m-origin-name" style="font-size: 13px; font-weight: bold; color: #fff; margin: 3px 0;">--</div>
+        <div id="m-origin-details" style="font-size: 11px; color: #888;">--</div>
+        <button id="btn-maps-origin" class="hide" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); font-size:9px; padding:5px 8px; border-radius:5px; margin-top:8px; width:100%;">BUKA NAVIGASI</button>
     </div>
+</div>
+
+<div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 12px; border-radius: 10px; margin-bottom: 15px;">
+    <div style="font-size: 9px; color: var(--neon-purple); font-weight: bold; margin-bottom: 5px;">DAFTAR PESANAN</div>
+    <div id="m-cargo-detail" style="font-size: 13px; color: #eee; white-space: pre-line;">--</div>
+</div>
+
 
     <div style="display: flex; flex-wrap: wrap; gap: 15px; border-top: 1px solid #222; padding-top: 15px;">
         <div>
@@ -391,16 +390,36 @@
         // ==========================================
         
         function initUI() {
-    // 1. Data dasar (Tetap biarkan agar tidak crash)
+    // 1. Data Dasar dari Session Storage (Agar UI tidak kosong saat loading)
     document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
-    document.getElementById('m-desc').innerText = mission.description || "Detail misi tidak ditemukan.";
+    document.getElementById('m-desc').innerText = mission.description || "Sedang mengambil detail kontrak...";
     document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
     document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
     document.getElementById('m-id-display').innerText = "ID: " + contractId;
 
-    // 2. Panggil fungsi sakti untuk alamat & multi-points
-    injectSovereignFeatures();
+    const area = document.getElementById('role-action-area');
+    if(isAdv) {
+        document.getElementById('adv-status-hub').classList.remove('hide');
+        document.getElementById('nota-input-hub').classList.remove('hide');
+        area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">MENUNGGU KONFIRMASI REQUESTER</button>`;
+    } else {
+        area.innerHTML = `<button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>`;
+        const head = document.getElementById('global-header');
+        if(!document.getElementById('arc-btn')){
+            const arcBtn = document.createElement('button');
+            arcBtn.id = "arc-btn";
+            arcBtn.innerHTML = `<i class="fa-solid fa-gamepad"></i>`;
+            arcBtn.style = "background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); width:35px; height:35px; border-radius:50%; margin-right:10px;";
+            arcBtn.onclick = () => document.getElementById('modalArcade').style.display = 'flex';
+            head.insertBefore(arcBtn, head.lastElementChild);
+        }
+    }
+
+    // 2. PANGGIL INJEKSI DATA (Alamat & Daftar Belanja)
+    // Kita panggil tanpa await agar initUI tidak crash
+    injectSovereignDetails();
 }
+
 
 
 
@@ -722,60 +741,57 @@ async function inspectData() {
 
 
 
-async function injectSovereignFeatures() {
+async function injectSovereignDetails() {
     try {
-        // Ambil data dari aggregator terminal_router.js
-        const supreme = await getSupremeData(contractId);
-        if (!supreme || !supreme.mission) return;
+        // Ambil data lengkap dari Shard via terminal_router
+        const DATA = await getSupremeData(contractId);
+        if (!DATA || !DATA.mission) return;
 
-        const m = supreme.mission;
-        // Data alamat & pesanan ada di dalam full_mission_data (Berdasarkan Gambar Master)
+        const m = DATA.mission;
+        // Berdasarkan gambar Master, data detail ada di full_mission_data
         const detail = m.full_mission_data || {};
 
-        // --- A. UPDATE ALAMAT ---
-        const originNameEl = document.getElementById('m-origin-name');
-        const originDetailEl = document.getElementById('m-origin-details');
-        
-        if (originNameEl) originNameEl.innerText = detail.origin_name || "Lokasi tidak diset";
-        if (originDetailEl) originDetailEl.innerText = detail.origin_details || "Tidak ada patokan";
+        // --- A. UPDATE ALAMAT (Jika ID nya ada di HTML Master) ---
+        // Karena di HTML Master belum ada ID untuk alamat, silakan tambahkan di HTML 
+        // atau kita pakai selector m-desc untuk sementara
+        if (detail.origin_name) {
+            // Jika Master menambahkan ID m-origin-name di HTML nanti:
+            const originEl = document.getElementById('m-origin-name');
+            if(originEl) originEl.innerText = detail.origin_name;
+            
+            const detailEl = document.getElementById('m-origin-details');
+            if(detailEl) detailEl.innerText = detail.origin_details || "Tidak ada patokan";
+        }
 
-        // --- B. UPDATE DAFTAR PESANAN (MULTI-POINTS) ---
-        if (detail.multi_points && Array.isArray(detail.multi_points)) {
+        // --- B. UPDATE DAFTAR BELANJA (Multi Points) ---
+        if (detail.multi_points && detail.multi_points.length > 0) {
             const cargoHub = document.getElementById('cargo-hub');
             const cargoDetail = document.getElementById('m-cargo-detail');
             
             if (cargoHub && cargoDetail) {
                 cargoHub.classList.remove('hide');
-                // Menggabungkan array pesanan menjadi list nomor
+                // Menggabungkan array menjadi teks list
                 cargoDetail.innerText = detail.multi_points
                     .map((item, index) => `${index + 1}. ${item}`)
                     .join('\n');
             }
         }
 
-        // --- C. UPDATE INFO TAMBAHAN ---
-        if(document.getElementById('m-reward-cash'))
-            document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
-        
-        if(document.getElementById('m-adv-nick'))
-            document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Searching...";
-
-        // --- D. LOGIKA MAPS ---
-        if (isAdv && detail.origin_coords && detail.origin_coords !== "NEGO") {
+        // --- C. UPDATE TOMBOL MAPS ---
+        if (isAdv && detail.origin_coords) {
             const btnO = document.getElementById('btn-maps-origin');
             if (btnO) {
                 btnO.classList.remove('hide');
-                btnO.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${detail.origin_coords}`);
+                btnO.onclick = () => window.open(`https://www.google.com/maps?q=${detail.origin_coords}`);
             }
         }
 
-        // Mulai Timer
-        startMissionTimer(m.created_at || m.start_time);
-
-    } catch (err) {
-        console.warn("Irene: Gagal sinkronisasi data tambahan, tapi UI utama tetap aman.");
+        console.log("Irene: Sovereign Details Synced Successfully.");
+    } catch (e) {
+        console.warn("Irene: Gagal injeksi detail, sistem tetap berjalan.", e);
     }
 }
+
 
 
 
