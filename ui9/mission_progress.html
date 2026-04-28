@@ -733,56 +733,74 @@ async function inspectData() {
 
 function injectSovereignFeatures() {
     try {
-        // 1. Data dari Session Storage (Kunci Master)
-        const cat = mission.category || "General";
-        document.getElementById('m-category-badge').innerText = cat;
-        document.getElementById('m-client-name').innerText = mission.client_name || "---";
-        document.getElementById('m-adv-nick').innerText = mission.adventurer_nick || "---";
-        document.getElementById('m-distance').innerText = mission.distance_est || "0";
-        document.getElementById('m-reward-cash').innerText = "Rp " + Number(mission.reward || 0).toLocaleString();
+        // --- 1. DATA DASAR (Pastikan ID ini ada di HTML) ---
+        // Jika mission.reward di session storage adalah angka, kita format ke Rupiah
+        const rewardNominal = mission.reward || 0;
+        const categoryMisi = mission.category || "General";
 
-        // 2. Logika Lokasi
-        document.getElementById('m-origin-name').innerText = mission.origin_name || "Tidak ada nama lokasi";
-        document.getElementById('m-origin-details').innerText = mission.origin_details || "Tidak ada patokan";
+        if(document.getElementById('m-category-badge')) 
+            document.getElementById('m-category-badge').innerText = categoryMisi.toUpperCase();
+        
+        if(document.getElementById('m-client-name')) 
+            document.getElementById('m-client-name').innerText = mission.client_name || "---";
+        
+        if(document.getElementById('m-adv-nick')) 
+            document.getElementById('m-adv-nick').innerText = mission.adventurer_nick || "Searching...";
+        
+        if(document.getElementById('m-reward-cash')) 
+            document.getElementById('m-reward-cash').innerText = "Rp " + Number(rewardNominal).toLocaleString();
+        
+        if(document.getElementById('m-distance')) 
+            document.getElementById('m-distance').innerText = mission.distance_est || "0";
 
+        // --- 2. LOGIKA TITIK ASAL (ORIGIN) ---
+        // Menggunakan origin_name, origin_details dari session storage Master
+        if(document.getElementById('m-origin-name'))
+            document.getElementById('m-origin-name').innerText = mission.origin_name || "Lokasi Jemput/Asal";
+        
+        if(document.getElementById('m-origin-details'))
+            document.getElementById('m-origin-details').innerText = mission.origin_details || "Tidak ada patokan";
+
+        // --- 3. LOGIKA TITIK TUJUAN (DESTINATION) ---
+        // Muncul jika kategori mengandung 'ride' atau jika dest_name ada isinya
         if(mission.dest_name) {
-            document.getElementById('dest-container').classList.remove('hide');
-            document.getElementById('m-dest-name').innerText = mission.dest_name;
-            document.getElementById('m-dest-details').innerText = mission.dest_details || "-";
+            const destCont = document.getElementById('dest-container');
+            if(destCont) {
+                destCont.classList.remove('hide');
+                document.getElementById('m-dest-name').innerText = mission.dest_name;
+                document.getElementById('m-dest-details').innerText = mission.dest_details || "-";
+            }
         }
 
-        // 3. Logika Tombol Maps (Hanya Adventurer)
+        // --- 4. LOGIKA TOMBOL MAPS (Hanya Adventurer) ---
         if(isAdv) {
+            // Gunakan origin_coords & dest_coords
             if(mission.origin_coords) {
                 const bO = document.getElementById('btn-maps-origin');
-                bO.classList.remove('hide');
-                bO.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${mission.origin_coords}`);
+                if(bO) {
+                    bO.classList.remove('hide');
+                    bO.onclick = () => window.open(`https://www.google.com/maps?q=${mission.origin_coords}`);
+                }
             }
             if(mission.dest_coords) {
                 const bD = document.getElementById('btn-maps-dest');
-                bD.classList.remove('hide');
-                bD.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${mission.dest_coords}`);
+                if(bD) {
+                    bD.classList.remove('hide');
+                    bD.onclick = () => window.open(`https://www.google.com/maps?q=${mission.dest_coords}`);
+                }
             }
         }
 
-        // 4. Timer
-        document.getElementById('mission-timer-hub').style.display = 'block';
-        startMissionTimer();
-        
-    } catch(e) { console.warn("Feature Injection Slowdown: ", e); }
-}
+        // --- 5. AKTIFKAN TIMER ---
+        const timerHub = document.getElementById('mission-timer-hub');
+        if(timerHub) {
+            timerHub.style.display = 'block';
+            startMissionTimer();
+        }
 
-// Timer Logic
-function startMissionTimer() {
-    const startTs = mission.ts_start || Date.now();
-    setInterval(() => {
-        const diff = Date.now() - startTs;
-        const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
-        const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
-        const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
-        const el = document.getElementById('timer-val');
-        if(el) el.innerText = `${h}:${m}:${s}`;
-    }, 1000);
+    } catch(err) {
+        console.error("Irene Error: Gagal memproses sinkronisasi detail.", err);
+    }
 }
 
 
