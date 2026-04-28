@@ -390,69 +390,18 @@
         // 2. UI ENGINE & NAVIGATION
         // ==========================================
         
-        async function initUI() {
-    try {
-        // Ambil data menggunakan router yang sudah ada
-        const supreme = await getSupremeData(contractId);
-        
-        if (!supreme || !supreme.mission) {
-            console.error("Gagal sinkronisasi dengan Shard!");
-            return;
-        }
+        function initUI() {
+    // 1. Data dasar (Tetap biarkan agar tidak crash)
+    document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
+    document.getElementById('m-desc').innerText = mission.description || "Detail misi tidak ditemukan.";
+    document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
+    document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
+    document.getElementById('m-id-display').innerText = "ID: " + contractId;
 
-        const m = supreme.mission;
-
-        // --- INI KUNCINYA ---
-        // Data alamat & multi_points ada di dalam full_mission_data
-        const detail = m.full_mission_data || {}; 
-
-        // 1. Tampilkan Alamat (Origin)
-        // Gunakan properti yang ada di gambar Master
-        document.getElementById('m-origin-name').innerText = detail.origin_name || "---";
-        document.getElementById('m-origin-details').innerText = detail.origin_details || "---";
-
-        // 2. Tampilkan Daftar Belanja (Multi Points)
-        // Kita gabungkan isi array menjadi teks
-        if (detail.multi_points && detail.multi_points.length > 0) {
-            const cargoHub = document.getElementById('cargo-hub');
-            const cargoDetail = document.getElementById('m-cargo-detail');
-            
-            if (cargoHub && cargoDetail) {
-                cargoHub.classList.remove('hide');
-                // Menggabungkan array menjadi list dengan nomor
-                cargoDetail.innerText = detail.multi_points
-                    .map((item, index) => `${index + 1}. ${item}`)
-                    .join('\n');
-            }
-        }
-
-        // 3. Tampilkan Tujuan (Jika ada)
-        if (detail.dest_name) {
-            document.getElementById('dest-container').classList.remove('hide');
-            document.getElementById('m-dest-name').innerText = detail.dest_name;
-            document.getElementById('m-dest-details').innerText = detail.dest_details || "---";
-        }
-
-        // 4. Update Header & Footer (Data yang sudah muncul di gambar Master)
-        document.getElementById('m-title').innerText = detail.category || "General Mission";
-        document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
-        document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Searching...";
-
-        // 5. Jalankan Navigasi & Timer
-        if (isAdv && detail.origin_coords) {
-            const btnO = document.getElementById('btn-maps-origin');
-            if(btnO) {
-                btnO.classList.remove('hide');
-                btnO.onclick = () => window.open(`https://www.google.com/maps?q=${detail.origin_coords}`);
-            }
-        }
-        
-        startMissionTimer(m.created_at);
-
-    } catch (err) {
-        console.error("Irene Error pada Injeksi Data:", err);
-    }
+    // 2. Panggil fungsi sakti untuk alamat & multi-points
+    injectSovereignFeatures();
 }
+
 
 
 
@@ -773,57 +722,58 @@ async function inspectData() {
 
 
 
-function injectSovereignFeatures() {
+async function injectSovereignFeatures() {
     try {
+        // Ambil data dari aggregator terminal_router.js
         const supreme = await getSupremeData(contractId);
         if (!supreme || !supreme.mission) return;
 
         const m = supreme.mission;
-        // POINTER PENTING: Data detail ada di dalam full_mission_data
-        const detail = m.full_mission_data || {}; 
+        // Data alamat & pesanan ada di dalam full_mission_data (Berdasarkan Gambar Master)
+        const detail = m.full_mission_data || {};
 
-        // 1. Sinkronisasi Nama Client & Kategori
-        document.getElementById('m-category-badge').innerText = detail.category || "GENERAL";
-        document.getElementById('m-client-name').innerText = detail.client_name || "Guest";
-        document.getElementById('m-title').innerText = detail.category || "Unknown Contract";
+        // --- A. UPDATE ALAMAT ---
+        const originNameEl = document.getElementById('m-origin-name');
+        const originDetailEl = document.getElementById('m-origin-details');
+        
+        if (originNameEl) originNameEl.innerText = detail.origin_name || "Lokasi tidak diset";
+        if (originDetailEl) originDetailEl.innerText = detail.origin_details || "Tidak ada patokan";
 
-        // 2. Sinkronisasi Alamat (Origin)
-        document.getElementById('m-origin-name').innerText = detail.origin_name || "---";
-        document.getElementById('m-origin-details').innerText = detail.origin_details || "---";
-
-        // 3. Logika DAFTAR BELANJA (Multi Points)
-        // Di gambar terlihat ini adalah Array di dalam detail.multi_points
-        if (detail.multi_points && detail.multi_points.length > 0) {
-            document.getElementById('cargo-hub').classList.remove('hide');
+        // --- B. UPDATE DAFTAR PESANAN (MULTI-POINTS) ---
+        if (detail.multi_points && Array.isArray(detail.multi_points)) {
+            const cargoHub = document.getElementById('cargo-hub');
+            const cargoDetail = document.getElementById('m-cargo-detail');
             
-            // Menggabungkan isi array menjadi list teks dengan baris baru
-            const listBelanja = detail.multi_points.map((item, index) => `${index + 1}. ${item}`).join('\n');
-            document.getElementById('m-cargo-detail').innerText = listBelanja;
-        }
-
-        // 4. Logika Titik Tujuan (Dest)
-        if (detail.dest_name) {
-            document.getElementById('dest-container').classList.remove('hide');
-            document.getElementById('m-dest-name').innerText = detail.dest_name;
-            document.getElementById('m-dest-details').innerText = detail.dest_details || "---";
-        }
-
-        // 5. Koordinat untuk Maps
-        if (isAdv) {
-            const coordsO = detail.origin_coords;
-            const coordsD = detail.dest_coords;
-            
-            if (coordsO && coordsO !== "NEGO") {
-                const bO = document.getElementById('btn-maps-origin');
-                bO.classList.remove('hide');
-                bO.onclick = () => window.open(`https://www.google.com/maps?q=${coordsO}`);
+            if (cargoHub && cargoDetail) {
+                cargoHub.classList.remove('hide');
+                // Menggabungkan array pesanan menjadi list nomor
+                cargoDetail.innerText = detail.multi_points
+                    .map((item, index) => `${index + 1}. ${item}`)
+                    .join('\n');
             }
         }
 
-        startMissionTimer(m.created_at);
+        // --- C. UPDATE INFO TAMBAHAN ---
+        if(document.getElementById('m-reward-cash'))
+            document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+        
+        if(document.getElementById('m-adv-nick'))
+            document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Searching...";
+
+        // --- D. LOGIKA MAPS ---
+        if (isAdv && detail.origin_coords && detail.origin_coords !== "NEGO") {
+            const btnO = document.getElementById('btn-maps-origin');
+            if (btnO) {
+                btnO.classList.remove('hide');
+                btnO.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${detail.origin_coords}`);
+            }
+        }
+
+        // Mulai Timer
+        startMissionTimer(m.created_at || m.start_time);
 
     } catch (err) {
-        console.error("Irene Trace Error:", err);
+        console.warn("Irene: Gagal sinkronisasi data tambahan, tapi UI utama tetap aman.");
     }
 }
 
