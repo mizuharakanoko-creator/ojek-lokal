@@ -370,29 +370,40 @@
         }
 
         async function performDeepMining() {
-            // Tentukan target UID
-            const targetUid = isAdv ? (mission.requester_uid || "UNKNOWN") : (mission.adventurer_uid || "UNKNOWN");
-            
-            try {
-                const snap = await dbMaster.ref(`users/${targetUid}`).once('value');
-                if(snap.exists()) {
-                    const p = snap.val();
-                    document.getElementById('u-name').innerText = p.nama || "Partner Entity";
-                    document.getElementById('u-role').innerText = isAdv ? "REQUESTER" : "ADVENTURER";
-                    
-                    if(isAdv) {
-                        document.getElementById('u-rank').innerText = "T" + (p.requester_profile?.tier || 1);
-                        document.getElementById('v-stat-1').innerText = (p.requester_reputation?.yabaik || 0) + " Votes";
-                        document.getElementById('b-stat-1').style.width = "70%"; // Dummy bar logic
-                    } else {
-                        document.getElementById('u-rank').innerText = p.adventurer_stats?.rank || "F";
-                        document.getElementById('v-stat-1').innerText = (p.adventurer_diagram?.nilai_kepercayaan || 0) + " pts";
-                        document.getElementById('b-stat-1').style.width = (p.adventurer_diagram?.nilai_kepercayaan || 0) + "%";
-                        document.getElementById('v-stat-2').innerText = "Lv." + (p.adventurer_experience?.level || 1);
-                    }
-                }
-            } catch(e) { console.error("Mining Failed", e); }
+    try {
+        const DATA = await getSupremeData(contractId);
+        if (!DATA) return;
+
+        const partner = isAdv ? DATA.requester : DATA.adventurer;
+        if (!partner) return;
+
+        // Update Info di Header secara otomatis
+        document.getElementById('u-name').innerText = partner.profile?.nama || "Unknown";
+        document.getElementById('u-role').innerText = isAdv ? "REQUESTER" : "ADVENTURER";
+        
+        if (isAdv) {
+            // Jika kita Adventurer, tampilkan info Requester (Lawan)
+            document.getElementById('u-rank').innerText = "T" + (partner.profile?.tier || 1);
+            document.getElementById('v-stat-1').innerText = (partner.reputation?.poin || 0) + " REP";
+            document.getElementById('b-stat-1').style.width = "70%";
+        } else {
+            // Jika kita Requester, tampilkan info Adventurer (Lawan)
+            document.getElementById('u-rank').innerText = partner.profile?.rank || "F";
+            document.getElementById('v-stat-1').innerText = (partner.diagram?.nilai_kepercayaan || 0) + " pts";
+            document.getElementById('b-stat-1').style.width = (partner.diagram?.nilai_kepercayaan || 0) + "%";
+            document.getElementById('v-stat-2').innerText = "Lv." + (partner.experience?.level || 1);
         }
+
+        // Tampilkan pesan di AI Terminal
+        document.getElementById('ai-text').innerText = `Data ${isAdv ? 'Klien' : 'Partner'} berhasil disinkronisasi.`;
+
+    } catch (e) { 
+        console.error("Deep Mining Failed", e); 
+    }
+}
+
+
+
 
         // ==========================================
         // 3. NOTA PROTOCOL (CRUD)
@@ -625,7 +636,47 @@
         // UTILS
         function toggleProfile() { playSfx(); document.getElementById('profile-drawer').classList.toggle('open'); }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        function inspectData() { alert("DEBUG_PAYLOAD:\n" + JSON.stringify({mission, user, contractId}, null, 2)); }
+        
+      
+async function inspectData() {
+    playSfx();
+    // 1. Tampilkan indikator loading sederhana
+    const aiText = document.getElementById('ai-text');
+    const originalText = aiText.innerText;
+    aiText.innerText = "Sovereign System: Menembus Shard Database... Mohon tunggu.";
+
+    try {
+        // 2. Tarik Data Supreme (Aggregator)
+        const DATA = await getSupremeData(contractId); 
+
+        if (DATA) {
+            // 3. Tampilkan hasil ke dalam UI Dossier (biar gampang dibaca di HP)
+            // Kita gunakan format JSON.stringify agar rapi
+            const debugPayload = JSON.stringify(DATA, null, 2);
+            
+            // Masukkan ke dalam deskripsi misi atau buat modal baru
+            document.getElementById('m-desc').innerHTML = `
+                <div style="background:#000; color:#00ff88; padding:10px; font-family:monospace; font-size:10px; overflow:auto; max-height:300px; border:1px solid #333;">
+                    <b style="color:#bc13fe">--- SUPREME DATA INSPECTED ---</b><br>
+                    ${debugPayload}
+                </div>
+            `;
+            
+            aiText.innerText = "Data berhasil ditarik dari Shard. Silakan periksa Dossier Misi.";
+            
+            // Scroll otomatis ke area data
+            document.getElementById('tab-hq').scrollTop = 200;
+        } else {
+            aiText.innerText = "Gagal: Data tidak ditemukan di Shard.";
+        }
+    } catch (err) {
+        aiText.innerText = "System Error: " + err.message;
+    }
+}
+
+
+
+    
     </script>
 </body>
 </html>
