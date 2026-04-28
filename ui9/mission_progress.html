@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SOVEREIGN | BATTLEFIELD HUB</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        /* === QUANTUM CYBERPUNK THEME === */
+        :root {
+            --bg-main: #050508;
+            --bg-panel: #0a0a10;
+            --neon-blue: #00f3ff;
+            --neon-green: #00ff88;
+            --neon-red: #ff3366;
+            --neon-purple: #d400ff;
+            --glass: rgba(10, 10, 15, 0.85);
+            --font-mono: 'Courier New', monospace;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+        }
+
+        body, html { 
+            margin: 0; padding: 0; background: var(--bg-main); color: var(--text-main); 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            overflow: hidden; height: 100%; width: 100%;
+        }
+
+        * { box-sizing: border-box; }
+
+        /* === GLOBAL HEADER === */
+        #global-header { 
+            position: absolute; top: 0; left: 0; width: 100%; z-index: 1000; 
+            background: var(--glass); border-bottom: 1px solid var(--neon-blue); padding: 12px 15px;
+            backdrop-filter: blur(10px); display: flex; justify-content: space-between; align-items: center;
+        }
+        
+        .identity-card { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+        .rank-badge {
+            width: 45px; height: 45px; border: 2px solid var(--neon-blue);
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            font-size: 20px; font-weight: bold; background: #000;
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); text-shadow: 0 0 5px var(--neon-blue);
+        }
+        .ai-avatar {
+            width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--neon-purple);
+            background: #222; margin-left: 10px; object-fit: cover;
+        }
+
+        /* === MASTER INSPECT BUTTON === */
+        #debug-trigger { 
+            background: rgba(0, 255, 136, 0.1); color: var(--neon-green); 
+            border: 1px solid var(--neon-green); border-radius: 4px; padding: 5px 10px;
+            font-family: var(--font-mono); font-size: 10px; cursor: pointer; text-transform: uppercase;
+        }
+
+        /* === TABS SYSTEM === */
+        .tab-container {
+            position: absolute; top: 70px; bottom: 130px; /* Space for header & footer */
+            width: 100%; z-index: 50; overflow: hidden;
+        }
+        .tab-content { 
+            width: 100%; height: 100%; display: none; overflow-y: auto; background: var(--bg-main);
+        }
+        .tab-content.active { display: block; }
+        
+        /* Map specific override */
+        #tab-map.active { display: block; }
+        #map { width: 100%; height: 100%; filter: brightness(0.7) contrast(1.2) hue-rotate(180deg) invert(1); }
+        .floating-cost {
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            background: var(--glass); border: 1px solid var(--neon-green); color: var(--neon-green);
+            padding: 8px 20px; border-radius: 20px; z-index: 1000; font-family: var(--font-mono);
+            font-weight: bold; font-size: 14px; box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+        }
+
+        /* === TAB 1: DASHBOARD (HQ) === */
+        .panel { background: var(--bg-panel); border: 1px solid #222; border-radius: 12px; padding: 15px; margin: 15px; }
+        .panel-title { color: var(--neon-blue); font-size: 12px; font-family: var(--font-mono); margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+        .progress-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; margin-top: 5px; }
+        .progress-fill { height: 100%; background: var(--neon-green); border-radius: 3px; transition: width 1s ease-in-out; }
+
+        .ai-box { display: flex; gap: 15px; align-items: flex-start; background: rgba(212, 0, 255, 0.05); border: 1px solid rgba(212, 0, 255, 0.3); }
+        .ai-text { font-size: 13px; font-style: italic; color: #ccc; line-height: 1.5; }
+
+        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .btn-status { 
+            background: #111; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 8px; 
+            cursor: pointer; transition: 0.3s; font-size: 12px; text-transform: uppercase; font-weight: bold;
+        }
+        .btn-status:active { transform: scale(0.95); }
+        .btn-status.active { border-color: var(--neon-blue); color: var(--neon-blue); background: rgba(0, 243, 255, 0.1); }
+
+        /* === TAB 3: PHYSICAL RECEIPT (NOTA) === */
+        .receipt-container { padding: 20px; display: flex; justify-content: center; }
+        .physical-nota {
+            background: #fdfce3; /* Thermal paper color */
+            color: #1a1a1a; font-family: 'Courier New', Courier, monospace;
+            width: 100%; max-width: 400px; padding: 20px;
+            box-shadow: 2px 5px 15px rgba(0,0,0,0.5); border: 1px solid #dcdbb8;
+            position: relative;
+        }
+        /* Jagged bottom edge */
+        .physical-nota::after {
+            content: ""; position: absolute; bottom: -10px; left: 0; width: 100%; height: 10px;
+            background: linear-gradient(-45deg, transparent 33.33%, #fdfce3 33.33%, #fdfce3 66.66%, transparent 66.66%),
+                        linear-gradient(45deg, transparent 33.33%, #fdfce3 33.33%, #fdfce3 66.66%, transparent 66.66%);
+            background-size: 10px 20px;
+        }
+        .nota-header { text-align: center; border-bottom: 2px dashed #999; padding-bottom: 10px; margin-bottom: 15px; }
+        .nota-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+        .nota-table th { border-bottom: 1px dashed #999; padding-bottom: 5px; text-align: left; }
+        .nota-table td { padding: 5px 0; vertical-align: top; }
+        .nota-total-row { border-top: 2px dashed #999; font-weight: bold; font-size: 15px; }
+        
+        .nota-disclaimer { font-size: 10px; text-align: center; margin-top: 20px; color: #555; }
+        
+        .add-item-form { margin: 15px; background: var(--bg-panel); padding: 15px; border-radius: 8px; border: 1px solid #333; }
+        .item-input { width: 100%; background: #000; border: 1px solid #444; color: #fff; padding: 10px; margin-bottom: 10px; border-radius: 4px; font-family: var(--font-mono); }
+
+        /* === TAB 4: COMMS === */
+        #chat-list { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; height: calc(100% - 70px); }
+        .msg-bubble { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.4; }
+        .msg-me { align-self: flex-end; background: var(--neon-blue); color: #000; border-bottom-right-radius: 2px; }
+        .msg-them { align-self: flex-start; background: #222; color: #fff; border: 1px solid #444; border-bottom-left-radius: 2px; }
+        .chat-input-area { position: absolute; bottom: 0; width: 100%; padding: 15px; background: var(--bg-main); border-top: 1px solid #333; display: flex; gap: 10px; }
+
+        /* === FOOTER & NAVIGATION === */
+        #global-footer {
+            position: absolute; bottom: 0; left: 0; width: 100%; z-index: 1000; background: var(--glass);
+        }
+        .bottom-nav { display: flex; border-top: 1px solid #333; height: 60px; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #666; cursor: pointer; transition: 0.3s; }
+        .nav-item.active { color: var(--neon-blue); }
+        .nav-item i { font-size: 18px; margin-bottom: 4px; }
+        
+        .action-bar { padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 10px; }
+        .btn-action { 
+            flex: 1; padding: 15px; border-radius: 8px; border: none; font-weight: bold; font-size: 14px;
+            cursor: pointer; text-transform: uppercase; transition: 0.3s;
+        }
+        .btn-finish-req { background: var(--neon-green); color: #000; }
+        .btn-finish-adv { background: transparent; border: 1px solid var(--neon-blue); color: var(--neon-blue); }
+
+        /* === INSPECT MODAL (MASTER) === */
+        #inspect-modal { 
+            position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 9999; 
+            display: none; flex-direction: column; padding: 20px; font-family: var(--font-mono);
+        }
+        #inspect-content { flex: 1; background: #050505; border: 1px solid var(--neon-green); overflow-y: auto; padding: 15px; color: var(--neon-green); font-size: 11px; white-space: pre-wrap; border-radius: 8px; }
+
+    </style>
+</head>
+<body>
+
+    <div id="global-header">
+        <div class="identity-card" onclick="switchTab('tab-hq', 0)">
+            <div id="user-badge" class="rank-badge">--</div>
+            <div>
+                <div id="user-title" style="font-size: 10px; color: var(--text-muted);">MEMUAT DATA...</div>
+                <div id="user-name" style="font-weight: bold; font-size: 16px;">--</div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button id="debug-trigger" onclick="runMasterInspect()">INSPECT</button>
+            <img id="ai-avatar" src="https://via.placeholder.com/30" class="ai-avatar" alt="AI">
+        </div>
+    </div>
+
+    <div class="tab-container">
+        
+        <div id="tab-hq" class="tab-content active">
+            <div class="panel ai-box">
+                <div style="flex: 1;">
+                    <div id="ai-name" style="color: var(--neon-purple); font-weight: bold; font-size: 12px; margin-bottom: 5px;">SYSTEM ASST</div>
+                    <div id="ai-msg" class="ai-text">Menganalisis parameter kontrak... Menunggu eksekusi lapangan.</div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title"><i class="fa-solid fa-database"></i> DEEP MINING: TARGET PROFILE</div>
+                <div class="stat-row">
+                    <span style="color: var(--text-muted);">Reputasi Sistem</span>
+                    <span id="stat-rep" style="color: var(--neon-green); font-weight: bold;">-- Pts</span>
+                </div>
+                <div class="progress-bg"><div id="bar-rep" class="progress-fill" style="width: 0%;"></div></div>
+                
+                <div class="stat-row" style="margin-top: 15px;">
+                    <span style="color: var(--text-muted);">Spesialisasi / Tier</span>
+                    <span id="stat-spec" style="color: #fff;">--</span>
+                </div>
+                <div class="stat-row">
+                    <span style="color: var(--text-muted);">Inventory (COX)</span>
+                    <span id="stat-cox" style="color: #fff;">-- Item</span>
+                </div>
+            </div>
+
+            <div class="panel" id="status-panel">
+                <div class="panel-title"><i class="fa-solid fa-satellite-dish"></i> TRANSMISI STATUS LOKASI</div>
+                <div class="status-grid">
+                    <button class="btn-status" onclick="updateStatus('OTW Penjemputan')">OTW ASAL</button>
+                    <button class="btn-status" onclick="updateStatus('Tiba di Lokasi')">TIBA LOKASI</button>
+                    <button class="btn-status" onclick="updateStatus('OTW Tujuan')">OTW TUJUAN</button>
+                    <button class="btn-status" style="border-color: var(--neon-red); color: var(--neon-red);" onclick="updateStatus('Kendala Lapangan')">KENDALA</button>
+                </div>
+                <div id="latest-status" style="margin-top: 15px; font-size: 11px; color: var(--neon-blue); text-align: center; font-family: var(--font-mono);">Status Terakhir: <span id="status-text">Menunggu...</span></div>
+            </div>
+        </div>
+
+        <div id="tab-map" class="tab-content">
+            <div class="floating-cost" onclick="switchTab('tab-ledger', 2)"><i class="fa-solid fa-receipt"></i> RUNNING COST: <span id="float-cost-val">Rp 0</span></div>
+            <div id="map"></div>
+        </div>
+
+        <div id="tab-ledger" class="tab-content">
+            <div id="adv-input-form" class="add-item-form" style="display: none;">
+                <div class="panel-title"><i class="fa-solid fa-plus"></i> INPUT MANUAL NOTA</div>
+                <input type="text" id="nota-item-name" class="item-input" placeholder="Nama Item / Pengeluaran">
+                <input type="number" id="nota-item-price" class="item-input" placeholder="Harga Jual Toko (Rp)">
+                <button class="btn-status" style="width: 100%; background: var(--neon-blue); color: #000;" onclick="addNotaItem()">TAMBAH KE NOTA</button>
+            </div>
+
+            <div class="receipt-container">
+                <div class="physical-nota">
+                    <div class="nota-header">
+                        <div style="font-size: 18px; font-weight: bold;">SOVEREIGN GUILD</div>
+                        <div style="font-size: 12px; color: #555;">BUKTI TRANSAKSI & JASA</div>
+                        <div style="font-size: 11px; margin-top: 5px;" id="nota-contract-id">ID: --</div>
+                    </div>
+                    <table class="nota-table" id="nota-table-body">
+                        </table>
+                    <table class="nota-table" style="margin-top: 10px;">
+                        <tr class="nota-total-row">
+                            <td style="padding-top: 10px;">TOTAL BIAYA</td>
+                            <td style="padding-top: 10px; text-align: right;" id="nota-total-price">Rp 0</td>
+                        </tr>
+                    </table>
+                    <div class="nota-disclaimer">
+                        * Harga di atas adalah harga jual toko.<br>
+                        * 100% biaya jasa diberikan kepada Adventurer.<br>
+                        * Sovereign tidak memungut potongan komisi.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-comms" class="tab-content">
+            <div id="chat-list"></div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" class="item-input" style="margin-bottom: 0;" placeholder="Transmisi aman..." onkeypress="if(event.key === 'Enter') sendChat()">
+                <button class="btn-status" style="background: var(--neon-blue); color: #000; padding: 10px 20px;" onclick="sendChat()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="global-footer">
+        <div class="bottom-nav">
+            <div class="nav-item active" onclick="switchTab('tab-hq', 0)"><i class="fa-solid fa-atom"></i>HQ</div>
+            <div class="nav-item" onclick="switchTab('tab-map', 1)"><i class="fa-solid fa-ghost"></i>MAP</div>
+            <div class="nav-item" onclick="switchTab('tab-ledger', 2)"><i class="fa-solid fa-file-invoice-dollar"></i>NOTA</div>
+            <div class="nav-item" onclick="switchTab('tab-comms', 3)"><i class="fa-solid fa-satellite-dish"></i>COMMS</div>
+        </div>
+        <div class="action-bar" id="action-bar-container">
+            </div>
+    </div>
+
+    <div id="inspect-modal">
+        <div style="display: flex; justify-content: space-between; color: var(--neon-green); margin-bottom: 10px; font-weight: bold;">
+            <span>[ SYSTEM OVERRIDE: DEEP MINING ]</span>
+            <span onclick="document.getElementById('inspect-modal').style.display='none'" style="color: var(--neon-red); cursor: pointer;">[CLOSE]</span>
+        </div>
+        <div id="inspect-content">Memulai kueri ke Shard...</div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. INIT & CORE VARIABLES
+        // ==========================================
+        const user = Clearchance.enforceIdentity();
+        const contractId = sessionStorage.getItem('active_contract_id') || "SIM-001";
+        const mission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
+        const isAdv = user.role === 'adventurer';
+
+        const masterDB = getTerminal('FB1_MASTER');
+        const dealDB = getTerminal('FB5_DEAL');
+        
+        let map, myMarker, targetMarker;
+        let aiAssists = ["irene", "amy", "ruby", "tessia"]; // Dari database preferensi user
+        let currentTotal = 0;
+
+        // On Load Execute
+        window.onload = async () => {
+            setupRoleUI();
+            initMap();
+            setAIAssistant();
+            await performDeepMining(); // Menggali data profil
+            listenNotaRealtime();
+            listenChatRealtime();
+            listenStatusRealtime();
+            ensureRewardInNota(); // Memastikan reward otomatis masuk
+            
+            // Geolokasi
+            if(navigator.geolocation) {
+                navigator.geolocation.watchPosition(updateLocation, console.error, {enableHighAccuracy: true});
+            }
+        };
+
+        // ==========================================
+        // 2. UI & NAVIGATION LOGIC
+        // ==========================================
+        function switchTab(tabId, navIndex) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            
+            document.querySelectorAll('.nav-item').forEach((el, idx) => {
+                if(idx === navIndex) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+
+            if(tabId === 'tab-map' && map) map.invalidateSize();
+        }
+
+        function setupRoleUI() {
+            const actContainer = document.getElementById('action-bar-container');
+            if (isAdv) {
+                actContainer.innerHTML = `<button class="btn-action btn-finish-adv" onclick="signalDone()">AKHIRI TUGAS</button>`;
+                document.getElementById('adv-input-form').style.display = 'block';
+                document.getElementById('nota-contract-id').innerText = `ID: ${contractId} | BY: ${user.uid.substring(0,6)}`;
+            } else {
+                actContainer.innerHTML = `<button class="btn-action btn-finish-req" onclick="closeContract()">SELESAIKAN KONTRAK & BAYAR</button>`;
+                document.getElementById('status-panel').style.display = 'none'; // Requester tidak bisa klik status
+            }
+        }
+
+        function setAIAssistant() {
+            const hour = new Date().getHours();
+            const ai = aiAssists[hour % aiAssists.length];
+            document.getElementById('ai-avatar').src = `${ai}.png`; // Placeholder image
+            document.getElementById('ai-name').innerText = ai.toUpperCase() + " SYSTEM";
+        }
+
+        // ==========================================
+        // 3. DEEP MINING LOGIC (GALI DATA LINTAS SHARD)
+        // ==========================================
+        async function performDeepMining() {
+            const oppNick = isAdv ? (mission.requester_nick || "Requester") : (mission.adventurer_nick || "Adventurer");
+            document.getElementById('user-name').innerText = oppNick;
+            
+            const indexPath = isAdv ? 'requester_index' : 'adventurer_index';
+
+            try {
+                // 1. Cari di Index Master
+                const snap = await masterDB.ref(indexPath).orderByChild('nickname').equalTo(oppNick).once('value');
+                if (snap.exists()) {
+                    const idxData = Object.values(snap.val())[0];
+                    const shardDB = getTerminal(idxData.shard_id); // Pindah ke Shard-nya
+
+                    if (!isAdv) { 
+                        // Menarik data kompleks Adventurer dari Shard
+                        const [prof, rep, cox, diag] = await Promise.all([
+                            shardDB.ref(`adventurer_profile/${idxData.id_adv}`).once('value'),
+                            shardDB.ref(`adventurer_reputation/${idxData.id_adv}`).once('value'),
+                            shardDB.ref(`adventurer_cox/${idxData.id_adv}`).once('value'), // Inventory
+                            shardDB.ref(`adventurer_diagram/${idxData.id_adv}`).once('value') // Power/Stats
+                        ]);
+
+                        const rank = prof.val()?.rank || 'F';
+                        const exp = rep.val()?.total_mission_completed || 0;
+                        const invCount = cox.val() ? Object.keys(cox.val()).length : 0;
+                        const spec = diag.val()?.primary_element || "Fisik";
+
+                        document.getElementById('user-badge').innerText = rank;
+                        document.getElementById('user-title').innerText = `RANK ${rank} ADVENTURER`;
+                        document.getElementById('stat-rep').innerText = `${exp * 10} Pts`;
+                        document.getElementById('bar-rep').style.width = Math.min((exp/100)*100, 100) + "%";
+                        document.getElementById('stat-spec').innerText = spec;
+                        document.getElementById('stat-cox').innerText = `${invCount} Item`;
+
+                    } else {
+                        // Menarik data Requester
+                        const reqProf = await shardDB.ref(`requester_profile/${idxData.id_req}`).once('value');
+                        const tier = reqProf.val()?.tier || '1';
+                        
+                        document.getElementById('user-badge').innerText = `T${tier}`;
+                        document.getElementById('user-title').innerText = `TIER ${tier} REQUESTER`;
+                        document.getElementById('stat-rep').innerText = "Privat";
+                        document.getElementById('stat-spec').innerText = "Client";
+                        document.getElementById('stat-cox').innerText = "--";
+                    }
+                } else {
+                    document.getElementById('user-badge').innerText = "?";
+                    document.getElementById('user-title').innerText = "STRANGER / TIDAK TERDAFTAR";
+                }
+            } catch (err) {
+                console.error("Deep Mining Gagal:", err);
+            }
+        }
+
+        // ==========================================
+        // 4. LEDGER & NOTA LOGIC (REAL-TIME)
+        // ==========================================
+        function ensureRewardInNota() {
+            // Hanya dijalankan sekali saat inisiasi untuk memastikan Reward ada
+            if (!isAdv) return; 
+            const rewardAmt = mission.reward || 15000;
+            dealDB.ref(`kontrak_detail/${contractId}/nota/items/reward_base`).once('value', snap => {
+                if(!snap.exists()) {
+                    dealDB.ref(`kontrak_detail/${contractId}/nota/items/reward_base`).set({
+                        nama: "Biaya Jasa (Sistem)",
+                        harga: parseInt(rewardAmt),
+                        type: "auto",
+                        timestamp: Date.now()
+                    });
+                }
+            });
+        }
+
+        function addNotaItem() {
+            const nama = document.getElementById('nota-item-name').value;
+            const harga = parseInt(document.getElementById('nota-item-price').value);
+            
+            if(!nama || isNaN(harga)) return alert("Data item tidak valid!");
+
+            dealDB.ref(`kontrak_detail/${contractId}/nota/items`).push({
+                nama: nama,
+                harga: harga,
+                type: "manual",
+                timestamp: Date.now()
+            });
+
+            document.getElementById('nota-item-name').value = "";
+            document.getElementById('nota-item-price').value = "";
+        }
+
+        function listenNotaRealtime() {
+            dealDB.ref(`kontrak_detail/${contractId}/nota/items`).orderByChild('timestamp').on('value', snap => {
+                const tbody = document.getElementById('nota-table-body');
+                tbody.innerHTML = `<tr><th style="width: 70%;">ITEM</th><th style="text-align: right;">HARGA</th></tr>`;
+                
+                let sum = 0;
+                snap.forEach(child => {
+                    const d = child.val();
+                    sum += d.harga;
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${d.nama} <span style="font-size:9px; color:#888;">${d.type==='auto'?'[AUTO]':''}</span></td>
+                        <td style="text-align: right;">Rp ${d.harga.toLocaleString('id-ID')}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                currentTotal = sum;
+                document.getElementById('nota-total-price').innerText = `Rp ${sum.toLocaleString('id-ID')}`;
+                document.getElementById('float-cost-val').innerText = `Rp ${sum.toLocaleString('id-ID')}`;
+            });
+        }
+
+        // ==========================================
+        // 5. STATUS BEBAS & CHAT LOGIC
+        // ==========================================
+        function updateStatus(text) {
+            // Push instead of Set -> Mengizinkan klik bebas tanpa menimpa histori
+            dealDB.ref(`kontrak_detail/${contractId}/status_history`).push({
+                status: text,
+                time: Date.now()
+            });
+        }
+
+        function listenStatusRealtime() {
+            dealDB.ref(`kontrak_detail/${contractId}/status_history`).orderByChild('time').limitToLast(1).on('value', snap => {
+                snap.forEach(child => {
+                    const st = child.val().status;
+                    document.getElementById('status-text').innerText = st;
+                    
+                    // Update AI response based on status
+                    const aiBox = document.getElementById('ai-msg');
+                    if(st.includes("Kendala")) aiBox.innerText = "Peringatan: Kendala dilaporkan. Harap kordinasikan via Comms. Kalkulasi ulang ETA...";
+                    else if(st.includes("Tiba")) aiBox.innerText = "Target mencapai titik koordinat. Standby untuk serah terima.";
+                    else aiBox.innerText = `Sistem melacak pergerakan: ${st}. Rute optimal dijalankan.`;
+                });
+            });
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chat-input');
+            if(!input.value.trim()) return;
+            
+            dealDB.ref(`kontrak_detail/${contractId}/chats`).push({
+                uid: user.uid,
+                text: input.value.trim(),
+                time: Date.now()
+            });
+            input.value = "";
+        }
+
+        function listenChatRealtime() {
+            dealDB.ref(`kontrak_detail/${contractId}/chats`).on('child_added', snap => {
+                const d = snap.val();
+                const div = document.createElement('div');
+                div.className = `msg-bubble ${d.uid === user.uid ? 'msg-me' : 'msg-them'}`;
+                div.innerText = d.text;
+                
+                const box = document.getElementById('chat-list');
+                box.appendChild(div);
+                box.scrollTop = box.scrollHeight;
+            });
+        }
+
+        // ==========================================
+        // 6. MAP & LOCATION LOGIC
+        // ==========================================
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([-6.97, 108.48], 15);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            myMarker = L.marker([0,0]).addTo(map);
+            targetMarker = L.marker([0,0], { opacity: 0.7 }).addTo(map);
+
+            // Listen to partner location
+            dealDB.ref(`kontrak_detail/${contractId}/tracking`).on('value', snap => {
+                snap.forEach(child => {
+                    if(child.key !== user.uid) {
+                        targetMarker.setLatLng([child.val().lat, child.val().lng]);
+                    }
+                });
+            });
+        }
+
+        function updateLocation(pos) {
+            const { latitude, longitude } = pos.coords;
+            myMarker.setLatLng([latitude, longitude]);
+            dealDB.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({ 
+                lat: latitude, lng: longitude, time: Date.now() 
+            });
+        }
+
+        // ==========================================
+        // 7. FOOTER ACTIONS
+        // ==========================================
+        function signalDone() {
+            alert("Sinyal selesai dikirim ke Requester. Menunggu penutupan kontrak dari pihak klien.");
+            updateStatus("Selesai & Menunggu Pembayaran");
+        }
+
+        function closeContract() {
+            const conf = confirm(`Total Nota: Rp ${currentTotal.toLocaleString('id-ID')}\nApakah barang/jasa sudah sesuai? Klik OK untuk menutup kontrak.`);
+            if(conf) {
+                dealDB.ref(`kontrak_detail/${contractId}`).update({ status: 'completed', end_time: Date.now() });
+                masterDB.ref(`buku_induk/misi/${mission.id_misi}`).update({ status: 'completed' });
+                alert("Kontrak ditutup. Terima kasih!");
+                window.location.href = "index.html";
+            }
+        }
+
+        // ==========================================
+        // 8. MASTER INSPECT LOGIC (DEEP AUDIT)
+        // ==========================================
+        async function runMasterInspect() {
+            document.getElementById('inspect-modal').style.display = 'flex';
+            const content = document.getElementById('inspect-content');
+            content.innerText = ">> EXECUTING SHARD QUERY...\n";
+
+            try {
+                const diagData = {
+                    SESSION: { contract: contractId, current_user: user.uid, role: user.role },
+                    FINANCE_AUDIT: { running_total: currentTotal, db_path: `FB5_DEAL/kontrak_detail/${contractId}/nota` },
+                    TARGET_SHARD: {}
+                };
+
+                const oppNick = isAdv ? mission.requester_nick : mission.adventurer_nick;
+                const idxRef = isAdv ? 'requester_index' : 'adventurer_index';
+                
+                const snap = await masterDB.ref(idxRef).orderByChild('nickname').equalTo(oppNick).once('value');
+                if (snap.exists()) {
+                    const idxData = Object.values(snap.val())[0];
+                    diagData.TARGET_SHARD.router = idxData.shard_id;
+                    diagData.TARGET_SHARD.node_id = isAdv ? idxData.id_req : idxData.id_adv;
+                    diagData.TARGET_SHARD.status = "CONNECTED";
+                    
+                    // Gali lebih dalam khusus Adventurer
+                    if(!isAdv) {
+                        const sDB = getTerminal(idxData.shard_id);
+                        const inv = await sDB.ref(`adventurer_cox/${idxData.id_adv}`).once('value');
+                        diagData.TARGET_SHARD.live_inventory = inv.val() || "EMPTY";
+                    }
+                } else {
+                    diagData.TARGET_SHARD.error = "NOT FOUND IN INDEX";
+                }
+
+                content.innerText = JSON.stringify(diagData, null, 2);
+            } catch (err) {
+                content.innerText += "\n[!] FATAL ERROR: " + err.message;
+            }
+        }
+    </script>
+</body>
+</html>
