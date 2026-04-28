@@ -48,3 +48,89 @@ async function cariLokasiMisi(idMisi) {
         return null;
     }
 }
+
+
+
+
+/**
+ * SOVEREIGN SUPREME AGGREGATOR
+ * Mengumpulkan seluruh data tabel dari Shard tanpa terkecuali.
+ */
+async function getSupremeData(contractId) {
+    try {
+        // HANDSHAKE: Cari data dasar di FB4 (Mission Board)
+        const snapMission = await getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).once('value');
+        if (!snapMission.exists()) return null;
+        
+        const m = snapMission.val();
+        const masterDB = getTerminal('FB1_MASTER');
+        const packet = { mission: m, adventurer: null, requester: null, timestamp: Date.now() };
+
+        // --- DEEP MINING: ADVENTURER SIDE ---
+        if (m.adventurer_nick) {
+            const snapIdx = await masterDB.ref(`adventurer_index`).orderByChild('nickname').equalTo(m.adventurer_nick).once('value');
+            if (snapIdx.exists()) {
+                const meta = Object.values(snapIdx.val())[0];
+                const shard = getTerminal(meta.shard_id);
+                const id = meta.id_adv;
+
+                // SEDOT SEMUA TABEL ADVENTURER (8 Tabel Utama)
+                const [con, cox, dia, exp, inv, jdg, pro, rep] = await Promise.all([
+                    shard.ref(`adventurer_contracts/${id}`).once('value'),
+                    shard.ref(`adventurer_coxin/${id}`).once('value'),
+                    shard.ref(`adventurer_diagram/${id}`).once('value'),
+                    shard.ref(`adventurer_experience/${id}`).once('value'),
+                    shard.ref(`adventurer_inventory/${id}`).once('value'),
+                    shard.ref(`adventurer_judge/${id}`).once('value'),
+                    shard.ref(`adventurer_profile/${id}`).once('value'),
+                    shard.ref(`adventurer_reputation/${id}`).once('value')
+                ]);
+
+                packet.adventurer = {
+                    meta: meta,
+                    contracts: con.val(),
+                    coxin: cox.val(),
+                    diagram: dia.val(),
+                    experience: exp.val(),
+                    inventory: inv.val(),
+                    judge: jdg.val(),
+                    profile: pro.val(),
+                    reputation: rep.val()
+                };
+            }
+        }
+
+        // --- DEEP MINING: REQUESTER SIDE ---
+        if (m.requester_nick) {
+            const snapRIdx = await masterDB.ref(`requester_index`).orderByChild('nickname').equalTo(m.requester_nick).once('value');
+            if (snapRIdx.exists()) {
+                const rMeta = Object.values(snapRIdx.val())[0];
+                const rShard = getTerminal(rMeta.shard_id);
+                const rid = rMeta.id_req;
+
+                // SEDOT SEMUA TABEL REQUESTER (5 Tabel Utama)
+                const [rPro, rRep, rCox, rInv, rDia] = await Promise.all([
+                    rShard.ref(`requester_profile/${rid}`).once('value'),
+                    rShard.ref(`requester_reputation/${rid}`).once('value'),
+                    rShard.ref(`requester_coxin/${rid}`).once('value'),
+                    rShard.ref(`requester_inventory/${rid}`).once('value'),
+                    rShard.ref(`requester_diagram/${rid}`).once('value')
+                ]);
+
+                packet.requester = {
+                    meta: rMeta,
+                    profile: rPro.val(),
+                    reputation: rRep.val(),
+                    coxin: rCox.val(),
+                    inventory: rInv.val(),
+                    diagram: rDia.val()
+                };
+            }
+        }
+
+        return packet;
+    } catch (err) {
+        console.error("SUPREME_AGGREGATOR_ERROR:", err);
+        return null;
+    }
+}
