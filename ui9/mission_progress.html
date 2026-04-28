@@ -402,129 +402,98 @@
 
 
 
-        function openInspector() {
+        async function openInspector() {
     const panel = document.getElementById('debug-panel');
     const content = document.getElementById('debug-content');
+    
+    // 1. Tampilkan Panel & Loading State
     panel.style.display = 'flex';
-
-    // Objek Data yang dibawa halaman ini
-    const systemData = {
-        "1. USER_IDENTITY (From: clearchance.js)": {
-            uid: user?.uid || "NULL",
-            role: user?.role || "NULL",
-            auth_status: "Verified"
-        },
-        "2. SESSION_DATA (From: Browser Storage)": {
-            active_contract_id: sessionStorage.getItem('active_contract_id') || "NOT_FOUND",
-            mission_raw_object: mission || "NOT_FOUND"
-        },
-        "3. DATABASE_REFERENCE (From: terminal_router.js)": {
-            FB1_MASTER: masterDB?.repo || "Connected",
-            FB4_BOARD: boardDB?.repo || "Connected",
-            FB5_DEAL: dealDB?.repo || "Connected"
-        },
-        "4. LIVE_VARIABLES (Memory)": {
-            current_ratings: ratings,
-            is_drawer_open: isDrawerOpen,
-            device_location: myMarker?.getLatLng() || "Waiting GPS..."
-        }
-    };
-
-    content.innerText = JSON.stringify(systemData, null, 4);
-}
-
-function closeInspector() {
-    document.getElementById('debug-panel').style.display = 'none';
-}
-
-
-
-// ========================================================
-// LOGIKA GALI DATA (DEEP MINING)
-// ========================================================
-
-async function mineDeepData() {
-    const content = document.getElementById('debug-content');
-    content.innerHTML = "🔍 Memulai Penggalian Deep Data...\n";
+    content.innerHTML = "🔍 [SYSTEM] Memulai Injeksi Data & Deep Mining...\n";
 
     try {
-        // 1. Ambil Data Dasar dari Session
+        // 2. Ambil Data Dasar (System & Session)
         const contractId = sessionStorage.getItem('active_contract_id');
-        const mission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
-        
-        // Data Nickname (Biasanya dibawa dari halaman board/kontrak)
-        const advNick = mission.adventurer_nick;
-        const reqNick = mission.requester_nick;
+        const missionData = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
+        const advNick = missionData.adventurer_nick;
+        const reqNick = missionData.requester_nick;
 
-        let results = {
-            CONTRACT_ID: contractId,
-            ADVENTURER_NODE: { status: "Searching..." },
-            REQUESTER_NODE: { status: "Searching..." }
+        // 3. Siapkan Struktur Objek Laporan (Agar Data Berakumulasi)
+        let finalReport = {
+            "CORE_SYSTEM": {
+                uid: user?.uid || "NULL",
+                role: user?.role || "NULL",
+                contract_id: contractId,
+                session_mission: missionData
+            },
+            "DATABASE_TERMINALS": {
+                FB1: masterDB?.repo || "Connected",
+                FB4: boardDB?.repo || "Connected",
+                FB5: dealDB?.repo || "Connected"
+            },
+            "DEEP_MINING_RESULTS": {
+                ADVENTURER: { status: "Not Identified" },
+                REQUESTER: { status: "Not Identified" }
+            },
+            "LIVE_VARIABLES": {
+                ratings: ratings,
+                location: myMarker?.getLatLng() || "GPS_OFF"
+            }
         };
 
-        // --- PROSES GALI DATA ADVENTURER ---
+        // 4. PROSES GALI DATA ADVENTURER
         if (advNick) {
-            content.innerHTML += `> Melacak Shard Adventurer: ${advNick}...\n`;
             const snapIdx = await masterDB.ref(`adventurer_index/${advNick}`).once('value');
-            
             if (snapIdx.exists()) {
                 const { shard_id, id_adv } = snapIdx.val();
-                results.ADVENTURER_NODE = {
-                    nick: advNick,
-                    shard_target: shard_id,
-                    id_internal: id_adv
-                };
-
-                // Ambil Alamat Database Shard
                 const shardDB = getTerminal(shard_id); 
                 const snapDetail = await shardDB.ref(`adventurers/${id_adv}`).once('value');
                 
-                if (snapDetail.exists()) {
-                    results.ADVENTURER_NODE.full_data = snapDetail.val();
-                }
+                finalReport.DEEP_MINING_RESULTS.ADVENTURER = {
+                    nick: advNick,
+                    shard: shard_id,
+                    id_internal: id_adv,
+                    full_shard_data: snapDetail.exists() ? snapDetail.val() : "Detail data empty"
+                };
             } else {
-                results.ADVENTURER_NODE.status = "Index Tidak Ditemukan";
+                finalReport.DEEP_MINING_RESULTS.ADVENTURER = { nick: advNick, status: "INDEX_NOT_FOUND" };
             }
         }
 
-        // --- PROSES GALI DATA REQUESTER ---
+        // 5. PROSES GALI DATA REQUESTER (Logika Stranger)
         if (reqNick) {
-            content.innerHTML += `> Memeriksa Status Requester: ${reqNick}...\n`;
             const snapReqIdx = await masterDB.ref(`requester_index/${reqNick}`).once('value');
-            
             if (snapReqIdx.exists()) {
                 const { shard_id, id_req } = snapReqIdx.val();
                 const shardDB = getTerminal(shard_id);
                 const snapReqDetail = await shardDB.ref(`requesters/${id_req}`).once('value');
                 
-                results.REQUESTER_NODE = {
+                finalReport.DEEP_MINING_RESULTS.REQUESTER = {
                     nick: reqNick,
                     shard: shard_id,
-                    full_data: snapReqDetail.exists() ? snapReqDetail.val() : "Data shard detail kosong"
+                    full_shard_data: snapReqDetail.exists() ? snapReqDetail.val() : "Detail data empty"
                 };
             } else {
-                // LOGIKA STRANGER
-                results.REQUESTER_NODE = {
+                // Warning Stranger
+                finalReport.DEEP_MINING_RESULTS.REQUESTER = {
                     nick: reqNick,
                     status: "❗ MODE STRANGER",
-                    warning: "Tidak ada data yang bisa ditampilkan atau dikirim. Berhati-hatilah!",
+                    warning: "⚠️ WASPADA: User tidak terdaftar di Index. Jangan kirim data sensitif!",
                     can_sync: false
                 };
             }
         }
 
-        // Tampilkan Hasil Akhir
-        content.innerText = JSON.stringify(results, null, 4);
+        // 6. CETAK SEMUA DATA KE LAYAR
+        content.innerText = JSON.stringify(finalReport, null, 4);
 
     } catch (error) {
-        content.innerHTML += `\n❌ CRITICAL_ERROR: ${error.message}`;
+        content.innerHTML = `<span style="color:red;">❌ CRITICAL ERROR: ${error.message}</span>`;
+        console.error(error);
     }
 }
 
-// Fungsi Trigger untuk Tombol
-function openInspector() {
-    document.getElementById('debug-panel').style.display = 'flex';
-    mineDeepData(); // Langsung gali saat dibuka
+function closeInspector() {
+    document.getElementById('debug-panel').style.display = 'none';
 }
 
     </script>
