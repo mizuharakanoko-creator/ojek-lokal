@@ -758,52 +758,58 @@ async function injectSovereignDetails() {
         const DATA = await getSupremeData(contractId);
         if (!DATA || !DATA.mission) return;
 
+        // 'm' adalah data dari level atas (berisi reward 30000 & nick nezza)
         const m = DATA.mission;
+        // 'detail' adalah isi dari full_mission_data
         const detail = m.full_mission_data || {};
 
-        // --- 1. LOGIKA TITIK ASAL & MAPS ---
-        if (document.getElementById('m-origin-name')) {
-            document.getElementById('m-origin-name').innerText = detail.origin_name || "---";
+        // --- A. FIX REWARD & NICKNAME (AMBIL DARI DATA TERBARU) ---
+        // Kita paksa timpa data session storage yang mungkin Rp 0
+        const elCash = document.getElementById('m-reward-cash');
+        if (elCash && m.reward) {
+            elCash.innerText = "Rp " + Number(m.reward).toLocaleString();
         }
-        if (detail.origin_coords && detail.origin_coords !== "NEGO") {
-            const btnO = document.getElementById('btn-maps-origin');
-            if (btnO) {
-                btnO.classList.remove('hide');
-                btnO.onclick = () => window.open(`https://www.google.com/maps?q=${detail.origin_coords}`);
+
+        const elNick = document.getElementById('m-adv-nick');
+        if (elNick) {
+            elNick.innerText = m.adventurer_nick || "nezza";
+        }
+
+        // --- B. FIX TITIK TUJUAN (MESKI KOORDINAT NEGO) ---
+        const destHub = document.getElementById('dest-hub');
+        const destName = document.getElementById('m-dest-name');
+        if (destHub && destName) {
+            // Kita munculkan box tujuan karena di data terbaru ada 'dest_desa'
+            destHub.classList.remove('hide');
+            destName.innerText = detail.dest_name || detail.dest_desa || "Tujuan Belum Diatur";
+            
+            // Logika Tombol Maps Tujuan
+            const btnMapsDest = document.getElementById('btn-maps-dest');
+            if (btnMapsDest) {
+                if (detail.dest_coords && detail.dest_coords !== "NEGO") {
+                    btnMapsDest.classList.remove('hide');
+                    btnMapsDest.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${detail.dest_coords}`);
+                } else {
+                    // Jika NEGO, tombol sembunyi tapi teks desa tetap ada
+                    btnMapsDest.classList.add('hide');
+                }
             }
         }
 
-        // --- 2. LOGIKA TITIK TUJUAN (NEW) ---
-        if (detail.dest_desa) {
-            const destHub = document.getElementById('dest-hub');
-            const destName = document.getElementById('m-dest-name');
-            if (destHub && destName) {
-                destHub.classList.remove('hide');
-                destName.innerText = detail.dest_name || detail.dest_desa;
-            }
-        }
-        if (detail.dest_coords && detail.dest_coords !== "NEGO") {
-            const btnD = document.getElementById('btn-maps-dest');
-            if (btnD) {
-                btnD.classList.remove('hide');
-                btnD.onclick = () => window.open(`https://www.google.com/maps?q=${detail.dest_coords}`);
-            }
-        }
-
-        // --- 3. LOGIKA MULTI-POINT (PESANAN) ---
+        // --- C. FIX MULTI-POINT (DAFTAR PESANAN) ---
         if (detail.multi_points && Array.isArray(detail.multi_points)) {
             const cargoHub = document.getElementById('cargo-hub');
             const cargoDetail = document.getElementById('m-cargo-detail');
             if (cargoHub && cargoDetail) {
                 cargoHub.classList.remove('hide');
                 cargoDetail.innerText = detail.multi_points
-                    .map((txt, i) => `${i + 1}. ${txt}`)
+                    .map((item, index) => `${index + 1}. ${item}`)
                     .join('\n');
             }
         }
 
     } catch (e) {
-        console.error("Irene Trace: Gagal Sinkronisasi.", e);
+        console.error("Irene Trace Error:", e);
     }
 }
 
