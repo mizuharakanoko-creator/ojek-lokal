@@ -7,6 +7,8 @@
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -15,121 +17,163 @@
     <script src="clearchance.js"></script>
 
     <style>
+        /* === QUANTUM DESIGN SYSTEM === */
         :root {
             --bg-main: #050508;
-            --bg-panel: #0d0d14;
+            --bg-panel: rgba(13, 13, 20, 0.8);
             --neon-blue: #00f3ff;
             --neon-green: #00ff88;
             --neon-red: #ff3366;
             --neon-purple: #bc13fe;
-            --text-main: #ffffff;
+            --text-main: #e0e0e0;
+            --glass: rgba(5, 5, 8, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.08);
             --font-mono: 'JetBrains Mono', 'Courier New', monospace;
-            --glass: rgba(10, 10, 15, 0.95);
+            --font-sans: 'Inter', -apple-system, sans-serif;
         }
 
-        body, html { margin: 0; padding: 0; background: var(--bg-main); color: var(--text-main); font-family: 'Segoe UI', sans-serif; overflow: hidden; height: 100%; width: 100%; }
+        body, html { 
+            margin: 0; padding: 0; 
+            background: radial-gradient(circle at top right, #111, var(--bg-main)); 
+            color: var(--text-main); 
+            font-family: var(--font-sans); 
+            overflow: hidden; height: 100%; width: 100%; 
+        }
+        
         button, input { font-family: inherit; }
+        .hide { display: none !important; }
 
-        /* === GLOBAL HEADER === */
+        /* === GLOBAL HEADER (GLASSMORPHISM) === */
         #global-header { 
-            position: absolute; top: 0; width: 100%; z-index: 2000; background: var(--glass); 
-            border-bottom: 1px solid var(--neon-blue); padding: 10px 15px; backdrop-filter: blur(15px);
+            position: absolute; top: 0; width: 100%; z-index: 2000; 
+            background: var(--glass); border-bottom: 1px solid var(--glass-border); 
+            padding: 12px 15px; backdrop-filter: blur(20px);
             display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            box-sizing: border-box;
         }
-        .identity-badge { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+        .identity-badge { display: flex; align-items: center; gap: 12px; cursor: pointer; transition: transform 0.2s; }
+        .identity-badge:active { transform: scale(0.95); }
         .rank-frame { 
-            width: 45px; height: 45px; border: 2px solid var(--neon-blue); border-radius: 10px;
-            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px;
-            background: #000; color: var(--neon-blue); box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
+            width: 45px; height: 45px; border: 2px solid var(--neon-blue); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;
+            background: rgba(0, 243, 255, 0.05); color: var(--neon-blue); 
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
         }
 
-        /* === TABS & VIEWPORT === */
-        .viewport { position: absolute; top: 65px; bottom: 130px; width: 100%; overflow: hidden; }
-        .tab-pane { width: 100%; height: 100%; display: none; overflow-y: auto; background: var(--bg-main); }
-        .tab-pane.active { display: block; }
+        /* === TABS & VIEWPORT (SMOOTH TRANSITIONS) === */
+        .viewport { position: absolute; top: 65px; bottom: 135px; width: 100%; overflow: hidden; }
+        .tab-pane { 
+            position: absolute; inset: 0; 
+            opacity: 0; pointer-events: none; transform: translateY(15px); 
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto; overflow-x: hidden;
+            padding-bottom: 20px;
+        }
+        .tab-pane.active { opacity: 1; pointer-events: all; transform: translateY(0); }
 
         /* --- TAB 1: HQ --- */
         .hq-container { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
         
-        /* AI Assistant Section */
+        /* AI Assistant */
         .ai-terminal { 
-            background: rgba(188, 19, 254, 0.05); border: 1px solid var(--neon-purple); 
+            background: rgba(188, 19, 254, 0.05); border: 1px solid rgba(188, 19, 254, 0.3); 
             border-radius: 15px; padding: 15px; display: flex; gap: 15px; align-items: center;
-            box-shadow: 0 0 15px rgba(188, 19, 254, 0.1) inset;
+            box-shadow: 0 0 20px rgba(188, 19, 254, 0.05) inset; backdrop-filter: blur(5px);
         }
-        #ai-text { font-size: 13px; font-style: italic; color: #d8b4fe; line-height: 1.4; }
+        #ai-text { font-size: 13px; font-style: italic; color: #d8b4fe; line-height: 1.5; transition: 0.3s; }
 
-        /* Progress Status Ticker (New!) */
+        /* Status Ticker */
         .status-ticker {
-            background: #111; border-left: 4px solid var(--neon-green); padding: 10px 15px;
-            border-radius: 0 10px 10px 0; font-family: var(--font-mono); font-size: 11px;
+            background: rgba(0,0,0,0.5); border-left: 3px solid var(--neon-green); padding: 12px 15px;
+            border-radius: 0 12px 12px 0; font-family: var(--font-mono); font-size: 11px;
+            border: 1px solid var(--glass-border); border-left-width: 3px;
         }
-        .status-label { color: var(--neon-green); font-weight: bold; margin-bottom: 4px; display: block; }
+        .status-label { color: var(--neon-green); font-weight: bold; margin-bottom: 5px; display: block; letter-spacing: 1px; }
 
-        /* Mission Dossier */
-        .dossier { background: var(--bg-panel); border: 1px solid #222; border-radius: 15px; overflow: hidden; }
-        .dossier-head { background: #1a1a24; padding: 10px 15px; font-size: 11px; color: #888; display: flex; justify-content: space-between; font-family: var(--font-mono); }
-        .dossier-body { padding: 20px; }
-        .m-title { font-size: 20px; font-weight: bold; color: var(--neon-green); margin: 0 0 10px 0; }
-        .m-desc { font-size: 14px; color: #aaa; line-height: 1.6; margin-bottom: 20px; }
+        /* Mission Dossier Card */
+        .dossier { background: var(--bg-panel); border: 1px solid var(--glass-border); border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); backdrop-filter: blur(10px); }
+        .dossier-head { background: rgba(255,255,255,0.03); padding: 12px 15px; font-size: 11px; color: #aaa; display: flex; justify-content: space-between; font-family: var(--font-mono); border-bottom: 1px solid var(--glass-border); letter-spacing: 1px; }
+        .dossier-body { padding: 20px; position: relative; transition: all 0.5s ease; }
+        .data-syncing { opacity: 0.6; filter: blur(3px); }
+        .m-title { font-size: 20px; font-weight: 700; color: var(--neon-green); margin: 0 0 10px 0; letter-spacing: 0.5px; }
+        .m-desc { font-size: 14px; color: #bbb; line-height: 1.6; margin-bottom: 20px; }
+
+        /* Data Sync Animations */
+        .loading-shimmer {
+            background: linear-gradient(90deg, #0d0d14 25%, #1a1a24 50%, #0d0d14 75%);
+            background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; color: transparent !important;
+        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
         /* Expandable Profile */
-        .profile-drawer { max-height: 0; overflow: hidden; transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1); background: #08080c; border-bottom: 0px solid #222; }
+        .profile-drawer { max-height: 0; overflow: hidden; transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1); background: rgba(0,0,0,0.6); border-bottom: 0px solid var(--glass-border); backdrop-filter: blur(10px); }
         .profile-drawer.open { max-height: 400px; padding: 20px; border-bottom-width: 1px; }
         .stat-line { margin-bottom: 12px; }
-        .stat-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; color: #666; }
-        .stat-bar { height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; }
-        .stat-fill { height: 100%; width: 0%; background: var(--neon-blue); transition: 1.5s; }
+        .stat-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; color: #888; letter-spacing: 1px; }
+        .stat-bar { height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+        .stat-fill { height: 100%; width: 0%; background: var(--neon-blue); transition: width 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+        /* Action Buttons */
+        .btn-main {
+            background: linear-gradient(135deg, rgba(0,243,255,0.1), rgba(0,243,255,0.02));
+            border: 1px solid var(--neon-blue); color: var(--neon-blue);
+            padding: 14px; border-radius: 12px; text-transform: uppercase; font-weight: 700;
+            letter-spacing: 1px; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; width: 100%; font-size: 13px;
+        }
+        .btn-main:hover, .btn-main:active { background: var(--neon-blue); color: #000; box-shadow: 0 0 20px rgba(0,243,255,0.4); transform: translateY(-2px); }
+
+        /* Requester Specific Layout */
+        .wa-box { display: flex; align-items: center; gap: 12px; background: rgba(37, 211, 102, 0.1); border: 1px solid rgba(37, 211, 102, 0.3); padding: 12px; border-radius: 12px; margin-top: 10px; }
+        #edu-bilah { background: linear-gradient(90deg, rgba(0,243,255,0.08), transparent); border-left: 3px solid var(--neon-blue); padding: 12px 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
 
         /* --- TAB 3: NOTA FISIK --- */
         .ledger-container { padding: 15px; }
-        .receipt-ui { 
-            background: #fdfce3; color: #1a1a1a; font-family: var(--font-mono); 
-            padding: 30px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); position: relative;
-        }
+        .receipt-ui { background: #fdfce3; color: #1a1a1a; font-family: var(--font-mono); padding: 30px 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); position: relative; border-radius: 4px; }
         .receipt-ui::before { content: ""; position: absolute; top: -10px; left: 0; width: 100%; height: 10px; background: linear-gradient(45deg, transparent 33%, #fdfce3 33%, #fdfce3 66%, transparent 66%), linear-gradient(-45deg, transparent 33%, #fdfce3 33%, #fdfce3 66%, transparent 66%); background-size: 10px 20px; }
-        .nota-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #ccc; font-size: 12px; }
-        .nota-actions { display: flex; gap: 10px; }
-        .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; font-size: 14px; }
-        
-        .input-panel { background: var(--bg-panel); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #222; }
-        .q-input { width: 100%; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 10px; }
+        .nota-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px dashed #ccc; font-size: 13px; }
+        .nota-actions { display: flex; gap: 12px; }
+        .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; font-size: 16px; transition: 0.2s; }
+        .btn-icon:hover { transform: scale(1.2); }
+        .input-panel { background: var(--bg-panel); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid var(--glass-border); backdrop-filter: blur(10px); }
+        .q-input { width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; padding: 14px; border-radius: 8px; margin-bottom: 10px; transition: 0.3s; }
+        .q-input:focus { outline: none; border-color: var(--neon-blue); box-shadow: 0 0 10px rgba(0,243,255,0.2); }
 
         /* --- TAB 4: COMMS --- */
         .comms-engine { display: flex; flex-direction: column; height: 100%; }
-        .chat-wall { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-        .bubble { max-width: 80%; padding: 12px 16px; border-radius: 15px; font-size: 14px; line-height: 1.4; }
-        .bubble.me { align-self: flex-end; background: var(--neon-blue); color: #000; border-bottom-right-radius: 2px; font-weight: 500; }
-        .bubble.them { align-self: flex-start; background: #1a1a24; border: 1px solid #333; border-bottom-left-radius: 2px; }
-        .comms-bar { background: var(--glass); padding: 15px; border-top: 1px solid #222; display: flex; gap: 10px; align-items: center; }
-        
-        /* --- ARCADE --- */
-        .arcade-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 5000; display: none; align-items: center; justify-content: center; padding: 20px; }
-        .arcade-box { background: var(--bg-panel); border: 2px solid var(--neon-blue); width: 100%; max-width: 400px; border-radius: 20px; padding: 25px; text-align: center; }
-        .arcade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
-        .slot-btn { background: #000; border: 1px dashed #444; padding: 25px 15px; border-radius: 15px; cursor: pointer; transition: 0.3s; }
-        .slot-btn.active { border: 1px solid var(--neon-blue); box-shadow: 0 0 15px rgba(0,243,255,0.1); }
-        .slot-btn i { font-size: 30px; margin-bottom: 10px; display: block; }
+        .chat-wall { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .bubble { max-width: 80%; padding: 12px 18px; border-radius: 18px; font-size: 14px; line-height: 1.5; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .bubble.me { align-self: flex-end; background: linear-gradient(135deg, var(--neon-blue), #00b3cc); color: #000; border-bottom-right-radius: 4px; font-weight: 500; }
+        .bubble.them { align-self: flex-start; background: var(--bg-panel); border: 1px solid var(--glass-border); border-bottom-left-radius: 4px; backdrop-filter: blur(5px); }
+        .comms-bar { background: var(--glass); padding: 15px; border-top: 1px solid var(--glass-border); display: flex; gap: 12px; align-items: center; backdrop-filter: blur(15px); }
 
-        /* --- EVALUATION --- */
-        .eval-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 6000; display: none; align-items: center; justify-content: center; padding: 20px; }
-        .eval-card { background: var(--bg-panel); border: 1px solid var(--neon-green); border-radius: 20px; padding: 25px; width: 100%; max-width: 400px; text-align: center; }
-        .star-row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; background: #111; padding: 10px; border-radius: 10px; }
-        .stars i { font-size: 20px; color: #333; cursor: pointer; margin-left: 5px; }
-        .stars i.on { color: #ffcc00; text-shadow: 0 0 10px #ffcc00; }
+        /* --- ARCADE & EVALUATION MODALS --- */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 5000; display: none; align-items: center; justify-content: center; padding: 20px; opacity: 0; transition: opacity 0.3s ease; }
+        .modal-overlay.show { display: flex; opacity: 1; }
+        .modal-box { background: var(--bg-panel); border: 1px solid var(--neon-blue); width: 100%; max-width: 400px; border-radius: 24px; padding: 30px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .modal-overlay.show .modal-box { transform: scale(1); }
+        
+        .arcade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 25px; }
+        .slot-btn { background: rgba(0,0,0,0.5); border: 1px dashed #444; padding: 25px 15px; border-radius: 15px; cursor: pointer; transition: 0.3s; }
+        .slot-btn.active { border: 1px solid var(--neon-blue); box-shadow: 0 0 20px rgba(0,243,255,0.15) inset; background: rgba(0,243,255,0.05); }
+        .slot-btn.active:hover { transform: translateY(-5px); }
+        .slot-btn i { font-size: 32px; margin-bottom: 12px; display: block; }
+
+        .star-row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; background: rgba(0,0,0,0.4); padding: 12px 15px; border-radius: 12px; border: 1px solid var(--glass-border); }
+        .stars i { font-size: 22px; color: #444; cursor: pointer; margin-left: 8px; transition: 0.2s; }
+        .stars i.on { color: #ffcc00; text-shadow: 0 0 15px rgba(255,204,0,0.5); transform: scale(1.1); }
 
         /* === GLOBAL FOOTER === */
-        #global-footer { position: absolute; bottom: 0; width: 100%; z-index: 2000; background: var(--glass); border-top: 1px solid #222; }
+        #global-footer { position: absolute; bottom: 0; width: 100%; z-index: 2000; background: var(--glass); border-top: 1px solid var(--glass-border); backdrop-filter: blur(20px); }
+        .btn-action-container { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .nav-grid { display: flex; height: 65px; }
-        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #555; cursor: pointer; transition: 0.3s; }
-        .nav-item.active { color: var(--neon-blue); }
-        .nav-item i { font-size: 22px; margin-bottom: 4px; }
-        .btn-action-container { padding: 12px 15px; border-top: 1px solid #1a1a1a; }
-        .btn-main { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.3s; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #666; cursor: pointer; transition: 0.3s; font-weight: 500; letter-spacing: 1px; }
+        .nav-item.active { color: var(--neon-blue); background: linear-gradient(0deg, rgba(0,243,255,0.05), transparent); }
+        .nav-item i { font-size: 20px; margin-bottom: 5px; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .nav-item.active i { transform: translateY(-3px) scale(1.1); text-shadow: 0 0 10px rgba(0,243,255,0.5); }
 
         /* UTILS */
-        #map { width: 100%; height: 100%; filter: invert(1) hue-rotate(180deg) brightness(0.7); }
-        .hide { display: none !important; }
+        #map { width: 100%; height: 100%; filter: invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.2); }
     </style>
 </head>
 <body>
@@ -140,13 +184,13 @@
         <div class="identity-badge" onclick="toggleProfile()">
             <div id="u-rank" class="rank-frame">?</div>
             <div>
-                <div id="u-role" style="font-size: 9px; color: #888; letter-spacing: 1px;">SINKRONISASI...</div>
-                <div id="u-name" style="font-weight: bold; font-size: 16px;">Unknown Entity</div>
+                <div id="u-role" style="font-size: 10px; color: #888; letter-spacing: 1.5px; text-transform: uppercase;">SINKRONISASI...</div>
+                <div id="u-name" style="font-weight: 700; font-size: 16px; transition: opacity 0.3s;">Memuat Data</div>
             </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <button onclick="inspectData()" style="background:none; border:1px solid #333; color:#555; font-size:9px; padding:5px 8px; border-radius:5px;">DEBUG</button>
-            <img src="ai_irene_face.png" style="width:35px; height:35px; border-radius:50%; border:1px solid var(--neon-purple);" alt="AI">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button onclick="inspectData()" style="background:none; border:1px solid #444; color:#aaa; font-size:10px; padding:6px 10px; border-radius:6px; cursor:pointer; transition:0.2s;">DEBUG</button>
+            <img src="ai_irene_face.png" style="width:38px; height:38px; border-radius:50%; border:2px solid var(--neon-purple); box-shadow: 0 0 10px rgba(188,19,254,0.4);" alt="AI">
         </div>
     </header>
 
@@ -162,12 +206,17 @@
                     <div class="stat-label"><span>REPUTASI KONTRAK</span> <span id="v-stat-2">0 PTS</span></div>
                     <div class="stat-bar"><div id="b-stat-2" class="stat-fill" style="background: var(--neon-green);"></div></div>
                 </div>
-                <div id="v-extra-info" style="font-size: 11px; color: #555; text-align: center; margin-top: 15px;"></div>
+                <div id="v-extra-info" style="font-size: 11px; color: #777; text-align: center; margin-top: 15px;">Secure Channel Established.</div>
             </div>
 
             <div class="hq-container">
+                <div id="edu-bilah" class="hide">
+                    <div style="font-size: 9px; color: var(--neon-blue); font-weight: bold; margin-bottom: 5px; letter-spacing: 1px;">GUILD GUIDE <i class="fa-solid fa-circle-info"></i></div>
+                    <div id="edu-text" style="font-size: 12px; color: #ccc; font-style: italic; line-height: 1.4;">--</div>
+                </div>
+
                 <div class="ai-terminal">
-                    <i class="fa-solid fa-microchip" style="color: var(--neon-purple); font-size: 24px;"></i>
+                    <i class="fa-solid fa-microchip" style="color: var(--neon-purple); font-size: 28px; text-shadow: 0 0 10px rgba(188,19,254,0.3);"></i>
                     <div id="ai-text">Menganalisis parameter misi. Mohon tetap waspada dalam jalur transmisi ini...</div>
                 </div>
 
@@ -176,69 +225,88 @@
                     <div id="live-status-text" style="color: #fff;">Menunggu laporan pertama dari lapangan...</div>
                 </div>
 
-<div id="edu-bilah" class="hide" style="background: #111; border-left: 3px solid var(--neon-blue); padding: 12px; border-radius: 8px; margin-bottom: 15px;">
-    <div style="font-size: 8px; color: var(--neon-blue); font-weight: bold; margin-bottom: 4px;">GUILD GUIDE</div>
-    <div id="edu-text" style="font-size: 11px; color: #ccc; font-style: italic;">Menunggu data transmisi...</div>
-</div>
+                <div class="dossier">
+                    <div class="dossier-head">
+                        <span>MISSION_FILE_ACTIVE</span>
+                        <span id="m-id-display">ID: ---</span>
+                    </div>
 
-<div class="dossier">
-    <div class="dossier-body">
-        <div id="origin-hub" style="background: #111; padding: 12px; border-radius: 10px; border: 1px solid #222; margin-bottom: 10px;">
-            <div id="origin-label" style="font-size: 8px; color: #555; letter-spacing: 1px;">TITIK JEMPUT</div>
-            <div id="m-origin-name" style="font-size: 14px; font-weight: bold; color: #fff; margin: 4px 0;">--</div>
-            <div id="m-origin-detail" style="font-size: 11px; color: #888;">Tidak ada detail patokan</div>
-            <button id="btn-maps-origin" class="hide btn-main" style="margin-top:10px; background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">BUKA NAVIGASI JEMPUT</button>
-        </div>
+                    <div class="dossier-body">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                            <div>
+                                <div id="m-category-badge" style="background: var(--neon-purple); color: #000; font-size: 9px; font-weight: bold; padding: 3px 8px; border-radius: 5px; display: inline-block; margin-bottom: 6px; text-transform: uppercase;">GENERAL</div>
+                                <h1 id="m-title" class="m-title">Memuat Misi...</h1>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 9px; color: #666; letter-spacing: 1px;">CLIENT</div>
+                                <div id="m-client-name" style="font-size: 12px; color: var(--neon-blue); font-weight: bold;">--</div>
+                            </div>
+                        </div>
 
-        <div id="dest-hub" class="hide" style="background: #111; padding: 12px; border-radius: 10px; border: 1px solid #222; margin-bottom: 10px;">
-            <div style="font-size: 8px; color: var(--neon-green); letter-spacing: 1px;">TITIK TUJUAN</div>
-            <div id="m-dest-name" style="font-size: 14px; font-weight: bold; color: #fff; margin: 4px 0;">--</div>
-            <div id="m-dest-detail" style="font-size: 11px; color: #888;">Tidak ada detail tujuan</div>
-            <button id="btn-maps-dest" class="hide btn-main" style="margin-top:10px; background:none; border:1px solid var(--neon-green); color:var(--neon-green);">BUKA NAVIGASI TUJUAN</button>
-        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <div id="mission-timer-hub" style="font-family: var(--font-mono); color: var(--neon-purple); font-size: 11px; border: 1px solid rgba(188,19,254,0.3); background: rgba(188,19,254,0.05); padding: 6px 10px; border-radius: 8px;">
+                                <i class="fa-solid fa-clock"></i> <span id="timer-val">00:00:00</span>
+                            </div>
+                            <div style="font-family: var(--font-mono); font-size: 12px; color: var(--neon-green); background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.3); padding: 5px 10px; border-radius: 8px;">
+                                <i class="fa-solid fa-route"></i> <span id="m-distance">0</span> KM
+                            </div>
+                        </div>
 
-        <div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
-            <div style="font-size: 10px; color: var(--neon-purple); font-weight: bold; margin-bottom: 8px;">DETAIL PESANAN</div>
-            <div id="m-cargo-detail" style="font-size: 13px; color: #eee; white-space: pre-line; font-family: var(--font-mono);">--</div>
-        </div>
+                        <p id="m-desc" class="m-desc">Sedang mengambil detail kontrak...</p>
 
-        </div>
-</div>
+                        <div id="location-hub" style="margin-top: 20px;">
+                            <div style="background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 12px;">
+                                <div style="font-size: 9px; color: #888; letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-store"></i> TITIK ASAL / TOKO</div>
+                                <div id="m-origin-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                                <button id="btn-maps-origin" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px; background: rgba(0,243,255,0.05);">
+                                    <i class="fa-solid fa-location-arrow"></i> NAVIGASI ASAL
+                                </button>
+                            </div>
 
+                            <div id="dest-hub" class="hide" style="background: rgba(0,255,136,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(0,255,136,0.2); margin-bottom: 12px;">
+                                <div style="font-size: 9px; color: var(--neon-green); letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-flag-checkered"></i> TITIK TUJUAN PENGIRIMAN</div>
+                                <div id="m-dest-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                                <button id="btn-maps-dest" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px; border-color: var(--neon-green); color: var(--neon-green); background: rgba(0,255,136,0.05);">
+                                    <i class="fa-solid fa-map-pin"></i> NAVIGASI TUJUAN
+                                </button>
+                            </div>
+                        </div>
 
+                        <div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                            <div style="font-size: 11px; color: var(--neon-purple); font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;">
+                                <i class="fa-solid fa-layer-group"></i> DAFTAR PESANAN (MULTI-POINT)
+                            </div>
+                            <div id="m-cargo-detail" style="font-size: 14px; color: #eee; white-space: pre-line; line-height: 1.6; font-family: var(--font-mono);">--</div>
+                        </div>
 
-    <div style="display: flex; flex-wrap: wrap; gap: 15px; border-top: 1px solid #222; padding-top: 15px;">
-        <div>
-            <div style="font-size: 8px; color: #555;">REWARD TUNAI</div>
-            <div id="m-reward-cash" style="color: var(--neon-green); font-weight: bold; font-size: 14px;">Rp 0</div>
-        </div>
-        <div>
-            <div style="font-size: 8px; color: #555;">REWARD EXP</div>
-            <div id="m-exp" style="color: var(--neon-blue); font-weight: bold; font-family: var(--font-mono); font-size: 14px;">--</div>
-        </div>
-        <div>
-            <div style="font-size: 8px; color: #555;">GREEN STONES</div>
-            <div id="m-stone" style="color: var(--neon-green); font-weight: bold; font-family: var(--font-mono); font-size: 14px;">--</div>
-        </div>
-        <div style="margin-left: auto; text-align: right;">
-            <div style="font-size: 8px; color: #555;">ADVENTURER</div>
-            <div id="m-adv-nick" style="font-size: 11px; color: #fff;">--</div>
-        </div>
-    </div>
-</div>
-
-
-
-                    
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border-top: 1px solid var(--glass-border); padding-top: 15px;">
+                            <div>
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">REWARD TUNAI</div>
+                                <div id="m-reward-cash" style="color: var(--neon-green); font-weight: bold; font-size: 16px;">Rp 0</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">PERSONIL ADVENTURER</div>
+                                <div id="m-adv-nick" style="font-size: 13px; color: #fff; font-weight: bold;">--</div>
+                            </div>
+                            <div id="rpg-exp-wrap">
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">REWARD EXP</div>
+                                <div id="m-exp" style="color: var(--neon-blue); font-weight: bold; font-family: var(--font-mono); font-size: 14px;">--</div>
+                            </div>
+                            <div id="rpg-stone-wrap" style="text-align: right;">
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">GREEN STONES</div>
+                                <div id="m-stone" style="color: var(--neon-green); font-weight: bold; font-family: var(--font-mono); font-size: 14px;">--</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div id="adv-status-hub" class="hide">
-                    <div style="font-size: 10px; color: #444; margin-bottom: 8px; font-weight: bold;">KIRIM UPDATE PROGRES</div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <button class="btn-main" style="background: #111; color: var(--neon-blue); border: 1px solid #222;" onclick="sendLiveStatus('OTW Lokasi Asal')">OTW ASAL</button>
-                        <button class="btn-main" style="background: #111; color: var(--neon-blue); border: 1px solid #222;" onclick="sendLiveStatus('OTW Lokasi Tujuan')">OTW TUJUAN</button>
-                        <button class="btn-main" style="background: #111; color: var(--neon-green); border: 1px solid #222;" onclick="sendLiveStatus('Tiba di Lokasi')">TIBA</button>
-                        <button class="btn-main" style="background: #111; color: var(--neon-red); border: 1px solid #222;" onclick="sendLiveStatus('Kendala Lapangan')">KENDALA</button>
+                <div id="adv-status-hub" class="hide" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; border: 1px solid var(--glass-border);">
+                    <div style="font-size: 11px; color: #888; margin-bottom: 12px; font-weight: bold; letter-spacing: 1px; text-align: center;">KIRIM UPDATE PROGRES LAPANGAN</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <button class="btn-main" style="background: rgba(0,243,255,0.05); font-size: 11px;" onclick="sendLiveStatus('OTW Lokasi Asal')"><i class="fa-solid fa-motorcycle"></i> OTW ASAL</button>
+                        <button class="btn-main" style="background: rgba(0,243,255,0.05); font-size: 11px;" onclick="sendLiveStatus('OTW Lokasi Tujuan')"><i class="fa-solid fa-truck-fast"></i> OTW TUJUAN</button>
+                        <button class="btn-main" style="background: rgba(0,255,136,0.05); border-color: var(--neon-green); color: var(--neon-green); font-size: 11px;" onclick="sendLiveStatus('Tiba di Lokasi')"><i class="fa-solid fa-check-double"></i> TIBA</button>
+                        <button class="btn-main" style="background: rgba(255,51,102,0.05); border-color: var(--neon-red); color: var(--neon-red); font-size: 11px;" onclick="sendLiveStatus('Kendala Lapangan')"><i class="fa-solid fa-triangle-exclamation"></i> KENDALA</button>
                     </div>
                 </div>
             </div>
@@ -251,28 +319,28 @@
         <div id="tab-nota" class="tab-pane">
             <div class="ledger-container">
                 <div id="nota-input-hub" class="input-panel hide">
+                    <div style="font-size: 11px; color: var(--neon-blue); margin-bottom: 10px; font-weight: bold; letter-spacing: 1px;">INPUT DATA LEDGER</div>
                     <input type="text" id="in-name" class="q-input" placeholder="Nama Barang / Biaya">
-                    <div style="display: flex; gap: 10px;">
-                        <input type="number" id="in-price" class="q-input" placeholder="Harga (Rp)">
-                        <button id="btn-nota-save" onclick="notaSave()" class="btn-main" style="background: var(--neon-blue); color: #000; width: 100px; height: 45px;">SIMPAN</button>
+                    <div style="display: flex; gap: 12px;">
+                        <input type="number" id="in-price" class="q-input" placeholder="Harga (Rp)" style="margin-bottom: 0;">
+                        <button id="btn-nota-save" onclick="notaSave()" class="btn-main" style="width: 120px; font-size: 12px;">SIMPAN</button>
                     </div>
                 </div>
 
                 <div class="receipt-ui">
-                    <div style="text-align: center; border-bottom: 2px dashed #999; padding-bottom: 15px; margin-bottom: 20px;">
-                        <div style="font-size: 18px; font-weight: bold; letter-spacing: 2px;">SOVEREIGN GUILD</div>
-                        <div style="font-size: 10px;">TACTICAL LEDGER SYSTEM</div>
+                    <div style="text-align: center; border-bottom: 2px dashed #999; padding-bottom: 20px; margin-bottom: 25px;">
+                        <div style="font-size: 20px; font-weight: 900; letter-spacing: 3px;">SOVEREIGN GUILD</div>
+                        <div style="font-size: 11px; color: #555; margin-top: 5px; font-weight: bold;">TACTICAL LEDGER SYSTEM</div>
                     </div>
                     
-                    <div id="nota-list-ui">
-                        </div>
+                    <div id="nota-list-ui"></div>
 
-                    <div style="border-top: 2px dashed #999; margin-top: 20px; padding-top: 15px; display: flex; justify-content: space-between; font-weight: bold; font-size: 16px;">
+                    <div style="border-top: 2px dashed #999; margin-top: 25px; padding-top: 20px; display: flex; justify-content: space-between; font-weight: 900; font-size: 18px;">
                         <span>TOTAL</span>
                         <span id="nota-total-val">Rp 0</span>
                     </div>
 
-                    <div style="font-size: 8px; text-align: center; margin-top: 30px; color: #888; line-height: 1.4;">
+                    <div style="font-size: 9px; text-align: center; margin-top: 40px; color: #888; line-height: 1.6; font-weight: bold;">
                         DATA INI SINKRON KE KEDUA BELAH PIHAK.<br>ADVENTURER BERHAK MENGEDIT JIKA TERJADI KESALAHAN INPUT.
                     </div>
                 </div>
@@ -283,9 +351,9 @@
             <div class="comms-engine">
                 <div id="comms-wall" class="chat-wall"></div>
                 <div class="comms-bar">
-                    <button id="stt-mic" onclick="runVoiceToText()" style="background: none; border: 1px solid var(--neon-purple); color: var(--neon-purple); width: 45px; height: 45px; border-radius: 50%;"><i class="fa-solid fa-microphone"></i></button>
-                    <input type="text" id="comms-input" placeholder="Ketik pesan..." style="flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 25px;">
-                    <button onclick="commsSend()" style="color: var(--neon-blue); border: none; background: none; font-size: 20px;"><i class="fa-solid fa-paper-plane"></i></button>
+                    <button id="stt-mic" onclick="runVoiceToText()" style="background: rgba(188,19,254,0.1); border: 1px solid var(--neon-purple); color: var(--neon-purple); width: 48px; height: 48px; border-radius: 50%; font-size: 18px; transition: 0.3s; cursor: pointer;"><i class="fa-solid fa-microphone"></i></button>
+                    <input type="text" id="comms-input" placeholder="Ketik transmisi..." style="flex: 1; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; padding: 14px 20px; border-radius: 25px; font-size: 14px; transition: 0.3s;">
+                    <button onclick="commsSend()" style="color: var(--neon-blue); border: none; background: none; font-size: 24px; cursor: pointer; padding: 10px; transition: 0.2s;"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
             </div>
         </div>
@@ -293,8 +361,7 @@
     </main>
 
     <footer id="global-footer">
-        <div id="role-action-area" class="btn-action-container">
-            </div>
+        <div id="role-action-area" class="btn-action-container"></div>
         <nav class="nav-grid">
             <div class="nav-item active" onclick="switchTab('tab-hq', this)"><i class="fa-solid fa-atom"></i>HQ</div>
             <div class="nav-item" onclick="switchTab('tab-map', this)"><i class="fa-solid fa-map-location-dot"></i>MAP</div>
@@ -303,37 +370,38 @@
         </nav>
     </footer>
 
-    <div id="modalArcade" class="arcade-modal">
-        <div class="arcade-box">
-            <i class="fa-solid fa-xmark" style="position: absolute; top: 15px; right: 15px; cursor: pointer; color: #555;" onclick="closeModal('modalArcade')"></i>
-            <h3 style="color: var(--neon-blue); margin-top: 0; letter-spacing: 2px;">QUANTUM ARCADE</h3>
+    <div id="modalArcade" class="modal-overlay">
+        <div class="modal-box" style="border-color: var(--neon-blue);">
+            <i class="fa-solid fa-xmark" style="position: absolute; top: 20px; right: 20px; cursor: pointer; color: #777; font-size: 20px; transition: 0.2s;" onclick="closeModal('modalArcade')"></i>
+            <h3 style="color: var(--neon-blue); margin-top: 0; letter-spacing: 2px; font-weight: 900;">QUANTUM ARCADE</h3>
+            <p style="font-size: 12px; color: #888; margin-bottom: 0;">Fasilitas Hiburan & Refining Shard</p>
             <div class="arcade-grid">
                 <div class="slot-btn active" onclick="alert('Starting Mana Refiner...')">
-                    <i class="fa-solid fa-gem" style="color: var(--neon-blue);"></i>
-                    <div style="font-size: 11px;">MANA REFINER</div>
+                    <i class="fa-solid fa-gem" style="color: var(--neon-blue); text-shadow: 0 0 15px rgba(0,243,255,0.5);"></i>
+                    <div style="font-size: 11px; font-weight: bold; letter-spacing: 1px;">MANA REFINER</div>
                 </div>
-                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #333;"></i><div style="font-size: 10px; color: #444;">ENCRYPTED</div></div>
-                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #333;"></i><div style="font-size: 10px; color: #444;">ENCRYPTED</div></div>
-                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #333;"></i><div style="font-size: 10px; color: #444;">ENCRYPTED</div></div>
+                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #444;"></i><div style="font-size: 10px; color: #555; font-weight: bold;">ENCRYPTED</div></div>
+                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #444;"></i><div style="font-size: 10px; color: #555; font-weight: bold;">ENCRYPTED</div></div>
+                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #444;"></i><div style="font-size: 10px; color: #555; font-weight: bold;">ENCRYPTED</div></div>
             </div>
         </div>
     </div>
 
-    <div id="modalEvalAdv" class="eval-modal">
-        <div class="eval-card">
-            <h3 style="color: var(--neon-green); margin-top: 0;">EVALUASI PARTNER</h3>
-            <p style="font-size: 11px; color: #888; margin-bottom: 20px;">Berikan penilaian performa kerja.</p>
+    <div id="modalEvalAdv" class="modal-overlay">
+        <div class="modal-box" style="border-color: var(--neon-green);">
+            <h3 style="color: var(--neon-green); margin-top: 0; font-weight: 900; letter-spacing: 1px;">EVALUASI PARTNER</h3>
+            <p style="font-size: 12px; color: #aaa; margin-bottom: 25px;">Berikan penilaian performa kerja untuk membuka segel pembayaran.</p>
             <div id="eval-star-group"></div>
-            <button class="btn-main" style="background: var(--neon-green); color: #000; margin-top: 25px;" onclick="executeAdvFinal()">KIRIM & TUTUP KONTRAK</button>
+            <button class="btn-main" style="background: var(--neon-green); color: #000; border: none; margin-top: 30px; font-size: 14px;" onclick="executeAdvFinal()">KIRIM & TUTUP KONTRAK</button>
         </div>
     </div>
 
-    <div id="modalEvalReq" class="eval-modal">
-        <div class="eval-card">
-            <h3 style="color: var(--neon-blue); margin-top: 0;">LAPORAN KLIEN</h3>
-            <p style="font-size: 11px; color: #888; margin-bottom: 20px;">Bantu guild menilai kualitas requester.</p>
+    <div id="modalEvalReq" class="modal-overlay">
+        <div class="modal-box" style="border-color: var(--neon-blue);">
+            <h3 style="color: var(--neon-blue); margin-top: 0; font-weight: 900; letter-spacing: 1px;">LAPORAN KLIEN</h3>
+            <p style="font-size: 12px; color: #aaa; margin-bottom: 25px;">Bantu guild menilai kualitas requester untuk referensi masa depan.</p>
             <div id="eval-bool-group"></div>
-            <button class="btn-main" style="background: var(--neon-blue); color: #000; margin-top: 25px;" onclick="executeReqFinal()">KIRIM LAPORAN</button>
+            <button class="btn-main" style="background: var(--neon-blue); color: #000; border: none; margin-top: 30px; font-size: 14px;" onclick="executeReqFinal()">KIRIM LAPORAN</button>
         </div>
     </div>
 
@@ -357,7 +425,7 @@
         window.onload = async () => {
             initUI();
             initMap();
-            await performDeepMining(); // Gali profil lawan di Shard
+            await performDeepMining(); 
             syncNota();
             syncChat();
             syncTracking();
@@ -371,106 +439,180 @@
         // ==========================================
         
         function initUI() {
-    // 1. Data Dasar dari Session Storage (Agar UI tidak kosong saat loading)
-    document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
-    document.getElementById('m-desc').innerText = mission.description || "Sedang mengambil detail kontrak...";
-    document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
-    document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
-    document.getElementById('m-id-display').innerText = "ID: " + contractId;
+            // Data Dasar dari Session Storage
+            document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
+            document.getElementById('m-desc').innerText = mission.description || "Sedang mengambil detail kontrak...";
+            document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
+            document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
+            document.getElementById('m-id-display').innerText = "ID: " + contractId;
 
-    const area = document.getElementById('role-action-area');
-    if(!isAdv) {
-    // Sembunyikan EXP & Green Stone
-    document.getElementById('m-exp').parentElement.classList.add('hide');
-    document.getElementById('m-stone').parentElement.classList.add('hide');
-
-    // Tampilkan Edukasi Bilah
-    document.getElementById('edu-bilah').classList.remove('hide');
-    startRequesterEducation();
-
-    // Tambahkan WA di bagian paling bawah Role Action Area
-    const area = document.getElementById('role-action-area');
-    area.innerHTML = `
-        <button class="btn-main" style="background:var(--neon-green); color:#000; margin-bottom:15px;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>
-        <div style="padding:15px; background:rgba(0,255,136,0.05); border:1px solid #1a1a1a; border-radius:12px;">
-            <p style="font-size:10px; color:#888; margin-bottom:12px; display:flex; gap:8px;">
-                <i class="fa-solid fa-user-shield" style="color:var(--neon-green)"></i>
-                <span>Privasi Aman: Nomor Anda tidak kami sebar ke Adventurer. Anda yang memegang kendali untuk menghubungi mereka lebih dulu.</span>
-            </p>
-            <button class="btn-main" style="background:#25d366; color:#fff; border:none; display:flex; align-items:center; justify-content:center; gap:10px;" onclick="contactPartner()">
-                <i class="fa-brands fa-whatsapp" style="font-size:18px;"></i> HUBUNGI ADVENTURER
-            </button>
-        </div>
-    `;
-    } else {
-        area.innerHTML = `<button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>`;
-        const head = document.getElementById('global-header');
-        if(!document.getElementById('arc-btn')){
-            const arcBtn = document.createElement('button');
-            arcBtn.id = "arc-btn";
-            arcBtn.innerHTML = `<i class="fa-solid fa-gamepad"></i>`;
-            arcBtn.style = "background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); width:35px; height:35px; border-radius:50%; margin-right:10px;";
-            arcBtn.onclick = () => document.getElementById('modalArcade').style.display = 'flex';
-            head.insertBefore(arcBtn, head.lastElementChild);
+            const area = document.getElementById('role-action-area');
+            if(isAdv) {
+                document.getElementById('adv-status-hub').classList.remove('hide');
+                document.getElementById('nota-input-hub').classList.remove('hide');
+                area.innerHTML = `<button class="btn-main" style="background:none; border:1px dashed #666; color:#888; cursor:not-allowed;">MENUNGGU KONFIRMASI KLIEN</button>`;
+            } else {
+                // UI Awal Requester
+                area.innerHTML = `<button class="btn-main" style="background:var(--neon-green); color:#000; border-color:var(--neon-green);" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>`;
+                
+                const head = document.getElementById('global-header');
+                if(!document.getElementById('arc-btn')){
+                    const arcBtn = document.createElement('button');
+                    arcBtn.id = "arc-btn";
+                    arcBtn.innerHTML = `<i class="fa-solid fa-gamepad"></i>`;
+                    arcBtn.style = "background:rgba(0,243,255,0.1); border:1px solid var(--neon-blue); color:var(--neon-blue); width:40px; height:40px; border-radius:10px; margin-right:15px; cursor:pointer; transition:0.3s;";
+                    arcBtn.onclick = () => { playSfx(); document.getElementById('modalArcade').classList.add('show'); };
+                    head.insertBefore(arcBtn, head.lastElementChild);
+                }
+            }
         }
-    }
-
-    // 2. PANGGIL INJEKSI DATA (Alamat & Daftar Belanja)
-    // Kita panggil tanpa await agar initUI tidak crash
-    injectSovereignDetails();
-}
-
-
-
-
 
         function switchTab(id, el) {
             playSfx();
+            if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(5);
+
             document.querySelectorAll('.tab-pane').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            
             document.getElementById(id).classList.add('active');
             el.classList.add('active');
-            if(id === 'tab-map' && map) setTimeout(() => map.invalidateSize(), 300);
+            
+            if(id === 'tab-map' && map) setTimeout(() => map.invalidateSize({ animate: true }), 400);
         }
-
-        async function performDeepMining() {
-    try {
-        const DATA = await getSupremeData(contractId);
-        if (!DATA) return;
-
-        const partner = isAdv ? DATA.requester : DATA.adventurer;
-        if (!partner) return;
-
-        // Update Info di Header secara otomatis
-        document.getElementById('u-name').innerText = partner.profile?.nama || "Unknown";
-        document.getElementById('u-role').innerText = isAdv ? "REQUESTER" : "ADVENTURER";
-        
-        if (isAdv) {
-            // Jika kita Adventurer, tampilkan info Requester (Lawan)
-            document.getElementById('u-rank').innerText = "T" + (partner.profile?.tier || 1);
-            document.getElementById('v-stat-1').innerText = (partner.reputation?.poin || 0) + " REP";
-            document.getElementById('b-stat-1').style.width = "70%";
-        } else {
-            // Jika kita Requester, tampilkan info Adventurer (Lawan)
-            document.getElementById('u-rank').innerText = partner.profile?.rank || "F";
-            document.getElementById('v-stat-1').innerText = (partner.diagram?.nilai_kepercayaan || 0) + " pts";
-            document.getElementById('b-stat-1').style.width = (partner.diagram?.nilai_kepercayaan || 0) + "%";
-            document.getElementById('v-stat-2').innerText = "Lv." + (partner.experience?.level || 1);
-        }
-
-        // Tampilkan pesan di AI Terminal
-        document.getElementById('ai-text').innerText = `Data ${isAdv ? 'Klien' : 'Partner'} berhasil disinkronisasi.`;
-
-    } catch (e) { 
-        console.error("Deep Mining Failed", e); 
-    }
-}
-
-
-
 
         // ==========================================
-        // 3. NOTA PROTOCOL (CRUD)
+        // 3. DEEP MINING & INJECTION LOGIC (UPGRADED)
+        // ==========================================
+
+        async function performDeepMining() {
+            const aiText = document.getElementById('ai-text');
+            const dossier = document.querySelector('.dossier-body');
+            const uName = document.getElementById('u-name');
+            
+            // UI State: Start Syncing
+            dossier.classList.add('data-syncing');
+            aiText.innerHTML = `<i class="fa-solid fa-sync fa-spin"></i> Sinkronisasi jalur Shard Terminal...`;
+            uName.classList.add('loading-shimmer');
+
+            try {
+                const DATA = await getSupremeData(contractId);
+                if (!DATA) throw new Error("Data Shard tidak terjangkau");
+
+                const partner = isAdv ? DATA.requester : DATA.adventurer;
+                
+                // Animasi Profile Header
+                setTimeout(() => {
+                    uName.classList.remove('loading-shimmer');
+                    uName.innerText = partner?.profile?.nama || "Unknown Entity";
+                    
+                    if (isAdv) {
+                        document.getElementById('u-rank').innerText = partner?.profile?.tier ? `T${partner.profile.tier}` : "T1";
+                        document.getElementById('u-role').innerText = "REQUESTER";
+                        const repPoints = partner?.reputation?.poin || 0;
+                        document.getElementById('v-stat-1').innerText = `${repPoints} REP`;
+                        updateProgressBar('b-stat-1', (repPoints / 1000) * 100); 
+                    } else {
+                        document.getElementById('u-rank').innerText = partner?.profile?.rank || "F";
+                        document.getElementById('u-role').innerText = "ADVENTURER";
+                        const trustScore = partner?.diagram?.nilai_kepercayaan || 0;
+                        document.getElementById('v-stat-1').innerText = `${trustScore}% TRUST`;
+                        updateProgressBar('b-stat-1', trustScore);
+                        document.getElementById('v-stat-2').innerText = "Lv." + (partner?.experience?.level || 1);
+                    }
+                    
+                    dossier.classList.remove('data-syncing');
+                    aiText.innerText = "Koneksi stabil. Data personil berhasil diamankan dalam sesi ini.";
+                }, 600);
+
+                // Inject data detail (Destinasi, WA, dll)
+                injectSovereignDetails(DATA);
+
+            } catch (e) {
+                aiText.innerHTML = `<span style="color:var(--neon-red)">ERROR: ${e.message}</span>`;
+                dossier.classList.remove('data-syncing');
+                uName.classList.remove('loading-shimmer');
+            }
+        }
+
+        function updateProgressBar(id, percent) {
+            const el = document.getElementById(id);
+            if(el) el.style.width = Math.min(percent, 100) + "%";
+        }
+
+        function injectSovereignDetails(DATA) {
+            if (!DATA || !DATA.mission) return;
+
+            const m = DATA.mission;
+            const detail = m.full_mission_data || {};
+
+            // Reward & Nick
+            document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+            document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Unknown";
+
+            // Titik Asal
+            document.getElementById('m-origin-name').innerText = detail.origin_name || "Koordinat Terenkripsi";
+            const btnMapsO = document.getElementById('btn-maps-origin');
+            if (isAdv && detail.origin_coords && detail.origin_coords !== "NEGO") {
+                btnMapsO.classList.remove('hide');
+                btnMapsO.onclick = () => window.open(`https://www.google.com/maps?q=${detail.origin_coords}`);
+            }
+
+            // Titik Tujuan
+            const destHub = document.getElementById('dest-hub');
+            if (detail.dest_name || detail.dest_desa) {
+                destHub.classList.remove('hide');
+                document.getElementById('m-dest-name').innerText = detail.dest_desa || detail.dest_name;
+                const btnMapsD = document.getElementById('btn-maps-dest');
+                if (isAdv && detail.dest_coords && detail.dest_coords !== "NEGO") {
+                    btnMapsD.classList.remove('hide');
+                    btnMapsD.onclick = () => window.open(`https://www.google.com/maps?q=${detail.dest_coords}`);
+                }
+            }
+
+            // Multi-point / Cargo
+            if (detail.multi_points && Array.isArray(detail.multi_points)) {
+                document.getElementById('cargo-hub').classList.remove('hide');
+                document.getElementById('m-cargo-detail').innerText = detail.multi_points.map((t, i) => `${i + 1}. ${t}`).join('\n');
+            }
+
+            // --- REQUESTER SPECIFIC LAYOUT ENHANCEMENT ---
+            if(!isAdv) {
+                document.getElementById('rpg-exp-wrap').classList.add('hide');
+                document.getElementById('rpg-stone-wrap').classList.add('hide');
+
+                const area = document.getElementById('role-action-area');
+                const phone = DATA?.adventurer?.profile?.whatsapp || "";
+                
+                area.innerHTML = `
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <div class="wa-box">
+                            <div style="flex: 1;">
+                                <div style="font-size: 10px; color: var(--neon-green); font-weight: 900; letter-spacing: 1px;">ADVENTURER TERHUBUNG</div>
+                                <div style="font-size: 11px; color: #aaa; margin-top: 4px;">Privasi Aman. Tekan untuk koordinasi langsung.</div>
+                            </div>
+                            <button onclick="window.open('https://wa.me/${phone.replace(/\D/g,'')}')" style="background:#25d366; color:#000; border:none; padding:12px 18px; border-radius:12px; font-weight:900; cursor:pointer; transition:0.2s; box-shadow:0 5px 15px rgba(37,211,102,0.3);">
+                                <i class="fa-brands fa-whatsapp" style="font-size:18px;"></i> WA
+                            </button>
+                        </div>
+                        <button class="btn-main" style="background:var(--neon-blue); color:#000; font-size:14px;" onclick="openEvalAdv()">
+                            KONFIRMASI SELESAI & BAYAR
+                        </button>
+                    </div>
+                `;
+
+                // Pindah Edu Bilah ke atas
+                const hqContainer = document.querySelector('.hq-container');
+                const eduBilah = document.getElementById('edu-bilah');
+                if(eduBilah) hqContainer.prepend(eduBilah);
+                startRequesterEducation();
+            }
+            
+            // Timer Trigger (Jika ada logic start time di data)
+            startMissionTimer(m.start_time || Date.now());
+        }
+
+        // ==========================================
+        // 4. NOTA PROTOCOL (CRUD)
         // ==========================================
         function notaSave() {
             const name = document.getElementById('in-name').value;
@@ -501,15 +643,15 @@
                     list.innerHTML += `
                         <div class="nota-item">
                             <div style="flex:1">
-                                <div>${item.nama}</div>
-                                <div style="font-size:8px; color:#999;">${new Date(item.ts).toLocaleTimeString()}</div>
+                                <div style="font-weight:bold;">${item.nama}</div>
+                                <div style="font-size:10px; color:#999; font-family:var(--font-sans); margin-top:4px;">${new Date(item.ts).toLocaleTimeString()}</div>
                             </div>
                             <div style="text-align:right">
-                                <div style="font-weight:bold;">Rp ${item.harga.toLocaleString()}</div>
+                                <div style="font-weight:900; font-size:15px;">Rp ${item.harga.toLocaleString()}</div>
                                 ${isAdv ? `
-                                    <div class="nota-actions">
-                                        <button class="btn-icon" style="color:blue;" onclick="prepareEditNota('${child.key}', '${item.nama}', ${item.harga})"><i class="fa-solid fa-pen"></i></button>
-                                        <button class="btn-icon" style="color:red;" onclick="notaDelete('${child.key}')"><i class="fa-solid fa-trash"></i></button>
+                                    <div class="nota-actions" style="margin-top:5px; justify-content:flex-end;">
+                                        <button class="btn-icon" style="color:var(--neon-blue);" onclick="prepareEditNota('${child.key}', '${item.nama}', ${item.harga})"><i class="fa-solid fa-pen-to-square"></i></button>
+                                        <button class="btn-icon" style="color:var(--neon-red);" onclick="notaDelete('${child.key}')"><i class="fa-solid fa-trash-can"></i></button>
                                     </div>
                                 ` : ''}
                             </div>
@@ -520,6 +662,7 @@
         }
 
         function prepareEditNota(id, name, price) {
+            playSfx();
             activeEditId = id;
             document.getElementById('in-name').value = name;
             document.getElementById('in-price').value = price;
@@ -528,13 +671,14 @@
         }
 
         function notaDelete(id) {
-            if(confirm("Hapus item ini dari nota?")) {
+            playSfx();
+            if(confirm("Hapus item ini dari nota logistik?")) {
                 dbDeal.ref(`kontrak_detail/${contractId}/nota/items/${id}`).remove();
             }
         }
 
         // ==========================================
-        // 4. COMMS & STT
+        // 5. COMMS & STT
         // ==========================================
         function commsSend() {
             const inp = document.getElementById('comms-input');
@@ -552,11 +696,12 @@
                 div.className = `bubble ${d.uid === user.uid ? 'me' : 'them'}`;
                 div.innerText = d.msg;
                 document.getElementById('comms-wall').appendChild(div);
-                document.getElementById('comms-wall').scrollTop = 99999;
+                document.getElementById('comms-wall').scrollTop = document.getElementById('comms-wall').scrollHeight;
             });
         }
 
         function runVoiceToText() {
+            playSfx();
             const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
             recognition.lang = 'id-ID';
             const mic = document.getElementById('stt-mic');
@@ -564,14 +709,14 @@
             recognition.onstart = () => mic.style.background = "var(--neon-purple)";
             recognition.onresult = (e) => {
                 document.getElementById('comms-input').value = e.results[0][0].transcript;
-                mic.style.background = "none";
+                mic.style.background = "rgba(188,19,254,0.1)";
             };
-            recognition.onerror = () => mic.style.background = "none";
+            recognition.onerror = () => mic.style.background = "rgba(188,19,254,0.1)";
             recognition.start();
         }
 
         // ==========================================
-        // 5. HQ & STATUS TRANSMISSION
+        // 6. HQ & STATUS TRANSMISSION
         // ==========================================
         function sendLiveStatus(str) {
             playSfx();
@@ -581,107 +726,126 @@
         }
 
         function syncStatus() {
-            // Sinkronisasi Progress Ticker
             dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).on('value', snap => {
                 if(snap.exists()) {
                     const d = snap.val();
                     document.getElementById('live-status-text').innerText = `[${new Date(d.ts).toLocaleTimeString()}] ${d.text}`;
-                    // Update AI context based on status
+                    
+                    const aiEl = document.getElementById('ai-text');
                     if(d.text.includes('Kendala')) {
-                        document.getElementById('ai-text').innerText = "Mendeteksi gangguan di lapangan. Mengaktifkan protokol pendukung...";
+                        aiEl.innerText = "Mendeteksi gangguan di lapangan. Mengaktifkan protokol pendukung...";
+                        aiEl.style.color = "var(--neon-red)";
                     } else if(d.text.includes('Tiba')) {
-                        document.getElementById('ai-text').innerText = "Personil telah mencapai titik koordinat. Menunggu instruksi selanjutnya.";
+                        aiEl.innerText = "Personil telah mencapai titik koordinat. Menunggu instruksi selanjutnya.";
+                        aiEl.style.color = "var(--neon-green)";
+                    } else {
+                        aiEl.innerText = "Transmisi diterima. Melacak pergerakan aset logistik...";
+                        aiEl.style.color = "#d8b4fe";
                     }
                 }
             });
 
-            // Sinkronisasi Selesai Kontrak
             dbDeal.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
                 if(snap.val() === 'completed_req' && isAdv) openEvalReq();
             });
         }
 
         // ==========================================
-        // 6. EVALUATION SYSTEM
+        // 7. EVALUATION SYSTEM
         // ==========================================
         function openEvalAdv() {
+            playSfx();
             const cats = ['keamanan', 'kecerdasan', 'kepercayaan', 'keramahan', 'penampilan'];
             const grp = document.getElementById('eval-star-group');
             grp.innerHTML = "";
             cats.forEach(c => {
                 grp.innerHTML += `
                     <div class="star-row">
-                        <span style="font-size:12px; text-transform:uppercase;">${c}</span>
+                        <span style="font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; color:#ccc;">${c}</span>
                         <div class="stars" id="star-${c}">
                             ${[1,2,3,4,5].map(i => `<i class="fa-solid fa-star" onclick="setStar('${c}', ${i})"></i>`).join('')}
                         </div>
                     </div>`;
             });
-            document.getElementById('modalEvalAdv').style.display = 'flex';
+            document.getElementById('modalEvalAdv').classList.add('show');
         }
 
         function setStar(cat, val) {
+            playSfx();
             ratings[cat] = val;
             const s = document.getElementById(`star-${cat}`).children;
             for(let i=0; i<5; i++) s[i].classList.toggle('on', i < val);
         }
 
         async function executeAdvFinal() {
-            if(Object.values(ratings).includes(0)) return alert("Berikan semua bintang!");
+            if(Object.values(ratings).includes(0)) return alert("Sistem menolak: Berikan semua parameter bintang!");
             
-            // Logic Settlement ke Shard Adventurer
             const advUid = mission.adventurer_uid;
             await dbMaster.ref(`users/${advUid}/adventurer_experience/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp));
             await dbMaster.ref(`users/${advUid}/adventurer_coxin/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone));
             
             await dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req');
-            alert("Misi Selesai. Reward telah ditransfer ke partner.");
+            alert("Misi Selesai. Segel reward telah ditransfer ke partner.");
             location.href = "index.html";
         }
 
         function openEvalReq() {
+            playSfx();
             const qs = [
-                {k:'baik', q:'Apakah Requester bersikap baik?'},
-                {k:'tips', q:'Diberi tips tambahan?'},
-                {k:'cash', q:'Uang tunai sesuai nota?'},
-                {k:'extra', q:'Ada kerja ekstra tanpa bayaran?'}
+                {k:'baik', q:'Apakah Klien bersikap koperatif?'},
+                {k:'tips', q:'Diberi reward tips tambahan?'},
+                {k:'cash', q:'Uang tunai sesuai dengan LEDGER?'},
+                {k:'extra', q:'Ada beban ekstra tanpa kompensasi?'}
             ];
             const grp = document.getElementById('eval-bool-group');
             grp.innerHTML = "";
             qs.forEach(o => {
                 grp.innerHTML += `
-                    <div style="margin-top:15px; text-align:left;">
-                        <div style="font-size:12px; margin-bottom:10px;">${o.q}</div>
+                    <div style="margin-top:20px; text-align:left; background:rgba(0,0,0,0.3); padding:15px; border-radius:12px; border:1px solid var(--glass-border);">
+                        <div style="font-size:13px; margin-bottom:12px; font-weight:bold; color:#ddd;">${o.q}</div>
                         <div style="display:flex; gap:10px;">
-                            <button onclick="setBool('${o.k}', true)" id="b-${o.k}-y" style="flex:1; padding:10px; border:1px solid #333; background:none; color:#fff;">YA</button>
-                            <button onclick="setBool('${o.k}', false)" id="b-${o.k}-n" style="flex:1; padding:10px; border:1px solid #333; background:none; color:#fff;">TIDAK</button>
+                            <button onclick="setBool('${o.k}', true)" id="b-${o.k}-y" class="btn-main" style="background:rgba(255,255,255,0.05); color:#fff; border-color:#444;">YA</button>
+                            <button onclick="setBool('${o.k}', false)" id="b-${o.k}-n" class="btn-main" style="background:rgba(255,255,255,0.05); color:#fff; border-color:#444;">TIDAK</button>
                         </div>
                     </div>`;
             });
-            document.getElementById('modalEvalReq').style.display = 'flex';
+            document.getElementById('modalEvalReq').classList.add('show');
         }
 
         function setBool(k, val) {
+            playSfx();
             reports[k] = val;
-            document.getElementById(`b-${k}-y`).style.borderColor = val ? 'var(--neon-green)' : '#333';
-            document.getElementById(`b-${k}-n`).style.borderColor = !val ? 'var(--neon-red)' : '#333';
+            const btnY = document.getElementById(`b-${k}-y`);
+            const btnN = document.getElementById(`b-${k}-n`);
+            
+            btnY.style.borderColor = val ? 'var(--neon-green)' : '#444';
+            btnY.style.color = val ? 'var(--neon-green)' : '#fff';
+            btnY.style.background = val ? 'rgba(0,255,136,0.1)' : 'rgba(255,255,255,0.05)';
+            
+            btnN.style.borderColor = !val ? 'var(--neon-red)' : '#444';
+            btnN.style.color = !val ? 'var(--neon-red)' : '#fff';
+            btnN.style.background = !val ? 'rgba(255,51,102,0.1)' : 'rgba(255,255,255,0.05)';
         }
 
         async function executeReqFinal() {
-            if(Object.values(reports).includes(null)) return alert("Jawab semua pertanyaan!");
-            alert("Laporan dikirim. Guild menghargai kontribusi Anda.");
+            if(Object.values(reports).includes(null)) return alert("Sistem menolak: Selesaikan survei laporan!");
+            alert("Laporan terekam di arsip Guild. Terima kasih atas dedikasi Anda.");
             Clearchance.clearActiveMission();
             location.href = "index.html";
         }
 
         // ==========================================
-        // 7. TRACKING & MAP
+        // 8. TRACKING & MAP
         // ==========================================
         function initMap() {
             map = L.map('map', {zoomControl:false}).setView([-6.97, 108.48], 15);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-            myMarker = L.marker([0,0]).addTo(map);
-            targetMarker = L.marker([0,0], {opacity:0.6}).addTo(map);
+            
+            const myIcon = L.divIcon({className: 'custom-div-icon', html: "<div style='background:var(--neon-blue);width:15px;height:15px;border-radius:50%;box-shadow:0 0 10px var(--neon-blue);'></div>", iconSize: [15, 15]});
+            const targetIcon = L.divIcon({className: 'custom-div-icon', html: "<div style='background:var(--neon-green);width:15px;height:15px;border-radius:50%;box-shadow:0 0 10px var(--neon-green);'></div>", iconSize: [15, 15]});
+            
+            myMarker = L.marker([0,0], {icon: myIcon}).addTo(map);
+            targetMarker = L.marker([0,0], {icon: targetIcon, opacity:0.8}).addTo(map);
         }
 
         function syncTracking() {
@@ -689,6 +853,7 @@
                 navigator.geolocation.watchPosition(p => {
                     const {latitude, longitude} = p.coords;
                     myMarker.setLatLng([latitude, longitude]);
+                    map.panTo([latitude, longitude]); // Auto-center
                     dbDeal.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({lat:latitude, lng:longitude, ts:Date.now()});
                 });
                 dbDeal.ref(`kontrak_detail/${contractId}/tracking`).on('value', snap => {
@@ -697,158 +862,69 @@
             }
         }
 
-        // UTILS
+        // ==========================================
+        // 9. UTILS & TIMERS
+        // ==========================================
         function toggleProfile() { playSfx(); document.getElementById('profile-drawer').classList.toggle('open'); }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function closeModal(id) { playSfx(); document.getElementById(id).classList.remove('show'); }
         
-      
-async function inspectData() {
-    playSfx();
-    // 1. Tampilkan indikator loading sederhana
-    const aiText = document.getElementById('ai-text');
-    const originalText = aiText.innerText;
-    aiText.innerText = "Sovereign System: Menembus Shard Database... Mohon tunggu.";
-
-    try {
-        // 2. Tarik Data Supreme (Aggregator)
-        const DATA = await getSupremeData(contractId); 
-
-        if (DATA) {
-            // 3. Tampilkan hasil ke dalam UI Dossier (biar gampang dibaca di HP)
-            // Kita gunakan format JSON.stringify agar rapi
-            const debugPayload = JSON.stringify(DATA, null, 2);
-            
-            // Masukkan ke dalam deskripsi misi atau buat modal baru
-            document.getElementById('m-desc').innerHTML = `
-                <div style="background:#000; color:#00ff88; padding:10px; font-family:monospace; font-size:10px; overflow:auto; max-height:300px; border:1px solid #333;">
-                    <b style="color:#bc13fe">--- SUPREME DATA INSPECTED ---</b><br>
-                    ${debugPayload}
-                </div>
-            `;
-            
-            aiText.innerText = "Data berhasil ditarik dari Shard. Silakan periksa Dossier Misi.";
-            
-            // Scroll otomatis ke area data
-            document.getElementById('tab-hq').scrollTop = 200;
-        } else {
-            aiText.innerText = "Gagal: Data tidak ditemukan di Shard.";
-        }
-    } catch (err) {
-        aiText.innerText = "System Error: " + err.message;
-    }
-}
-
-
-
-
-
-async function injectSovereignDetails() {
-    try {
-        const DATA = await getSupremeData(contractId);
-        if (!DATA || !DATA.mission) return;
-
-        const m = DATA.mission;
-        const detail = m.full_mission_data || {};
-        const category = detail.category || "General";
-
-        // 1. Dinamis Label (Titip Beli vs Lainnya)
-        const originLabel = document.getElementById('origin-label');
-        if (originLabel) originLabel.innerText = (category === "Titip Beli") ? "LOKASI TOKO" : "TITIK JEMPUT";
-
-        // 2. Data Asal (Origin) - Fix untuk Stabilitas
-        document.getElementById('m-origin-name').innerText = detail.origin_name || detail.origin_desa || "Kedungarum";
-        document.getElementById('m-origin-detail').innerText = detail.origin_details || "Tidak ada detail patokan";
-
-        // Tombol Maps: HANYA UNTUK ADVENTURER
-        if (isAdv && detail.origin_coords && detail.origin_coords !== "NEGO") {
-            const btnO = document.getElementById('btn-maps-origin');
-            btnO.classList.remove('hide');
-            btnO.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${detail.origin_coords}`);
+        async function inspectData() {
+            playSfx();
+            const aiText = document.getElementById('ai-text');
+            aiText.innerText = "Sovereign System: Menembus Shard Database untuk Debugging... Mohon tunggu.";
+            try {
+                const DATA = await getSupremeData(contractId); 
+                if (DATA) {
+                    const debugPayload = JSON.stringify(DATA, null, 2);
+                    document.getElementById('m-desc').innerHTML = `
+                        <div style="background:rgba(0,0,0,0.8); color:var(--neon-green); padding:15px; font-family:var(--font-mono); font-size:10px; overflow:auto; max-height:300px; border:1px solid var(--neon-purple); border-radius:10px;">
+                            <b style="color:var(--neon-purple)">--- SUPREME DATA INSPECTED ---</b><br>
+                            ${debugPayload}
+                        </div>
+                    `;
+                    aiText.innerText = "Data raw berhasil ditarik dari Shard. Silakan periksa Dossier Misi.";
+                    document.getElementById('tab-hq').scrollTop = 300;
+                } else {
+                    aiText.innerText = "Gagal: Data tidak ditemukan di Shard.";
+                }
+            } catch (err) { aiText.innerText = "System Error: " + err.message; }
         }
 
-        // 3. Data Tujuan (Destination)
-        const destHub = document.getElementById('dest-hub');
-        if (detail.dest_name || detail.dest_desa) {
-            destHub.classList.remove('hide');
-            document.getElementById('m-dest-name').innerText = detail.dest_name || detail.dest_desa;
-            document.getElementById('m-dest-detail').innerText = detail.dest_details || "Tidak ada detail tujuan";
-            
-            if (isAdv && detail.dest_coords && detail.dest_coords !== "NEGO") {
-                const btnD = document.getElementById('btn-maps-dest');
-                btnD.classList.remove('hide');
-                btnD.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${detail.dest_coords}`);
-            }
+        function startMissionTimer(startTime) {
+            const timerVal = document.getElementById('timer-val');
+            setInterval(() => {
+                const diff = Date.now() - startTime;
+                const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                timerVal.innerText = `${h}:${m}:${s}`;
+            }, 1000);
         }
-
-        // 4. Detail Pesanan (Cargo) dengan \n (New Line)
-        if (detail.multi_points && detail.multi_points.length > 0) {
-            document.getElementById('cargo-hub').classList.remove('hide');
-            document.getElementById('m-cargo-detail').innerText = detail.multi_points
-                .map((text, i) => `${i + 1}. ${text}`)
-                .join('\n');
-        }
-
-    } catch (e) {
-        console.error("Irene Trace Error:", e);
-    }
-}
-
-
-
-
-
-
-
-
-function startMissionTimer(startTime) {
-    const timerHub = document.getElementById('mission-timer-hub');
-    const timerVal = document.getElementById('timer-val');
-    if (!timerHub || !timerVal) return;
-
-    timerHub.style.display = 'block';
-    
-    // Gunakan waktu mulai dari DB, jika tidak ada pakai waktu sekarang
-    const startTs = startTime || Date.now();
-
-    setInterval(() => {
-        const diff = Date.now() - startTs;
-        const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
-        const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
-        const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
-        timerVal.innerText = `${h}:${m}:${s}`;
-    }, 1000);
-}
-
 
         function startRequesterEducation() {
-    const tips = [
-        "Gunakan fitur NOTA untuk melihat rincian biaya belanjaan secara real-time.",
-        "Status 'OTW' memberitahu Anda bahwa Adventurer sudah bergerak ke lokasi.",
-        "Klik tab MAP untuk melacak posisi logistik Anda di peta koordinat.",
-        "Jangan lupa memberikan Evaluasi (Bintang) setelah misi selesai untuk reputasi.",
-        "Anda bisa mengirim pesan cepat lewat tab COMMS jika ada perubahan pesanan."
-    ];
-    const bilah = document.getElementById('edu-bilah');
-    const text = document.getElementById('edu-text');
-    
-    if(bilah && text) {
-        bilah.classList.remove('hide');
-        setInterval(() => {
-            const randomTip = tips[Math.floor(Math.random() * tips.length)];
-            text.innerText = randomTip;
-        }, 8000); // Ganti tips setiap 8 detik
-        text.innerText = tips[0];
-    }
-}
-
-
-
-
-
-        
-
-
-    
+            const tips = [
+                "Gunakan fitur NOTA untuk melihat rincian biaya belanjaan secara real-time.",
+                "Status 'OTW' memberitahu Anda bahwa Adventurer sudah bergerak ke lokasi.",
+                "Klik tab MAP untuk melacak posisi logistik Anda di peta koordinat.",
+                "Jangan lupa memberikan Evaluasi (Bintang) setelah misi selesai untuk reputasi.",
+                "Anda bisa mengirim pesan cepat lewat tab COMMS jika ada perubahan pesanan."
+            ];
+            const bilah = document.getElementById('edu-bilah');
+            const text = document.getElementById('edu-text');
+            
+            if(bilah && text) {
+                bilah.classList.remove('hide');
+                setInterval(() => {
+                    text.style.opacity = 0;
+                    setTimeout(() => {
+                        text.innerText = tips[Math.floor(Math.random() * tips.length)];
+                        text.style.opacity = 1;
+                    }, 300);
+                }, 8000);
+                text.innerText = tips[0];
+                text.style.transition = "opacity 0.3s";
+            }
+        }
     </script>
 </body>
 </html>
