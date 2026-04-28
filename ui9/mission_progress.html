@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SOVEREIGN | BATTLEFIELD HUB v2.0</title>
+    <title>BATTLEFIELD HUB | SOVEREIGN GUILD</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -17,209 +17,241 @@
     <style>
         :root {
             --bg-main: #050508;
-            --bg-panel: #0a0a10;
+            --bg-panel: #0d0d14;
             --neon-blue: #00f3ff;
             --neon-green: #00ff88;
             --neon-red: #ff3366;
-            --neon-purple: #d400ff;
+            --neon-purple: #bc13fe;
             --text-main: #ffffff;
-            --font-mono: 'Courier New', monospace;
-            --glass: rgba(10, 10, 15, 0.9);
+            --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+            --glass: rgba(10, 10, 15, 0.95);
         }
 
         body, html { margin: 0; padding: 0; background: var(--bg-main); color: var(--text-main); font-family: 'Segoe UI', sans-serif; overflow: hidden; height: 100%; width: 100%; }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        button, input { font-family: inherit; }
 
         /* === GLOBAL HEADER === */
         #global-header { 
             position: absolute; top: 0; width: 100%; z-index: 2000; background: var(--glass); 
-            border-bottom: 1px solid var(--neon-blue); padding: 10px 15px; backdrop-filter: blur(10px);
-            display: flex; justify-content: space-between; align-items: center; box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+            border-bottom: 1px solid var(--neon-blue); padding: 10px 15px; backdrop-filter: blur(15px);
+            display: flex; justify-content: space-between; align-items: center;
         }
-        .identity-badge { display: flex; align-items: center; gap: 10px; cursor: pointer; transition: 0.3s; }
-        .rank-box { 
-            width: 42px; height: 42px; border: 2px solid var(--neon-blue); border-radius: 8px;
-            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;
-            background: #000; color: var(--neon-blue); text-shadow: 0 0 5px var(--neon-blue);
+        .identity-badge { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+        .rank-frame { 
+            width: 45px; height: 45px; border: 2px solid var(--neon-blue); border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px;
+            background: #000; color: var(--neon-blue); box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
         }
 
-        /* === TABS & LAYOUT === */
-        .main-viewport { position: absolute; top: 65px; bottom: 125px; width: 100%; overflow: hidden; }
-        .tab-content { width: 100%; height: 100%; display: none; overflow-y: auto; background: var(--bg-main); padding-bottom: 20px; }
-        .tab-content.active { display: block; }
+        /* === TABS & VIEWPORT === */
+        .viewport { position: absolute; top: 65px; bottom: 130px; width: 100%; overflow: hidden; }
+        .tab-pane { width: 100%; height: 100%; display: none; overflow-y: auto; background: var(--bg-main); }
+        .tab-pane.active { display: block; }
 
-        /* TAB 1: HQ - DOSSIER STYLE */
-        .dossier-card { background: var(--bg-panel); border: 1px solid #222; margin: 15px; border-radius: 12px; position: relative; overflow: hidden; }
-        .dossier-header { background: #111; padding: 10px 15px; font-family: var(--font-mono); font-size: 11px; border-bottom: 1px solid #222; color: var(--neon-blue); display: flex; justify-content: space-between; }
-        .dossier-body { padding: 15px; }
-        .mission-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; color: var(--neon-green); }
-        .mission-desc { font-size: 13px; color: #bbb; line-height: 1.5; font-family: var(--font-mono); }
+        /* --- TAB 1: HQ --- */
+        .hq-container { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
         
-        /* Profile Expandable */
-        .profile-expanded { max-height: 0; overflow: hidden; transition: 0.5s ease; background: #000; }
-        .profile-expanded.show { max-height: 300px; padding: 15px; border-bottom: 1px solid #333; }
-        .radar-stat { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #888; }
-        .radar-bar { height: 4px; background: #222; border-radius: 2px; margin-bottom: 10px; overflow: hidden; }
-        .radar-fill { height: 100%; background: var(--neon-blue); transition: 1s; }
+        /* AI Assistant Section */
+        .ai-terminal { 
+            background: rgba(188, 19, 254, 0.05); border: 1px solid var(--neon-purple); 
+            border-radius: 15px; padding: 15px; display: flex; gap: 15px; align-items: center;
+            box-shadow: 0 0 15px rgba(188, 19, 254, 0.1) inset;
+        }
+        #ai-text { font-size: 13px; font-style: italic; color: #d8b4fe; line-height: 1.4; }
 
-        /* TAB 3: NOTA FISIK (UPGRADED) */
-        .receipt-paper {
+        /* Progress Status Ticker (New!) */
+        .status-ticker {
+            background: #111; border-left: 4px solid var(--neon-green); padding: 10px 15px;
+            border-radius: 0 10px 10px 0; font-family: var(--font-mono); font-size: 11px;
+        }
+        .status-label { color: var(--neon-green); font-weight: bold; margin-bottom: 4px; display: block; }
+
+        /* Mission Dossier */
+        .dossier { background: var(--bg-panel); border: 1px solid #222; border-radius: 15px; overflow: hidden; }
+        .dossier-head { background: #1a1a24; padding: 10px 15px; font-size: 11px; color: #888; display: flex; justify-content: space-between; font-family: var(--font-mono); }
+        .dossier-body { padding: 20px; }
+        .m-title { font-size: 20px; font-weight: bold; color: var(--neon-green); margin: 0 0 10px 0; }
+        .m-desc { font-size: 14px; color: #aaa; line-height: 1.6; margin-bottom: 20px; }
+
+        /* Expandable Profile */
+        .profile-drawer { max-height: 0; overflow: hidden; transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1); background: #08080c; border-bottom: 0px solid #222; }
+        .profile-drawer.open { max-height: 400px; padding: 20px; border-bottom-width: 1px; }
+        .stat-line { margin-bottom: 12px; }
+        .stat-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; color: #666; }
+        .stat-bar { height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; }
+        .stat-fill { height: 100%; width: 0%; background: var(--neon-blue); transition: 1.5s; }
+
+        /* --- TAB 3: NOTA FISIK --- */
+        .ledger-container { padding: 15px; }
+        .receipt-ui { 
             background: #fdfce3; color: #1a1a1a; font-family: var(--font-mono); 
-            width: 90%; margin: 20px auto; padding: 25px 15px; position: relative;
-            box-shadow: 5px 5px 20px rgba(0,0,0,0.5); border: 1px solid #e0dfc5;
+            padding: 30px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); position: relative;
         }
-        .receipt-paper::after {
-            content: ""; position: absolute; bottom: -10px; left: 0; width: 100%; height: 10px;
-            background: linear-gradient(-45deg, transparent 33.33%, #fdfce3 33.33%, #fdfce3 66.66%, transparent 66.66%),
-                        linear-gradient(45deg, transparent 33.33%, #fdfce3 33.33%, #fdfce3 66.66%, transparent 66.66%);
-            background-size: 10px 20px;
-        }
-        .nota-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #ccc; font-size: 12px; align-items: center; }
-        .btn-edit-nota { background: none; border: none; color: var(--neon-blue); cursor: pointer; padding: 5px; }
-
-        /* TAB 4: COMMS (STT READY) */
-        .chat-container { display: flex; flex-direction: column; height: 100%; }
-        .msg-list { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .msg { max-width: 80%; padding: 10px 15px; border-radius: 12px; font-size: 13px; position: relative; }
-        .msg-me { align-self: flex-end; background: var(--neon-blue); color: #000; border-bottom-right-radius: 2px; }
-        .msg-them { align-self: flex-start; background: #222; border: 1px solid #333; border-bottom-left-radius: 2px; }
-        .input-box { background: var(--bg-panel); padding: 15px; border-top: 1px solid #222; display: flex; gap: 10px; align-items: center; }
-        .stt-btn { width: 45px; height: 45px; border-radius: 50%; border: 1px solid var(--neon-purple); background: rgba(212,0,255,0.1); color: var(--neon-purple); cursor: pointer; }
-        .stt-btn.active { background: var(--neon-purple); color: #fff; box-shadow: 0 0 10px var(--neon-purple); }
-
-        /* === MODALS (ARCADE & EVAL) === */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 5000; display: none; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(5px); }
-        .modal-box { background: var(--bg-panel); border: 1px solid var(--neon-blue); width: 100%; max-width: 400px; border-radius: 15px; padding: 20px; position: relative; text-align: center; }
+        .receipt-ui::before { content: ""; position: absolute; top: -10px; left: 0; width: 100%; height: 10px; background: linear-gradient(45deg, transparent 33%, #fdfce3 33%, #fdfce3 66%, transparent 66%), linear-gradient(-45deg, transparent 33%, #fdfce3 33%, #fdfce3 66%, transparent 66%); background-size: 10px 20px; }
+        .nota-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #ccc; font-size: 12px; }
+        .nota-actions { display: flex; gap: 10px; }
+        .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; font-size: 14px; }
         
-        /* Arcade Slots */
-        .arcade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
-        .slot { background: #000; border: 1px dashed #333; padding: 20px; border-radius: 10px; cursor: pointer; transition: 0.3s; }
-        .slot.active { border: 1px solid var(--neon-blue); box-shadow: 0 0 10px rgba(0,243,255,0.1) inset; }
-        .slot i { font-size: 24px; margin-bottom: 10px; display: block; }
+        .input-panel { background: var(--bg-panel); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #222; }
+        .q-input { width: 100%; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 10px; }
 
-        /* Rating Stars */
-        .star-box i { font-size: 28px; color: #222; margin: 0 5px; cursor: pointer; transition: 0.2s; }
-        .star-box i.active { color: #ffcc00; text-shadow: 0 0 10px #ffcc00; }
+        /* --- TAB 4: COMMS --- */
+        .comms-engine { display: flex; flex-direction: column; height: 100%; }
+        .chat-wall { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        .bubble { max-width: 80%; padding: 12px 16px; border-radius: 15px; font-size: 14px; line-height: 1.4; }
+        .bubble.me { align-self: flex-end; background: var(--neon-blue); color: #000; border-bottom-right-radius: 2px; font-weight: 500; }
+        .bubble.them { align-self: flex-start; background: #1a1a24; border: 1px solid #333; border-bottom-left-radius: 2px; }
+        .comms-bar { background: var(--glass); padding: 15px; border-top: 1px solid #222; display: flex; gap: 10px; align-items: center; }
+        
+        /* --- ARCADE --- */
+        .arcade-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 5000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .arcade-box { background: var(--bg-panel); border: 2px solid var(--neon-blue); width: 100%; max-width: 400px; border-radius: 20px; padding: 25px; text-align: center; }
+        .arcade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .slot-btn { background: #000; border: 1px dashed #444; padding: 25px 15px; border-radius: 15px; cursor: pointer; transition: 0.3s; }
+        .slot-btn.active { border: 1px solid var(--neon-blue); box-shadow: 0 0 15px rgba(0,243,255,0.1); }
+        .slot-btn i { font-size: 30px; margin-bottom: 10px; display: block; }
 
-        /* === FOOTER NAV === */
+        /* --- EVALUATION --- */
+        .eval-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 6000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .eval-card { background: var(--bg-panel); border: 1px solid var(--neon-green); border-radius: 20px; padding: 25px; width: 100%; max-width: 400px; text-align: center; }
+        .star-row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; background: #111; padding: 10px; border-radius: 10px; }
+        .stars i { font-size: 20px; color: #333; cursor: pointer; margin-left: 5px; }
+        .stars i.on { color: #ffcc00; text-shadow: 0 0 10px #ffcc00; }
+
+        /* === GLOBAL FOOTER === */
         #global-footer { position: absolute; bottom: 0; width: 100%; z-index: 2000; background: var(--glass); border-top: 1px solid #222; }
-        .nav-bar { display: flex; height: 60px; }
-        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #555; cursor: pointer; }
-        .nav-btn.active { color: var(--neon-blue); }
-        .nav-btn i { font-size: 20px; margin-bottom: 3px; }
-        .action-area { padding: 10px 15px; border-top: 1px solid #222; }
-        .btn-full { width: 100%; padding: 14px; border-radius: 8px; border: none; font-weight: bold; text-transform: uppercase; cursor: pointer; }
-        
+        .nav-grid { display: flex; height: 65px; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #555; cursor: pointer; transition: 0.3s; }
+        .nav-item.active { color: var(--neon-blue); }
+        .nav-item i { font-size: 22px; margin-bottom: 4px; }
+        .btn-action-container { padding: 12px 15px; border-top: 1px solid #1a1a1a; }
+        .btn-main { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.3s; }
+
         /* UTILS */
-        .neon-text-blue { color: var(--neon-blue); text-shadow: 0 0 5px var(--neon-blue); }
-        #map { width: 100%; height: 100%; filter: invert(1) hue-rotate(180deg) brightness(0.6); }
+        #map { width: 100%; height: 100%; filter: invert(1) hue-rotate(180deg) brightness(0.7); }
+        .hide { display: none !important; }
     </style>
 </head>
 <body>
 
-    <audio id="sfx-click" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
+    <audio id="click-sfx" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
 
     <header id="global-header">
         <div class="identity-badge" onclick="toggleProfile()">
-            <div id="target-rank" class="rank-box">?</div>
+            <div id="u-rank" class="rank-frame">?</div>
             <div>
-                <div id="target-role" style="font-size: 9px; color: #888;">MEMUAT...</div>
-                <div id="target-name" style="font-weight: bold; font-size: 15px;">Target Entity</div>
+                <div id="u-role" style="font-size: 9px; color: #888; letter-spacing: 1px;">SINKRONISASI...</div>
+                <div id="u-name" style="font-weight: bold; font-size: 16px;">Unknown Entity</div>
             </div>
         </div>
-        <div style="display: flex; gap: 12px; align-items: center;">
-            <button onclick="runInspect()" style="background:none; border:1px solid var(--neon-green); color:var(--neon-green); font-size:9px; padding:4px 8px; border-radius:4px; font-family:var(--font-mono);">INSPECT</button>
-            <img id="ai-face" src="ai_irene.png" style="width:32px; height:32px; border-radius:50%; border:1px solid var(--neon-purple);" alt="AI">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <button onclick="inspectData()" style="background:none; border:1px solid #333; color:#555; font-size:9px; padding:5px 8px; border-radius:5px;">DEBUG</button>
+            <img src="ai_irene_face.png" style="width:35px; height:35px; border-radius:50%; border:1px solid var(--neon-purple);" alt="AI">
         </div>
     </header>
 
-    <main class="main-viewport">
+    <main class="viewport">
         
-        <div id="tab-hq" class="tab-content active">
-            <div id="profile-panel" class="profile-expanded">
-                <div class="radar-stat"><span>KEPERCAYAAN</span> <span id="stat-val-1">0%</span></div>
-                <div class="radar-bar"><div id="stat-bar-1" class="radar-fill" style="width: 0%;"></div></div>
-                <div class="radar-stat"><span>KELANCARAN</span> <span id="stat-val-2">0%</span></div>
-                <div class="radar-bar"><div id="stat-bar-2" class="radar-fill" style="width: 0%; background: var(--neon-green);"></div></div>
-                <div class="radar-stat"><span>POIN REPUTASI</span> <span id="stat-val-3">0</span></div>
+        <div id="tab-hq" class="tab-pane active">
+            <div id="profile-drawer" class="profile-drawer">
+                <div class="stat-line">
+                    <div class="stat-label"><span>KEANDALAN SISTEM</span> <span id="v-stat-1">0%</span></div>
+                    <div class="stat-bar"><div id="b-stat-1" class="stat-fill"></div></div>
+                </div>
+                <div class="stat-line">
+                    <div class="stat-label"><span>REPUTASI KONTRAK</span> <span id="v-stat-2">0 PTS</span></div>
+                    <div class="stat-bar"><div id="b-stat-2" class="stat-fill" style="background: var(--neon-green);"></div></div>
+                </div>
+                <div id="v-extra-info" style="font-size: 11px; color: #555; text-align: center; margin-top: 15px;"></div>
             </div>
 
-            <div class="dossier-card" style="border-color: var(--neon-purple); background: rgba(212,0,255,0.02);">
-                <div class="dossier-body" style="display: flex; gap: 15px; align-items: flex-start;">
-                    <i class="fa-solid fa-robot" style="color: var(--neon-purple); font-size: 20px;"></i>
-                    <div id="ai-dialog" style="font-size: 13px; font-style: italic; color: #ccc;">Sistem aktif. Menunggu transmisi data lapangan dari partner...</div>
+            <div class="hq-container">
+                <div class="ai-terminal">
+                    <i class="fa-solid fa-microchip" style="color: var(--neon-purple); font-size: 24px;"></i>
+                    <div id="ai-text">Menganalisis parameter misi. Mohon tetap waspada dalam jalur transmisi ini...</div>
                 </div>
-            </div>
 
-            <div class="dossier-card">
-                <div class="dossier-header">
-                    <span>DOSSIER AKTIF</span>
-                    <span id="mission-id-tag">ID: --</span>
+                <div class="status-ticker">
+                    <span class="status-label"><i class="fa-solid fa-satellite-dish"></i> LIVE STATUS UPDATE</span>
+                    <div id="live-status-text" style="color: #fff;">Menunggu laporan pertama dari lapangan...</div>
                 </div>
-                <div class="dossier-body">
-                    <div id="m-title" class="mission-title">Mission Title</div>
-                    <p id="m-desc" class="mission-desc">Menganalisis deskripsi misi...</p>
-                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #222; display: flex; gap: 20px;">
-                        <div>
-                            <div style="font-size: 9px; color: #666;">REWARD EXP</div>
-                            <div id="m-exp" style="color: var(--neon-blue); font-weight: bold;">--</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 9px; color: #666;">CURRENCY</div>
-                            <div id="m-stone" style="color: var(--neon-green); font-weight: bold;">--</div>
+
+                <div class="dossier">
+                    <div class="dossier-head">
+                        <span>MISSION_FILE_ACTIVE</span>
+                        <span id="m-id-display">ID: ---</span>
+                    </div>
+                    <div class="dossier-body">
+                        <h1 id="m-title" class="m-title">Memuat Misi...</h1>
+                        <p id="m-desc" class="m-desc">Sedang mengambil detail kontrak dari session storage...</p>
+                        
+                        <div style="display: flex; gap: 20px; border-top: 1px solid #222; padding-top: 20px;">
+                            <div>
+                                <div style="font-size: 9px; color: #555;">REWARD EXP</div>
+                                <div id="m-exp" style="color: var(--neon-blue); font-weight: bold; font-family: var(--font-mono);">--</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 9px; color: #555;">GREEN STONES</div>
+                                <div id="m-stone" style="color: var(--neon-green); font-weight: bold; font-family: var(--font-mono);">--</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div id="adv-controls" class="dossier-card" style="display:none;">
-                <div class="dossier-header">TRANSMISI STATUS</div>
-                <div class="dossier-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <button class="nav-btn active" style="border:1px solid #333; border-radius:8px; height:50px;" onclick="pushStatus('OTW Penjemputan')">OTW ASAL</button>
-                    <button class="nav-btn active" style="border:1px solid #333; border-radius:8px; height:50px;" onclick="pushStatus('OTW Tujuan')">OTW TUJUAN</button>
-                    <button class="nav-btn active" style="border:1px solid #333; border-radius:8px; height:50px;" onclick="pushStatus('Tiba di Lokasi')">TIBA</button>
-                    <button class="nav-btn active" style="border:1px solid var(--neon-red); border-radius:8px; color:var(--neon-red); height:50px;" onclick="pushStatus('Kendala Lapangan')">KENDALA</button>
+                <div id="adv-status-hub" class="hide">
+                    <div style="font-size: 10px; color: #444; margin-bottom: 8px; font-weight: bold;">KIRIM UPDATE PROGRES</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <button class="btn-main" style="background: #111; color: var(--neon-blue); border: 1px solid #222;" onclick="sendLiveStatus('OTW Lokasi Asal')">OTW ASAL</button>
+                        <button class="btn-main" style="background: #111; color: var(--neon-blue); border: 1px solid #222;" onclick="sendLiveStatus('OTW Lokasi Tujuan')">OTW TUJUAN</button>
+                        <button class="btn-main" style="background: #111; color: var(--neon-green); border: 1px solid #222;" onclick="sendLiveStatus('Tiba di Lokasi')">TIBA</button>
+                        <button class="btn-main" style="background: #111; color: var(--neon-red); border: 1px solid #222;" onclick="sendLiveStatus('Kendala Lapangan')">KENDALA</button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div id="tab-map" class="tab-content">
+        <div id="tab-map" class="tab-pane">
             <div id="map"></div>
         </div>
 
-        <div id="tab-ledger" class="tab-content">
-            <div id="adv-nota-input" style="padding: 15px; display: none;">
-                <input type="text" id="n-item" placeholder="Nama Barang/Jasa" style="width:100%; background:#111; border:1px solid #333; color:#fff; padding:10px; border-radius:5px; margin-bottom:8px;">
-                <div style="display:flex; gap:10px;">
-                    <input type="number" id="n-price" placeholder="Harga Jual Toko" style="flex:1; background:#111; border:1px solid #333; color:#fff; padding:10px; border-radius:5px;">
-                    <button onclick="saveNotaItem()" style="background:var(--neon-blue); color:#000; border:none; padding:10px 20px; border-radius:5px; font-weight:bold;">SIMPAN</button>
-                </div>
-            </div>
-
-            <div class="receipt-paper">
-                <div style="text-align: center; border-bottom: 2px dashed #999; padding-bottom: 10px; margin-bottom: 15px;">
-                    <div style="font-weight: bold; font-size: 16px;">SOVEREIGN GUILD</div>
-                    <div style="font-size: 10px;">TACTICAL LEDGER - 100% P2P</div>
-                </div>
-                <div id="nota-list-container">
+        <div id="tab-nota" class="tab-pane">
+            <div class="ledger-container">
+                <div id="nota-input-hub" class="input-panel hide">
+                    <input type="text" id="in-name" class="q-input" placeholder="Nama Barang / Biaya">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" id="in-price" class="q-input" placeholder="Harga (Rp)">
+                        <button id="btn-nota-save" onclick="notaSave()" class="btn-main" style="background: var(--neon-blue); color: #000; width: 100px; height: 45px;">SIMPAN</button>
                     </div>
-                <div style="border-top: 2px dashed #999; margin-top: 15px; padding-top: 10px; display: flex; justify-content: space-between; font-weight: bold;">
-                    <span>TOTAL TAGIHAN</span>
-                    <span id="nota-grand-total">Rp 0</span>
                 </div>
-                <div style="font-size: 8px; text-align: center; margin-top: 20px; color: #888;">
-                    * HARGA SESUAI NOTA FISIK TOKO<br>TIDAK ADA POTONGAN APLIKASI
+
+                <div class="receipt-ui">
+                    <div style="text-align: center; border-bottom: 2px dashed #999; padding-bottom: 15px; margin-bottom: 20px;">
+                        <div style="font-size: 18px; font-weight: bold; letter-spacing: 2px;">SOVEREIGN GUILD</div>
+                        <div style="font-size: 10px;">TACTICAL LEDGER SYSTEM</div>
+                    </div>
+                    
+                    <div id="nota-list-ui">
+                        </div>
+
+                    <div style="border-top: 2px dashed #999; margin-top: 20px; padding-top: 15px; display: flex; justify-content: space-between; font-weight: bold; font-size: 16px;">
+                        <span>TOTAL</span>
+                        <span id="nota-total-val">Rp 0</span>
+                    </div>
+
+                    <div style="font-size: 8px; text-align: center; margin-top: 30px; color: #888; line-height: 1.4;">
+                        DATA INI SINKRON KE KEDUA BELAH PIHAK.<br>ADVENTURER BERHAK MENGEDIT JIKA TERJADI KESALAHAN INPUT.
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div id="tab-comms" class="tab-content">
-            <div class="chat-container">
-                <div id="chat-box" class="msg-list"></div>
-                <div class="input-box">
-                    <button id="mic-btn" class="stt-btn" onclick="startSTT()"><i class="fa-solid fa-microphone"></i></button>
-                    <input type="text" id="chat-input" placeholder="Ketik transmisi..." style="flex:1; background:#000; border:1px solid #333; color:#fff; padding:12px; border-radius:25px;" onkeypress="if(event.key==='Enter') sendChat()">
-                    <button onclick="sendChat()" style="color:var(--neon-blue); background:none; border:none; font-size:20px;"><i class="fa-solid fa-paper-plane"></i></button>
+        <div id="tab-comms" class="tab-pane">
+            <div class="comms-engine">
+                <div id="comms-wall" class="chat-wall"></div>
+                <div class="comms-bar">
+                    <button id="stt-mic" onclick="runVoiceToText()" style="background: none; border: 1px solid var(--neon-purple); color: var(--neon-purple); width: 45px; height: 45px; border-radius: 50%;"><i class="fa-solid fa-microphone"></i></button>
+                    <input type="text" id="comms-input" placeholder="Ketik pesan..." style="flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 25px;">
+                    <button onclick="commsSend()" style="color: var(--neon-blue); border: none; background: none; font-size: 20px;"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
             </div>
         </div>
@@ -227,231 +259,285 @@
     </main>
 
     <footer id="global-footer">
-        <div id="action-context" class="action-area">
+        <div id="role-action-area" class="btn-action-container">
             </div>
-        <nav class="nav-bar">
-            <div class="nav-btn active" onclick="switchTab('tab-hq', this)"><i class="fa-solid fa-atom"></i>HQ</div>
-            <div class="nav-btn" onclick="switchTab('tab-map', this)"><i class="fa-solid fa-map-location-dot"></i>MAP</div>
-            <div class="nav-btn" onclick="switchTab('tab-ledger', this)"><i class="fa-solid fa-receipt"></i>NOTA</div>
-            <div class="nav-btn" onclick="switchTab('tab-comms', this)"><i class="fa-solid fa-comments"></i>COMMS</div>
+        <nav class="nav-grid">
+            <div class="nav-item active" onclick="switchTab('tab-hq', this)"><i class="fa-solid fa-atom"></i>HQ</div>
+            <div class="nav-item" onclick="switchTab('tab-map', this)"><i class="fa-solid fa-map-location-dot"></i>MAP</div>
+            <div class="nav-item" onclick="switchTab('tab-nota', this)"><i class="fa-solid fa-receipt"></i>NOTA</div>
+            <div class="nav-item" onclick="switchTab('tab-comms', this)"><i class="fa-solid fa-comments"></i>COMMS</div>
         </nav>
     </footer>
 
-    <div id="modalArcade" class="modal-overlay">
-        <div class="modal-box">
-            <i class="fa-solid fa-xmark" style="position:absolute; top:15px; right:15px; cursor:pointer;" onclick="closeModal('modalArcade')"></i>
-            <h3 class="neon-text-blue">QUANTUM ARCADE</h3>
+    <div id="modalArcade" class="arcade-modal">
+        <div class="arcade-box">
+            <i class="fa-solid fa-xmark" style="position: absolute; top: 15px; right: 15px; cursor: pointer; color: #555;" onclick="closeModal('modalArcade')"></i>
+            <h3 style="color: var(--neon-blue); margin-top: 0; letter-spacing: 2px;">QUANTUM ARCADE</h3>
             <div class="arcade-grid">
-                <div class="slot active" onclick="playGame('mana')">
-                    <i class="fa-solid fa-gem" style="color:var(--neon-blue)"></i>
-                    <div style="font-size:11px;">MANA REFINER</div>
+                <div class="slot-btn active" onclick="alert('Starting Mana Refiner...')">
+                    <i class="fa-solid fa-gem" style="color: var(--neon-blue);"></i>
+                    <div style="font-size: 11px;">MANA REFINER</div>
                 </div>
-                <div class="slot"><i class="fa-solid fa-lock"></i><div style="font-size:10px; color:#555;">ENCRYPTED</div></div>
-                <div class="slot"><i class="fa-solid fa-lock"></i><div style="font-size:10px; color:#555;">ENCRYPTED</div></div>
-                <div class="slot"><i class="fa-solid fa-lock"></i><div style="font-size:10px; color:#555;">ENCRYPTED</div></div>
+                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #333;"></i><div style="font-size: 10px; color: #444;">ENCRYPTED</div></div>
+                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #333;"></i><div style="font-size: 10px; color: #444;">ENCRYPTED</div></div>
+                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #333;"></i><div style="font-size: 10px; color: #444;">ENCRYPTED</div></div>
             </div>
         </div>
     </div>
 
-    <div id="modalEvalAdv" class="modal-overlay">
-        <div class="modal-box">
-            <h3 style="color: var(--neon-green);">EVALUASI PARTNER</h3>
-            <div id="star-categories"></div>
-            <button class="btn-full" style="background:var(--neon-green); color:#000; margin-top:20px;" onclick="submitFinalAdv()">KONFIRMASI & SELESAI</button>
+    <div id="modalEvalAdv" class="eval-modal">
+        <div class="eval-card">
+            <h3 style="color: var(--neon-green); margin-top: 0;">EVALUASI PARTNER</h3>
+            <p style="font-size: 11px; color: #888; margin-bottom: 20px;">Berikan penilaian performa kerja.</p>
+            <div id="eval-star-group"></div>
+            <button class="btn-main" style="background: var(--neon-green); color: #000; margin-top: 25px;" onclick="executeAdvFinal()">KIRIM & TUTUP KONTRAK</button>
         </div>
     </div>
 
-    <div id="modalEvalReq" class="modal-overlay">
-        <div class="modal-box">
-            <h3 style="color: var(--neon-blue);">LAPORAN KLIEN</h3>
-            <div id="bool-questions"></div>
-            <button class="btn-full" style="background:var(--neon-blue); color:#000; margin-top:20px;" onclick="submitFinalReq()">KIRIM LAPORAN</button>
+    <div id="modalEvalReq" class="eval-modal">
+        <div class="eval-card">
+            <h3 style="color: var(--neon-blue); margin-top: 0;">LAPORAN KLIEN</h3>
+            <p style="font-size: 11px; color: #888; margin-bottom: 20px;">Bantu guild menilai kualitas requester.</p>
+            <div id="eval-bool-group"></div>
+            <button class="btn-main" style="background: var(--neon-blue); color: #000; margin-top: 25px;" onclick="executeReqFinal()">KIRIM LAPORAN</button>
         </div>
     </div>
 
     <script>
         // ==========================================
-        // 1. PROTOCOL & STATE (GALI DATA DARI SESSION)
+        // 1. GLOBAL STATE & SYNC
         // ==========================================
         const user = Clearchance.enforceIdentity();
         const mission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
         const contractId = sessionStorage.getItem('active_contract_id') || mission.id_misi;
         const isAdv = user.role === 'adventurer';
 
-        const dealDB = getTerminal('FB5_DEAL');
-        const masterDB = getTerminal('FB1_MASTER');
+        const dbDeal = getTerminal('FB5_DEAL');
+        const dbMaster = getTerminal('FB1_MASTER');
 
         let map, myMarker, targetMarker;
-        let editTargetId = null; 
-        let evalStars = { keamanan:0, kecerdasan:0, kepercayaan:0, keramahan:0, penampilan:0 };
-        let evalBools = { baik:null, tips:null, cash:null, extra:null };
+        let activeEditId = null;
+        let ratings = { keamanan:0, kecerdasan:0, kepercayaan:0, keramahan:0, penampilan:0 };
+        let reports = { baik:null, tips:null, cash:null, extra:null };
 
         window.onload = async () => {
-            initAppUI();
+            initUI();
             initMap();
-            await deepMineProfile(); // Cari profil di Shard
-            listenStatus();
-            listenNota();
-            listenChat();
-            startTracking();
+            await performDeepMining(); // Gali profil lawan di Shard
+            syncNota();
+            syncChat();
+            syncTracking();
+            syncStatus();
         };
 
-        // ==========================================
-        // 2. UI & ENGINE
-        // ==========================================
-        function switchTab(id, el) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            el.classList.add('active');
-            if(id === 'tab-map' && map) setTimeout(() => map.invalidateSize(), 200);
-        }
+        function playSfx() { document.getElementById('click-sfx').play().catch(()=>{}); }
 
-        function initAppUI() {
-            // Dashboard dari Session
-            document.getElementById('m-title').innerText = mission.title || "Misi Aktif";
-            document.getElementById('m-desc').innerText = mission.description || "Tidak ada deskripsi tambahan.";
+        // ==========================================
+        // 2. UI ENGINE & NAVIGATION
+        // ==========================================
+        function initUI() {
+            // Data Dasar dari Session Storage
+            document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
+            document.getElementById('m-desc').innerText = mission.description || "Detail misi tidak ditemukan.";
             document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
             document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
-            document.getElementById('mission-id-tag').innerText = "ID: " + contractId;
+            document.getElementById('m-id-display').innerText = "ID: " + contractId;
 
-            const ctx = document.getElementById('action-context');
+            const area = document.getElementById('role-action-area');
             if(isAdv) {
-                document.getElementById('adv-controls').style.display = 'block';
-                document.getElementById('adv-nota-input').style.display = 'block';
-                ctx.innerHTML = `<button class="btn-full" style="border:1px solid var(--neon-blue); color:var(--neon-blue); background:none;" onclick="alert('Menunggu Requester menutup kontrak...')">MENUNGGU KONFIRMASI</button>`;
+                document.getElementById('adv-status-hub').classList.remove('hide');
+                document.getElementById('nota-input-hub').classList.remove('hide');
+                area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">MENUNGGU KONFIRMASI REQUESTER</button>`;
             } else {
-                ctx.innerHTML = `<button class="btn-full" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">SELESAIKAN & BAYAR</button>`;
-                // Tambah tombol Arcade untuk Requester
-                const header = document.getElementById('global-header');
-                const btn = document.createElement('button');
-                btn.innerHTML = `<i class="fa-solid fa-gamepad"></i>`;
-                btn.className = "stt-btn";
-                btn.style = "width:32px; height:32px; font-size:12px; margin-right:10px;";
-                btn.onclick = () => document.getElementById('modalArcade').style.display = 'flex';
-                header.insertBefore(btn, header.lastElementChild);
+                area.innerHTML = `<button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>`;
+                // Tambah tombol Arcade khusus Requester di Header
+                const head = document.getElementById('global-header');
+                const arcBtn = document.createElement('button');
+                arcBtn.innerHTML = `<i class="fa-solid fa-gamepad"></i>`;
+                arcBtn.style = "background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); width:35px; height:35px; border-radius:50%; margin-right:10px;";
+                arcBtn.onclick = () => document.getElementById('modalArcade').style.display = 'flex';
+                head.insertBefore(arcBtn, head.lastElementChild);
             }
         }
 
-        async function deepMineProfile() {
-            const targetUid = isAdv ? (mission.requester_uid || "UKN") : (mission.adventurer_uid || "UKN");
-            const snap = await masterDB.ref(`users/${targetUid}`).once('value');
-            if(snap.exists()) {
-                const p = snap.val();
-                document.getElementById('target-name').innerText = p.nama || "Partner";
-                document.getElementById('target-rank').innerText = isAdv ? "T" + (p.requester_profile?.tier || 1) : (p.adventurer_stats?.rank || "F");
-                document.getElementById('target-role').innerText = isAdv ? "REQUESTER" : "ADVENTURER";
-                
-                // Isi radar stats
-                if(!isAdv) {
-                    const rep = p.adventurer_reputation?.total_mission_completed || 0;
-                    document.getElementById('stat-val-1').innerText = (p.adventurer_diagram?.nilai_kepercayaan || 0) + " pts";
-                    document.getElementById('stat-val-2').innerText = "Lv." + (p.adventurer_experience?.level || 1);
-                    document.getElementById('stat-val-3').innerText = rep;
+        function switchTab(id, el) {
+            playSfx();
+            document.querySelectorAll('.tab-pane').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            el.classList.add('active');
+            if(id === 'tab-map' && map) setTimeout(() => map.invalidateSize(), 300);
+        }
+
+        async function performDeepMining() {
+            // Tentukan target UID
+            const targetUid = isAdv ? (mission.requester_uid || "UNKNOWN") : (mission.adventurer_uid || "UNKNOWN");
+            
+            try {
+                const snap = await dbMaster.ref(`users/${targetUid}`).once('value');
+                if(snap.exists()) {
+                    const p = snap.val();
+                    document.getElementById('u-name').innerText = p.nama || "Partner Entity";
+                    document.getElementById('u-role').innerText = isAdv ? "REQUESTER" : "ADVENTURER";
+                    
+                    if(isAdv) {
+                        document.getElementById('u-rank').innerText = "T" + (p.requester_profile?.tier || 1);
+                        document.getElementById('v-stat-1').innerText = (p.requester_reputation?.yabaik || 0) + " Votes";
+                        document.getElementById('b-stat-1').style.width = "70%"; // Dummy bar logic
+                    } else {
+                        document.getElementById('u-rank').innerText = p.adventurer_stats?.rank || "F";
+                        document.getElementById('v-stat-1').innerText = (p.adventurer_diagram?.nilai_kepercayaan || 0) + " pts";
+                        document.getElementById('b-stat-1').style.width = (p.adventurer_diagram?.nilai_kepercayaan || 0) + "%";
+                        document.getElementById('v-stat-2').innerText = "Lv." + (p.adventurer_experience?.level || 1);
+                    }
                 }
-            }
+            } catch(e) { console.error("Mining Failed", e); }
         }
 
         // ==========================================
-        // 3. NOTA PROTOCOL (WITH EDITING)
+        // 3. NOTA PROTOCOL (CRUD)
         // ==========================================
-        function saveNotaItem() {
-            const name = document.getElementById('n-item').value;
-            const price = parseInt(document.getElementById('n-price').value);
-            if(!name || !price) return;
+        function notaSave() {
+            const name = document.getElementById('in-name').value;
+            const price = parseInt(document.getElementById('in-price').value);
+            if(!name || !price) return alert("Lengkapi data nota!");
 
-            const ref = dealDB.ref(`kontrak_detail/${contractId}/nota/items`);
-            if(editTargetId) {
-                ref.child(editTargetId).update({ nama: name, harga: price });
-                editTargetId = null;
+            const ref = dbDeal.ref(`kontrak_detail/${contractId}/nota/items`);
+            if(activeEditId) {
+                ref.child(activeEditId).update({ nama: name, harga: price });
+                activeEditId = null;
+                document.getElementById('btn-nota-save').innerText = "SIMPAN";
             } else {
-                ref.push({ nama: name, harga: price, type: 'manual', ts: Date.now() });
+                ref.push({ nama: name, harga: price, ts: Date.now() });
             }
             
-            document.getElementById('n-item').value = "";
-            document.getElementById('n-price').value = "";
+            document.getElementById('in-name').value = "";
+            document.getElementById('in-price').value = "";
         }
 
-        function listenNota() {
-            dealDB.ref(`kontrak_detail/${contractId}/nota/items`).on('value', snap => {
-                const container = document.getElementById('nota-list-container');
-                container.innerHTML = "";
+        function syncNota() {
+            dbDeal.ref(`kontrak_detail/${contractId}/nota/items`).on('value', snap => {
+                const list = document.getElementById('nota-list-ui');
+                list.innerHTML = "";
                 let total = 0;
                 snap.forEach(child => {
                     const item = child.val();
                     total += item.harga;
-                    container.innerHTML += `
-                        <div class="nota-row">
+                    list.innerHTML += `
+                        <div class="nota-item">
                             <div style="flex:1">
                                 <div>${item.nama}</div>
-                                <div style="font-size:9px; color:#888;">${new Date(item.ts).toLocaleTimeString()}</div>
+                                <div style="font-size:8px; color:#999;">${new Date(item.ts).toLocaleTimeString()}</div>
                             </div>
                             <div style="text-align:right">
-                                <div>Rp ${item.harga.toLocaleString()}</div>
-                                ${isAdv ? `<button class="btn-edit-nota" onclick="prepareEditNota('${child.key}', '${item.nama}', ${item.harga})"><i class="fa-solid fa-pen-to-square"></i></button>` : ''}
+                                <div style="font-weight:bold;">Rp ${item.harga.toLocaleString()}</div>
+                                ${isAdv ? `
+                                    <div class="nota-actions">
+                                        <button class="btn-icon" style="color:blue;" onclick="prepareEditNota('${child.key}', '${item.nama}', ${item.harga})"><i class="fa-solid fa-pen"></i></button>
+                                        <button class="btn-icon" style="color:red;" onclick="notaDelete('${child.key}')"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>`;
                 });
-                document.getElementById('nota-grand-total').innerText = "Rp " + total.toLocaleString();
+                document.getElementById('nota-total-val').innerText = "Rp " + total.toLocaleString();
             });
         }
 
         function prepareEditNota(id, name, price) {
-            editTargetId = id;
-            document.getElementById('n-item').value = name;
-            document.getElementById('n-price').value = price;
-            document.getElementById('n-item').focus();
+            activeEditId = id;
+            document.getElementById('in-name').value = name;
+            document.getElementById('in-price').value = price;
+            document.getElementById('btn-nota-save').innerText = "UPDATE";
+            document.getElementById('in-name').focus();
+        }
+
+        function notaDelete(id) {
+            if(confirm("Hapus item ini dari nota?")) {
+                dbDeal.ref(`kontrak_detail/${contractId}/nota/items/${id}`).remove();
+            }
         }
 
         // ==========================================
         // 4. COMMS & STT
         // ==========================================
-        function sendChat() {
-            const inp = document.getElementById('chat-input');
+        function commsSend() {
+            const inp = document.getElementById('comms-input');
             if(!inp.value.trim()) return;
-            dealDB.ref(`kontrak_detail/${contractId}/chats`).push({
-                uid: user.uid, text: inp.value, ts: Date.now()
+            dbDeal.ref(`kontrak_detail/${contractId}/chats`).push({
+                uid: user.uid, msg: inp.value, ts: Date.now()
             });
             inp.value = "";
         }
 
-        function listenChat() {
-            dealDB.ref(`kontrak_detail/${contractId}/chats`).on('child_added', snap => {
+        function syncChat() {
+            dbDeal.ref(`kontrak_detail/${contractId}/chats`).on('child_added', snap => {
                 const d = snap.val();
                 const div = document.createElement('div');
-                div.className = `msg ${d.uid === user.uid ? 'msg-me' : 'msg-them'}`;
-                div.innerText = d.text;
-                document.getElementById('chat-box').appendChild(div);
-                document.getElementById('chat-box').scrollTop = 99999;
+                div.className = `bubble ${d.uid === user.uid ? 'me' : 'them'}`;
+                div.innerText = d.msg;
+                document.getElementById('comms-wall').appendChild(div);
+                document.getElementById('comms-wall').scrollTop = 99999;
             });
         }
 
-        function startSTT() {
+        function runVoiceToText() {
             const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
             recognition.lang = 'id-ID';
-            const btn = document.getElementById('mic-btn');
+            const mic = document.getElementById('stt-mic');
             
-            recognition.onstart = () => btn.classList.add('active');
-            recognition.onresult = (event) => {
-                document.getElementById('chat-input').value = event.results[0][0].transcript;
-                btn.classList.remove('active');
+            recognition.onstart = () => mic.style.background = "var(--neon-purple)";
+            recognition.onresult = (e) => {
+                document.getElementById('comms-input').value = e.results[0][0].transcript;
+                mic.style.background = "none";
             };
-            recognition.onerror = () => btn.classList.remove('active');
+            recognition.onerror = () => mic.style.background = "none";
             recognition.start();
         }
 
         // ==========================================
-        // 5. EVALUATION LOGIC (COPIED & PROTECTED)
+        // 5. HQ & STATUS TRANSMISSION
+        // ==========================================
+        function sendLiveStatus(str) {
+            playSfx();
+            dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).set({
+                text: str, ts: Date.now()
+            });
+        }
+
+        function syncStatus() {
+            // Sinkronisasi Progress Ticker
+            dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).on('value', snap => {
+                if(snap.exists()) {
+                    const d = snap.val();
+                    document.getElementById('live-status-text').innerText = `[${new Date(d.ts).toLocaleTimeString()}] ${d.text}`;
+                    // Update AI context based on status
+                    if(d.text.includes('Kendala')) {
+                        document.getElementById('ai-text').innerText = "Mendeteksi gangguan di lapangan. Mengaktifkan protokol pendukung...";
+                    } else if(d.text.includes('Tiba')) {
+                        document.getElementById('ai-text').innerText = "Personil telah mencapai titik koordinat. Menunggu instruksi selanjutnya.";
+                    }
+                }
+            });
+
+            // Sinkronisasi Selesai Kontrak
+            dbDeal.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
+                if(snap.val() === 'completed_req' && isAdv) openEvalReq();
+            });
+        }
+
+        // ==========================================
+        // 6. EVALUATION SYSTEM
         // ==========================================
         function openEvalAdv() {
             const cats = ['keamanan', 'kecerdasan', 'kepercayaan', 'keramahan', 'penampilan'];
-            const container = document.getElementById('star-categories');
-            container.innerHTML = "";
+            const grp = document.getElementById('eval-star-group');
+            grp.innerHTML = "";
             cats.forEach(c => {
-                container.innerHTML += `
-                    <div style="margin-top:15px;">
-                        <div style="text-transform:uppercase; font-size:10px; margin-bottom:5px;">${c}</div>
-                        <div id="stars-${c}" class="star-box">
+                grp.innerHTML += `
+                    <div class="star-row">
+                        <span style="font-size:12px; text-transform:uppercase;">${c}</span>
+                        <div class="stars" id="star-${c}">
                             ${[1,2,3,4,5].map(i => `<i class="fa-solid fa-star" onclick="setStar('${c}', ${i})"></i>`).join('')}
                         </div>
                     </div>`;
@@ -460,49 +546,40 @@
         }
 
         function setStar(cat, val) {
-            evalStars[cat] = val;
-            const stars = document.getElementById(`stars-${cat}`).children;
-            for(let i=0; i<5; i++) stars[i].classList.toggle('active', i < val);
+            ratings[cat] = val;
+            const s = document.getElementById(`star-${cat}`).children;
+            for(let i=0; i<5; i++) s[i].classList.toggle('on', i < val);
         }
 
-        async function submitFinalAdv() {
-            if(Object.values(evalStars).includes(0)) return alert("Isi semua bintang!");
+        async function executeAdvFinal() {
+            if(Object.values(ratings).includes(0)) return alert("Berikan semua bintang!");
             
-            // Logika Settlement (Pindahkan dana/exp)
-            const targetUid = mission.adventurer_uid;
-            const totalScore = Object.values(evalStars).reduce((a,b) => a+b, 0);
+            // Logic Settlement ke Shard Adventurer
+            const advUid = mission.adventurer_uid;
+            await dbMaster.ref(`users/${advUid}/adventurer_experience/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp));
+            await dbMaster.ref(`users/${advUid}/adventurer_coxin/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone));
             
-            await masterDB.ref(`users/${targetUid}/adventurer_experience/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp));
-            await dealDB.ref(`kontrak_detail/${contractId}/status`).set('completed_req');
-            
-            alert("Kontrak ditutup. Reward dikirim.");
+            await dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req');
+            alert("Misi Selesai. Reward telah ditransfer ke partner.");
             location.href = "index.html";
-        }
-
-        function listenStatus() {
-            dealDB.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
-                if(snap.val() === 'completed_req' && isAdv) {
-                    openEvalReq();
-                }
-            });
         }
 
         function openEvalReq() {
             const qs = [
-                {k:'baik', q:'Klien bersikap baik?'},
-                {k:'tips', q:'Dapat tips tambahan?'},
-                {k:'cash', q:'Uang tunai pas?'},
-                {k:'extra', q:'Ada kerja paksa/ekstra?'}
+                {k:'baik', q:'Apakah Requester bersikap baik?'},
+                {k:'tips', q:'Diberi tips tambahan?'},
+                {k:'cash', q:'Uang tunai sesuai nota?'},
+                {k:'extra', q:'Ada kerja ekstra tanpa bayaran?'}
             ];
-            const container = document.getElementById('bool-questions');
-            container.innerHTML = "";
-            qs.forEach(q => {
-                container.innerHTML += `
+            const grp = document.getElementById('eval-bool-group');
+            grp.innerHTML = "";
+            qs.forEach(o => {
+                grp.innerHTML += `
                     <div style="margin-top:15px; text-align:left;">
-                        <div style="font-size:12px; margin-bottom:8px;">${q.q}</div>
+                        <div style="font-size:12px; margin-bottom:10px;">${o.q}</div>
                         <div style="display:flex; gap:10px;">
-                            <button onclick="setBool('${q.k}', true)" id="b-${q.k}-y" style="flex:1; padding:8px; border:1px solid #333; background:none; color:#fff;">YA</button>
-                            <button onclick="setBool('${q.k}', false)" id="b-${q.k}-n" style="flex:1; padding:8px; border:1px solid #333; background:none; color:#fff;">TIDAK</button>
+                            <button onclick="setBool('${o.k}', true)" id="b-${o.k}-y" style="flex:1; padding:10px; border:1px solid #333; background:none; color:#fff;">YA</button>
+                            <button onclick="setBool('${o.k}', false)" id="b-${o.k}-n" style="flex:1; padding:10px; border:1px solid #333; background:none; color:#fff;">TIDAK</button>
                         </div>
                     </div>`;
             });
@@ -510,19 +587,20 @@
         }
 
         function setBool(k, val) {
-            evalBools[k] = val;
+            reports[k] = val;
             document.getElementById(`b-${k}-y`).style.borderColor = val ? 'var(--neon-green)' : '#333';
             document.getElementById(`b-${k}-n`).style.borderColor = !val ? 'var(--neon-red)' : '#333';
         }
 
-        async function submitFinalReq() {
-            if(Object.values(evalBools).includes(null)) return alert("Jawab semua!");
-            alert("Laporan terkirim. Guild menghargai kerja kerasmu!");
+        async function executeReqFinal() {
+            if(Object.values(reports).includes(null)) return alert("Jawab semua pertanyaan!");
+            alert("Laporan dikirim. Guild menghargai kontribusi Anda.");
+            Clearchance.clearActiveMission();
             location.href = "index.html";
         }
 
         // ==========================================
-        // 6. MAP & TRACKING
+        // 7. TRACKING & MAP
         // ==========================================
         function initMap() {
             map = L.map('map', {zoomControl:false}).setView([-6.97, 108.48], 15);
@@ -531,29 +609,23 @@
             targetMarker = L.marker([0,0], {opacity:0.6}).addTo(map);
         }
 
-        function startTracking() {
+        function syncTracking() {
             if(navigator.geolocation) {
                 navigator.geolocation.watchPosition(p => {
                     const {latitude, longitude} = p.coords;
                     myMarker.setLatLng([latitude, longitude]);
-                    dealDB.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({lat:latitude, lng:longitude, ts:Date.now()});
+                    dbDeal.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({lat:latitude, lng:longitude, ts:Date.now()});
                 });
-                dealDB.ref(`kontrak_detail/${contractId}/tracking`).on('value', snap => {
+                dbDeal.ref(`kontrak_detail/${contractId}/tracking`).on('value', snap => {
                     snap.forEach(c => { if(c.key !== user.uid) targetMarker.setLatLng([c.val().lat, c.val().lng]); });
                 });
             }
         }
 
-        // ==========================================
-        // 7. UTILS
-        // ==========================================
-        function toggleProfile() { document.getElementById('profile-panel').classList.toggle('show'); }
+        // UTILS
+        function toggleProfile() { playSfx(); document.getElementById('profile-drawer').classList.toggle('open'); }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        function pushStatus(s) { dealDB.ref(`kontrak_detail/${contractId}/latest_status`).set(s); }
-        function runInspect() { 
-            const data = { mission, user, contract: contractId };
-            alert("INSPECT DATA:\n" + JSON.stringify(data, null, 2));
-        }
+        function inspectData() { alert("DEBUG_PAYLOAD:\n" + JSON.stringify({mission, user, contractId}, null, 2)); }
     </script>
 </body>
 </html>
