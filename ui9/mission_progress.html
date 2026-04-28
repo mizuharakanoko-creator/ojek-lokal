@@ -379,10 +379,29 @@
     document.getElementById('m-id-display').innerText = "ID: " + contractId;
 
     const area = document.getElementById('role-action-area');
-    if(isAdv) {
-        document.getElementById('adv-status-hub').classList.remove('hide');
-        document.getElementById('nota-input-hub').classList.remove('hide');
-        area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">MENUNGGU KONFIRMASI REQUESTER</button>`;
+    if(!isAdv) {
+    // Sembunyikan EXP & Green Stone
+    document.getElementById('m-exp').parentElement.classList.add('hide');
+    document.getElementById('m-stone').parentElement.classList.add('hide');
+
+    // Tampilkan Edukasi Bilah
+    document.getElementById('edu-bilah').classList.remove('hide');
+    startRequesterEducation();
+
+    // Tambahkan WA di bagian paling bawah Role Action Area
+    const area = document.getElementById('role-action-area');
+    area.innerHTML = `
+        <button class="btn-main" style="background:var(--neon-green); color:#000; margin-bottom:15px;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>
+        <div style="padding:15px; background:rgba(0,255,136,0.05); border:1px solid #1a1a1a; border-radius:12px;">
+            <p style="font-size:10px; color:#888; margin-bottom:12px; display:flex; gap:8px;">
+                <i class="fa-solid fa-user-shield" style="color:var(--neon-green)"></i>
+                <span>Privasi Aman: Nomor Anda tidak kami sebar ke Adventurer. Anda yang memegang kendali untuk menghubungi mereka lebih dulu.</span>
+            </p>
+            <button class="btn-main" style="background:#25d366; color:#fff; border:none; display:flex; align-items:center; justify-content:center; gap:10px;" onclick="contactPartner()">
+                <i class="fa-brands fa-whatsapp" style="font-size:18px;"></i> HUBUNGI ADVENTURER
+            </button>
+        </div>
+    `;
     } else {
         area.innerHTML = `<button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>`;
         const head = document.getElementById('global-header');
@@ -730,97 +749,50 @@ async function injectSovereignDetails() {
 
         const m = DATA.mission;
         const detail = m.full_mission_data || {};
+        const category = detail.category || "General";
 
-        // --- A. REWARD & NICKNAME ---
-        const elCash = document.getElementById('m-reward-cash');
-        if (elCash) elCash.innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+        // 1. Dinamis Label (Titip Beli vs Lainnya)
+        const originLabel = document.getElementById('origin-label');
+        if (originLabel) originLabel.innerText = (category === "Titip Beli") ? "LOKASI TOKO" : "TITIK JEMPUT";
 
-        const elNick = document.getElementById('m-adv-nick');
-        if (elNick) elNick.innerText = m.adventurer_nick || "nezza";
+        // 2. Data Asal (Origin) - Fix untuk Stabilitas
+        document.getElementById('m-origin-name').innerText = detail.origin_name || detail.origin_desa || "Kedungarum";
+        document.getElementById('m-origin-detail').innerText = detail.origin_details || "Tidak ada detail patokan";
 
-        // --- B. TITIK ASAL (ORIGIN) ---
-        const elOrigin = document.getElementById('m-origin-name');
-        if (elOrigin) elOrigin.innerText = detail.origin_name || "Kedungarum";
-
-        // Tombol Maps Asal: HANYA UNTUK ADVENTURER
-        const btnMapsO = document.getElementById('btn-maps-origin');
-        if (btnMapsO) {
-            if (isAdv && detail.origin_coords && detail.origin_coords !== "NEGO") {
-                btnMapsO.classList.remove('hide');
-                btnMapsO.onclick = () => window.open(`https://www.google.com/maps?q=${detail.origin_coords}`);
-            } else {
-                btnMapsO.classList.add('hide');
-            }
+        // Tombol Maps: HANYA UNTUK ADVENTURER
+        if (isAdv && detail.origin_coords && detail.origin_coords !== "NEGO") {
+            const btnO = document.getElementById('btn-maps-origin');
+            btnO.classList.remove('hide');
+            btnO.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${detail.origin_coords}`);
         }
 
-        // --- C. TITIK TUJUAN (DESTINATION) ---
+        // 3. Data Tujuan (Destination)
         const destHub = document.getElementById('dest-hub');
-        const destName = document.getElementById('m-dest-name');
-        if (destHub && destName) {
+        if (detail.dest_name || detail.dest_desa) {
             destHub.classList.remove('hide');
-            destName.innerText = detail.dest_desa || detail.dest_name || "Tujuan Belum Diatur";
+            document.getElementById('m-dest-name').innerText = detail.dest_name || detail.dest_desa;
+            document.getElementById('m-dest-detail').innerText = detail.dest_details || "Tidak ada detail tujuan";
             
-            // Tombol Maps Tujuan: HANYA UNTUK ADVENTURER
-            const btnMapsD = document.getElementById('btn-maps-dest');
-            if (btnMapsD) {
-                if (isAdv && detail.dest_coords && detail.dest_coords !== "NEGO") {
-                    btnMapsD.classList.remove('hide');
-                    btnMapsD.onclick = () => window.open(`https://www.google.com/maps?q=${detail.dest_coords}`);
-                } else {
-                    btnMapsD.classList.add('hide');
-                }
+            if (isAdv && detail.dest_coords && detail.dest_coords !== "NEGO") {
+                const btnD = document.getElementById('btn-maps-dest');
+                btnD.classList.remove('hide');
+                btnD.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${detail.dest_coords}`);
             }
         }
 
-        // --- D. MULTI-POINT (PESANAN) ---
-        if (detail.multi_points && Array.isArray(detail.multi_points)) {
-            const cargoHub = document.getElementById('cargo-hub');
-            const cargoDetail = document.getElementById('m-cargo-detail');
-            if (cargoHub && cargoDetail) {
-                cargoHub.classList.remove('hide');
-                cargoDetail.innerText = detail.multi_points.map((t, i) => `${i + 1}. ${t}`).join('\n');
-            }
+        // 4. Detail Pesanan (Cargo) dengan \n (New Line)
+        if (detail.multi_points && detail.multi_points.length > 0) {
+            document.getElementById('cargo-hub').classList.remove('hide');
+            document.getElementById('m-cargo-detail').innerText = detail.multi_points
+                .map((text, i) => `${i + 1}. ${text}`)
+                .join('\n');
         }
-
-        if(!isAdv) {
-    // 1. Sembunyikan EXP dan Green Stone untuk Requester
-    const expEl = document.getElementById('m-exp')?.parentElement;
-    const stoneEl = document.getElementById('m-stone')?.parentElement;
-    if(expEl) expEl.classList.add('hide');
-    if(stoneEl) stoneEl.classList.add('hide');
-
-    // 2. Tambahkan Tombol WhatsApp di Role Action Area
-    const area = document.getElementById('role-action-area');
-    area.innerHTML += `
-        <div style="margin-top:15px; padding:12px; background:rgba(0,255,136,0.05); border:1px solid #1a1a1a; border-radius:10px;">
-            <p style="font-size:10px; color:#888; margin-bottom:10px;">
-                <i class="fa-solid fa-shield-halved"></i> Privasi Aman: Nomor Anda tidak kami sebar. Anda yang memegang kendali untuk menghubungi Adventurer lebih dulu.
-            </p>
-            <button class="btn-main" style="background:#25d366; color:#000;" onclick="contactPartner()">
-                <i class="fa-brands fa-whatsapp"></i> HUBUNGI ADVENTURER
-            </button>
-        </div>
-    `;
-
-    // 3. Jalankan Edukasi Random Teks
-    startRequesterEducation();
-}
-
-// Fungsi Hubungi Partner
-async function contactPartner() {
-    const DATA = await getSupremeData(contractId);
-    const phone = DATA?.adventurer?.profile?.whatsapp; // Pastikan key database sesuai
-    if(phone) {
-        window.open(`https://wa.me/${phone.replace(/\D/g,'')}`);
-    } else {
-        alert("Nomor Partner belum terdaftar di sistem.");
-    }
-}
 
     } catch (e) {
         console.error("Irene Trace Error:", e);
     }
 }
+
 
 
 
