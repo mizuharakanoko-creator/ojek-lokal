@@ -200,107 +200,135 @@
 
     <script>
         // ==========================================
-        // 1. INIT & DATABASE REFERENCE
-        // ==========================================
-        const user = Clearchance.enforceIdentity(); 
-        const contractId = sessionStorage.getItem('active_contract_id'); // e.g. CTR-1777...
-        
-        // Asumsi Terminal Router FB1 (Induk/User) dan FB4 (Misi/Board)
-        const masterDB = getTerminal('FB1_MASTER'); 
-        const dealDB = getTerminal('FB4_BOARD'); 
+    // 1. INIT & STATE MANAGEMENT (DIKEMBALIKAN)
+    // ==========================================
+    const user = Clearchance.enforceIdentity(); 
+    
+    // MENGAMBIL DATA DARI SESSION (VITAL)
+    const contractId = sessionStorage.getItem('active_contract_id');
+    const sessionMission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
+    
+    const masterDB = getTerminal('FB1_MASTER'); 
+    const dealDB = getTerminal('FB4_BOARD'); 
 
-        let map, myMarker, targetMarker;
-        let contractData = null;
-        let finalAdvId = null; 
-        let targetProfileData = { isStranger: true, nama: "Mencari Data..." };
-        let coordsData = { lat: 0, lng: 0 };
+    let map, myMarker;
+    let contractData = null; 
+    let finalAdvId = null; 
+    let targetProfileData = { isStranger: true, nama: "Mencari Data..." };
+    let isStranger = true; // Default adalah stranger sampai terbukti sebaliknya
 
-        // State Evaluasi
-        let hexRatings = { keamanan: 0, kecerdasan: 0, kepercayaan: 0, keramahan: 0, penampilan: 0 };
-        let boolRatings = { baik: null, tips: null, cash: null, extra: null };
-        let manaScore = 0;
+    // State Evaluasi
+    let hexRatings = { keamanan: 0, kecerdasan: 0, kepercayaan: 0, keramahan: 0, penampilan: 0 };
+    let boolRatings = { baik: null, tips: null, cash: null, extra: null };
+    let manaScore = 0;
 
-        window.onload = async () => {
-            initMap();
-            await fetchDataAndIdentify();
-            buildUI();
-            startTracking();
-            listenStatus();
-        };
-
-        function playSfx(id) {
-            const audio = document.getElementById(id);
-            if(audio) { audio.currentTime = 0; audio.play().catch(()=>{}); }
+    window.onload = async () => {
+        if (!contractId) {
+            alert("Error: Sesi Kontrak Hilang!");
+            return window.location.href = "index.html";
         }
+        initMap();
+        await performHandshake(); 
+        buildUI();
+        startTracking();
+        listenStatus();
+    };
 
-        // ==========================================
-        // 2. DATA DISCOVERY & REVERSE LOOKUP
-        // ==========================================
-        async function fetchDataAndIdentify() {
-            if (!contractId) return alert("Error: ID Kontrak tidak ditemukan!");
-            document.getElementById('mission-id').innerText = `KONTRAK: ${contractId}`;
+    // ==========================================
+    // 2. DATA DISCOVERY (LOGIKA STRANGER DISINI)
+    // ==========================================
+    async function performHandshake() {
+        document.getElementById('mission-id').innerText = `KONTRAK: ${contractId}`;
 
-            try {
-                // A. Ambil Data Kontrak dari FB4
-                const snapContract = await dealDB.ref(contractId).once('value');
-                if (!snapContract.exists()) throw new Error("Data kontrak tidak ada di database FB4.");
+        try {
+            // A. Ambil Data Kontrak (Data mentah dari FB4)
+            const snapContract = await dealDB.ref(contractId).once('value');
+            if (!snapContract.exists()) throw new Error("Data kontrak tidak ditemukan di FB4.");
+            contractData = snapContract.val();
+
+            // B. Identifikasi Target Profil
+            if (user.role === 'adventurer') {
+                // SAYA ADVENTURER -> CARI INFO REQUESTER
+                const reqId = contractData.id_requester || sessionMission.id_requester;
+                const snapReq = await masterDB.ref(`requester_index/${reqId}`).once('value');
                 
-                contractData = snapContract.val();
+                if (snapReq.exists()) {
+                    targetProfileData = snapReq.val();
+                    targetProfileData.uid = reqId;
+                    isStranger = false;
+                } else {
+                    // LOGIKA STRANGER: Jika ID tidak ada di requester_index
+                    targetProfileData = { 
+                        nama: contractData.client_name || "Stranger (Unverified)", 
+                        isStranger: true 
+                    };
+                    isStranger = true;
+                }
+            } else {
+                // SAYA REQUESTER -> CARI INFO ADVENTURER
+                let advNick = contractData.adventurer_nick || sessionMission.adventurer_nick;
                 
-                // Set Koordinat Navigasi (Ambil Dest atau Origin)
-                if (contractData.full_mission_data) {
-                    const cStr = contractData.full_mission_data.dest_coords || contractData.full_mission_data.origin_coords;
-                    if (cStr) {
-                        const splitted = cStr.split(',');
-                        coordsData = { lat: parseFloat(splitted[0]), lng: parseFloat(splitted[1]) };
-                    }
-                }
-
-                // B. Identifikasi Adventurer (Reverse Lookup jika butuh)
-                let tempAdvId = contractData.id_adventurer;
-                let advNick = contractData.adventurer_nick;
-
-                // Jika ID Adventurer belum format adv-kng-xxx, cari via nickname di FB1
-                if (!tempAdvId || !tempAdvId.startsWith("adv-")) {
-                    const snapIndex = await masterDB.ref('adventurer_index').orderByChild('nickname').equalTo(advNick).once('value');
-                    if (snapIndex.exists()) {
-                        snapIndex.forEach(child => { finalAdvId = child.key; }); // Mendapat adv-kng-15979117
-                    } else {
-                        // Fallback darurat
-                        finalAdvId = "adv-unknown";
-                    }
-                } else {
-                    finalAdvId = tempAdvId;
-                }
-
-                // C. Tarik Data Target Profil untuk ditampilkan
-                if (user.role === 'adventurer') {
-                    // Adventurer melihat Requester
-                    const reqId = contractData.full_mission_data?.id_requester || contractData.id_requester;
-                    const snapReq = await masterDB.ref(`requester_index/${reqId}`).once('value');
-                    if (snapReq.exists()) {
-                        targetProfileData = snapReq.val();
-                        targetProfileData.isStranger = false;
-                        targetProfileData.uid = reqId;
-                    } else {
-                        targetProfileData = { isStranger: true, nama: contractData.full_mission_data?.client_name || "Stranger" };
-                    }
-                } else {
-                    // Requester melihat Adventurer
-                    const snapAdv = await masterDB.ref(`adventurer_index/${finalAdvId}`).once('value');
-                    if (snapAdv.exists()) {
-                        targetProfileData = snapAdv.val();
-                        targetProfileData.isStranger = false;
-                        targetProfileData.uid = finalAdvId;
+                // Cari ID Adv lewat Nickname di Index (Reverse Lookup)
+                const snapIndex = await masterDB.ref('adventurer_index').orderByChild('nickname').equalTo(advNick).once('value');
+                
+                if (snapIndex.exists()) {
+                    snapIndex.forEach(child => { 
+                        finalAdvId = child.key; 
+                        targetProfileData = child.val();
+                        targetProfileData.uid = child.key;
                         targetProfileData.nama = advNick;
-                    }
+                        isStranger = false;
+                    });
+                } else {
+                    targetProfileData = { nama: advNick || "Adventurer", isStranger: true };
+                    isStranger = true;
                 }
-
-            } catch (error) {
-                console.error(error);
-                document.getElementById('target-name').innerText = "ERROR JARINGAN";
             }
+        } catch (error) {
+            console.error("Handshake Error:", error);
+            document.getElementById('target-name').innerText = "ERROR SYNC";
         }
+    }
+
+    // ==========================================
+    // 3. SETTLEMENT DENGAN PROTEKSI STRANGER
+    // ==========================================
+    async function executeSettlementAdv() {
+        if(Object.values(hexRatings).includes(0)) return alert("Lengkapi rating bintang!");
+        
+        try {
+            const reward = contractData.full_mission_data?.rpg_reward || { exp: 0, greenStone: 0 };
+            let updates = {};
+
+            // HANYA UPDATE AKUN JIKA BUKAN STRANGER
+            if (!isStranger && finalAdvId) {
+                // Logika penentuan starTier sama seperti sebelumnya...
+                const totalScore = Object.values(hexRatings).reduce((a, b) => a + b, 0);
+                let starTier = totalScore >= 20 ? 'star_5' : 'star_3'; // Contoh simplifikasi
+
+                updates[`adventurer_coxin/${finalAdvId}/green_stone`] = firebase.database.ServerValue.increment(reward.greenStone);
+                updates[`adventurer_experience/${finalAdvId}/exp`] = firebase.database.ServerValue.increment(reward.exp);
+                
+                // Update kategori radar
+                Object.keys(hexRatings).forEach(cat => {
+                    updates[`adventurer_diagram/${finalAdvId}/nilai_${cat}`] = firebase.database.ServerValue.increment(hexRatings[cat]);
+                });
+
+                updates[`adventurer_reputation/${finalAdvId}/total_mission_completed`] = firebase.database.ServerValue.increment(1);
+                updates[`adventurer_reputation/${finalAdvId}/${starTier}`] = firebase.database.ServerValue.increment(1);
+            }
+
+            // Update status misi tetap dilakukan (agar misi hilang dari board)
+            await dealDB.ref(contractId).update({ status: 'completed_req' });
+            if (Object.keys(updates).length > 0) await masterDB.ref().update(updates);
+
+            alert("Settlement Berhasil!");
+            window.location.href = "index.html";
+        } catch (e) { alert("Gagal: " + e.message); }
+    }
+
+
+        
 
         // ==========================================
         // 3. RENDER UI SESUAI ROLE
