@@ -774,73 +774,55 @@ async function inspectData() {
 
 function injectSovereignFeatures() {
     try {
-        // --- 1. DATA DASAR (Pastikan ID ini ada di HTML) ---
-        // Jika mission.reward di session storage adalah angka, kita format ke Rupiah
-        const rewardNominal = mission.reward || 0;
-        const categoryMisi = mission.category || "General";
+        const supreme = await getSupremeData(contractId);
+        if (!supreme || !supreme.mission) return;
 
-        if(document.getElementById('m-category-badge')) 
-            document.getElementById('m-category-badge').innerText = categoryMisi.toUpperCase();
-        
-        if(document.getElementById('m-client-name')) 
-            document.getElementById('m-client-name').innerText = mission.client_name || "---";
-        
-        if(document.getElementById('m-adv-nick')) 
-            document.getElementById('m-adv-nick').innerText = mission.adventurer_nick || "Searching...";
-        
-        if(document.getElementById('m-reward-cash')) 
-            document.getElementById('m-reward-cash').innerText = "Rp " + Number(rewardNominal).toLocaleString();
-        
-        if(document.getElementById('m-distance')) 
-            document.getElementById('m-distance').innerText = mission.distance_est || "0";
+        const m = supreme.mission;
+        // POINTER PENTING: Data detail ada di dalam full_mission_data
+        const detail = m.full_mission_data || {}; 
 
-        // --- 2. LOGIKA TITIK ASAL (ORIGIN) ---
-        // Menggunakan origin_name, origin_details dari session storage Master
-        if(document.getElementById('m-origin-name'))
-            document.getElementById('m-origin-name').innerText = mission.origin_name || "Lokasi Jemput/Asal";
-        
-        if(document.getElementById('m-origin-details'))
-            document.getElementById('m-origin-details').innerText = mission.origin_details || "Tidak ada patokan";
+        // 1. Sinkronisasi Nama Client & Kategori
+        document.getElementById('m-category-badge').innerText = detail.category || "GENERAL";
+        document.getElementById('m-client-name').innerText = detail.client_name || "Guest";
+        document.getElementById('m-title').innerText = detail.category || "Unknown Contract";
 
-        // --- 3. LOGIKA TITIK TUJUAN (DESTINATION) ---
-        // Muncul jika kategori mengandung 'ride' atau jika dest_name ada isinya
-        if(mission.dest_name) {
-            const destCont = document.getElementById('dest-container');
-            if(destCont) {
-                destCont.classList.remove('hide');
-                document.getElementById('m-dest-name').innerText = mission.dest_name;
-                document.getElementById('m-dest-details').innerText = mission.dest_details || "-";
-            }
+        // 2. Sinkronisasi Alamat (Origin)
+        document.getElementById('m-origin-name').innerText = detail.origin_name || "---";
+        document.getElementById('m-origin-details').innerText = detail.origin_details || "---";
+
+        // 3. Logika DAFTAR BELANJA (Multi Points)
+        // Di gambar terlihat ini adalah Array di dalam detail.multi_points
+        if (detail.multi_points && detail.multi_points.length > 0) {
+            document.getElementById('cargo-hub').classList.remove('hide');
+            
+            // Menggabungkan isi array menjadi list teks dengan baris baru
+            const listBelanja = detail.multi_points.map((item, index) => `${index + 1}. ${item}`).join('\n');
+            document.getElementById('m-cargo-detail').innerText = listBelanja;
         }
 
-        // --- 4. LOGIKA TOMBOL MAPS (Hanya Adventurer) ---
-        if(isAdv) {
-            // Gunakan origin_coords & dest_coords
-            if(mission.origin_coords) {
+        // 4. Logika Titik Tujuan (Dest)
+        if (detail.dest_name) {
+            document.getElementById('dest-container').classList.remove('hide');
+            document.getElementById('m-dest-name').innerText = detail.dest_name;
+            document.getElementById('m-dest-details').innerText = detail.dest_details || "---";
+        }
+
+        // 5. Koordinat untuk Maps
+        if (isAdv) {
+            const coordsO = detail.origin_coords;
+            const coordsD = detail.dest_coords;
+            
+            if (coordsO && coordsO !== "NEGO") {
                 const bO = document.getElementById('btn-maps-origin');
-                if(bO) {
-                    bO.classList.remove('hide');
-                    bO.onclick = () => window.open(`https://www.google.com/maps?q=${mission.origin_coords}`);
-                }
-            }
-            if(mission.dest_coords) {
-                const bD = document.getElementById('btn-maps-dest');
-                if(bD) {
-                    bD.classList.remove('hide');
-                    bD.onclick = () => window.open(`https://www.google.com/maps?q=${mission.dest_coords}`);
-                }
+                bO.classList.remove('hide');
+                bO.onclick = () => window.open(`https://www.google.com/maps?q=${coordsO}`);
             }
         }
 
-        // --- 5. AKTIFKAN TIMER ---
-        const timerHub = document.getElementById('mission-timer-hub');
-        if(timerHub) {
-            timerHub.style.display = 'block';
-            startMissionTimer();
-        }
+        startMissionTimer(m.created_at);
 
-    } catch(err) {
-        console.error("Irene Error: Gagal memproses sinkronisasi detail.", err);
+    } catch (err) {
+        console.error("Irene Trace Error:", err);
     }
 }
 
