@@ -389,30 +389,71 @@
         // ==========================================
         // 2. UI ENGINE & NAVIGATION
         // ==========================================
-        function initUI() {
-            // Data Dasar dari Session Storage
-            document.getElementById('m-title').innerText = mission.title || "Unknown Contract";
-            document.getElementById('m-desc').innerText = mission.description || "Detail misi tidak ditemukan.";
-            document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
-            document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
-            document.getElementById('m-id-display').innerText = "ID: " + contractId;
+        async function initUI() {
+    try {
+        // 1. Tarik Data Terpusat menggunakan Aggregator
+        // contractId harus sudah didefinisikan sebelumnya (misal dari URL params)
+        const supreme = await getSupremeData(contractId);
+        
+        if (!supreme || !supreme.mission) {
+            console.error("Master, data misi gagal ditarik dari Shard!");
+            return;
+        }
 
-            const area = document.getElementById('role-action-area');
-            if(isAdv) {
-                document.getElementById('adv-status-hub').classList.remove('hide');
-                document.getElementById('nota-input-hub').classList.remove('hide');
-                area.innerHTML = `<button class="btn-main" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue);">MENUNGGU KONFIRMASI REQUESTER</button>`;
-            } else {
-                area.innerHTML = `<button class="btn-main" style="background:var(--neon-green); color:#000;" onclick="openEvalAdv()">KONFIRMASI SELESAI & BAYAR</button>`;
-                // Tambah tombol Arcade khusus Requester di Header
-                const head = document.getElementById('global-header');
-                const arcBtn = document.createElement('button');
-                arcBtn.innerHTML = `<i class="fa-solid fa-gamepad"></i>`;
-                arcBtn.style = "background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); width:35px; height:35px; border-radius:50%; margin-right:10px;";
-                arcBtn.onclick = () => document.getElementById('modalArcade').style.display = 'flex';
-                head.insertBefore(arcBtn, head.lastElementChild);
+        // Shortcut biar ngetiknya gampang
+        const m = supreme.mission;
+        const adv = supreme.adventurer;
+        const req = supreme.requester;
+
+        // 2. Isi Data Header & Deskripsi
+        document.getElementById('m-title').innerText = m.title || "Unknown Contract";
+        document.getElementById('m-desc').innerText = m.description || "Tidak ada deskripsi.";
+        document.getElementById('m-id-display').innerText = "ID: " + contractId;
+
+        // 3. Isi Data RPG (EXP & Stone)
+        // Sesuaikan dengan struktur path di Firebase Master
+        document.getElementById('m-exp').innerText = (m.rpg_reward?.exp || 0) + " EXP";
+        document.getElementById('m-stone').innerText = (m.rpg_reward?.greenStone || 0) + " STONES";
+
+        // 4. Isi Detail Khusus (Sesuai list yang Master minta)
+        document.getElementById('m-category-badge').innerText = m.category || "GENERAL";
+        document.getElementById('m-client-name').innerText = m.client_name || req?.profile?.display_name || "Guest";
+        document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Searching...";
+        document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+        document.getElementById('m-distance').innerText = m.distance_est || "0";
+
+        // 5. Logika Lokasi (Origin & Destination)
+        document.getElementById('m-origin-name').innerText = m.origin_name || "---";
+        document.getElementById('m-origin-details').innerText = m.origin_details || "---";
+
+        if (m.dest_name) {
+            document.getElementById('dest-container').classList.remove('hide');
+            document.getElementById('m-dest-name').innerText = m.dest_name;
+            document.getElementById('m-dest-details').innerText = m.dest_details || "---";
+        }
+
+        // 6. Logika Tombol Navigasi (Hanya untuk Adventurer)
+        if (isAdv) {
+            if (m.origin_coords) {
+                const bO = document.getElementById('btn-maps-origin');
+                bO.classList.remove('hide');
+                bO.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${m.origin_coords}`);
+            }
+            if (m.dest_coords) {
+                const bD = document.getElementById('btn-maps-dest');
+                bD.classList.remove('hide');
+                bD.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${m.dest_coords}`);
             }
         }
+
+        // 7. Jalankan Fitur Tambahan (Timer, dll)
+        startMissionTimer(m.ts_start);
+
+    } catch (error) {
+        console.error("CRASH LOKAL:", error);
+    }
+}
+
 
         function switchTab(id, el) {
             playSfx();
@@ -801,6 +842,27 @@ function injectSovereignFeatures() {
     } catch(err) {
         console.error("Irene Error: Gagal memproses sinkronisasi detail.", err);
     }
+}
+
+
+
+function startMissionTimer(startTime) {
+    const timerHub = document.getElementById('mission-timer-hub');
+    const timerVal = document.getElementById('timer-val');
+    if (!timerHub || !timerVal) return;
+
+    timerHub.style.display = 'block';
+    
+    // Gunakan waktu mulai dari DB, jika tidak ada pakai waktu sekarang
+    const startTs = startTime || Date.now();
+
+    setInterval(() => {
+        const diff = Date.now() - startTs;
+        const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+        const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+        const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+        timerVal.innerText = `${h}:${m}:${s}`;
+    }, 1000);
 }
 
 
