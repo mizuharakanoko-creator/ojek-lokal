@@ -88,18 +88,42 @@
 
     <div id="map"></div>
 
-    <div class="hud-top">
-        <div class="info-card">
+        <div class="hud-top">
+        <div id="btn-switch-profile" class="info-card" style="margin-bottom: 8px; padding: 6px 15px; border-radius: 10px; border-color: var(--neon-alt); cursor: pointer; display: inline-flex; width: auto;">
+            <i class="fa-solid fa-user-gear" style="color: var(--neon-alt); margin-right: 8px;"></i>
+            <span id="label-switch" style="font-size: 11px; font-weight: bold;">LIHAT PROFIL LAWAN</span>
+        </div>
+
+<div class="hud-top">
+    <div id="btn-switch-profile" class="info-card" style="margin-bottom: 8px; padding: 6px 15px; border-radius: 10px; border-color: var(--neon-alt); cursor: pointer; display: inline-flex; width: auto; pointer-events: auto;">
+        <i class="fa-solid fa-user-gear" style="color: var(--neon-alt); margin-right: 8px;"></i>
+        <span id="label-switch" style="font-size: 11px; font-weight: bold;">PROFIL</span>
+    </div>
+
+    <div class="info-card">
+        <div style="position: relative;">
             <img id="target-pfp" src="https://via.placeholder.com/100" class="pfp-circle">
-            <div style="flex:1">
-                <div id="mission-id" style="font-size:10px; color: #888;">ID: LOAD...</div>
-                <div id="target-name" style="font-weight:bold; font-size:16px;">MEMUAT...</div>
-                <div id="target-status" style="font-size:11px; color: var(--neon);">Jalur Aktif</div>
-            </div>
-            <button class="btn-circle" onclick="toggleTheme()"><i class="fa-solid fa-circle-half-stroke"></i></button>
-            <button class="btn-circle" id="btn-wa" onclick="directWA()"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i></button>
+            <img id="asis-avatar" src="" style="width: 22px; height: 22px; position: absolute; bottom: -2px; right: -2px; border-radius: 50%; border: 1px solid #00f3ff; background: #000; display:none;">
+        </div>
+        <div style="flex:1">
+            <div id="mission-id" style="font-size:10px; color: #888;">ID: LOAD...</div>
+            <div id="target-name" style="font-weight:bold; font-size:16px;">MEMUAT...</div>
+            <div id="asis-talk" style="font-size:11px; color: var(--neon); font-style: italic;">...</div>
+        </div>
+        <button class="btn-circle" onclick="toggleTheme()"><i class="fa-solid fa-circle-half-stroke"></i></button>
+        <button class="btn-circle" id="btn-wa" onclick="directWA()"><i class="fa-brands fa-whatsapp" style="color:#25d366"></i></button>
+    </div>
+
+    <div class="info-card" style="margin-top: 8px; flex-direction: column; align-items: stretch; gap: 8px; font-size: 11px; pointer-events: auto;">
+        <div id="rpg-reward-box" style="display: flex; justify-content: space-around; border-bottom: 1px solid #222; padding-bottom: 8px;"></div>
+        <div id="address-box" style="line-height: 1.4;">
+            <div style="color: #888;"><i class="fa-solid fa-map-pin" style="color: #ff3366;"></i> <span id="text-origin"></span></div>
+            <div style="color: #888;"><i class="fa-solid fa-location-dot" style="color: var(--neon);"></i> <span id="text-dest"></span></div>
         </div>
     </div>
+</div>
+
+
 
     <div class="hud-bottom">
         <div style="display:flex; gap:10px; margin-bottom:10px;">
@@ -211,20 +235,55 @@
         // 02. UI & ROLE RENDER (Layout Kode 1)
         // ========================================================
         function loadUIInfo() {
-            document.getElementById('mission-id').innerText = `ID: ${mission.id_misi || contractId}`;
-            
-            const area = document.getElementById('roleActions');
-            
-            // Logika Role Based (Kode 3)
-            if (user.role === 'adventurer') {
-                document.getElementById('target-name').innerText = mission.origin_name || "Requester";
-                document.getElementById('btn-wa').style.display = 'none'; // Adv tidak inisiasi WA
-                area.innerHTML = `<button class="btn-finish" disabled>MENUNGGU REQUESTER MENUTUP KONTRAK</button>`;
-            } else {
-                document.getElementById('target-name').innerText = "Adventurer Dalam Perjalanan";
-                area.innerHTML = `<button class="btn-finish" onclick="openRating()">KONFIRMASI SELESAI & BAYAR</button>`;
-            }
-        }
+    const m = mission || {};
+    const fullData = m.full_mission_data || {};
+    const rpg = m.rpg_reward || { exp: 0, greenStone: 0 };
+    
+    document.getElementById('mission-id').innerText = `ID: ${m.id_misi || contractId}`;
+
+    // 1. Profil Sisi Lain
+    const labelSwitch = document.getElementById('label-switch');
+    if (user.role === 'adventurer') {
+        labelSwitch.innerText = "PROFIL REQUESTER";
+        document.getElementById('target-name').innerText = m.origin_name || "Requester";
+    } else {
+        labelSwitch.innerText = "PROFIL ADVENTURER";
+        document.getElementById('target-name').innerText = m.adventurer_nick || "Adventurer";
+    }
+
+    // 2. Logika Asisten (Shift 3 Jam)
+    const hour = new Date().getHours();
+    const assists = ["irene", "amy", "aldis", "ruby", "tessia", "aria", "asia", "sissy"];
+    const selectedAsis = assists[Math.floor(hour / 3)];
+    
+    const asisImg = document.getElementById('asis-avatar');
+    asisImg.src = `${selectedAsis}.png`; 
+    asisImg.style.display = 'block';
+
+    const asisTalk = document.getElementById('asis-talk');
+    if (user.role === 'adventurer') {
+        asisTalk.innerText = `${selectedAsis.toUpperCase()}: Target di depan mata, Master.`;
+    } else {
+        asisTalk.innerText = `${selectedAsis.toUpperCase()}: Adventurer sedang meluncur.`;
+    }
+
+    // 3. Render Data RPG
+    const rpgBox = document.getElementById('rpg-reward-box');
+    if (user.role === 'adventurer') {
+        rpgBox.innerHTML = `
+            <div>EXP <b style="color:var(--neon);">+${rpg.exp}</b></div>
+            <div>G-STONE <b style="color:#00ff88;">${rpg.greenStone}</b></div>
+            <div>REWARD <b style="color:#fff;">Rp ${(m.reward || 0).toLocaleString()}</b></div>
+        `;
+    } else {
+        rpgBox.innerHTML = `<div>ESTIMASI BIAYA <b style="color:#00ff88;">Rp ${(m.reward || 0).toLocaleString()}</b></div>`;
+    }
+
+    // 4. Render Alamat dari Session
+    document.getElementById('text-origin').innerText = `${fullData.origin_desa || '-'} (${fullData.origin_details || '-'})`;
+    document.getElementById('text-dest').innerText = `${fullData.dest_desa || '-'} (${fullData.dest_details || '-'})`;
+}
+
 
         function toggleTheme() {
             const root = document.documentElement;
