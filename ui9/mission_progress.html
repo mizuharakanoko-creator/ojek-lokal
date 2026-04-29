@@ -1104,76 +1104,37 @@
 
         
         async function executeAdvFinal() {
-    // 1. Ambil data dari variabel global yang sudah ada di script kamu
-    const advNick = mission.adventurer_nick; 
-    const currentMission = mission;
-    const currentRatings = ratings;
-    const currentContractId = contractId;
-
-    // Validasi Bintang
-    if(Object.values(currentRatings).includes(0)) {
-        return alert("Sistem menolak: Berikan semua parameter bintang!");
-    }
-
-    const masterDB = getTerminal('FB1_MASTER');
-    updateAI("Memproses finalisasi shard...", "normal");
+    // 1. Validasi awal (tetap simple)
+    if(Object.values(ratings).includes(0)) return alert("Bintang belum lengkap!");
 
     try {
-        // 2. Cari lokasi Shard via Index menggunakan advNick dari session
-        const snap = await masterDB.ref('adventurer_index').orderByChild('nickname').equalTo(advNick).once('value');
-        
-        if (!snap.exists()) {
-            alert("System korup: Data adventurer tidak ditemukan di index.");
-            return;
-        }
+        // 2. Cari Alamat Shard (Karena kita nggak bisa asal nembak ke dbMaster lagi)
+        // Kita pakai nickname yang ada di variabel 'mission'
+        const advNick = mission.adventurer_nick;
+        const indexSnap = await dbMaster.ref('adventurer_index').orderByChild('nickname').equalTo(advNick).once('value');
 
-        const meta = Object.values(snap.val())[0];
-        const shard = getTerminal(meta.shard_id); 
-        const id = meta.id_adv;
+        if (!indexSnap.exists()) return alert("Adventurer tidak terdaftar di index!");
 
-        // 3. Kalkulasi Rata-rata Bintang
-        const avgBintang = Math.round((currentRatings.keamanan + currentRatings.kecerdasan + currentRatings.kepercayaan + currentRatings.keramahan + currentRatings.penampilan) / 5);
+        const meta = Object.values(indexSnap.val())[0];
+        const targetShard = getTerminal(meta.shard_id); // Ini otomatis milih FB2, FB3, dst
+        const advId = meta.id_adv;
 
-        // 4. Eksekusi Batch Update
+        // 3. Eksekusi Reward (Mirip kode simple abang, tapi ke targetShard)
         await Promise.all([
-            // Update Stats di Shard wilayah
-            shard.ref(`adventurer_experience/${id}/exp`).set(firebase.database.ServerValue.increment(currentMission.rpg_reward.exp || 0)),
-            shard.ref(`adventurer_coxin/${id}/green_stone`).set(firebase.database.ServerValue.increment(currentMission.rpg_reward.greenStone || 0)),
-
-            // Update Diagram Radar
-            shard.ref(`adventurer_diagram/${id}`).transaction((data) => {
-                if (!data) data = { nilai_keamanan: 0, nilai_kecerdasan: 0, nilai_kepercayaan: 0, nilai_keramahan: 0, nilai_penampilan: 0 };
-                data.nilai_keamanan += currentRatings.keamanan;
-                data.nilai_kecerdasan += currentRatings.kecerdasan;
-                data.nilai_kepercayaan += currentRatings.kepercayaan;
-                data.nilai_keramahan += currentRatings.keramahan;
-                data.nilai_penampilan += currentRatings.penampilan; 
-                return data;
-            }),
-
-            // Update Counter Reputasi Bintang
-            shard.ref(`adventurer_reputation/${id}`).transaction((data) => {
-                if (!data) data = {};
-                data.total_mission_completed = (data.total_mission_completed || 0) + 1;
-                const starKey = `star_${avgBintang}`;
-                data[starKey] = (data[starKey] || 0) + 1;
-                return data;
-            }),
-
-            // Update Status Global (FB4 & FB5)
-            getTerminal('FB4_BOARD').ref(`kontrak_mission/${currentContractId}/status`).set('completed_req'),
-            getTerminal('FB5_DEAL').ref(`kontrak_detail/${currentContractId}/status`).set('completed_req')
+            targetShard.ref(`adventurer_experience/${advId}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp)),
+            targetShard.ref(`adventurer_coxin/${advId}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone)),
+            
+            // Update status kontrak agar di sisi Adventurer juga berubah
+            dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req'),
+            getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}/status`).set('completed_req')
         ]);
 
-        alert("Misi Selesai. Terima kasih atas kontribusi Anda.");
-        // Bersihkan session agar tidak nyangkut
-        sessionStorage.removeItem('current_mission_full');
-        sessionStorage.removeItem('active_contract_id');
+        alert("Misi Selesai. Reward Shard telah dikirim!");
         location.href = "index.html";
 
     } catch (err) {
-        console.error("Critical Shard Error:", err);
-        updateAI("Kegagalan transmisi data ke Shard.", "alert");
+        console.error(err);
+        alert("Gagal sinkronisasi Shard: " + err.message);
     }
 }
 
