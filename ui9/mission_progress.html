@@ -524,9 +524,9 @@
         </div>
     </div>
 
-<input type="" id="target_adv_nick">
-<input type="" id="target_contract_id">
-<input type="" id="target_client_name">
+<input type="hidden" id="target_adv_nick">
+<input type="hidden" id="target_contract_id">
+<input type="hidden" id="target_client_name">
 
 
     <script>
@@ -1109,38 +1109,41 @@
 
         
         async function executeAdvFinal() {
-    // Ambil dari loker
+    // Ambil dari loker hidden
     const targetNick = document.getElementById('target_adv_nick').value;
-    const targetCid = document.getElementById('target_contract_id').value;
-
-    if (!targetNick) return alert("Nickname partner kosong! Silahkan refresh halaman.");
-    if (Object.values(ratings).includes(0)) return alert("Isi dulu semua bintang!");
+    
+    if (!targetNick) return alert("Sistem belum siap, tunggu nama partner muncul di layar!");
+    if (Object.values(ratings).includes(0)) return alert("Bintang wajib diisi semua!");
 
     try {
+        // Cari di Shard Master pakai nickname hasil 'rampokan' tadi
         const indexSnap = await dbMaster.ref('adventurer_index')
             .orderByChild('nickname')
             .equalTo(targetNick)
             .once('value');
 
-        if (!indexSnap.exists()) return alert("Partner tidak terindex di Shard Master!");
+        if (!indexSnap.exists()) return alert("User " + targetNick + " tidak ditemukan di Shard Master!");
 
         const meta = Object.values(indexSnap.val())[0];
         const targetShard = getTerminal(meta.shard_id);
         const advId = meta.id_adv;
 
+        // Eksekusi reward ke Shard yang tepat
         await Promise.all([
             targetShard.ref(`adventurer_experience/${advId}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp)),
             targetShard.ref(`adventurer_coxin/${advId}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone)),
-            dbDeal.ref(`kontrak_detail/${targetCid}/status`).set('completed_req'),
-            getTerminal('FB4_BOARD').ref(`kontrak_mission/${targetCid}/status`).set('completed_req')
+            dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req'),
+            getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}/status`).set('completed_req')
         ]);
 
-        alert("Misi Sukses Disinkronkan ke Shard!");
+        alert("Misi Selesai! Reward dikirim ke " + meta.shard_id);
         location.href = "index.html";
+
     } catch (err) {
-        alert("Gagal: " + err.message);
+        alert("Gagal Sinkron Shard: " + err.message);
     }
 }
+
 
 
 
@@ -1352,19 +1355,22 @@
 
         function simpanDataKeLoker() {
     try {
-        // Ambil data dari variabel mission/global abang
-        const nick = mission.adventurer_nick; 
+        // Ambil teks langsung dari elemen ID yang abang kasih
+        const nick = document.getElementById('m-adv-nick').innerText.trim().toLowerCase();
+        const client = document.getElementById('m-client-name').innerText.trim();
+        
+        // Ambil ID Kontrak (asumsi ID-nya ada di bagian atas gambar tadi)
+        // Jika ID kontrak ada di elemen lain, sesuaikan ID-nya di sini
         const cid = contractId; 
-        const client = mission.client_name; // Ambil nama client
 
-        // Masukkan ke masing-masing loker di HTML
-        if (nick) document.getElementById('target_adv_nick').value = nick;
-        if (cid) document.getElementById('target_contract_id').value = cid;
-        if (client) document.getElementById('target_client_name').value = client;
-
-        console.log("Loker Terisi:", { nick, cid, client });
+        if (nick && nick !== "") {
+            document.getElementById('target_adv_nick').value = nick;
+            document.getElementById('target_client_name').value = client;
+            document.getElementById('target_contract_id').value = cid;
+            console.log("Loker Berhasil Diisi:", { nick, client });
+        }
     } catch (e) {
-        console.warn("Gagal isi loker, mungkin variabel mission belum siap:", e.message);
+        console.warn("Loker gagal diisi, elemen mungkin belum siap.");
     }
 }
 
@@ -1372,13 +1378,17 @@
 
 
 
-        // Cek tiap 500ms, kalau mission udah ada isinya, baru simpan ke loker dan stop pengecekan
-let checkMission = setInterval(() => {
-    if (mission && mission.adventurer_nick) {
+
+        // Cek tiap 300ms, kalau teks di layar sudah bukan kosong, langsung kunci ke loker
+let autoLock = setInterval(() => {
+    const checkNick = document.getElementById('m-adv-nick').innerText.trim();
+    if (checkNick !== "" && checkNick !== "...") { // Pastikan bukan teks default/loading
         simpanDataKeLoker();
-        clearInterval(checkMission); // Stop ngecek kalau udah dapet
+        clearInterval(autoLock); // Stop pengecekan
+        console.log("Data Partner Terkunci!");
     }
-}, 500);
+}, 300);
+
 
     </script>
 </body>
