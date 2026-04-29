@@ -1113,114 +1113,130 @@
     const targetNick = elNick ? elNick.innerText.trim().toLowerCase() : "";
 
     if (!targetNick || targetNick === "..." || targetNick === "loading") {
-        return alert("Sistem belum siap: Nama partner belum muncul di layar!");
+        return alert("Sistem belum siap: Nama partner belum muncul!");
     }
 
     try {
-        // 1. CEK PROTEKSI VARIABEL (Agar tidak undefined reading keamanan)
-        // Jika variabel ratings tidak ada, kita buat objek kosong agar tidak crash
+        // 1. PROTEKSI VARIABEL BINTANG
+        // Mengambil nilai dari variabel 'ratings' yang ada di UI
         const r = (typeof ratings !== 'undefined') ? ratings : { keamanan:0, kecerdasan:0, kepercayaan:0, keramahan:0, penampilan:0 };
-        const c = (typeof check !== 'undefined') ? check : { sesuai:false, tips:false, pas:false, kurang:false, overwork:false };
 
-        // 2. Gali Data Master (FB1)
+        // 2. GALI DATA MASTER (FB1)
         const snap = await dbMaster.ref('adventurer_index').once('value');
         let meta = null;
-        snap.forEach(child => { if(child.val().nickname.toLowerCase() === targetNick) meta = child.val(); });
+        snap.forEach(child => { 
+            if(child.val().nickname && child.val().nickname.toLowerCase() === targetNick) {
+                meta = child.val(); 
+            }
+        });
 
-        if (!meta) return alert("User tidak ditemukan di Master Index!");
+        if (!meta) return alert(`Nickname [${targetNick}] tidak terdaftar di FB1!`);
 
         const shardId = meta.shard_id;
         const idAdv = meta.id_adv;
         const targetShard = getTerminal(shardId);
         
-        // 3. AMBIL DATA LAMA (Parallel)
+        if(!targetShard) throw new Error(`Terminal Shard ${shardId} tidak ditemukan!`);
+
+        // 3. AMBIL DATA LAMA ADVENTURER
         const [expSnap, diagSnap] = await Promise.all([
             targetShard.ref(`adventurer_experience/${idAdv}`).once('value'),
             targetShard.ref(`adventurer_diagram/${idAdv}`).once('value')
         ]);
 
-        // 4. KALKULASI EXP & LEVEL (Logika Max_Exp x 3)
+        // 4. KALKULASI EXP & LEVEL (LOGIKA MAX_EXP X 3)
         let { exp: curExp = 0, level: curLvl = 1, max_exp: maxExp = 100 } = expSnap.val() || {};
-        let newExp = curExp + (mission.rpg_reward.exp || 0);
+        let addExp = mission.rpg_reward.exp || 0;
+        let newExp = curExp + addExp;
         let newLvl = curLvl;
         let newMaxExp = maxExp;
+
         while (newExp >= newMaxExp) {
             newExp -= newMaxExp;
             newLvl++;
-            newMaxExp = newMaxExp * 3;
+            newMaxExp = newMaxExp * 3; // Max EXP berubah jadi Current Max * 3
         }
 
-        // 5. KALKULASI POIN DIAGRAM
-        const addPoin = {
+        // 5. KALKULASI DIAGRAM (POIN BINTANG)
+        const p = {
             keamanan: r.keamanan || 0,
             kecerdasan: r.kecerdasan || 0,
             kepercayaan: r.kepercayaan || 0,
             keramahan: r.keramahan || 0,
-            kejujuran: r.penampilan || 0 
+            kejujuran: r.penampilan || 0 // Penampilan dihitung ke Kejujuran sesuai instruksi
         };
-        const totalPoin = Object.values(addPoin).reduce((a, b) => a + b, 0);
+        const totalPoinMisi = p.keamanan + p.kecerdasan + p.kepercayaan + p.keramahan + p.kejujuran;
 
-        // 6. ALERT AUDIT TRANSPARANSI SPESIFIK
-        const auditMsg = `--- AUDIT SOVEREIGN GUILD ---
+        // 6. KALKULASI REPUTASI (STAR 1-5)
+        let starField = "star_1";
+        if (totalPoinMisi === 25) starField = "star_5";
+        else if (totalPoinMisi > 20) starField = "star_4";
+        else if (totalPoinMisi > 15) starField = "star_3";
+        else if (totalPoinMisi > 10) starField = "star_2";
+
+        // 7. ALERT AUDIT (TRANSPARANSI DATA ADVENTURER)
+        const auditMsg = `--- AUDIT DATA ADVENTURER ---
 TARGET: ${targetNick.toUpperCase()}
+ID: ${idAdv} | Shard: ${shardId}
 
-[TABEL: adventurer_experience]
-- Alamat: ${shardId}/adventurer_experience/${idAdv}
+[adventurer_experience]
 - Level: ${curLvl} -> ${newLvl}
-- EXP: ${curExp} + ${mission.rpg_reward.exp} = Sisa ${newExp}
+- EXP: ${curExp} + ${addExp} = ${newExp}
+- Max EXP: ${maxExp} -> ${newMaxExp}
 
-[TABEL: adventurer_diagram]
-- Alamat: ${shardId}/adventurer_diagram/${idAdv}
-- Poin Keamanan: +${addPoin.keamanan}
-- Poin Keramahan: +${addPoin.keramahan}
-- Poin Kejujuran: +${addPoin.kejujuran} (Dari Penampilan)
+[adventurer_diagram]
+- Keamanan: +${p.keamanan}
+- Kecerdasan: +${p.kecerdasan}
+- Kepercayaan: +${p.kepercayaan}
+- Keramahan: +${p.keramahan}
+- Kejujuran: +${p.kejujuran} (Penampilan)
 
-[TABEL: requester_stats]
-- Target: ${mission.requester_id}
-- Koordinat Sesuai: ${c.sesuai ? 'YA' : 'TIDAK'}
+[adventurer_reputation]
+- Kategori: ${starField} (+1)
+- Total Mission: +1
 
-SINKRONKAN DATA SEKARANG?`;
+Lanjutkan proses kirim data?`;
 
         if (!confirm(auditMsg)) return;
 
-        // 7. EKSEKUSI DATABASE
+        // 8. EKSEKUSI DATABASE
         await Promise.all([
             // Update Experience
             targetShard.ref(`adventurer_experience/${idAdv}`).update({
-                exp: newExp, level: newLvl, max_exp: newMaxExp
+                exp: newExp,
+                level: newLvl,
+                max_exp: newMaxExp
             }),
-            // Update Diagram
+            // Update Diagram (Akumulasi Poin)
             targetShard.ref(`adventurer_diagram/${idAdv}`).update({
-                nilai_keamanan: firebase.database.ServerValue.increment(addPoin.keamanan),
-                nilai_kecerdasan: firebase.database.ServerValue.increment(addPoin.kecerdasan),
-                nilai_kepercayaan: firebase.database.ServerValue.increment(addPoin.kepercayaan),
-                nilai_keramahan: firebase.database.ServerValue.increment(addPoin.keramahan),
-                nilai_kejujuran: firebase.database.ServerValue.increment(addPoin.kejujuran)
+                nilai_keamanan: firebase.database.ServerValue.increment(p.keamanan),
+                nilai_kecerdasan: firebase.database.ServerValue.increment(p.kecerdasan),
+                nilai_kepercayaan: firebase.database.ServerValue.increment(p.kepercayaan),
+                nilai_keramahan: firebase.database.ServerValue.increment(p.keramahan),
+                nilai_kejujuran: firebase.database.ServerValue.increment(p.kejujuran)
             }),
-            // Update Coxin & Reputation
+            // Update Reputasi
+            targetShard.ref(`adventurer_reputation/${idAdv}`).update({
+                [starField]: firebase.database.ServerValue.increment(1),
+                total_mission_completed: firebase.database.ServerValue.increment(1)
+            }),
+            // Update Green Stone (Coxin)
             targetShard.ref(`adventurer_coxin/${idAdv}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone)),
-            targetShard.ref(`adventurer_reputation/${idAdv}/total_mission_completed`).set(firebase.database.ServerValue.increment(1)),
             
-            // Update Requester
-            targetShard.ref(`requester_stats/${mission.requester_id}`).update({
-                total_order: firebase.database.ServerValue.increment(1),
-                titik_kordinat_sesuai: firebase.database.ServerValue.increment(c.sesuai ? 1 : 0),
-                titik_kordinat_tidak_sesuai: firebase.database.ServerValue.increment(c.sesuai ? 0 : 1)
-            }),
-
-            // Update Kontrak
+            // Update Status Kontrak
             dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_req' }),
             getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).update({ status: 'completed_req' })
         ]);
 
-        alert("Sinkronisasi Selesai!");
-        location.href = "index.html";
+        alert(`SUKSES! Data ${targetNick} telah disinkronkan.`);
+        window.location.href = "index.html";
 
     } catch (err) {
         console.error(err);
-        alert(`ERROR LOGIKA: ${err.message}`);
+        alert(`SISTEM MACET: ${err.message}`);
     }
 }
+
 
 
 
