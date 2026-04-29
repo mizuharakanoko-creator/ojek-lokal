@@ -1101,69 +1101,82 @@
             for(let i=0; i<5; i++) s[i].classList.toggle('on', i < val);
         }
 
-        async function executeAdvFinal(adventurer_nick, mission, ratings, contractId) {
-    // Validasi Bintang (Logika Asli)
-    if(Object.values(ratings).includes(0)) return alert("Sistem menolak: Berikan semua parameter bintang!");
+
+        
+        async function executeAdvFinal() {
+    // 1. Ambil data dari variabel global yang sudah ada di script kamu
+    const advNick = mission.adventurer_nick; 
+    const currentMission = mission;
+    const currentRatings = ratings;
+    const currentContractId = contractId;
+
+    // Validasi Bintang
+    if(Object.values(currentRatings).includes(0)) {
+        return alert("Sistem menolak: Berikan semua parameter bintang!");
+    }
 
     const masterDB = getTerminal('FB1_MASTER');
+    updateAI("Memproses finalisasi shard...", "normal");
 
     try {
-        // 1. Cari lokasi Shard via Index
-        const snap = await masterDB.ref('adventurer_index').orderByChild('nickname').equalTo(adventurer_nick).once('value');
+        // 2. Cari lokasi Shard via Index menggunakan advNick dari session
+        const snap = await masterDB.ref('adventurer_index').orderByChild('nickname').equalTo(advNick).once('value');
         
         if (!snap.exists()) {
-            alert("System korup data tidak terupdate ke database. Kami akan segera perbaiki system.");
+            alert("System korup: Data adventurer tidak ditemukan di index.");
             return;
         }
 
         const meta = Object.values(snap.val())[0];
-        const shard = getTerminal(meta.shard_id); // Koneksi ke Shard (FB2/FB3 dll)
+        const shard = getTerminal(meta.shard_id); 
         const id = meta.id_adv;
 
-        // 2. Kalkulasi Rata-rata Bintang (Logika Asli)
-        const avgBintang = Math.round((ratings.keamanan + ratings.kecerdasan + ratings.kepercayaan + ratings.keramahan + ratings.penampilan) / 5);
+        // 3. Kalkulasi Rata-rata Bintang
+        const avgBintang = Math.round((currentRatings.keamanan + currentRatings.kecerdasan + currentRatings.kepercayaan + currentRatings.keramahan + currentRatings.penampilan) / 5);
 
-        // 3. Eksekusi Batch Update ke Shard yang Benar
+        // 4. Eksekusi Batch Update
         await Promise.all([
-            // Update EXP & Green Stone (Mode Shard)
-            shard.ref(`adventurer_experience/${id}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp)),
-            shard.ref(`adventurer_coxin/${id}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone)),
+            // Update Stats di Shard wilayah
+            shard.ref(`adventurer_experience/${id}/exp`).set(firebase.database.ServerValue.increment(currentMission.rpg_reward.exp || 0)),
+            shard.ref(`adventurer_coxin/${id}/green_stone`).set(firebase.database.ServerValue.increment(currentMission.rpg_reward.greenStone || 0)),
 
-            // Update Diagram (Logika Asli)
+            // Update Diagram Radar
             shard.ref(`adventurer_diagram/${id}`).transaction((data) => {
                 if (!data) data = { nilai_keamanan: 0, nilai_kecerdasan: 0, nilai_kepercayaan: 0, nilai_keramahan: 0, nilai_penampilan: 0 };
-                data.nilai_keamanan += ratings.keamanan;
-                data.nilai_kecerdasan += ratings.kecerdasan;
-                data.nilai_kepercayaan += ratings.kepercayaan;
-                data.nilai_keramahan += ratings.keramahan;
-                data.nilai_penampilan += ratings.penampilan; 
+                data.nilai_keamanan += currentRatings.keamanan;
+                data.nilai_kecerdasan += currentRatings.kecerdasan;
+                data.nilai_kepercayaan += currentRatings.kepercayaan;
+                data.nilai_keramahan += currentRatings.keramahan;
+                data.nilai_penampilan += currentRatings.penampilan; 
                 return data;
             }),
 
-            // Update Reputasi & Counter Bintang (Logika Asli)
+            // Update Counter Reputasi Bintang
             shard.ref(`adventurer_reputation/${id}`).transaction((data) => {
                 if (!data) data = {};
                 data.total_mission_completed = (data.total_mission_completed || 0) + 1;
-                if (avgBintang === 5) data.star_5 = (data.star_5 || 0) + 1;
-                else if (avgBintang === 4) data.star_4 = (data.star_4 || 0) + 1;
-                else if (avgBintang === 3) data.star_3 = (data.star_3 || 0) + 1;
-                else if (avgBintang === 2) data.star_2 = (data.star_2 || 0) + 1;
-                else data.star_1 = (data.star_1 || 0) + 1;
+                const starKey = `star_${avgBintang}`;
+                data[starKey] = (data[starKey] || 0) + 1;
                 return data;
             }),
 
-            // Update Status di Board (FB4) & Deal (FB5)
-            getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}/status`).set('completed_req'),
-            getTerminal('FB5_DEAL').ref(`kontrak_detail/${contractId}/status`).set('completed_req')
+            // Update Status Global (FB4 & FB5)
+            getTerminal('FB4_BOARD').ref(`kontrak_mission/${currentContractId}/status`).set('completed_req'),
+            getTerminal('FB5_DEAL').ref(`kontrak_detail/${currentContractId}/status`).set('completed_req')
         ]);
 
-        alert("Misi Selesai. terimakasih atas kontribusi anda.");
+        alert("Misi Selesai. Terima kasih atas kontribusi Anda.");
+        // Bersihkan session agar tidak nyangkut
+        sessionStorage.removeItem('current_mission_full');
+        sessionStorage.removeItem('active_contract_id');
         location.href = "index.html";
 
     } catch (err) {
         console.error("Critical Shard Error:", err);
+        updateAI("Kegagalan transmisi data ke Shard.", "alert");
     }
 }
+
 
 
 
