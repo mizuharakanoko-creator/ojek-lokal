@@ -1109,85 +1109,109 @@
 
         
         async function executeAdvFinal() {
-    // 1. Ambil nama dari layar secara langsung
+    // 1. Ambil Nama & Rating dari layar
     const elNick = document.getElementById('m-adv-nick');
     const targetNick = elNick ? elNick.innerText.trim().toLowerCase() : "";
 
-    // Proteksi awal jika layar belum siap
     if (!targetNick || targetNick === "..." || targetNick === "loading") {
         return alert("Sistem belum siap: Nama partner belum muncul di layar!");
     }
 
+    if (Object.values(ratings).includes(0)) {
+        return alert("Rating belum lengkap! Mohon isi semua bintang.");
+    }
+
     try {
-        // 2. Gali FB1 (Master Index) untuk verifikasi alamat
+        // 2. Gali Master Index (FB1)
         const snap = await dbMaster.ref('adventurer_index').once('value');
         let meta = null;
+        snap.forEach(c => { if(c.val().nickname.toLowerCase() === targetNick) meta = c.val(); });
 
-        snap.forEach(child => {
-            const d = child.val();
-            if (d.nickname && d.nickname.trim().toLowerCase() === targetNick) {
-                meta = d;
-            }
-        });
+        if (!meta) return alert(`LOGIKA GAGAL: [${targetNick}] tidak ada di FB1.`);
 
-        // 3. Jika nickname tidak ditemukan di Master (FB1)
-        if (!meta) {
-            return alert(`LOGIKA GAGAL:\n\nSistem mencoba mencari Nickname: [${targetNick}]\nStatus: TIDAK ADA di FB1 (Master Index).\n\nSaran: Cek apakah user sudah daftar ulang?`);
-        }
-
-        // 4. Persiapkan Data Pengiriman
         const shardId = meta.shard_id;
         const idAdv = meta.id_adv;
-        const expReward = mission.rpg_reward.exp || 0;
-        const stoneReward = mission.rpg_reward.greenStone || 0;
-        
-        // Ambil Terminal/Alamat FB tujuan
         const targetShard = getTerminal(shardId);
 
-        // 5. ALERT LOGIKA (Konfirmasi sebelum nembak DB)
-        // Kita tunjukkan semua datanya di sini
+        // 3. AMBIL DATA LAMA (Untuk Kalkulasi Level & Diagram)
+        const [expSnap, diagSnap] = await Promise.all([
+            targetShard.ref(`adventurer_experience/${idAdv}`).once('value'),
+            targetShard.ref(`adventurer_diagram/${idAdv}`).once('value')
+        ]);
+
+        // Data Experience Lama
+        let currentExp = 0, currentLvl = 1, maxExp = 100;
+        if (expSnap.exists()) {
+            currentExp = expSnap.val().exp || 0;
+            currentLvl = expSnap.val().level || 1;
+            maxExp = expSnap.val().max_exp || 100;
+        }
+
+        // Data Diagram Lama
+        let totalMisi = 0;
+        if (diagSnap.exists()) {
+            totalMisi = diagSnap.val().total_mission || 0;
+        }
+
+        // 4. LOGIKA KALKULASI (Level Up & Reward)
+        const addExp = mission.rpg_reward.exp || 0;
+        const addStone = mission.rpg_reward.greenStone || 0;
+        
+        let newExp = currentExp + addExp;
+        let newLvl = currentLvl;
+        let newMaxExp = maxExp;
+        let isLevelUp = false;
+
+        // Loop Level Up
+        while (newExp >= newMaxExp) {
+            newExp -= newMaxExp;
+            newLvl++;
+            newMaxExp = Math.floor(newMaxExp * 1.5);
+            isLevelUp = true;
+        }
+
+        // 5. ALERT TRANSPARANSI (Audit Sebelum Kirim)
         const konfirmasi = confirm(
-            `LOGIKA PENGIRIMAN DATA:\n` +
-            `---------------------------\n` +
-            `Target Nickname : ${targetNick}\n` +
-            `Target ID Adv   : ${idAdv}\n` +
-            `Target Shard    : ${shardId}\n\n` +
-            `DATA YANG DIKIRIM:\n` +
-            `+ ${expReward} EXP  => Ke Tabel: adventurer_experience\n` +
-            `+ ${stoneReward} Stone => Ke Tabel: adventurer_coxin\n\n` +
-            `Lanjutkan pengiriman?`
+            `--- AUDIT LOGIKA SISTEM ---\n` +
+            `TARGET: ${targetNick.toUpperCase()} (${shardId})\n\n` +
+            `1. STATS EXPERIENCE:\n` +
+            `   - Level: ${currentLvl} -> ${newLvl} ${isLevelUp ? '(LEVEL UP!)' : ''}\n` +
+            `   - EXP: ${currentExp} + ${addExp} = Sisa ${newExp}\n` +
+            `   - Next Max EXP: ${newMaxExp}\n\n` +
+            `2. STATS CURRENCY:\n` +
+            `   - Green Stone: +${addStone}\n\n` +
+            `3. STATS DIAGRAM:\n` +
+            `   - Total Misi: ${totalMisi} -> ${totalMisi + 1}\n\n` +
+            `APAKAH DATA SUDAH BENAR?`
         );
 
-        if (!konfirmasi) return; // Batal jika abang klik 'Cancel'
+        if (!konfirmasi) return;
 
-        // 6. EKSEKUSI (Nembak Database)
+        // 6. EKSEKUSI FINAL (Update 5 Titik)
         await Promise.all([
-            // Update EXP
+            // Update Experience & Level
             targetShard.ref(`adventurer_experience/${idAdv}`).update({
-                exp: firebase.database.ServerValue.increment(expReward)
+                exp: newExp,
+                level: newLvl,
+                max_exp: newMaxExp
             }),
             // Update Green Stone
-            targetShard.ref(`adventurer_coxin/${idAdv}`).update({
-                green_stone: firebase.database.ServerValue.increment(stoneReward)
-            }),
-            // Update Status Misi (FB4 & Global)
+            targetShard.ref(`adventurer_coxin/${idAdv}/green_stone`).set(firebase.database.ServerValue.increment(addStone)),
+            // Update Diagram (Total Mission)
+            targetShard.ref(`adventurer_diagram/${idAdv}/total_mission`).set(firebase.database.ServerValue.increment(1)),
+            // Update Status Kontrak (Master & Board)
             dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_req' }),
             getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).update({ status: 'completed_req' })
         ]);
 
-        alert(
-            `SUKSES TERKIRIM!\n` +
-            `Data ${targetNick} telah di-update di ${shardId}.\n` +
-            `Silahkan cek tabel experience & coxin.`
-        );
-        
+        alert(`TRANSAKSI BERHASIL!\nPartner ${targetNick} telah menerima reward & stats.`);
         location.href = "index.html";
 
     } catch (err) {
-        console.error(err);
-        alert(`CRITICAL ERROR:\n${err.message}`);
+        alert(`CRITICAL ERROR: ${err.message}`);
     }
 }
+
 
 
 
