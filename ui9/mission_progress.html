@@ -1104,39 +1104,52 @@
 
         
         async function executeAdvFinal() {
-    // 1. Validasi awal (tetap simple)
     if(Object.values(ratings).includes(0)) return alert("Bintang belum lengkap!");
 
-    try {
-        // 2. Cari Alamat Shard (Karena kita nggak bisa asal nembak ke dbMaster lagi)
-        // Kita pakai nickname yang ada di variabel 'mission'
-        const advNick = mission.adventurer_nick;
-        const indexSnap = await dbMaster.ref('adventurer_index').orderByChild('nickname').equalTo(advNick).once('value');
+    // 1. Ambil Nickname dengan proteksi (Cek beberapa kemungkinan key)
+    const advNick = mission.adventurer_nick || mission.nickname_adv || mission.adventurer?.nickname;
 
-        if (!indexSnap.exists()) return alert("Adventurer tidak terdaftar di index!");
+    // Log ke konsol untuk debugging (Tekan F12 di browser buat cek)
+    console.log("Mencoba finalisasi untuk:", advNick);
+    console.log("Isi variabel mission saat ini:", mission);
+
+    // 2. Jika tetap undefined, tampilkan alert yang jelas
+    if (!advNick) {
+        return alert("Gagal: Nickname partner tidak ditemukan dalam memori sesi. Coba klik tombol REFRESH di pojok kanan atas.");
+    }
+
+    try {
+        // Proses pencarian Shard
+        const indexSnap = await dbMaster.ref('adventurer_index')
+            .orderByChild('nickname')
+            .equalTo(advNick) // Sekarang advNick dipastikan bukan undefined
+            .once('value');
+
+        if (!indexSnap.exists()) {
+            return alert(`Identitas '${advNick}' tidak terdaftar di buku alamat Shard.`);
+        }
 
         const meta = Object.values(indexSnap.val())[0];
-        const targetShard = getTerminal(meta.shard_id); // Ini otomatis milih FB2, FB3, dst
+        const targetShard = getTerminal(meta.shard_id);
         const advId = meta.id_adv;
 
-        // 3. Eksekusi Reward (Mirip kode simple abang, tapi ke targetShard)
+        // 3. Eksekusi Reward
         await Promise.all([
-            targetShard.ref(`adventurer_experience/${advId}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp)),
-            targetShard.ref(`adventurer_coxin/${advId}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone)),
-            
-            // Update status kontrak agar di sisi Adventurer juga berubah
+            targetShard.ref(`adventurer_experience/${advId}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward?.exp || 0)),
+            targetShard.ref(`adventurer_coxin/${advId}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward?.greenStone || 0)),
             dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req'),
             getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}/status`).set('completed_req')
         ]);
 
-        alert("Misi Selesai. Reward Shard telah dikirim!");
+        alert("Misi Selesai. Data Shard Sinkron!");
         location.href = "index.html";
 
     } catch (err) {
         console.error(err);
-        alert("Gagal sinkronisasi Shard: " + err.message);
+        alert("Koneksi Shard Terputus: " + err.message);
     }
 }
+
 
 
 
