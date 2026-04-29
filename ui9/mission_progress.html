@@ -1109,26 +1109,34 @@
 
         
         async function executeAdvFinal() {
-    // Ambil dari loker hidden
-    const targetNick = document.getElementById('target_adv_nick').value;
+    // Ambil dari loker
+    const nickDapet = document.getElementById('target_adv_nick').value;
     
-    if (!targetNick) return alert("Sistem belum siap, tunggu nama partner muncul di layar!");
-    if (Object.values(ratings).includes(0)) return alert("Bintang wajib diisi semua!");
+    // Debug sederhana: Kalau mau tau isinya apa, buka F12
+    console.log("Nickname yang dikirim ke FB1: '" + nickDapet + "'");
+
+    if (!nickDapet) return alert("Sistem belum mendeteksi nickname partner.");
 
     try {
-        // Cari di Shard Master pakai nickname hasil 'rampokan' tadi
+        // Gali Shard Master (FB1)
         const indexSnap = await dbMaster.ref('adventurer_index')
             .orderByChild('nickname')
-            .equalTo(targetNick)
+            .equalTo(nickDapet) // Pastikan ini string murni tanpa spasi
             .once('value');
 
-        if (!indexSnap.exists()) return alert("User " + targetNick + " tidak ditemukan di Shard Master!");
+        if (!indexSnap.exists()) {
+            // Kalau gagal, kita coba cara terakhir: ambil manual pakai ID-nya
+            // Tapi sementara kita alert dulu biar tau gagalnya di mana
+            return alert(`Error: Nickname '${nickDapet}' tidak terdeteksi di index. Pastikan teks di layar sama dengan di database.`);
+        }
 
-        const meta = Object.values(indexSnap.val())[0];
+        const snapshotVal = indexSnap.val();
+        const meta = Object.values(snapshotVal)[0];
+
+        // Jalur Shard yang sudah abang buat
         const targetShard = getTerminal(meta.shard_id);
         const advId = meta.id_adv;
 
-        // Eksekusi reward ke Shard yang tepat
         await Promise.all([
             targetShard.ref(`adventurer_experience/${advId}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp)),
             targetShard.ref(`adventurer_coxin/${advId}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone)),
@@ -1136,13 +1144,14 @@
             getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}/status`).set('completed_req')
         ]);
 
-        alert("Misi Selesai! Reward dikirim ke " + meta.shard_id);
+        alert("Sukses! Data telah disinkronkan ke " + meta.shard_id);
         location.href = "index.html";
 
     } catch (err) {
-        alert("Gagal Sinkron Shard: " + err.message);
+        alert("Gagal Sharding: " + err.message);
     }
 }
+
 
 
 
@@ -1355,24 +1364,23 @@
 
         function simpanDataKeLoker() {
     try {
-        // Ambil teks langsung dari elemen ID yang abang kasih
-        const nick = document.getElementById('m-adv-nick').innerText.trim().toLowerCase();
-        const client = document.getElementById('m-client-name').innerText.trim();
+        const rawNick = document.getElementById('m-adv-nick').innerText;
+        const rawClient = document.getElementById('m-client-name').innerText;
         
-        // Ambil ID Kontrak (asumsi ID-nya ada di bagian atas gambar tadi)
-        // Jika ID kontrak ada di elemen lain, sesuaikan ID-nya di sini
-        const cid = contractId; 
+        // Cuci data: hapus spasi depan/belakang dan paksa kecil (biar sama kayak di foto DB)
+        const cleanNick = rawNick.trim().toLowerCase();
+        const cleanClient = rawClient.trim();
 
-        if (nick && nick !== "") {
-            document.getElementById('target_adv_nick').value = nick;
-            document.getElementById('target_client_name').value = client;
-            document.getElementById('target_contract_id').value = cid;
-            console.log("Loker Berhasil Diisi:", { nick, client });
+        if (cleanNick !== "" && cleanNick !== "...") {
+            document.getElementById('target_adv_nick').value = cleanNick;
+            document.getElementById('target_client_name').value = cleanClient;
+            document.getElementById('target_contract_id').value = contractId;
         }
     } catch (e) {
-        console.warn("Loker gagal diisi, elemen mungkin belum siap.");
+        console.warn("Loker belum bisa diisi.");
     }
 }
+
 
 
 
