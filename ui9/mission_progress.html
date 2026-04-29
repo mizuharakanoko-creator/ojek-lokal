@@ -1109,54 +1109,67 @@
 
         
         async function executeAdvFinal() {
-    const targetNick = document.getElementById('target_adv_nick').value;
-    if (!targetNick) return alert("Nickname partner belum siap!");
+    // 1. LANGSUNG TEMBAK: Ambil teks dari elemen UI saat tombol diklik
+    const elNick = document.getElementById('m-adv-nick');
+    const elClient = document.getElementById('m-client-name');
+    
+    // Validasi visual
+    const targetNick = elNick ? elNick.innerText.trim().toLowerCase() : "";
+    const clientName = elClient ? elClient.innerText.trim() : "";
+
+    // Proteksi jika data di layar masih kosong/loading
+    if (!targetNick || targetNick === "..." || targetNick === "loading") {
+        return alert("Sistem belum siap: Nama partner belum muncul di layar!");
+    }
+
+    if (Object.values(ratings).includes(0)) {
+        return alert("Sistem menolak: Berikan semua parameter bintang!");
+    }
 
     try {
-        // 1. Ambil SEMUA data di adventurer_index (Gali total)
+        // 2. CARI DI FB1 (Gali Manual agar pasti ketemu)
         const snap = await dbMaster.ref('adventurer_index').once('value');
-        
-        if (!snap.exists()) return alert("Database adventurer_index kosong!");
-
         let meta = null;
-        let foundId = null;
 
-        // 2. Looping (Gali manual satu-satu sampai ketemu)
-        snap.forEach(child => {
-            const data = child.val();
-            // Bandingkan nickname (abaikan huruf besar/kecil dan spasi)
-            if (data.nickname && data.nickname.trim().toLowerCase() === targetNick.toLowerCase()) {
-                meta = data;
-                foundId = child.key; // Ini id_adv nya
-            }
-        });
-
-        // 3. Cek hasil galian
-        if (!meta) {
-            return alert(`User [${targetNick}] beneran nggak ada di FB1. Cek lagi tulisannya di DB.`);
+        if (snap.exists()) {
+            snap.forEach(child => {
+                const d = child.val();
+                // Bandingkan dengan nama dari layar tadi
+                if (d.nickname && d.nickname.trim().toLowerCase() === targetNick) {
+                    meta = d;
+                }
+            });
         }
 
-        console.log("Ditemukan! Shard ID:", meta.shard_id);
+        // 3. JIKA TIDAK KETEMU DI DB
+        if (!meta) {
+            return alert(`Gagal: Nama [${targetNick}] tidak terdaftar di database Master (FB1).`);
+        }
 
-        // 4. Lanjut tembak Shard target (Gunakan meta.shard_id hasil galian)
-        const targetShard = getTerminal(meta.shard_id);
-        const advId = meta.id_adv || foundId;
+        // 4. EKSEKUSI SHARD (Gunakan Shard ID dari hasil galian)
+        const shardId = meta.shard_id; // Contoh: FB2_RUNNER
+        const idAdv = meta.id_adv;    // Contoh: adv-kng-xxx
+        const targetShard = getTerminal(shardId);
 
         await Promise.all([
-            targetShard.ref(`adventurer_experience/${advId}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp)),
-            targetShard.ref(`adventurer_coxin/${advId}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone)),
+            // Update Reward ke Shard Partner
+            targetShard.ref(`adventurer_experience/${idAdv}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp)),
+            targetShard.ref(`adventurer_coxin/${idAdv}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone)),
+            
+            // Update Status Kontrak (Gunakan variabel contractId global abang)
             dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req'),
             getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}/status`).set('completed_req')
         ]);
 
-        alert(`Selesai! Reward dikirim ke ${targetNick} di Shard ${meta.shard_id}`);
+        alert(`Misi Selesai! Reward ditransfer ke ${targetNick} via ${shardId}.`);
         location.href = "index.html";
 
     } catch (err) {
         console.error(err);
-        alert("Gagal gali data: " + err.message);
+        alert("Terjadi kesalahan sistem: " + err.message);
     }
 }
+
 
 
 
