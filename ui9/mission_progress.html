@@ -1102,16 +1102,47 @@
         }
 
         async function executeAdvFinal() {
-            if(Object.values(ratings).includes(0)) return alert("Sistem menolak: Berikan semua parameter bintang!");
-            
-            const advUid = mission.adventurer_uid;
-            await dbMaster.ref(`users/${advUid}/adventurer_experience/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp));
-            await dbMaster.ref(`users/${advUid}/adventurer_coxin/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone));
-            
-            await dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req');
-            alert("Misi Selesai. Segel reward telah ditransfer ke partner.");
-            location.href = "index.html";
-        }
+    if(Object.values(ratings).includes(0)) return alert("Sistem menolak: Berikan semua parameter bintang!");
+    
+    const advUid = mission.adventurer_uid;
+    
+    // --- LOGIKA LAMA (TETAP DIPERTAHANKAN) ---
+    await dbMaster.ref(`users/${advUid}/adventurer_experience/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp));
+    await dbMaster.ref(`users/${advUid}/adventurer_coxin/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone));
+    
+    // --- TAMBAHAN KODE: UPDATE DIAGRAM & REPUTASI ADVENTURER ---
+    // Kalkulasi rata-rata bintang untuk penentuan Tier Bintang
+    const avgBintang = Math.round((ratings.keamanan + ratings.kecerdasan + ratings.kepercayaan + ratings.keramahan + ratings.penampilan) / 5);
+    
+    dbMaster.ref(`users/${advUid}/adventurer_diagram`).transaction((data) => {
+        if (!data) data = { nilai_keamanan: 0, nilai_kecerdasan: 0, nilai_kepercayaan: 0, nilai_keramahan: 0, nilai_penampilan: 0 };
+        data.nilai_keamanan += ratings.keamanan;
+        data.nilai_kecerdasan += ratings.kecerdasan;
+        data.nilai_kepercayaan += ratings.kepercayaan;
+        data.nilai_keramahan += ratings.keramahan;
+        data.nilai_penampilan += ratings.penampilan; 
+        return data;
+    });
+
+    dbMaster.ref(`users/${advUid}/adventurer_reputation`).transaction((data) => {
+        if (!data) data = {};
+        data.total_mission_completed = (data.total_mission_completed || 0) + 1;
+        // Tambah counter sesuai rata-rata bintang yang didapat
+        if (avgBintang === 5) data.star_5 = (data.star_5 || 0) + 1;
+        else if (avgBintang === 4) data.star_4 = (data.star_4 || 0) + 1;
+        else if (avgBintang === 3) data.star_3 = (data.star_3 || 0) + 1;
+        else if (avgBintang === 2) data.star_2 = (data.star_2 || 0) + 1;
+        else data.star_1 = (data.star_1 || 0) + 1;
+        return data;
+    });
+    // ------------------------------------------------------------
+
+    // --- LOGIKA LAMA LANJUTAN ---
+    await dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req');
+    alert("Misi Selesai. Segel reward telah ditransfer ke partner.");
+    location.href = "index.html";
+}
+
 
         function openEvalReq() {
             playSfx();
@@ -1152,11 +1183,49 @@
         }
 
         async function executeReqFinal() {
-            if(Object.values(reports).includes(null)) return alert("Sistem menolak: Selesaikan survei laporan!");
-            alert("Laporan terekam di arsip Guild. Terima kasih atas dedikasi Anda.");
-            Clearchance.clearActiveMission();
-            location.href = "index.html";
-        }
+    if(Object.values(reports).includes(null)) return alert("Sistem menolak: Selesaikan survei laporan!");
+
+    // --- TAMBAHAN KODE: UPDATE REPUTASI REQUESTER (COUNTER) ---
+    // Pastikan key uID requester ini sesuai dengan struktur JSON 'mission' Anda
+    const reqUid = mission.requester_uid || mission.client_uid; 
+    
+    if (reqUid) {
+        dbMaster.ref(`users/${reqUid}/requester_diagram`).transaction((data) => {
+            if (!data) data = {};
+            
+            // Evaluasi Koperatif / Koordinat Sesuai (dari laporan 'baik')
+            if (reports.baik) data.titik_kordinat_sesuai = (data.titik_kordinat_sesuai || 0) + 1;
+            else data.titik_kordinat_tidak_sesuai = (data.titik_kordinat_tidak_sesuai || 0) + 1;
+
+            // Evaluasi Apresiasi Tips
+            if (reports.tips) data.memberi_tips = (data.memberi_tips || 0) + 1;
+
+            // Evaluasi Akurasi Tunai
+            if (reports.cash) data.tunai_pas = (data.tunai_pas || 0) + 1;
+            else data.tunai_kurang = (data.tunai_kurang || 0) + 1;
+
+            // Evaluasi Perilaku Tambahan Kerja
+            if (reports.extra) data.minta_tambahan_kerja = (data.minta_tambahan_kerja || 0) + 1;
+
+            return data;
+        });
+
+        dbMaster.ref(`users/${reqUid}/requester_reputation`).transaction((data) => {
+            if (!data) data = {};
+            data.total_order = (data.total_order || 0) + 1;
+            return data;
+        });
+    } else {
+        console.warn("Sistem: UID Requester tidak ditemukan di sesi mission, data diagram tidak di-update.");
+    }
+    // -----------------------------------------------------------
+
+    // --- LOGIKA LAMA (TETAP DIPERTAHANKAN) ---
+    alert("Laporan terekam di arsip Guild. Terima kasih atas dedikasi Anda.");
+    Clearchance.clearActiveMission();
+    location.href = "index.html";
+}
+
 
         // ==========================================
         // 8. 5-POINT TRACKING & PROXIMITY ALERT
