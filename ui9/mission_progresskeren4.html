@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BATTLEFIELD HUB | SOVEREIGN GUILD</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        /* === QUANTUM DESIGN SYSTEM === */
+        :root {
+            --bg-main: #050508;
+            --bg-panel: rgba(13, 13, 20, 0.8);
+            --neon-blue: #00f3ff;
+            --neon-green: #00ff88;
+            --neon-red: #ff3366;
+            --neon-purple: #bc13fe;
+            --neon-yellow: #ffcc00;
+            --text-main: #e0e0e0;
+            --glass: rgba(5, 5, 8, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+            --font-sans: 'Inter', -apple-system, sans-serif;
+        }
+
+        body, html { 
+            margin: 0; padding: 0; 
+            background: radial-gradient(circle at top right, #111, var(--bg-main)); 
+            color: var(--text-main); 
+            font-family: var(--font-sans); 
+            overflow: hidden; height: 100%; width: 100%; 
+        }
+        
+        button, input { font-family: inherit; }
+        .hide { display: none !important; }
+
+        /* === GLOBAL HEADER === */
+        #global-header { 
+            position: absolute; top: 0; width: 100%; z-index: 2000; 
+            background: var(--glass); border-bottom: 1px solid var(--glass-border); 
+            padding: 12px 15px; backdrop-filter: blur(20px);
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            box-sizing: border-box;
+        }
+        .identity-badge { display: flex; align-items: center; gap: 12px; cursor: pointer; transition: transform 0.2s; }
+        .identity-badge:active { transform: scale(0.95); }
+        .rank-frame { 
+            width: 45px; height: 45px; border: 2px solid var(--neon-blue); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;
+            background: rgba(0, 243, 255, 0.05); color: var(--neon-blue); 
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+        }
+
+        /* Refresh Button */
+        .btn-refresh {
+            background: rgba(0,243,255,0.1); border: 1px solid var(--neon-blue); color: var(--neon-blue);
+            width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.3s; box-shadow: 0 0 10px rgba(0,243,255,0.2);
+        }
+        .btn-refresh:active { transform: rotate(180deg) scale(0.9); }
+
+        /* === TABS & VIEWPORT === */
+        .viewport { position: absolute; top: 65px; bottom: 65px; width: 100%; overflow: hidden; }
+        .tab-pane { 
+            position: absolute; inset: 0; 
+            opacity: 0; pointer-events: none; transform: translateY(15px); 
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto; overflow-x: hidden;
+            padding-bottom: 30px;
+        }
+        .tab-pane.active { opacity: 1; pointer-events: all; transform: translateY(0); }
+
+        /* --- TAB 1: HQ --- */
+        .hq-container { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        
+        /* AI Assistant */
+        .ai-terminal { 
+            background: rgba(188, 19, 254, 0.05); border: 1px solid rgba(188, 19, 254, 0.3); 
+            border-radius: 15px; padding: 15px; display: flex; gap: 15px; align-items: center;
+            box-shadow: 0 0 20px rgba(188, 19, 254, 0.05) inset; backdrop-filter: blur(5px);
+            transition: all 0.5s ease;
+        }
+        .ai-terminal.alert { border-color: var(--neon-red); background: rgba(255, 51, 102, 0.05); }
+        .ai-terminal.success { border-color: var(--neon-green); background: rgba(0, 255, 136, 0.05); }
+        .ai-terminal.pulse { animation: terminalPulse 1.5s infinite; border-color: var(--neon-green); }
+        @keyframes terminalPulse { 0% { box-shadow: 0 0 0 0 rgba(0,255,136,0.4); } 70% { box-shadow: 0 0 0 10px rgba(0,255,136,0); } 100% { box-shadow: 0 0 0 0 rgba(0,255,136,0); } }
+        #ai-text { font-size: 13px; font-style: italic; color: #d8b4fe; line-height: 1.5; transition: 0.3s; }
+
+        /* Live Status (Static but Clear) */
+        .status-panel {
+            background: rgba(0,0,0,0.7); border-left: 4px solid var(--neon-blue); padding: 15px;
+            border-radius: 8px; font-family: var(--font-mono); border: 1px solid var(--glass-border);
+            border-left-width: 4px; display: flex; align-items: center; gap: 15px;
+        }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); animation: blink 1.5s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        #live-status-text { font-size: 12px; color: #fff; font-weight: bold; letter-spacing: 1px; flex: 1; }
+        #live-status-time { font-size: 10px; color: #888; }
+
+        /* Mission Dossier Card */
+        .dossier { background: var(--bg-panel); border: 1px solid var(--glass-border); border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); backdrop-filter: blur(10px); }
+        .dossier-head { background: rgba(255,255,255,0.03); padding: 12px 15px; font-size: 11px; color: #aaa; display: flex; justify-content: space-between; font-family: var(--font-mono); border-bottom: 1px solid var(--glass-border); letter-spacing: 1px; }
+        .dossier-body { padding: 20px; position: relative; transition: all 0.5s ease; }
+        .data-syncing { opacity: 0.6; filter: blur(3px); }
+        .m-title { font-size: 24px; font-weight: 900; color: var(--neon-green); margin: 0 0 15px 0; letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0,255,136,0.3); }
+        
+        /* Narrative Progress Bar */
+        #mission-progress-container { margin-bottom: 25px; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); }
+        .prog-label { font-size: 11px; color: #bbb; display: flex; justify-content: space-between; margin-bottom: 8px; font-style: italic; }
+        .prog-track { height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+        .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple)); transition: width 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; }
+        .prog-fill::after { content:''; position:absolute; top:0; right:0; bottom:0; left:0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent); animation: shimmer 2s infinite; }
+
+        /* Data Sync Animations */
+        .loading-shimmer { background: linear-gradient(90deg, #0d0d14 25%, #1a1a24 50%, #0d0d14 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; color: transparent !important; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* Expandable Profile */
+        .profile-drawer { max-height: 0; overflow: hidden; transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1); background: rgba(0,0,0,0.6); border-bottom: 0px solid var(--glass-border); backdrop-filter: blur(10px); }
+        .profile-drawer.open { max-height: 400px; padding: 20px; border-bottom-width: 1px; }
+        .stat-line { margin-bottom: 12px; }
+        .stat-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; color: #888; letter-spacing: 1px; }
+        .stat-bar { height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+        .stat-fill { height: 100%; width: 0%; background: var(--neon-blue); transition: width 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+        /* Slide-to-Confirm System */
+        .slider-wrapper {
+            position: relative; width: 100%; height: 56px; background: rgba(0,0,0,0.6); 
+            border: 1px solid var(--glass-border); border-radius: 28px; overflow: hidden; margin-top: 15px; box-shadow: inset 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .slider-text {
+            position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 900; color: #888; letter-spacing: 2px; pointer-events: none; z-index: 1; text-transform: uppercase;
+        }
+        .slider-fill {
+            position: absolute; top: 0; left: 0; height: 100%; width: 0; background: linear-gradient(90deg, rgba(0,255,136,0.1), rgba(0,255,136,0.4)); z-index: 2; transition: width 0.1s;
+        }
+        .slider-thumb {
+            position: absolute; top: 3px; left: 3px; width: 50px; height: 50px; background: var(--neon-green);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #000; font-size: 20px;
+            cursor: pointer; z-index: 3; box-shadow: 0 0 15px rgba(0,255,136,0.5); transition: background 0.3s;
+        }
+
+        /* Action Buttons */
+        .btn-main {
+            background: linear-gradient(135deg, rgba(0,243,255,0.1), rgba(0,243,255,0.02));
+            border: 1px solid var(--neon-blue); color: var(--neon-blue);
+            padding: 14px; border-radius: 12px; text-transform: uppercase; font-weight: 900;
+            letter-spacing: 1px; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; width: 100%; font-size: 13px;
+        }
+        .btn-main:hover, .btn-main:active { background: var(--neon-blue); color: #000; box-shadow: 0 0 20px rgba(0,243,255,0.4); transform: translateY(-2px); }
+
+        /* --- TAB 3: NOTA FISIK & SNAPSHOT --- */
+        .ledger-container { padding: 15px; }
+        .receipt-ui { background: #fdfce3; color: #1a1a1a; font-family: var(--font-mono); padding: 30px 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); position: relative; border-radius: 4px; }
+        .receipt-ui::before { content: ""; position: absolute; top: -10px; left: 0; width: 100%; height: 10px; background: linear-gradient(45deg, transparent 33%, #fdfce3 33%, #fdfce3 66%, transparent 66%), linear-gradient(-45deg, transparent 33%, #fdfce3 33%, #fdfce3 66%, transparent 66%); background-size: 10px 20px; }
+        .nota-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px dashed #ccc; font-size: 13px; transition: 0.3s; }
+        .nota-item.new-item { border-left: 4px solid var(--neon-yellow); background: rgba(255, 204, 0, 0.1); }
+        .nota-actions { display: flex; gap: 12px; }
+        .btn-icon { background: none; border: none; cursor: pointer; padding: 5px; font-size: 16px; transition: 0.2s; }
+        .btn-icon:hover { transform: scale(1.2); }
+        
+        /* Snapshot Preview inside Input Hub */
+        .input-panel { background: var(--bg-panel); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid var(--glass-border); backdrop-filter: blur(10px); }
+        .q-input { width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; padding: 14px; border-radius: 8px; margin-bottom: 10px; transition: 0.3s; }
+        .q-input:focus { outline: none; border-color: var(--neon-blue); box-shadow: 0 0 10px rgba(0,243,255,0.2); }
+        .snapshot-btn { background: rgba(255,204,0,0.1); border: 1px dashed var(--neon-yellow); color: var(--neon-yellow); padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-bottom: 10px; font-size: 12px; font-weight: bold; }
+        #snap-preview { max-width: 100px; max-height: 100px; border-radius: 8px; display: none; margin-top: 10px; border: 1px solid #444; }
+
+        /* Modal Image Viewer for Receipt */
+        #modalImgViewer .modal-box { padding: 10px; background: transparent; border: none; box-shadow: none; }
+        #modalImgViewer img { max-width: 100%; max-height: 80vh; border-radius: 12px; border: 2px solid var(--neon-blue); box-shadow: 0 0 30px rgba(0,243,255,0.5); }
+
+        /* --- TAB 4: COMMS --- */
+        .comms-engine { display: flex; flex-direction: column; height: 100%; }
+        .chat-wall { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .bubble { max-width: 80%; padding: 12px 18px; border-radius: 18px; font-size: 14px; line-height: 1.5; box-shadow: 0 4px 15px rgba(0,0,0,0.2); position: relative; }
+        .bubble.me { align-self: flex-end; background: linear-gradient(135deg, var(--neon-blue), #00b3cc); color: #000; border-bottom-right-radius: 4px; font-weight: 500; }
+        .bubble.them { align-self: flex-start; background: var(--bg-panel); border: 1px solid var(--glass-border); border-bottom-left-radius: 4px; backdrop-filter: blur(5px); }
+        .comms-bar { background: var(--glass); padding: 15px; border-top: 1px solid var(--glass-border); display: flex; gap: 12px; align-items: center; backdrop-filter: blur(15px); }
+
+        /* --- WA DRAWER (SLIDE-TO-ACTION REVISI) --- */
+        .drawer-toggle-btn { 
+            position: fixed; bottom: 85px; right: 20px; z-index: 2500; 
+            background: #25d366; border: none; color: #fff; border-radius: 50%; 
+            width: 55px; height: 55px; display: flex; align-items: center; justify-content: center; 
+            font-size: 28px; box-shadow: 0 5px 20px rgba(37, 211, 102, 0.4); cursor: pointer; transition: 0.3s;
+        }
+        .action-drawer { position: fixed; bottom: 65px; left: 0; width: 100%; background: rgba(10,10,15,0.95); backdrop-filter: blur(30px); border-top: 1px solid #25d366; transform: translateY(150%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 2400; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,0.7); padding-bottom: 20px; }
+        .action-drawer.open { transform: translateY(0); }
+        .drawer-handle { width: 50px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 15px auto; cursor: pointer; }
+
+        /* --- GLOBAL FOOTER & NAV BADGES --- */
+        #global-footer { position: absolute; bottom: 0; width: 100%; height: 65px; z-index: 3000; background: var(--glass); border-top: 1px solid var(--glass-border); backdrop-filter: blur(20px); }
+        .nav-grid { display: flex; height: 100%; }
+        .nav-item { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #666; cursor: pointer; transition: 0.3s; font-weight: 500; letter-spacing: 1px; }
+        .nav-item.active { color: var(--neon-blue); background: linear-gradient(0deg, rgba(0,243,255,0.05), transparent); }
+        .nav-item i { font-size: 20px; margin-bottom: 5px; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .nav-item.active i { transform: translateY(-3px) scale(1.1); text-shadow: 0 0 10px rgba(0,243,255,0.5); }
+        
+        .nav-badge { position: absolute; top: 8px; right: 25%; background: var(--neon-red); color: #fff; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 10px; box-shadow: 0 0 10px var(--neon-red); display: none; }
+        .nav-badge.show { display: inline-block; animation: pulseBadge 1s infinite alternate; }
+        @keyframes pulseBadge { 0% { transform: scale(1); } 100% { transform: scale(1.2); } }
+
+        /* --- MAP TACTICAL CLEANUP --- */
+        #map { width: 100%; height: 100%; filter: invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.2); position: relative; z-index: 1;}
+        .leaflet-control-attribution { display: none !important; } /* Removes Watermark */
+        
+        /* Custom Marker CSS */
+        .tactical-marker { display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #000; font-size: 14px; font-weight: bold; border: 2px solid #fff; box-shadow: 0 0 15px rgba(255,255,255,0.5); }
+        .m-adv { background: var(--neon-blue); box-shadow: 0 0 20px var(--neon-blue); z-index: 1000 !important; }
+        .m-req { background: var(--neon-purple); box-shadow: 0 0 15px var(--neon-purple); }
+        .m-origin { background: var(--neon-yellow); }
+        .m-dest { background: var(--neon-green); }
+        .m-base { background: #fff; color: #000; }
+
+        /* --- MODALS --- */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 5000; display: none; align-items: center; justify-content: center; padding: 20px; opacity: 0; transition: opacity 0.3s ease; }
+        .modal-overlay.show { display: flex; opacity: 1; }
+        .modal-box { background: var(--bg-panel); border: 1px solid var(--neon-blue); width: 100%; max-width: 400px; border-radius: 24px; padding: 30px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .modal-overlay.show .modal-box { transform: scale(1); }
+        
+        .arcade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 25px; }
+        .slot-btn { background: rgba(0,0,0,0.5); border: 1px dashed #444; padding: 25px 15px; border-radius: 15px; cursor: pointer; transition: 0.3s; }
+        .slot-btn.active { border: 1px solid var(--neon-blue); box-shadow: 0 0 20px rgba(0,243,255,0.15) inset; background: rgba(0,243,255,0.05); }
+
+        .star-row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; background: rgba(0,0,0,0.4); padding: 12px 15px; border-radius: 12px; border: 1px solid var(--glass-border); }
+        .stars i { font-size: 22px; color: #444; cursor: pointer; margin-left: 8px; transition: 0.2s; }
+        .stars i.on { color: #ffcc00; text-shadow: 0 0 15px rgba(255,204,0,0.5); transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+    <audio id="click-sfx" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
+    <audio id="notif-sfx" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+
+    <header id="global-header">
+        <div class="identity-badge" onclick="toggleProfile()">
+            <div id="u-rank" class="rank-frame">?</div>
+            <div>
+                <div id="u-role" style="font-size: 10px; color: #888; letter-spacing: 1.5px; text-transform: uppercase;">SINKRONISASI...</div>
+                <div id="u-name" style="font-weight: 700; font-size: 16px; transition: opacity 0.3s;">Memuat Data</div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="btn-refresh" onclick="forceRefreshData()" title="Re-Fetch Shard Data"><i class="fa-solid fa-rotate"></i></button>
+            <img src="ai_irene_face.png" style="width:38px; height:38px; border-radius:50%; border:2px solid var(--neon-purple); box-shadow: 0 0 10px rgba(188,19,254,0.4);" alt="AI">
+        </div>
+    </header>
+
+    <main class="viewport">
+        
+        <div id="tab-hq" class="tab-pane active">
+            <div id="profile-drawer" class="profile-drawer">
+                <div class="stat-line">
+                    <div class="stat-label"><span>KEANDALAN SISTEM</span> <span id="v-stat-1">0%</span></div>
+                    <div class="stat-bar"><div id="b-stat-1" class="stat-fill"></div></div>
+                </div>
+                <div class="stat-line">
+                    <div class="stat-label"><span>REPUTASI KONTRAK</span> <span id="v-stat-2">0 PTS</span></div>
+                    <div class="stat-bar"><div id="b-stat-2" class="stat-fill" style="background: var(--neon-green);"></div></div>
+                </div>
+                <div id="v-extra-info" style="font-size: 11px; color: #777; text-align: center; margin-top: 15px;">Secure Channel Established.</div>
+            </div>
+
+            <div class="hq-container">
+                <div id="edu-bilah" class="hide" style="background: linear-gradient(90deg, rgba(0,243,255,0.08), transparent); border-left: 3px solid var(--neon-blue); padding: 12px 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                    <div style="font-size: 9px; color: var(--neon-blue); font-weight: bold; margin-bottom: 5px; letter-spacing: 1px;">GUILD GUIDE <i class="fa-solid fa-circle-info"></i></div>
+                    <div id="edu-text" style="font-size: 12px; color: #ccc; font-style: italic; line-height: 1.4;">--</div>
+                </div>
+
+                <div id="ai-terminal-box" class="ai-terminal">
+                    <i class="fa-solid fa-microchip" style="color: var(--neon-purple); font-size: 28px; text-shadow: 0 0 10px rgba(188,19,254,0.3);"></i>
+                    <div id="ai-text">Menganalisis parameter misi. Mohon tetap waspada dalam jalur transmisi ini...</div>
+                </div>
+
+                <div class="status-panel">
+                    <div class="status-dot" id="status-indicator"></div>
+                    <div id="live-status-text">[SYS] STANDBY - MENUNGGU DATA</div>
+                    <div id="live-status-time">--:--</div>
+                </div>
+
+                <div class="dossier">
+                    <div class="dossier-head">
+                        <span>MISSION_FILE_ACTIVE</span>
+                        <span id="m-id-display">ID: ---</span>
+                    </div>
+
+                    <div class="dossier-body">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                            <div>
+                                <div id="m-category-badge" style="background: var(--neon-purple); color: #000; font-size: 9px; font-weight: bold; padding: 3px 8px; border-radius: 5px; display: inline-block; margin-bottom: 6px; text-transform: uppercase;">CATEGORY</div>
+                                <h1 id="m-title" class="m-title">MENGAMBIL KATEGORI...</h1>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 9px; color: #666; letter-spacing: 1px;">CLIENT TARGET</div>
+                                <div id="m-client-name" style="font-size: 12px; color: var(--neon-blue); font-weight: bold;">--</div>
+                            </div>
+                        </div>
+
+                        <div id="mission-progress-container">
+                            <div class="prog-label">
+                                <span id="m-status-text">Menganalisis matriks logistik...</span>
+                                <span id="m-progress-pct" style="color: var(--neon-blue); font-weight: bold;">0%</span>
+                            </div>
+                            <div class="prog-track">
+                                <div id="m-progress-bar" class="prog-fill"></div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <div id="mission-timer-hub" style="font-family: var(--font-mono); color: var(--neon-purple); font-size: 11px; border: 1px solid rgba(188,19,254,0.3); background: rgba(188,19,254,0.05); padding: 6px 10px; border-radius: 8px;">
+                                <i class="fa-solid fa-clock"></i> <span id="timer-val">00:00:00</span>
+                            </div>
+                            <div style="font-family: var(--font-mono); font-size: 12px; color: var(--neon-green); background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.3); padding: 5px 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,255,136,0.1);">
+                                <i class="fa-solid fa-route"></i> <span id="m-distance">0</span> KM
+                            </div>
+                        </div>
+
+                        <div id="location-hub" style="margin-top: 20px;">
+                            <div style="background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 12px;">
+                                <div style="font-size: 9px; color: var(--neon-yellow); letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-store"></i> TITIK ASAL / TOKO (A)</div>
+                                <div id="m-origin-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                                <button id="btn-maps-origin" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px; background: rgba(0,243,255,0.05);">
+                                    <i class="fa-solid fa-location-arrow"></i> NAVIGASI ASAL
+                                </button>
+                            </div>
+
+                            <div id="dest-hub" class="hide" style="background: rgba(0,255,136,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(0,255,136,0.2); margin-bottom: 12px;">
+                                <div style="font-size: 9px; color: var(--neon-green); letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-flag-checkered"></i> TITIK TUJUAN PENGIRIMAN (B)</div>
+                                <div id="m-dest-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                                <button id="btn-maps-dest" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px; border-color: var(--neon-green); color: var(--neon-green); background: rgba(0,255,136,0.05);">
+                                    <i class="fa-solid fa-map-pin"></i> NAVIGASI TUJUAN
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                            <div style="font-size: 11px; color: var(--neon-purple); font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;">
+                                <i class="fa-solid fa-layer-group"></i> DAFTAR PESANAN (MULTI-POINT)
+                            </div>
+                            <div id="m-cargo-detail" style="font-size: 14px; color: #eee; white-space: pre-line; line-height: 1.6; font-family: var(--font-mono);">--</div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border-top: 1px solid var(--glass-border); padding-top: 15px;">
+                            <div>
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">REWARD TUNAI</div>
+                                <div id="m-reward-cash" style="color: var(--neon-green); font-weight: bold; font-size: 16px;">Rp 0</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">PERSONIL ADVENTURER</div>
+                                <div id="m-adv-nick" style="font-size: 13px; color: #fff; font-weight: bold;">--</div>
+                            </div>
+                            <div id="rpg-exp-wrap">
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">REWARD EXP</div>
+                                <div id="m-exp" style="color: var(--neon-blue); font-weight: bold; font-family: var(--font-mono); font-size: 14px;">--</div>
+                            </div>
+                            <div id="rpg-stone-wrap" style="text-align: right;">
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">GREEN STONES</div>
+                                <div id="m-stone" style="color: var(--neon-green); font-weight: bold; font-family: var(--font-mono); font-size: 14px;">--</div>
+                            </div>
+                        </div>
+
+                        <div id="action-slider-box" class="hide">
+                            <div style="font-size: 10px; color: var(--neon-green); text-align: center; margin-top: 20px; font-weight: bold; letter-spacing: 1px;">FINALISASI KONTRAK</div>
+                            <div class="slider-wrapper" id="slider-wrapper">
+                                <div class="slider-text" id="slider-text">GESER UNTUK SELESAI</div>
+                                <div class="slider-fill" id="slider-fill"></div>
+                                <div class="slider-thumb" id="slider-thumb"><i class="fa-solid fa-angles-right"></i></div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div id="adv-status-hub" class="hide" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; border: 1px solid var(--glass-border);">
+                    <div style="font-size: 11px; color: #888; margin-bottom: 12px; font-weight: bold; letter-spacing: 1px; text-align: center;">KIRIM UPDATE PROGRES LAPANGAN</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <button class="btn-main" style="background: rgba(0,243,255,0.05); font-size: 11px;" onclick="sendLiveStatus('OTW Lokasi Asal')"><i class="fa-solid fa-motorcycle"></i> OTW ASAL</button>
+                        <button class="btn-main" style="background: rgba(0,243,255,0.05); font-size: 11px;" onclick="sendLiveStatus('OTW Lokasi Tujuan')"><i class="fa-solid fa-truck-fast"></i> OTW TUJUAN</button>
+                        <button class="btn-main" style="background: rgba(0,255,136,0.05); border-color: var(--neon-green); color: var(--neon-green); font-size: 11px;" onclick="sendLiveStatus('Tiba di Lokasi')"><i class="fa-solid fa-check-double"></i> TIBA</button>
+                        <button class="btn-main" style="background: rgba(255,51,102,0.05); border-color: var(--neon-red); color: var(--neon-red); font-size: 11px;" onclick="sendLiveStatus('Kendala Lapangan')"><i class="fa-solid fa-triangle-exclamation"></i> KENDALA</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-map" class="tab-pane">
+            <div id="map"></div>
+        </div>
+
+        <div id="tab-nota" class="tab-pane">
+            <div class="ledger-container">
+                <div id="nota-input-hub" class="input-panel hide">
+                    <div style="font-size: 11px; color: var(--neon-blue); margin-bottom: 10px; font-weight: bold; letter-spacing: 1px;">INPUT DATA LEDGER</div>
+                    <input type="text" id="in-name" class="q-input" placeholder="Nama Barang / Biaya">
+                    
+                    <label class="snapshot-btn" for="in-snap">
+                        <i class="fa-solid fa-camera"></i> UNGGAH BUKTI FOTO (OPSIONAL)
+                    </label>
+                    <input type="file" id="in-snap" accept="image/*" class="hide" onchange="previewSnapshot(event)">
+                    <img id="snap-preview" src="" alt="Preview">
+
+                    <div style="display: flex; gap: 12px; margin-top: 10px;">
+                        <input type="number" id="in-price" class="q-input" placeholder="Harga (Rp)" style="margin-bottom: 0;">
+                        <button id="btn-nota-save" onclick="notaSave()" class="btn-main" style="width: 120px; font-size: 12px;">SIMPAN</button>
+                    </div>
+                </div>
+
+                <div class="receipt-ui">
+                    <div style="text-align: center; border-bottom: 2px dashed #999; padding-bottom: 20px; margin-bottom: 25px;">
+                        <div style="font-size: 20px; font-weight: 900; letter-spacing: 3px;">SOVEREIGN GUILD</div>
+                        <div style="font-size: 11px; color: #555; margin-top: 5px; font-weight: bold;">TACTICAL LEDGER SYSTEM</div>
+                    </div>
+                    
+                    <div id="nota-list-ui"></div>
+
+                    <div style="border-top: 2px dashed #999; margin-top: 25px; padding-top: 20px; display: flex; justify-content: space-between; font-weight: 900; font-size: 18px;">
+                        <span>TOTAL</span>
+                        <span id="nota-total-val">Rp 0</span>
+                    </div>
+
+                    <div style="font-size: 9px; text-align: center; margin-top: 40px; color: #888; line-height: 1.6; font-weight: bold;">
+                        DATA INI SINKRON KE KEDUA BELAH PIHAK.<br>KLIK IKON KAMERA UNTUK MELIHAT BUKTI.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-comms" class="tab-pane">
+            <div class="comms-engine">
+                <div id="comms-wall" class="chat-wall"></div>
+                <div class="comms-bar">
+                    <button id="stt-mic" onclick="runVoiceToText()" style="background: rgba(188,19,254,0.1); border: 1px solid var(--neon-purple); color: var(--neon-purple); width: 48px; height: 48px; border-radius: 50%; font-size: 18px; transition: 0.3s; cursor: pointer; flex-shrink: 0;"><i class="fa-solid fa-microphone"></i></button>
+                    <input type="text" id="comms-input" placeholder="Ketik transmisi..." style="flex: 1; min-width:0; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; padding: 14px 20px; border-radius: 25px; font-size: 14px; transition: 0.3s;">
+                    <button onclick="commsSend()" style="color: var(--neon-blue); border: none; background: none; font-size: 24px; cursor: pointer; padding: 10px; transition: 0.2s; flex-shrink: 0;"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <button id="requester-toggle-btn" class="drawer-toggle-btn hide" onclick="toggleActionDrawer()">
+        <i class="fa-brands fa-whatsapp"></i>
+    </button>
+
+    <div id="action-drawer" class="action-drawer">
+        <div class="drawer-handle" onclick="toggleActionDrawer()"></div>
+        <div style="padding: 0 20px;">
+            <div style="text-align: center; font-size: 10px; color: #888; letter-spacing: 2px; margin-bottom: 15px; font-weight: bold;">DIRECT COMMS LINK</div>
+            <div id="role-action-area">
+                </div>
+        </div>
+    </div>
+
+    <footer id="global-footer">
+        <nav class="nav-grid">
+            <div class="nav-item active" onclick="switchTab('tab-hq', this)">
+                <i class="fa-solid fa-atom"></i>HQ
+            </div>
+            <div class="nav-item" onclick="switchTab('tab-map', this)">
+                <i class="fa-solid fa-map-location-dot"></i>MAP
+            </div>
+            <div class="nav-item" onclick="switchTab('tab-nota', this)">
+                <i class="fa-solid fa-receipt"></i>NOTA
+                <span id="badge-nota" class="nav-badge">NEW</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('tab-comms', this)">
+                <i class="fa-solid fa-comments"></i>COMMS
+                <span id="badge-comms" class="nav-badge">NEW</span>
+            </div>
+        </nav>
+    </footer>
+
+    <div id="modalImgViewer" class="modal-overlay" onclick="closeModal('modalImgViewer')">
+        <div class="modal-box">
+            <img id="img-viewer-src" src="" alt="Bukti Struk">
+        </div>
+    </div>
+
+    <div id="modalArcade" class="modal-overlay">
+        <div class="modal-box" style="border-color: var(--neon-blue);">
+            <i class="fa-solid fa-xmark" style="position: absolute; top: 20px; right: 20px; cursor: pointer; color: #777; font-size: 20px; transition: 0.2s;" onclick="closeModal('modalArcade')"></i>
+            <h3 style="color: var(--neon-blue); margin-top: 0; letter-spacing: 2px; font-weight: 900;">QUANTUM ARCADE</h3>
+            <p style="font-size: 12px; color: #888; margin-bottom: 0;">Fasilitas Hiburan & Refining Shard</p>
+            <div class="arcade-grid">
+                <div class="slot-btn active" onclick="alert('Starting Mana Refiner...')">
+                    <i class="fa-solid fa-gem" style="color: var(--neon-blue); text-shadow: 0 0 15px rgba(0,243,255,0.5);"></i>
+                    <div style="font-size: 11px; font-weight: bold; letter-spacing: 1px;">MANA REFINER</div>
+                </div>
+                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #444;"></i><div style="font-size: 10px; color: #555; font-weight: bold;">ENCRYPTED</div></div>
+                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #444;"></i><div style="font-size: 10px; color: #555; font-weight: bold;">ENCRYPTED</div></div>
+                <div class="slot-btn"><i class="fa-solid fa-lock" style="color: #444;"></i><div style="font-size: 10px; color: #555; font-weight: bold;">ENCRYPTED</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalEvalAdv" class="modal-overlay">
+        <div class="modal-box" style="border-color: var(--neon-green);">
+            <h3 style="color: var(--neon-green); margin-top: 0; font-weight: 900; letter-spacing: 1px;">EVALUASI PARTNER</h3>
+            <p style="font-size: 12px; color: #aaa; margin-bottom: 25px;">Berikan penilaian performa kerja untuk membuka segel pembayaran.</p>
+            <div id="eval-star-group"></div>
+            <button class="btn-main" style="background: var(--neon-green); color: #000; border: none; margin-top: 30px; font-size: 14px;" onclick="executeAdvFinal()">KIRIM & TUTUP KONTRAK</button>
+        </div>
+    </div>
+
+    <div id="modalEvalReq" class="modal-overlay">
+        <div class="modal-box" style="border-color: var(--neon-blue);">
+            <h3 style="color: var(--neon-blue); margin-top: 0; font-weight: 900; letter-spacing: 1px;">LAPORAN KLIEN</h3>
+            <p style="font-size: 12px; color: #aaa; margin-bottom: 25px;">Bantu guild menilai kualitas requester untuk referensi masa depan.</p>
+            <div id="eval-bool-group"></div>
+            <button class="btn-main" style="background: var(--neon-blue); color: #000; border: none; margin-top: 30px; font-size: 14px;" onclick="executeReqFinal()">KIRIM LAPORAN</button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. GLOBAL STATE & SYNC
+        // ==========================================
+        const user = Clearchance.enforceIdentity();
+        const mission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
+        const contractId = sessionStorage.getItem('active_contract_id') || mission.id_misi;
+        const isAdv = user.role === 'adventurer';
+
+        const dbDeal = getTerminal('FB5_DEAL');
+        const dbMaster = getTerminal('FB1_MASTER');
+
+        let map;
+        // MAP 5 Titik
+        let advMarker, reqMarker, originMarker, destMarker, baseMarker;
+        let mapPolyline;
+        let destCoordsGlobal = null; // Untuk kalkulasi proximity
+
+        let activeEditId = null;
+        let base64Snapshot = ""; // Untuk menampung foto nota
+        
+        let ratings = { keamanan:0, kecerdasan:0, kepercayaan:0, keramahan:0, penampilan:0 };
+        let reports = { baik:null, tips:null, cash:null, extra:null };
+        let activeTab = 'tab-hq';
+        let initialNotaLoad = true;
+        let initialChatLoad = true;
+
+        window.onload = async () => {
+            initUI();
+            initMap();
+            await performDeepMining(); 
+            syncNota();
+            syncChat();
+            syncTracking();
+            syncStatus();
+            initSliderAction();
+        };
+
+        function playSfx() { document.getElementById('click-sfx').play().catch(()=>{}); }
+        function playNotif() { document.getElementById('notif-sfx').play().catch(()=>{}); }
+        function vibratePulse() { if(window.navigator && window.navigator.vibrate) window.navigator.vibrate([50, 100, 50]); }
+
+        // ==========================================
+        // 2. UI ENGINE & NAVIGATION
+        // ==========================================
+        
+        function initUI() {
+            document.getElementById('m-exp').innerText = (mission.rpg_reward?.exp || 0) + " EXP";
+            document.getElementById('m-stone').innerText = (mission.rpg_reward?.greenStone || 0) + " STONES";
+            document.getElementById('m-id-display').innerText = "ID: " + contractId;
+
+            const area = document.getElementById('role-action-area');
+            if(isAdv) {
+                document.getElementById('adv-status-hub').classList.remove('hide');
+                document.getElementById('nota-input-hub').classList.remove('hide');
+                document.getElementById('action-drawer').classList.add('hide');
+            } else {
+                document.getElementById('requester-toggle-btn').classList.remove('hide');
+                document.getElementById('action-slider-box').classList.remove('hide'); // Munculkan Slider Finalisasi
+                
+                const head = document.getElementById('global-header');
+                if(!document.getElementById('arc-btn')){
+                    const arcBtn = document.createElement('button');
+                    arcBtn.id = "arc-btn";
+                    arcBtn.innerHTML = `<i class="fa-solid fa-gamepad"></i>`;
+                    arcBtn.style = "background:rgba(0,243,255,0.1); border:1px solid var(--neon-blue); color:var(--neon-blue); width:38px; height:38px; border-radius:50%; margin-right:15px; cursor:pointer; transition:0.3s; display:flex; align-items:center; justify-content:center;";
+                    arcBtn.onclick = () => { playSfx(); document.getElementById('modalArcade').classList.add('show'); };
+                    head.insertBefore(arcBtn, head.children[1]); // Letakkan sebelum Refresh/Face
+                }
+            }
+        }
+
+        function switchTab(id, el) {
+            playSfx();
+            if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(5);
+            activeTab = id;
+
+            document.querySelectorAll('.tab-pane').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(id).classList.add('active');
+            el.classList.add('active');
+            
+            if(id === 'tab-nota') document.getElementById('badge-nota').classList.remove('show');
+            if(id === 'tab-comms') {
+                document.getElementById('badge-comms').classList.remove('show');
+                const wall = document.getElementById('comms-wall');
+                wall.scrollTop = wall.scrollHeight;
+            }
+            if(id === 'tab-map' && map) {
+                setTimeout(() => { 
+                    map.invalidateSize({ animate: true });
+                    recenterMap(); 
+                }, 400);
+            }
+        }
+
+        function toggleActionDrawer() {
+            playSfx();
+            const drawer = document.getElementById('action-drawer');
+            drawer.classList.toggle('open');
+        }
+
+        async function forceRefreshData() {
+            playSfx();
+            document.querySelector('.btn-refresh i').style.animation = "spin 1s linear infinite";
+            updateAI("Memaksa re-sinkronisasi data dari Shard Firebase...", "normal");
+            await performDeepMining();
+            setTimeout(() => {
+                document.querySelector('.btn-refresh i').style.animation = "none";
+            }, 1000);
+        }
+
+        // ==========================================
+        // 3. DEEP MINING & INJECTION LOGIC
+        // ==========================================
+
+        async function performDeepMining() {
+            const dossier = document.querySelector('.dossier-body');
+            const uName = document.getElementById('u-name');
+            
+            dossier.classList.add('data-syncing');
+            uName.classList.add('loading-shimmer');
+
+            try {
+                const DATA = await getSupremeData(contractId);
+                if (!DATA) throw new Error("Data Shard tidak terjangkau");
+
+                const partner = isAdv ? DATA.requester : DATA.adventurer;
+                
+                setTimeout(() => {
+                    uName.classList.remove('loading-shimmer');
+                    uName.innerText = partner?.profile?.nama || "Unknown Entity";
+                    
+                    if (isAdv) {
+                        document.getElementById('u-rank').innerText = partner?.profile?.tier ? `T${partner.profile.tier}` : "T1";
+                        document.getElementById('u-role').innerText = "REQUESTER";
+                        const repPoints = partner?.reputation?.poin || 0;
+                        document.getElementById('v-stat-1').innerText = `${repPoints} REP`;
+                        updateProgressBar('b-stat-1', (repPoints / 1000) * 100); 
+                    } else {
+                        document.getElementById('u-rank').innerText = partner?.profile?.rank || "F";
+                        document.getElementById('u-role').innerText = "ADVENTURER";
+                        const trustScore = partner?.diagram?.nilai_kepercayaan || 0;
+                        document.getElementById('v-stat-1').innerText = `${trustScore}% TRUST`;
+                        updateProgressBar('b-stat-1', trustScore);
+                        document.getElementById('v-stat-2').innerText = "Lv." + (partner?.experience?.level || 1);
+                    }
+                    
+                    dossier.classList.remove('data-syncing');
+                    updateAI("Koneksi stabil. Data personil berhasil diamankan.", "success");
+                }, 600);
+
+                injectSovereignDetails(DATA);
+
+            } catch (e) {
+                updateAI(`ERROR: ${e.message}`, "alert");
+                dossier.classList.remove('data-syncing');
+                uName.classList.remove('loading-shimmer');
+            }
+        }
+
+        function updateProgressBar(id, percent) {
+            const el = document.getElementById(id);
+            if(el) el.style.width = Math.min(percent, 100) + "%";
+        }
+
+        function updateAI(text, type) {
+            const box = document.getElementById('ai-terminal-box');
+            const txt = document.getElementById('ai-text');
+            box.className = 'ai-terminal ' + (type === 'normal' ? '' : type);
+            txt.innerText = text;
+            
+            if(type === 'alert' || type === 'success') {
+                setTimeout(() => { box.className = 'ai-terminal'; }, 5000);
+            }
+        }
+
+        function parseCoordsString(coordStr) {
+            if(!coordStr || coordStr === "NEGO") return null;
+            const parts = coordStr.split(',');
+            if(parts.length === 2) return [parseFloat(parts[0]), parseFloat(parts[1])];
+            return null;
+        }
+
+        function injectSovereignDetails(DATA) {
+            if (!DATA || !DATA.mission) return;
+
+            const m = DATA.mission;
+            const detail = m.full_mission_data || {};
+
+            const catStr = detail.category || m.category || "CLASSIFIED";
+            document.getElementById('m-title').innerText = catStr.toUpperCase();
+            document.getElementById('m-client-name').innerText = detail.client_name || "STRANGER";
+            document.getElementById('m-distance').innerText = detail.distance_est || "0";
+            
+            document.getElementById('m-status-text').innerText = isAdv ? "Mission Secured. Menunggu pergerakan." : `Partner Engaged: ${m.adventurer_nick || 'Unknown'}`;
+            document.getElementById('m-progress-pct').innerText = "15%";
+            document.getElementById('m-progress-bar').style.width = "15%";
+
+            document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+            document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Unknown";
+
+            // Marker Titik A (Origin)
+            document.getElementById('m-origin-name').innerText = detail.origin_name || "Koordinat Terenkripsi";
+            const btnMapsO = document.getElementById('btn-maps-origin');
+            const oCoords = parseCoordsString(detail.origin_coords);
+            if (oCoords) {
+                if(!originMarker) {
+                    const i = L.divIcon({className: 'tactical-marker m-origin', html: "A", iconSize: [20,20]});
+                    originMarker = L.marker(oCoords, {icon: i}).addTo(map);
+                } else { originMarker.setLatLng(oCoords); }
+                
+                if (isAdv) {
+                    btnMapsO.classList.remove('hide');
+                    btnMapsO.onclick = () => window.open(`https://www.google.com/maps?q=$${detail.origin_coords}`);
+                }
+            }
+
+            // Marker Titik B (Destination)
+            const destHub = document.getElementById('dest-hub');
+            if (detail.dest_name || detail.dest_desa) {
+                destHub.classList.remove('hide');
+                document.getElementById('m-dest-name').innerText = detail.dest_desa || detail.dest_name;
+                
+                const dCoords = parseCoordsString(detail.dest_coords);
+                if(dCoords) {
+                    destCoordsGlobal = dCoords; // Simpan untuk kalkulasi Proximity Alert
+                    if(!destMarker) {
+                        const i = L.divIcon({className: 'tactical-marker m-dest', html: "B", iconSize: [20,20]});
+                        destMarker = L.marker(dCoords, {icon: i}).addTo(map);
+                    } else { destMarker.setLatLng(dCoords); }
+
+                    const btnMapsD = document.getElementById('btn-maps-dest');
+                    if (isAdv) {
+                        btnMapsD.classList.remove('hide');
+                        btnMapsD.onclick = () => window.open(`https://www.google.com/maps?q=$${detail.dest_coords}`);
+                    }
+                }
+            }
+
+            // Marker Base (Opsional jika ada data history, sementara letakkan di Origin jika kosong)
+            if(!baseMarker && oCoords) {
+                const i = L.divIcon({className: 'tactical-marker m-base', html: "<i class='fa-solid fa-house' style='font-size:10px;'></i>", iconSize: [20,20]});
+                baseMarker = L.marker(oCoords, {icon: i}).addTo(map);
+            }
+
+            // Cargo
+            if (detail.multi_points && Array.isArray(detail.multi_points)) {
+                document.getElementById('cargo-hub').classList.remove('hide');
+                document.getElementById('m-cargo-detail').innerText = detail.multi_points.map((t, i) => `${i + 1}. ${t}`).join('\n');
+            }
+
+            // Requester Setup
+            if(!isAdv) {
+                document.getElementById('rpg-exp-wrap').classList.add('hide');
+                document.getElementById('rpg-stone-wrap').classList.add('hide');
+
+                const area = document.getElementById('role-action-area');
+                const phone = DATA?.adventurer?.profile?.whatsapp || "";
+                
+                area.innerHTML = `
+                    <div style="background: rgba(37, 211, 102, 0.1); border: 1px solid rgba(37, 211, 102, 0.3); padding: 15px; border-radius: 15px; text-align: center;">
+                        <div style="font-size: 11px; color: #aaa; margin-bottom: 15px;">Enkripsi aktif. Jalur komunikasi aman.</div>
+                        <button onclick="window.open('https://wa.me/${phone.replace(/\D/g,'')}')" style="background:#25d366; color:#000; border:none; padding:15px; border-radius:12px; font-weight:900; cursor:pointer; transition:0.2s; width:100%; box-shadow:0 5px 15px rgba(37,211,102,0.3);">
+                            <i class="fa-brands fa-whatsapp" style="font-size:20px; margin-right:8px;"></i> HUBUNGI ADVENTURER
+                        </button>
+                    </div>
+                `;
+
+                const hqContainer = document.querySelector('.hq-container');
+                const eduBilah = document.getElementById('edu-bilah');
+                if(eduBilah) hqContainer.prepend(eduBilah);
+                startRequesterEducation();
+            }
+            
+            startMissionTimer(m.start_time || Date.now());
+            recenterMap();
+        }
+
+        // ==========================================
+        // 4. NOTA & SNAPSHOT (CRUD)
+        // ==========================================
+        function previewSnapshot(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                base64Snapshot = e.target.result;
+                const img = document.getElementById('snap-preview');
+                img.src = base64Snapshot;
+                img.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function notaSave() {
+            const name = document.getElementById('in-name').value;
+            const price = parseInt(document.getElementById('in-price').value);
+            if(!name || !price) return alert("Lengkapi data nota!");
+
+            const payload = { nama: name, harga: price, ts: Date.now() };
+            if(base64Snapshot !== "") payload.foto = base64Snapshot;
+
+            const ref = dbDeal.ref(`kontrak_detail/${contractId}/nota/items`);
+            if(activeEditId) {
+                ref.child(activeEditId).update(payload);
+                activeEditId = null;
+                document.getElementById('btn-nota-save').innerText = "SIMPAN";
+            } else {
+                ref.push(payload);
+            }
+            
+            // Reset input
+            document.getElementById('in-name').value = "";
+            document.getElementById('in-price').value = "";
+            document.getElementById('in-snap').value = "";
+            document.getElementById('snap-preview').style.display = "none";
+            base64Snapshot = "";
+        }
+
+        function syncNota() {
+            dbDeal.ref(`kontrak_detail/${contractId}/nota/items`).on('value', snap => {
+                const list = document.getElementById('nota-list-ui');
+                list.innerHTML = "";
+                let total = 0;
+                
+                if (!initialNotaLoad && activeTab !== 'tab-nota') {
+                    document.getElementById('badge-nota').classList.add('show');
+                    playNotif();
+                    if(!isAdv) updateAI("Peringatan: Anggaran logistik telah diperbarui di Tactical Ledger.", "alert");
+                }
+                initialNotaLoad = false;
+
+                snap.forEach(child => {
+                    const item = child.val();
+                    total += item.harga;
+                    
+                    const isNewClass = (!isAdv && activeTab !== 'tab-nota') ? 'new-item' : '';
+                    const hasImage = item.foto ? `<button class="btn-icon" style="color:var(--neon-yellow);" onclick="viewNotaImage('${child.key}')"><i class="fa-solid fa-image"></i></button>` : '';
+
+                    // Simpan data foto di atribut dataset jika ada, agar tidak mengganggu DOM berat
+                    const imgData = item.foto ? `data-img="${item.foto}"` : '';
+
+                    list.innerHTML += `
+                        <div class="nota-item ${isNewClass}" id="nota-row-${child.key}" ${imgData}>
+                            <div style="flex:1">
+                                <div style="font-weight:bold;">${item.nama}</div>
+                                <div style="font-size:10px; color:#999; font-family:var(--font-sans); margin-top:4px;">${new Date(item.ts).toLocaleTimeString()}</div>
+                            </div>
+                            <div style="text-align:right">
+                                <div style="font-weight:900; font-size:15px; color:#1a1a1a;">Rp ${item.harga.toLocaleString()}</div>
+                                <div class="nota-actions" style="margin-top:5px; justify-content:flex-end;">
+                                    ${hasImage}
+                                    ${isAdv ? `
+                                        <button class="btn-icon" style="color:#007bff;" onclick="prepareEditNota('${child.key}', '${item.nama}', ${item.harga})"><i class="fa-solid fa-pen-to-square"></i></button>
+                                        <button class="btn-icon" style="color:#dc3545;" onclick="notaDelete('${child.key}')"><i class="fa-solid fa-trash-can"></i></button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                document.getElementById('nota-total-val').innerText = "Rp " + total.toLocaleString();
+            });
+        }
+
+        function viewNotaImage(id) {
+            playSfx();
+            const row = document.getElementById(`nota-row-${id}`);
+            if(row && row.dataset.img) {
+                document.getElementById('img-viewer-src').src = row.dataset.img;
+                document.getElementById('modalImgViewer').classList.add('show');
+            }
+        }
+
+        function prepareEditNota(id, name, price) {
+            playSfx();
+            activeEditId = id;
+            document.getElementById('in-name').value = name;
+            document.getElementById('in-price').value = price;
+            document.getElementById('btn-nota-save').innerText = "UPDATE";
+            document.getElementById('in-name').focus();
+        }
+
+        function notaDelete(id) {
+            playSfx();
+            if(confirm("Hapus item ini dari nota logistik?")) {
+                dbDeal.ref(`kontrak_detail/${contractId}/nota/items/${id}`).remove();
+            }
+        }
+
+        // ==========================================
+        // 5. COMMS & STT
+        // ==========================================
+        function commsSend() {
+            const inp = document.getElementById('comms-input');
+            if(!inp.value.trim()) return;
+            dbDeal.ref(`kontrak_detail/${contractId}/chats`).push({ uid: user.uid, msg: inp.value, ts: Date.now() });
+            inp.value = "";
+        }
+
+        function syncChat() {
+            dbDeal.ref(`kontrak_detail/${contractId}/chats`).on('child_added', snap => {
+                const d = snap.val();
+                const div = document.createElement('div');
+                div.className = `bubble ${d.uid === user.uid ? 'me' : 'them'}`;
+                div.innerText = d.msg;
+                document.getElementById('comms-wall').appendChild(div);
+                
+                if(activeTab === 'tab-comms') {
+                    document.getElementById('comms-wall').scrollTop = document.getElementById('comms-wall').scrollHeight;
+                } else if(!initialChatLoad && d.uid !== user.uid) {
+                    document.getElementById('badge-comms').classList.add('show');
+                    playNotif();
+                    updateAI("Transmisi teks masuk dari partner.", "normal");
+                }
+            });
+            setTimeout(() => { initialChatLoad = false; }, 1500);
+        }
+
+        function runVoiceToText() {
+            playSfx();
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = 'id-ID';
+            const mic = document.getElementById('stt-mic');
+            
+            recognition.onstart = () => mic.style.background = "var(--neon-purple)";
+            recognition.onresult = (e) => {
+                document.getElementById('comms-input').value = e.results[0][0].transcript;
+                mic.style.background = "rgba(188,19,254,0.1)";
+            };
+            recognition.onerror = () => mic.style.background = "rgba(188,19,254,0.1)";
+            recognition.start();
+        }
+
+        // ==========================================
+        // 6. HQ & STATUS TRANSMISSION
+        // ==========================================
+        function sendLiveStatus(str) {
+            playSfx();
+            dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).set({ text: str, ts: Date.now() });
+        }
+
+        function syncStatus() {
+            dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).on('value', snap => {
+                if(snap.exists()) {
+                    const d = snap.val();
+                    const sText = document.getElementById('live-status-text');
+                    const sTime = document.getElementById('live-status-time');
+                    const sInd = document.getElementById('status-indicator');
+                    
+                    sText.innerText = d.text.toUpperCase();
+                    sTime.innerText = new Date(d.ts).toLocaleTimeString();
+                    
+                    if(d.text.includes('Kendala')) {
+                        updateAI("Mendeteksi gangguan di lapangan. Mengaktifkan protokol kompensasi...", "alert");
+                        sInd.style.background = "var(--neon-red)"; sInd.style.boxShadow = "0 0 10px var(--neon-red)";
+                        document.getElementById('m-status-text').innerText = "Warning: Interupsi logistik.";
+                        document.getElementById('m-status-text').style.color = "var(--neon-red)";
+                        document.getElementById('m-progress-bar').style.background = "var(--neon-red)";
+                    } else if(d.text.includes('Tiba')) {
+                        updateAI("Personil telah mencapai titik koordinat. Menunggu finalisasi.", "success");
+                        sInd.style.background = "var(--neon-green)"; sInd.style.boxShadow = "0 0 10px var(--neon-green)";
+                        document.getElementById('m-status-text').innerText = "Objective Reached.";
+                        document.getElementById('m-status-text').style.color = "var(--neon-green)";
+                        document.getElementById('m-progress-pct').innerText = "100%";
+                        document.getElementById('m-progress-bar').style.width = "100%";
+                        document.getElementById('m-progress-bar').style.background = "var(--neon-green)";
+                        
+                        if(!isAdv) { vibratePulse(); document.getElementById('action-slider-box').classList.add('pulse'); }
+                    } else if(d.text.includes('OTW')) {
+                        updateAI("Kendaraan sedang bergerak melintasi sektor.", "normal");
+                        sInd.style.background = "var(--neon-blue)"; sInd.style.boxShadow = "0 0 10px var(--neon-blue)";
+                        document.getElementById('m-status-text').innerText = "In Transit...";
+                        document.getElementById('m-progress-pct').innerText = "55%";
+                        document.getElementById('m-progress-bar').style.width = "55%";
+                        document.getElementById('m-progress-bar').style.background = "linear-gradient(90deg, var(--neon-blue), var(--neon-purple))";
+                    }
+                }
+            });
+
+            dbDeal.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
+                if(snap.val() === 'completed_req' && isAdv) openEvalReq();
+            });
+        }
+
+        // ==========================================
+        // 7. SLIDE TO CONFIRM & EVALUATION SYSTEM
+        // ==========================================
+        function initSliderAction() {
+            const wrapper = document.getElementById('slider-wrapper');
+            const thumb = document.getElementById('slider-thumb');
+            const fill = document.getElementById('slider-fill');
+            const text = document.getElementById('slider-text');
+            if(!thumb) return;
+
+            let isDragging = false;
+            let startX = 0;
+            let maxW = 0;
+
+            const startDrag = (e) => {
+                isDragging = true;
+                startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                maxW = wrapper.clientWidth - thumb.clientWidth - 6; 
+                thumb.style.transition = "none";
+                fill.style.transition = "none";
+            };
+
+            const moveDrag = (e) => {
+                if(!isDragging) return;
+                let curX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                let move = curX - startX;
+                if(move < 0) move = 0;
+                if(move > maxW) move = maxW;
+                
+                thumb.style.transform = `translateX(${move}px)`;
+                fill.style.width = `${move + 25}px`;
+                text.style.opacity = 1 - (move / maxW);
+            };
+
+            const endDrag = (e) => {
+                if(!isDragging) return;
+                isDragging = false;
+                let curX = e.type.includes('mouse') ? e.clientX : e.changedTouches[0].clientX;
+                let move = curX - startX;
+                
+                thumb.style.transition = "transform 0.3s";
+                fill.style.transition = "width 0.3s";
+                text.style.transition = "opacity 0.3s";
+
+                if(move > maxW * 0.9) {
+                    // Success Unlock
+                    thumb.style.transform = `translateX(${maxW}px)`;
+                    fill.style.width = `100%`;
+                    vibratePulse();
+                    setTimeout(() => openEvalAdv(), 400); // Trigger Evaluasi
+                } else {
+                    // Snap back
+                    thumb.style.transform = `translateX(0px)`;
+                    fill.style.width = `0px`;
+                    text.style.opacity = 1;
+                }
+            };
+
+            thumb.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', moveDrag);
+            document.addEventListener('mouseup', endDrag);
+
+            thumb.addEventListener('touchstart', startDrag);
+            document.addEventListener('touchmove', moveDrag);
+            document.addEventListener('touchend', endDrag);
+        }
+
+        function openEvalAdv() {
+            playSfx();
+            const cats = ['keamanan', 'kecerdasan', 'kepercayaan', 'keramahan', 'penampilan'];
+            const grp = document.getElementById('eval-star-group');
+            grp.innerHTML = "";
+            cats.forEach(c => {
+                grp.innerHTML += `
+                    <div class="star-row">
+                        <span style="font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; color:#ccc;">${c}</span>
+                        <div class="stars" id="star-${c}">
+                            ${[1,2,3,4,5].map(i => `<i class="fa-solid fa-star" onclick="setStar('${c}', ${i})"></i>`).join('')}
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('modalEvalAdv').classList.add('show');
+        }
+
+        function setStar(cat, val) {
+            playSfx();
+            ratings[cat] = val;
+            const s = document.getElementById(`star-${cat}`).children;
+            for(let i=0; i<5; i++) s[i].classList.toggle('on', i < val);
+        }
+
+        async function executeAdvFinal() {
+            if(Object.values(ratings).includes(0)) return alert("Sistem menolak: Berikan semua parameter bintang!");
+            
+            const advUid = mission.adventurer_uid;
+            await dbMaster.ref(`users/${advUid}/adventurer_experience/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp));
+            await dbMaster.ref(`users/${advUid}/adventurer_coxin/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone));
+            
+            await dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req');
+            alert("Misi Selesai. Segel reward telah ditransfer ke partner.");
+            location.href = "index.html";
+        }
+
+        function openEvalReq() {
+            playSfx();
+            const qs = [
+                {k:'baik', q:'Apakah Klien bersikap koperatif?'},
+                {k:'tips', q:'Diberi reward tips tambahan?'},
+                {k:'cash', q:'Uang tunai sesuai dengan LEDGER?'},
+                {k:'extra', q:'Ada beban ekstra tanpa kompensasi?'}
+            ];
+            const grp = document.getElementById('eval-bool-group');
+            grp.innerHTML = "";
+            qs.forEach(o => {
+                grp.innerHTML += `
+                    <div style="margin-top:20px; text-align:left; background:rgba(0,0,0,0.3); padding:15px; border-radius:12px; border:1px solid var(--glass-border);">
+                        <div style="font-size:13px; margin-bottom:12px; font-weight:bold; color:#ddd;">${o.q}</div>
+                        <div style="display:flex; gap:10px;">
+                            <button onclick="setBool('${o.k}', true)" id="b-${o.k}-y" class="btn-main" style="background:rgba(255,255,255,0.05); color:#fff; border-color:#444;">YA</button>
+                            <button onclick="setBool('${o.k}', false)" id="b-${o.k}-n" class="btn-main" style="background:rgba(255,255,255,0.05); color:#fff; border-color:#444;">TIDAK</button>
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('modalEvalReq').classList.add('show');
+        }
+
+        function setBool(k, val) {
+            playSfx();
+            reports[k] = val;
+            const btnY = document.getElementById(`b-${k}-y`);
+            const btnN = document.getElementById(`b-${k}-n`);
+            
+            btnY.style.borderColor = val ? 'var(--neon-green)' : '#444';
+            btnY.style.color = val ? 'var(--neon-green)' : '#fff';
+            btnY.style.background = val ? 'rgba(0,255,136,0.1)' : 'rgba(255,255,255,0.05)';
+            
+            btnN.style.borderColor = !val ? 'var(--neon-red)' : '#444';
+            btnN.style.color = !val ? 'var(--neon-red)' : '#fff';
+            btnN.style.background = !val ? 'rgba(255,51,102,0.1)' : 'rgba(255,255,255,0.05)';
+        }
+
+        async function executeReqFinal() {
+            if(Object.values(reports).includes(null)) return alert("Sistem menolak: Selesaikan survei laporan!");
+            alert("Laporan terekam di arsip Guild. Terima kasih atas dedikasi Anda.");
+            Clearchance.clearActiveMission();
+            location.href = "index.html";
+        }
+
+        // ==========================================
+        // 8. 5-POINT TRACKING & PROXIMITY ALERT
+        // ==========================================
+        function initMap() {
+            map = L.map('map', {zoomControl:false}).setView([-6.97, 108.48], 15);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            
+            // Icon Adventurer & Requester
+            const advIco = L.divIcon({className: 'tactical-marker m-adv', html: "V", iconSize: [22, 22]});
+            const reqIco = L.divIcon({className: 'tactical-marker m-req', html: "R", iconSize: [18, 18]});
+            
+            advMarker = L.marker([0,0], {icon: advIco}).addTo(map);
+            reqMarker = L.marker([0,0], {icon: reqIco, opacity:0.8}).addTo(map);
+
+            mapPolyline = L.polyline([], {color: 'var(--neon-green)', weight: 3, dashArray: '5, 10'}).addTo(map);
+        }
+
+        function recenterMap() {
+            if(!map) return;
+            const bounds = L.latLngBounds();
+            let added = false;
+            
+            if(advMarker && advMarker.getLatLng().lat !== 0) { bounds.extend(advMarker.getLatLng()); added = true; }
+            if(reqMarker && reqMarker.getLatLng().lat !== 0) { bounds.extend(reqMarker.getLatLng()); added = true; }
+            if(originMarker) { bounds.extend(originMarker.getLatLng()); added = true; }
+            if(destMarker) { bounds.extend(destMarker.getLatLng()); added = true; }
+            if(baseMarker) { bounds.extend(baseMarker.getLatLng()); added = true; }
+
+            if(added) map.fitBounds(bounds, {padding: [30, 30]});
+        }
+
+        function checkProximity(lat, lng) {
+            if(!destCoordsGlobal) return;
+            // Simple distance check using Leaflet
+            const current = L.latLng(lat, lng);
+            const dest = L.latLng(destCoordsGlobal[0], destCoordsGlobal[1]);
+            const dist = current.distanceTo(dest); // dalam meter
+
+            if(dist < 500 && document.getElementById('ai-terminal-box').className.indexOf('pulse') === -1) {
+                document.getElementById('ai-terminal-box').classList.add('pulse');
+                updateAI("Target terdeteksi di zona perimeter (<500m). Mohon bersiap di titik temu.", "success");
+                vibratePulse();
+            }
+        }
+
+        function syncTracking() {
+            if(navigator.geolocation) {
+                navigator.geolocation.watchPosition(p => {
+                    const {latitude, longitude} = p.coords;
+                    const myM = isAdv ? advMarker : reqMarker;
+                    myM.setLatLng([latitude, longitude]);
+                    
+                    dbDeal.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({lat:latitude, lng:longitude, ts:Date.now()});
+                    
+                    if(isAdv) checkProximity(latitude, longitude);
+                    
+                    if(activeTab === 'tab-map') recenterMap();
+                });
+                
+                dbDeal.ref(`kontrak_detail/${contractId}/tracking`).on('value', snap => {
+                    snap.forEach(c => { 
+                        if(c.key !== user.uid) {
+                            const partnerM = isAdv ? reqMarker : advMarker;
+                            partnerM.setLatLng([c.val().lat, c.val().lng]);
+                        }
+                    });
+
+                    // Update Polyline dari Adv ke Dest (Jika Dest ada)
+                    if(destCoordsGlobal && advMarker.getLatLng().lat !== 0) {
+                        mapPolyline.setLatLngs([ advMarker.getLatLng(), destCoordsGlobal ]);
+                    }
+                    if(activeTab === 'tab-map') recenterMap();
+                });
+            }
+        }
+
+        // ==========================================
+        // 9. UTILS & TIMERS
+        // ==========================================
+        function toggleProfile() { playSfx(); document.getElementById('profile-drawer').classList.toggle('open'); }
+        function closeModal(id) { playSfx(); document.getElementById(id).classList.remove('show'); }
+        
+        function startMissionTimer(startTime) {
+            const timerVal = document.getElementById('timer-val');
+            setInterval(() => {
+                const diff = Date.now() - startTime;
+                const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                timerVal.innerText = `${h}:${m}:${s}`;
+            }, 1000);
+        }
+
+        function startRequesterEducation() {
+            const tips = [
+                "Gunakan fitur NOTA untuk melihat rincian biaya belanjaan secara real-time.",
+                "Status 'OTW' memberitahu Anda bahwa Adventurer sudah bergerak ke lokasi.",
+                "Klik tab MAP untuk melacak posisi logistik Anda di peta koordinat.",
+                "Geser Slider KONTRAK di bawah jika misi sudah selesai dengan aman.",
+                "Klik tombol WA di kanan bawah untuk komunikasi instan."
+            ];
+            const bilah = document.getElementById('edu-bilah');
+            const text = document.getElementById('edu-text');
+            
+            if(bilah && text) {
+                bilah.classList.remove('hide');
+                setInterval(() => {
+                    text.style.opacity = 0;
+                    setTimeout(() => {
+                        text.innerText = tips[Math.floor(Math.random() * tips.length)];
+                        text.style.opacity = 1;
+                    }, 300);
+                }, 8000);
+                text.innerText = tips[0];
+                text.style.transition = "opacity 0.3s";
+            }
+        }
+    </script>
+</body>
+</html>
