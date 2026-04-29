@@ -1101,47 +1101,70 @@
             for(let i=0; i<5; i++) s[i].classList.toggle('on', i < val);
         }
 
-        async function executeAdvFinal() {
+        async function executeAdvFinal(adventurer_nick, mission, ratings, contractId) {
+    // Validasi Bintang (Logika Asli)
     if(Object.values(ratings).includes(0)) return alert("Sistem menolak: Berikan semua parameter bintang!");
-    
-    const advUid = mission.adventurer_uid;
-    
-    // --- LOGIKA LAMA (TETAP DIPERTAHANKAN) ---
-    await dbMaster.ref(`users/${advUid}/adventurer_experience/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp));
-    await dbMaster.ref(`users/${advUid}/adventurer_coxin/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone));
-    
-    // --- TAMBAHAN KODE: UPDATE DIAGRAM & REPUTASI ADVENTURER ---
-    // Kalkulasi rata-rata bintang untuk penentuan Tier Bintang
-    const avgBintang = Math.round((ratings.keamanan + ratings.kecerdasan + ratings.kepercayaan + ratings.keramahan + ratings.penampilan) / 5);
-    
-    dbMaster.ref(`users/${advUid}/adventurer_diagram`).transaction((data) => {
-        if (!data) data = { nilai_keamanan: 0, nilai_kecerdasan: 0, nilai_kepercayaan: 0, nilai_keramahan: 0, nilai_penampilan: 0 };
-        data.nilai_keamanan += ratings.keamanan;
-        data.nilai_kecerdasan += ratings.kecerdasan;
-        data.nilai_kepercayaan += ratings.kepercayaan;
-        data.nilai_keramahan += ratings.keramahan;
-        data.nilai_penampilan += ratings.penampilan; 
-        return data;
-    });
 
-    dbMaster.ref(`users/${advUid}/adventurer_reputation`).transaction((data) => {
-        if (!data) data = {};
-        data.total_mission_completed = (data.total_mission_completed || 0) + 1;
-        // Tambah counter sesuai rata-rata bintang yang didapat
-        if (avgBintang === 5) data.star_5 = (data.star_5 || 0) + 1;
-        else if (avgBintang === 4) data.star_4 = (data.star_4 || 0) + 1;
-        else if (avgBintang === 3) data.star_3 = (data.star_3 || 0) + 1;
-        else if (avgBintang === 2) data.star_2 = (data.star_2 || 0) + 1;
-        else data.star_1 = (data.star_1 || 0) + 1;
-        return data;
-    });
-    // ------------------------------------------------------------
+    const masterDB = getTerminal('FB1_MASTER');
 
-    // --- LOGIKA LAMA LANJUTAN ---
-    await dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req');
-    alert("Misi Selesai. Segel reward telah ditransfer ke partner.");
-    location.href = "index.html";
+    try {
+        // 1. Cari lokasi Shard via Index
+        const snap = await masterDB.ref('adventurer_index').orderByChild('nickname').equalTo(adventurer_nick).once('value');
+        
+        if (!snap.exists()) {
+            alert("System korup data tidak terupdate ke database. Kami akan segera perbaiki system.");
+            return;
+        }
+
+        const meta = Object.values(snap.val())[0];
+        const shard = getTerminal(meta.shard_id); // Koneksi ke Shard (FB2/FB3 dll)
+        const id = meta.id_adv;
+
+        // 2. Kalkulasi Rata-rata Bintang (Logika Asli)
+        const avgBintang = Math.round((ratings.keamanan + ratings.kecerdasan + ratings.kepercayaan + ratings.keramahan + ratings.penampilan) / 5);
+
+        // 3. Eksekusi Batch Update ke Shard yang Benar
+        await Promise.all([
+            // Update EXP & Green Stone (Mode Shard)
+            shard.ref(`adventurer_experience/${id}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp)),
+            shard.ref(`adventurer_coxin/${id}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone)),
+
+            // Update Diagram (Logika Asli)
+            shard.ref(`adventurer_diagram/${id}`).transaction((data) => {
+                if (!data) data = { nilai_keamanan: 0, nilai_kecerdasan: 0, nilai_kepercayaan: 0, nilai_keramahan: 0, nilai_penampilan: 0 };
+                data.nilai_keamanan += ratings.keamanan;
+                data.nilai_kecerdasan += ratings.kecerdasan;
+                data.nilai_kepercayaan += ratings.kepercayaan;
+                data.nilai_keramahan += ratings.keramahan;
+                data.nilai_penampilan += ratings.penampilan; 
+                return data;
+            }),
+
+            // Update Reputasi & Counter Bintang (Logika Asli)
+            shard.ref(`adventurer_reputation/${id}`).transaction((data) => {
+                if (!data) data = {};
+                data.total_mission_completed = (data.total_mission_completed || 0) + 1;
+                if (avgBintang === 5) data.star_5 = (data.star_5 || 0) + 1;
+                else if (avgBintang === 4) data.star_4 = (data.star_4 || 0) + 1;
+                else if (avgBintang === 3) data.star_3 = (data.star_3 || 0) + 1;
+                else if (avgBintang === 2) data.star_2 = (data.star_2 || 0) + 1;
+                else data.star_1 = (data.star_1 || 0) + 1;
+                return data;
+            }),
+
+            // Update Status di Board (FB4) & Deal (FB5)
+            getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}/status`).set('completed_req'),
+            getTerminal('FB5_DEAL').ref(`kontrak_detail/${contractId}/status`).set('completed_req')
+        ]);
+
+        alert("Misi Selesai. terimakasih atas kontribusi anda.");
+        location.href = "index.html";
+
+    } catch (err) {
+        console.error("Critical Shard Error:", err);
+    }
 }
+
 
 
         function openEvalReq() {
