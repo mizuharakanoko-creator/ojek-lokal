@@ -1109,66 +1109,86 @@
 
         
         async function executeAdvFinal() {
-    // 1. LANGSUNG TEMBAK: Ambil teks dari elemen UI saat tombol diklik
+    // 1. Ambil nama dari layar secara langsung
     const elNick = document.getElementById('m-adv-nick');
-    const elClient = document.getElementById('m-client-name');
-    
-    // Validasi visual
     const targetNick = elNick ? elNick.innerText.trim().toLowerCase() : "";
-    const clientName = elClient ? elClient.innerText.trim() : "";
 
-    // Proteksi jika data di layar masih kosong/loading
+    // Proteksi awal jika layar belum siap
     if (!targetNick || targetNick === "..." || targetNick === "loading") {
         return alert("Sistem belum siap: Nama partner belum muncul di layar!");
     }
 
-    if (Object.values(ratings).includes(0)) {
-        return alert("Sistem menolak: Berikan semua parameter bintang!");
-    }
-
     try {
-        // 2. CARI DI FB1 (Gali Manual agar pasti ketemu)
+        // 2. Gali FB1 (Master Index) untuk verifikasi alamat
         const snap = await dbMaster.ref('adventurer_index').once('value');
         let meta = null;
 
-        if (snap.exists()) {
-            snap.forEach(child => {
-                const d = child.val();
-                // Bandingkan dengan nama dari layar tadi
-                if (d.nickname && d.nickname.trim().toLowerCase() === targetNick) {
-                    meta = d;
-                }
-            });
-        }
+        snap.forEach(child => {
+            const d = child.val();
+            if (d.nickname && d.nickname.trim().toLowerCase() === targetNick) {
+                meta = d;
+            }
+        });
 
-        // 3. JIKA TIDAK KETEMU DI DB
+        // 3. Jika nickname tidak ditemukan di Master (FB1)
         if (!meta) {
-            return alert(`Gagal: Nama [${targetNick}] tidak terdaftar di database Master (FB1).`);
+            return alert(`LOGIKA GAGAL:\n\nSistem mencoba mencari Nickname: [${targetNick}]\nStatus: TIDAK ADA di FB1 (Master Index).\n\nSaran: Cek apakah user sudah daftar ulang?`);
         }
 
-        // 4. EKSEKUSI SHARD (Gunakan Shard ID dari hasil galian)
-        const shardId = meta.shard_id; // Contoh: FB2_RUNNER
-        const idAdv = meta.id_adv;    // Contoh: adv-kng-xxx
+        // 4. Persiapkan Data Pengiriman
+        const shardId = meta.shard_id;
+        const idAdv = meta.id_adv;
+        const expReward = mission.rpg_reward.exp || 0;
+        const stoneReward = mission.rpg_reward.greenStone || 0;
+        
+        // Ambil Terminal/Alamat FB tujuan
         const targetShard = getTerminal(shardId);
 
+        // 5. ALERT LOGIKA (Konfirmasi sebelum nembak DB)
+        // Kita tunjukkan semua datanya di sini
+        const konfirmasi = confirm(
+            `LOGIKA PENGIRIMAN DATA:\n` +
+            `---------------------------\n` +
+            `Target Nickname : ${targetNick}\n` +
+            `Target ID Adv   : ${idAdv}\n` +
+            `Target Shard    : ${shardId}\n\n` +
+            `DATA YANG DIKIRIM:\n` +
+            `+ ${expReward} EXP  => Ke Tabel: adventurer_experience\n` +
+            `+ ${stoneReward} Stone => Ke Tabel: adventurer_coxin\n\n` +
+            `Lanjutkan pengiriman?`
+        );
+
+        if (!konfirmasi) return; // Batal jika abang klik 'Cancel'
+
+        // 6. EKSEKUSI (Nembak Database)
         await Promise.all([
-            // Update Reward ke Shard Partner
-            targetShard.ref(`adventurer_experience/${idAdv}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp)),
-            targetShard.ref(`adventurer_coxin/${idAdv}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward.greenStone)),
-            
-            // Update Status Kontrak (Gunakan variabel contractId global abang)
-            dbDeal.ref(`kontrak_detail/${contractId}/status`).set('completed_req'),
-            getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}/status`).set('completed_req')
+            // Update EXP
+            targetShard.ref(`adventurer_experience/${idAdv}`).update({
+                exp: firebase.database.ServerValue.increment(expReward)
+            }),
+            // Update Green Stone
+            targetShard.ref(`adventurer_coxin/${idAdv}`).update({
+                green_stone: firebase.database.ServerValue.increment(stoneReward)
+            }),
+            // Update Status Misi (FB4 & Global)
+            dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_req' }),
+            getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).update({ status: 'completed_req' })
         ]);
 
-        alert(`Misi Selesai! Reward ditransfer ke ${targetNick} via ${shardId}.`);
+        alert(
+            `SUKSES TERKIRIM!\n` +
+            `Data ${targetNick} telah di-update di ${shardId}.\n` +
+            `Silahkan cek tabel experience & coxin.`
+        );
+        
         location.href = "index.html";
 
     } catch (err) {
         console.error(err);
-        alert("Terjadi kesalahan sistem: " + err.message);
+        alert(`CRITICAL ERROR:\n${err.message}`);
     }
 }
+
 
 
 
