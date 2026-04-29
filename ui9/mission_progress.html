@@ -1109,33 +1109,38 @@
 
         
         async function executeAdvFinal() {
-    // Ambil dari loker
-    const nickDapet = document.getElementById('target_adv_nick').value;
-    
-    // Debug sederhana: Kalau mau tau isinya apa, buka F12
-    console.log("Nickname yang dikirim ke FB1: '" + nickDapet + "'");
-
-    if (!nickDapet) return alert("Sistem belum mendeteksi nickname partner.");
+    const targetNick = document.getElementById('target_adv_nick').value;
+    if (!targetNick) return alert("Nickname partner belum siap!");
 
     try {
-        // Gali Shard Master (FB1)
-        const indexSnap = await dbMaster.ref('adventurer_index')
-            .orderByChild('nickname')
-            .equalTo(nickDapet) // Pastikan ini string murni tanpa spasi
-            .once('value');
+        // 1. Ambil SEMUA data di adventurer_index (Gali total)
+        const snap = await dbMaster.ref('adventurer_index').once('value');
+        
+        if (!snap.exists()) return alert("Database adventurer_index kosong!");
 
-        if (!indexSnap.exists()) {
-            // Kalau gagal, kita coba cara terakhir: ambil manual pakai ID-nya
-            // Tapi sementara kita alert dulu biar tau gagalnya di mana
-            return alert(`Error: Nickname '${nickDapet}' tidak terdeteksi di index. Pastikan teks di layar sama dengan di database.`);
+        let meta = null;
+        let foundId = null;
+
+        // 2. Looping (Gali manual satu-satu sampai ketemu)
+        snap.forEach(child => {
+            const data = child.val();
+            // Bandingkan nickname (abaikan huruf besar/kecil dan spasi)
+            if (data.nickname && data.nickname.trim().toLowerCase() === targetNick.toLowerCase()) {
+                meta = data;
+                foundId = child.key; // Ini id_adv nya
+            }
+        });
+
+        // 3. Cek hasil galian
+        if (!meta) {
+            return alert(`User [${targetNick}] beneran nggak ada di FB1. Cek lagi tulisannya di DB.`);
         }
 
-        const snapshotVal = indexSnap.val();
-        const meta = Object.values(snapshotVal)[0];
+        console.log("Ditemukan! Shard ID:", meta.shard_id);
 
-        // Jalur Shard yang sudah abang buat
+        // 4. Lanjut tembak Shard target (Gunakan meta.shard_id hasil galian)
         const targetShard = getTerminal(meta.shard_id);
-        const advId = meta.id_adv;
+        const advId = meta.id_adv || foundId;
 
         await Promise.all([
             targetShard.ref(`adventurer_experience/${advId}/exp`).set(firebase.database.ServerValue.increment(mission.rpg_reward.exp)),
@@ -1144,11 +1149,12 @@
             getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}/status`).set('completed_req')
         ]);
 
-        alert("Sukses! Data telah disinkronkan ke " + meta.shard_id);
+        alert(`Selesai! Reward dikirim ke ${targetNick} di Shard ${meta.shard_id}`);
         location.href = "index.html";
 
     } catch (err) {
-        alert("Gagal Sharding: " + err.message);
+        console.error(err);
+        alert("Gagal gali data: " + err.message);
     }
 }
 
