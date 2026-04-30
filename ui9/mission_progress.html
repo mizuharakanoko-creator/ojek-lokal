@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BATTLEFIELD HUB | SOVEREIGN GUILD</title>
-    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -32,6 +34,16 @@
             --font-mono: 'JetBrains Mono', 'Courier New', monospace;
             --font-sans: 'Inter', -apple-system, sans-serif;
         }
+
+* {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+}
+input, textarea {
+    user-select: text !important; /* Agar input tetap bisa diketik */
+}
+
 
         body, html { 
             margin: 0; padding: 0; 
@@ -1335,7 +1347,7 @@ Target: ${targetNick.toUpperCase()}
 
 Sinkronkan ke Shard ${shardId}?`;
 
-        if (!confirm(auditMsg)) return;
+        if (!sovereignConfirm(auditMsg)) return;
 
         // 8. Eksekusi Database (Update Semua Tabel)
         await Promise.all([
@@ -1473,7 +1485,7 @@ Sinkronkan ke Shard ${shardId}?`;
             }
         });
 
-        if (!meta) return alert(`Data Requester [${targetClient}] tidak ditemukan!`);
+        if (!meta) return sovereignAlert(`Data Requester [${targetClient}] tidak ditemukan!`);
 
         const shardId = meta.shard_id;
         const idReq = meta.id_req;
@@ -1721,7 +1733,7 @@ function startEmergencyProtocol() {
 
 function executeEmergencyAction() {
     vibratePulse();
-    const yakin = confirm("⚠️ AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan diarahkan ke form laporan.");
+    const yakin = sovereignConfirm("⚠️ AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan diarahkan ke form laporan.");
     if (yakin) {
         openEvalReq(); // Membuka form penilaian requester
     } else {
@@ -1787,6 +1799,57 @@ function sovereignAlert(title, msg, isDanger = false, onConfirm = null, verifyWo
         if (onConfirm) onConfirm();
     };
     
+    btnGroup.appendChild(btnOk);
+}
+
+
+
+        // Ganti atau tambahkan fungsi ini di bawah sovereignAlert Anda
+function sovereignConfirm(title, msg, onConfirm, isDanger = false, verifyWord = null) {
+    const modal = document.getElementById('sovereignModal');
+    const titleEl = document.getElementById('modalTitle');
+    const msgEl = document.getElementById('modalMsg');
+    const inputField = document.getElementById('modalInput');
+    const btnGroup = document.querySelector('.modal-btn-group');
+    const box = modal.querySelector('.modal-box');
+
+    modal.style.display = "flex";
+    titleEl.innerText = title;
+    msgEl.innerText = msg;
+    box.className = isDanger ? "modal-box danger" : "modal-box";
+    btnGroup.innerHTML = "";
+
+    // Input Verifikasi (untuk fitur Hancurkan/Hapus)
+    if (verifyWord) {
+        inputField.style.display = "block";
+        inputField.placeholder = `KETIK '${verifyWord}'`;
+        inputField.value = "";
+    } else {
+        inputField.style.display = "none";
+    }
+
+    // TOMBOL BATAL (Wajib ada di Confirm)
+    const btnCancel = document.createElement('button');
+    btnCancel.className = "modal-btn btn-cancel";
+    btnCancel.innerText = "BATAL";
+    btnCancel.onclick = () => {
+        modal.style.display = "none";
+    };
+    btnGroup.appendChild(btnCancel);
+
+    // TOMBOL KONFIRMASI
+    const btnOk = document.createElement('button');
+    btnOk.className = isDanger ? "modal-btn btn-confirm-danger" : "modal-btn btn-confirm";
+    btnOk.innerText = "EKSEKUSI";
+    
+    btnOk.onclick = () => {
+        if (verifyWord && inputField.value !== verifyWord) {
+            msgEl.innerHTML = `<span style="color:#ff4444">VERIFIKASI GAGAL!</span><br>${msg}`;
+            return;
+        }
+        modal.style.display = "none";
+        if (onConfirm) onConfirm(); // Menjalankan fungsi setelah setuju
+    };
     btnGroup.appendChild(btnOk);
 }
 
