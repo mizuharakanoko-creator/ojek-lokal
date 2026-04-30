@@ -381,21 +381,20 @@
                             </div>
                         </div>
 
-<div id="tab-adventurer-1">
-    <div id="emergency-zone" style="margin: 20px 10px; padding: 15px; border: 2px dashed #555; border-radius: 12px; background: rgba(0,0,0,0.2);">
-        <p id="em-timer" style="color: #ffaa00; font-size: 13px; text-align: center; font-family: monospace;">
-            Menyiapkan Protokol Darurat...
-        </p>
-        
-        <div id="slider-container" style="display: none; width: 100%; max-width: 280px; margin: 0 auto; background: #111; border-radius: 25px; padding: 8px; border: 1px solid #444;">
-            <input type="range" id="em-slider" min="0" max="100" value="0" 
-                style="width: 100%; cursor: pointer; height: 20px; accent-color: #ff4444;">
-            <div style="font-size: 10px; color: #ff4444; margin-top: 5px; text-align: center; font-weight: bold; letter-spacing: 1px;">
-                SLIDE KE KANAN : SELESAI PAKSA (AFK)
-            </div>
+<div id="emergency-zone" class="hide" style="margin-top: 20px; padding: 15px; border: 1px dashed var(--neon-red); border-radius: 12px; background: rgba(255,51,102,0.05);">
+    <p id="em-timer" style="color: var(--neon-red); font-size: 11px; text-align: center; font-family: var(--font-mono); margin: 0;">
+        MENGINISIALISASI PROTOKOL DARURAT...
+    </p>
+    
+    <div id="slider-container-em" style="display: none; width: 100%; position: relative; height: 40px; background: rgba(0,0,0,0.5); border-radius: 20px; border: 1px solid #444; overflow: hidden;">
+        <input type="range" id="em-slider" min="0" max="100" value="0" 
+            style="width: 100%; height: 100%; cursor: pointer; accent-color: var(--neon-red); opacity: 0.7;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; font-size: 9px; color: #ff4444; font-weight: bold; width: 100%; text-align: center; letter-spacing: 1px;">
+            GESER MENTOK : SELESAI PAKSA (AFK)
         </div>
     </div>
 </div>
+
 
 
                     </div>
@@ -579,6 +578,7 @@
             syncTracking();
             syncStatus();
             initSliderAction();
+            startEmergencyProtocol();
         };
 
         function playSfx() { document.getElementById('click-sfx').play().catch(()=>{}); }
@@ -1544,80 +1544,53 @@ function initEmergencyButton() {
     }
 }
 
-// Variable global untuk timer agar bisa di-stop jika perlu
-let emergencyTimerId = null;
 
+
+        
+        
+// --- SISTEM EMERGENCY RELEASE (VANILLA JS RE-ENGINEERED) ---
 function startEmergencyProtocol() {
-    // Reset timer jika sebelumnya sudah ada (proteksi double run)
-    if (emergencyTimerId) clearInterval(emergencyTimerId);
+    if (!isAdv) return; // Proteksi: Hanya Adventurer
 
-    let countdown = 5; // Timer 5 detik
+    const emZone = document.getElementById('emergency-zone');
     const emTimer = document.getElementById('em-timer');
-    const sliderContainer = document.getElementById('slider-container');
+    const sliderCont = document.getElementById('slider-container-em');
     const emSlider = document.getElementById('em-slider');
 
-    if (!emTimer || !sliderContainer) return console.warn("Elemen emergency tidak ditemukan di DOM");
+    if (!emZone) return;
+    emZone.classList.remove('hide'); // Tampilkan zona
 
-    // Pastikan slider reset ke 0
-    emSlider.value = 0;
-    emTimer.style.display = 'block';
-    sliderContainer.style.display = 'none';
-
-    emergencyTimerId = setInterval(() => {
+    let countdown = 10; // 10 detik inisialisasi
+    
+    let emInterval = setInterval(() => {
         countdown--;
         if (countdown > 0) {
-            emTimer.innerText = `Protokol Darurat Aktif dalam ${countdown}s...`;
+            emTimer.innerText = `PROTOKOL DARURAT AKTIF DALAM ${countdown}S...`;
         } else {
-            clearInterval(emergencyTimerId);
+            clearInterval(emInterval);
             emTimer.style.display = 'none';
-            sliderContainer.style.display = 'block'; // Munculkan slider setelah 5 detik
-            console.log("Protokol Darurat: SIAP");
+            sliderCont.style.display = 'block';
+            updateAI("Protokol Selesai Paksa (AFK) telah diaktifkan.", "alert");
         }
     }, 1000);
 
-    // Listener Slider
     emSlider.oninput = function() {
-        if (this.value >= 95) {
+        if (this.value >= 98) {
             this.value = 100;
-            // Jalankan fungsi penilaian requester yang sudah abang buat sebelumnya
             executeEmergencyAction();
         }
     };
 }
 
 function executeEmergencyAction() {
-    const yakin = confirm("⚠️ AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester AFK. Anda akan diarahkan ke form penilaian Requester.");
+    vibratePulse();
+    const yakin = confirm("⚠️ AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan diarahkan ke form laporan.");
     if (yakin) {
-        // Ganti 'modalPenilaianReq' dengan fungsi/ID modal abang
-        // Misalnya abang ingin langsung buka tab/modal penilaian:
-        if(typeof openRequesterReportUI === "function") {
-            openRequesterReportUI();
-        } else {
-            alert("Membuka Form Penilaian Requester...");
-            // Logika abang untuk memunculkan inputan bintang requester
-            document.getElementById('form-penilaian-requester').style.display = 'block';
-        }
+        openEvalReq(); // Membuka form penilaian requester
     } else {
         document.getElementById('em-slider').value = 0;
     }
 }
-
-// --- BAGIAN PALING PENTING: AUTO RUN KHUSUS ADVENTURER ---
-// Panggil fungsi ini tepat setelah data misi berhasil dimuat ke layar
-// Atau bisa diletakkan di akhir file script abang
-
-$(document).ready(function() {
-    // Cek apakah ini sisi Adventurer (Sesuaikan dengan variabel role di aplikasi abang)
-    // Misalnya kita cek apakah ada elemen yang hanya dimiliki Adventurer
-    if (document.getElementById('tab-adventurer-1')) {
-        console.log("Role: Adventurer Terdeteksi. Memulai Timer Darurat...");
-        startEmergencyProtocol();
-    } else {
-        // Jika Requester, kita sembunyikan area daruratnya sama sekali
-        const emZone = document.getElementById('emergency-zone');
-        if(emZone) emZone.remove();
-    }
-});
 
 
 
