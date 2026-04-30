@@ -238,6 +238,35 @@
         .star-row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; background: rgba(0,0,0,0.4); padding: 12px 15px; border-radius: 12px; border: 1px solid var(--glass-border); }
         .stars i { font-size: 22px; color: #444; cursor: pointer; margin-left: 8px; transition: 0.2s; }
         .stars i.on { color: #ffcc00; text-shadow: 0 0 15px rgba(255,204,0,0.5); transform: scale(1.1); }
+    
+
+
+
+        
+            
+        /* Desain Knob Slider yang lebih menonjol */
+        #em-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 70px;
+            height: 45px;
+            background: #ff3366;
+            cursor: pointer;
+            border-radius: 4px;
+            box-shadow: -100vw 0 0 100vw rgba(255, 51, 102, 0.4), 0 0 15px #ff3366;
+            border: 1px solid #fff;
+        }
+
+        #em-slider::-moz-range-thumb {
+            width: 70px;
+            height: 45px;
+            background: #ff3366;
+            cursor: pointer;
+            border: 1px solid #fff;
+        }
+    
+
+
+    
     </style>
 </head>
 <body>
@@ -380,6 +409,67 @@
                                 <div class="slider-thumb" id="slider-thumb"><i class="fa-solid fa-angles-right"></i></div>
                             </div>
                         </div>
+
+                        
+<div id="emergency-zone" class="hide" style="
+    margin-top: 20px; 
+    padding: 15px; 
+    border: 2px solid #ff3366; 
+    border-radius: 12px; 
+    background: linear-gradient(180deg, rgba(20, 0, 0, 0.95) 0%, rgba(0, 0, 0, 1) 100%);
+    box-shadow: 0 0 20px rgba(255, 51, 102, 0.2), inset 0 0 10px rgba(255, 51, 102, 0.1);
+    position: relative;
+    overflow: hidden;
+">
+    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03)); background-size: 100% 3px, 3px 100%; pointer-events: none;"></div>
+
+    <p id="em-timer" style="
+        color: #ff3366; 
+        font-size: 12px; 
+        text-align: center; 
+        font-family: 'Courier New', monospace; 
+        margin: 0;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        text-shadow: 0 0 10px rgba(255, 51, 102, 0.7);
+    ">
+        MENGINISIALISASI PROTOKOL DARURAT...
+    </p>
+    
+    <div id="slider-container-em" style="
+        display: none; 
+        margin-top: 15px;
+        width: 100%; 
+        position: relative; 
+        height: 45px; 
+        background: rgba(255, 51, 102, 0.1); 
+        border-radius: 6px; 
+        border: 1px solid #ff3366; 
+        overflow: hidden;
+    ">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; font-size: 10px; color: #fff; font-weight: bold; width: 100%; text-align: center; letter-spacing: 2px; z-index: 1;">
+            GESER MENTOK : SELESAI PAKSA (AFK)
+        </div>
+
+        <input type="range" id="em-slider" min="0" max="100" value="0" 
+            style="
+                -webkit-appearance: none;
+                width: 100%; 
+                height: 100%; 
+                cursor: pointer; 
+                background: transparent;
+                position: relative;
+                z-index: 2;
+                margin: 0;
+                outline: none;
+            ">
+    </div>
+</div>
+
+
+
+
 
                     </div>
                 </div>
@@ -562,6 +652,7 @@
             syncTracking();
             syncStatus();
             initSliderAction();
+            startEmergencyProtocol();
         };
 
         function playSfx() { document.getElementById('click-sfx').play().catch(()=>{}); }
@@ -1275,51 +1366,102 @@ Sinkronkan ke Shard ${shardId}?`;
             btnN.style.background = !val ? 'rgba(255,51,102,0.1)' : 'rgba(255,255,255,0.05)';
         }
 
+
+
+        
         async function executeReqFinal() {
-    if(Object.values(reports).includes(null)) return alert("Sistem menolak: Selesaikan survei laporan!");
+    const elClient = document.getElementById('m-client-name');
+    const targetClient = elClient ? elClient.innerText.trim().toLowerCase() : "";
 
-    // --- TAMBAHAN KODE: UPDATE REPUTASI REQUESTER (COUNTER) ---
-    // Pastikan key uID requester ini sesuai dengan struktur JSON 'mission' Anda
-    const reqUid = mission.requester_uid || mission.client_uid; 
-    
-    if (reqUid) {
-        dbMaster.ref(`users/${reqUid}/requester_diagram`).transaction((data) => {
-            if (!data) data = {};
-            
-            // Evaluasi Koperatif / Koordinat Sesuai (dari laporan 'baik')
-            if (reports.baik) data.titik_kordinat_sesuai = (data.titik_kordinat_sesuai || 0) + 1;
-            else data.titik_kordinat_tidak_sesuai = (data.titik_kordinat_tidak_sesuai || 0) + 1;
+    // 1. LOGIKA FILTER STRANGER
+    if (targetClient === "stranger") {
+        alert(
+            `--- PERINGATAN SISTEM SOVEREIGN GUILD ---\n\n` +
+            `Requester berstatus STRANGER.\n` +
+            `Tidak ada data penilaian yang akan disimpan ke database.\n\n` +
+            `Saran: Jika terjadi kendala selama misi, harap lebih berhati-hati dikemudian hari. ` +
+            `Pahami bahwa pemesan ada yang terdaftar sebagai CITIZEN dan ada yang TIDAK TERDAFTAR.`
+        );
 
-            // Evaluasi Apresiasi Tips
-            if (reports.tips) data.memberi_tips = (data.memberi_tips || 0) + 1;
+        // Langsung selesaikan misi tanpa nembak database penilaian
+        if(typeof Clearchance !== 'undefined') Clearchance.clearActiveMission();
+        
+        // Update status kontrak tetap perlu agar misi hilang dari board (selesai)
+        await Promise.all([
+            dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_all' }),
+            getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).update({ status: 'completed_all' })
+        ]);
 
-            // Evaluasi Akurasi Tunai
-            if (reports.cash) data.tunai_pas = (data.tunai_pas || 0) + 1;
-            else data.tunai_kurang = (data.tunai_kurang || 0) + 1;
-
-            // Evaluasi Perilaku Tambahan Kerja
-            if (reports.extra) data.minta_tambahan_kerja = (data.minta_tambahan_kerja || 0) + 1;
-
-            return data;
-        });
-
-        dbMaster.ref(`users/${reqUid}/requester_reputation`).transaction((data) => {
-            if (!data) data = {};
-            data.total_order = (data.total_order || 0) + 1;
-            return data;
-        });
-    } else {
-        console.warn("Sistem: UID Requester tidak ditemukan di sesi mission, data diagram tidak di-update.");
+        return location.href = "index.html";
     }
-    // -----------------------------------------------------------
 
-    // --- LOGIKA LAMA (TETAP DIPERTAHANKAN) ---
-    alert("Laporan terekam di arsip Guild. Terima kasih atas dedikasi Anda.");
-    Clearchance.clearActiveMission();
-    location.href = "index.html";
+    // 2. JIKA BUKAN STRANGER (PROSES NORMAL)
+    if (!targetClient || targetClient === "..." || targetClient === "loading") {
+        return alert("Sistem belum siap: Nama Requester belum muncul!");
+    }
+
+    try {
+        // Gali Master Index (FB1)
+        const snap = await dbMaster.ref('requester_index').once('value');
+        let meta = null;
+        snap.forEach(child => { 
+            if(child.val().nickname && child.val().nickname.toLowerCase() === targetClient) {
+                meta = child.val(); 
+            }
+        });
+
+        if (!meta) return alert(`Data Requester [${targetClient}] tidak ditemukan!`);
+
+        const shardId = meta.shard_id;
+        const idReq = meta.id_req;
+        const targetShard = getTerminal(shardId);
+        
+        const p = {
+            sesuai: reports.baik ? 1 : 0,
+            tidak_sesuai: reports.baik ? 0 : 1,
+            tips: reports.tips ? 1 : 0,
+            pas: reports.cash ? 1 : 0,
+            kurang: reports.cash ? 0 : 1,
+            ekstra: reports.extra ? 1 : 0
+        };
+
+        const auditMsg = `--- AUDIT EVALUASI REQUESTER (CITIZEN) ---\n` +
+            `TARGET: ${targetClient.toUpperCase()}\n\n` +
+            `Laporan ini akan disimpan secara permanen di Shard ${shardId}.\n` +
+            `Lanjutkan?`;
+
+        if (!confirm(auditMsg)) return;
+
+        // EKSEKUSI DATABASE
+        await Promise.all([
+            targetShard.ref(`requester_diagram/${idReq}`).update({
+                titik_kordinat_sesuai: firebase.database.ServerValue.increment(p.sesuai),
+                titik_kordinat_tidak_sesuai: firebase.database.ServerValue.increment(p.tidak_sesuai),
+                memberi_tips: firebase.database.ServerValue.increment(p.tips),
+                memberi_tunai_pas: firebase.database.ServerValue.increment(p.pas),
+                memberi_tunai_kurang: firebase.database.ServerValue.increment(p.kurang),
+                minta_tambahan_kerja: firebase.database.ServerValue.increment(p.ekstra)
+            }),
+            targetShard.ref(`requester_reputation/${idReq}`).update({
+                total_order: firebase.database.ServerValue.increment(1)
+            }),
+            dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_all' }),
+            getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).update({ status: 'completed_all' })
+        ]);
+
+        alert("Laporan Citizen terekam.");
+        if(typeof Clearchance !== 'undefined') Clearchance.clearActiveMission();
+        location.href = "index.html";
+
+    } catch (err) {
+        alert(`Gagal: ${err.message}`);
+    }
 }
 
 
+
+
+            
         // ==========================================
         // 8. 5-POINT TRACKING & PROXIMITY ALERT
         // ==========================================
@@ -1437,6 +1579,92 @@ Sinkronkan ke Shard ${shardId}?`;
                 text.style.transition = "opacity 0.3s";
             }
         }
+
+
+        // --- SISTEM EMERGENCY RELEASE SOVEREIGN GUILD ---
+
+function initEmergencyButton() {
+    let countdownSec = 5; // Nanti ganti ke menit (misal 300 untuk 5 menit)
+    
+    const emTimer = document.getElementById('em-timer');
+    const sliderContainer = document.getElementById('slider-container');
+    const emSlider = document.getElementById('em-slider');
+
+    // Reset slider setiap kali misi dibuka
+    if(emSlider) emSlider.value = 0;
+
+    let timerInterval = setInterval(() => {
+        countdownSec--;
+        if (emTimer) {
+            if (countdownSec > 0) {
+                emTimer.innerText = `Fungsi darurat aktif dalam ${countdownSec} detik...`;
+            } else {
+                clearInterval(timerInterval);
+                emTimer.style.display = 'none';
+                if(sliderContainer) sliderContainer.style.display = 'block';
+                console.log("Sovereign Guild: Emergency Slider Enabled.");
+            }
+        }
+    }, 1000);
+
+    // Event Listener Geser Slider
+    if(emSlider) {
+        emSlider.addEventListener('input', function() {
+            if (this.value >= 95) { // Jika digeser mentok ke kanan
+                this.value = 100;
+                processEmergencyFinal();
+            }
+        });
+    }
+}
+
+
+
+        
+        
+// --- SISTEM EMERGENCY RELEASE (VANILLA JS RE-ENGINEERED) ---
+function startEmergencyProtocol() {
+    if (!isAdv) return; // Proteksi: Hanya Adventurer
+
+    const emZone = document.getElementById('emergency-zone');
+    const emTimer = document.getElementById('em-timer');
+    const sliderCont = document.getElementById('slider-container-em');
+    const emSlider = document.getElementById('em-slider');
+
+    if (!emZone) return;
+    emZone.classList.remove('hide'); // Tampilkan zona
+
+    let countdown = 2400; // 40 menit inisialisasi
+    
+    let emInterval = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+            emTimer.innerText = `PROTOKOL DARURAT AKTIF DALAM ${countdown}S...`;
+        } else {
+            clearInterval(emInterval);
+            emTimer.style.display = 'none';
+            sliderCont.style.display = 'block';
+            updateAI("Protokol Selesai Paksa (AFK) telah diaktifkan.", "alert");
+        }
+    }, 1000);
+
+    emSlider.oninput = function() {
+        if (this.value >= 98) {
+            this.value = 100;
+            executeEmergencyAction();
+        }
+    };
+}
+
+function executeEmergencyAction() {
+    vibratePulse();
+    const yakin = confirm("⚠️ AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan diarahkan ke form laporan.");
+    if (yakin) {
+        openEvalReq(); // Membuka form penilaian requester
+    } else {
+        document.getElementById('em-slider').value = 0;
+    }
+}
 
 
 
