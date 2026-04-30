@@ -1275,51 +1275,102 @@ Sinkronkan ke Shard ${shardId}?`;
             btnN.style.background = !val ? 'rgba(255,51,102,0.1)' : 'rgba(255,255,255,0.05)';
         }
 
+
+
+        
         async function executeReqFinal() {
-    if(Object.values(reports).includes(null)) return alert("Sistem menolak: Selesaikan survei laporan!");
+    const elClient = document.getElementById('m-client-name');
+    const targetClient = elClient ? elClient.innerText.trim().toLowerCase() : "";
 
-    // --- TAMBAHAN KODE: UPDATE REPUTASI REQUESTER (COUNTER) ---
-    // Pastikan key uID requester ini sesuai dengan struktur JSON 'mission' Anda
-    const reqUid = mission.requester_uid || mission.client_uid; 
-    
-    if (reqUid) {
-        dbMaster.ref(`users/${reqUid}/requester_diagram`).transaction((data) => {
-            if (!data) data = {};
-            
-            // Evaluasi Koperatif / Koordinat Sesuai (dari laporan 'baik')
-            if (reports.baik) data.titik_kordinat_sesuai = (data.titik_kordinat_sesuai || 0) + 1;
-            else data.titik_kordinat_tidak_sesuai = (data.titik_kordinat_tidak_sesuai || 0) + 1;
+    // 1. LOGIKA FILTER STRANGER
+    if (targetClient === "stranger") {
+        alert(
+            `--- PERINGATAN SISTEM SOVEREIGN GUILD ---\n\n` +
+            `Requester berstatus STRANGER.\n` +
+            `Tidak ada data penilaian yang akan disimpan ke database.\n\n` +
+            `Saran: Jika terjadi kendala selama misi, harap lebih berhati-hati dikemudian hari. ` +
+            `Pahami bahwa pemesan ada yang terdaftar sebagai CITIZEN dan ada yang TIDAK TERDAFTAR.`
+        );
 
-            // Evaluasi Apresiasi Tips
-            if (reports.tips) data.memberi_tips = (data.memberi_tips || 0) + 1;
+        // Langsung selesaikan misi tanpa nembak database penilaian
+        if(typeof Clearchance !== 'undefined') Clearchance.clearActiveMission();
+        
+        // Update status kontrak tetap perlu agar misi hilang dari board (selesai)
+        await Promise.all([
+            dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_all' }),
+            getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).update({ status: 'completed_all' })
+        ]);
 
-            // Evaluasi Akurasi Tunai
-            if (reports.cash) data.tunai_pas = (data.tunai_pas || 0) + 1;
-            else data.tunai_kurang = (data.tunai_kurang || 0) + 1;
-
-            // Evaluasi Perilaku Tambahan Kerja
-            if (reports.extra) data.minta_tambahan_kerja = (data.minta_tambahan_kerja || 0) + 1;
-
-            return data;
-        });
-
-        dbMaster.ref(`users/${reqUid}/requester_reputation`).transaction((data) => {
-            if (!data) data = {};
-            data.total_order = (data.total_order || 0) + 1;
-            return data;
-        });
-    } else {
-        console.warn("Sistem: UID Requester tidak ditemukan di sesi mission, data diagram tidak di-update.");
+        return location.href = "index.html";
     }
-    // -----------------------------------------------------------
 
-    // --- LOGIKA LAMA (TETAP DIPERTAHANKAN) ---
-    alert("Laporan terekam di arsip Guild. Terima kasih atas dedikasi Anda.");
-    Clearchance.clearActiveMission();
-    location.href = "index.html";
+    // 2. JIKA BUKAN STRANGER (PROSES NORMAL)
+    if (!targetClient || targetClient === "..." || targetClient === "loading") {
+        return alert("Sistem belum siap: Nama Requester belum muncul!");
+    }
+
+    try {
+        // Gali Master Index (FB1)
+        const snap = await dbMaster.ref('requester_index').once('value');
+        let meta = null;
+        snap.forEach(child => { 
+            if(child.val().nickname && child.val().nickname.toLowerCase() === targetClient) {
+                meta = child.val(); 
+            }
+        });
+
+        if (!meta) return alert(`Data Requester [${targetClient}] tidak ditemukan!`);
+
+        const shardId = meta.shard_id;
+        const idReq = meta.id_req;
+        const targetShard = getTerminal(shardId);
+        
+        const p = {
+            sesuai: reports.baik ? 1 : 0,
+            tidak_sesuai: reports.baik ? 0 : 1,
+            tips: reports.tips ? 1 : 0,
+            pas: reports.cash ? 1 : 0,
+            kurang: reports.cash ? 0 : 1,
+            ekstra: reports.extra ? 1 : 0
+        };
+
+        const auditMsg = `--- AUDIT EVALUASI REQUESTER (CITIZEN) ---\n` +
+            `TARGET: ${targetClient.toUpperCase()}\n\n` +
+            `Laporan ini akan disimpan secara permanen di Shard ${shardId}.\n` +
+            `Lanjutkan?`;
+
+        if (!confirm(auditMsg)) return;
+
+        // EKSEKUSI DATABASE
+        await Promise.all([
+            targetShard.ref(`requester_diagram/${idReq}`).update({
+                titik_kordinat_sesuai: firebase.database.ServerValue.increment(p.sesuai),
+                titik_kordinat_tidak_sesuai: firebase.database.ServerValue.increment(p.tidak_sesuai),
+                memberi_tips: firebase.database.ServerValue.increment(p.tips),
+                memberi_tunai_pas: firebase.database.ServerValue.increment(p.pas),
+                memberi_tunai_kurang: firebase.database.ServerValue.increment(p.kurang),
+                minta_tambahan_kerja: firebase.database.ServerValue.increment(p.ekstra)
+            }),
+            targetShard.ref(`requester_reputation/${idReq}`).update({
+                total_order: firebase.database.ServerValue.increment(1)
+            }),
+            dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_all' }),
+            getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).update({ status: 'completed_all' })
+        ]);
+
+        alert("Laporan Citizen terekam.");
+        if(typeof Clearchance !== 'undefined') Clearchance.clearActiveMission();
+        location.href = "index.html";
+
+    } catch (err) {
+        alert(`Gagal: ${err.message}`);
+    }
 }
 
 
+
+
+            
         // ==========================================
         // 8. 5-POINT TRACKING & PROXIMITY ALERT
         // ==========================================
