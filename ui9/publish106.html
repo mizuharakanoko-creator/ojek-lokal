@@ -1,0 +1,1317 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#020202" id="themeMeta">
+    <title>Sovereign Guild - Terminal v4.1 PRO Max</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="router_lokal.js"></script>
+    <script src="terminal_router.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+    <style>
+        /* ==========================================================================
+           1. VARIABEL & RESET GLOBAL (THEME SYSTEM)
+           ========================================================================== */
+        :root {
+            --bg-dark: #020202;
+            --panel: #0d0d0d;
+            --text-main: #ffffff;
+            --text-muted: #aaaaaa;
+            --primary: #ff0055;
+            --primary-glow: rgba(255, 0, 85, 0.6);
+            --secondary: #00f2ff;
+            --secondary-glow: rgba(0, 242, 255, 0.4);
+            --gold: #ffcc00;
+            --success: #00ff88;
+            --border: rgba(255, 255, 255, 0.08);
+            --input-bg: #121212;
+            --card-bg: linear-gradient(145deg, #151515, #0a0a0a);
+            --font-mono: 'Fira Code', 'Courier New', monospace;
+            --font-main: 'Segoe UI', Roboto, sans-serif;
+            --accent-color: var(--secondary); /* Dinamis untuk Ghost Assistant */
+            transition: all 0.5s ease;
+        }
+
+        /* Light Mode Variables */
+        body.light-mode {
+            --bg-dark: #f0f4f8;
+            --panel: #ffffff;
+            --text-main: #111111;
+            --text-muted: #555555;
+            --primary: #d40047;
+            --primary-glow: rgba(212, 0, 71, 0.3);
+            --secondary: #008ba3;
+            --secondary-glow: rgba(0, 139, 163, 0.3);
+            --border: rgba(0, 0, 0, 0.1);
+            --input-bg: #f9f9f9;
+            --card-bg: linear-gradient(145deg, #ffffff, #e6e6e6);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; margin: 0; padding: 0; }
+        
+        body, html { 
+            background: var(--bg-dark); color: var(--text-main); font-family: var(--font-main); 
+            width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; user-select: none;
+            transition: background 0.5s ease, color 0.5s ease;
+        }
+
+        .app-container {
+            width: 100%; height: 100%; overflow-y: auto; padding: 15px; 
+            padding-bottom: max(90px, env(safe-area-inset-bottom)); /* Safe area */
+            display: flex; flex-direction: column; align-items: center; scroll-behavior: smooth;
+        }
+
+        .leaflet-control-attribution { display: none !important; }
+        .leaflet-container { background: var(--panel); }
+
+        /* ==========================================================================
+           2. LAYOUT & THEME CONTROLS
+           ========================================================================== */
+        .top-controls {
+            position: absolute; top: 15px; right: 15px; z-index: 100;
+            display: flex; gap: 10px;
+        }
+        .theme-toggle, .resync-btn {
+            background: var(--panel); border: 1px solid var(--border); border-radius: 50%;
+            width: 45px; height: 45px; display: flex; justify-content: center; align-items: center;
+            font-size: 20px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.3); transition: 0.5s;
+        }
+        .theme-toggle .icon { transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+        body.light-mode .theme-toggle .icon { transform: rotate(360deg); }
+
+        .quest-board {
+            width: 100%; max-width: 480px; background: var(--panel); border: 1px solid var(--border); 
+            border-radius: 24px; padding: 25px; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            transition: background 0.5s, border-color 0.5s; margin-top: 50px;
+        }
+
+        .terminal-header { text-align: center; margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+        .main-title { font-size: 22px; font-weight: 900; letter-spacing: 4px; color: var(--primary); text-transform: uppercase; text-shadow: 0 0 15px var(--primary-glow); }
+        .sub-title { font-size: 10px; color: var(--secondary); letter-spacing: 2px; opacity: 0.7; }
+        .instruction { font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 20px; font-weight: bold; }
+
+        .step-page { display: none; opacity: 0; transform: translateY(20px); transition: all 0.4s forwards cubic-bezier(0.4, 0, 0.2, 1); }
+        .step-page.active { display: block; opacity: 1; transform: translateY(0); }
+
+        /* ==========================================================================
+           3. GHOST ASSISTANT UI
+           ========================================================================== */
+        .ghost-assistant {
+            display: flex; align-items: flex-start; gap: 10px; background: rgba(0, 0, 0, 0.2);
+            border: 1px dashed var(--accent-color); padding: 15px; border-radius: 15px; margin-bottom: 20px;
+            animation: floatUpDown 3s infinite ease-in-out; transition: all 0.5s;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        @keyframes floatUpDown { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        .ghost-avatar { font-size: 30px; filter: drop-shadow(0 0 10px var(--accent-color)); transition: 0.5s; }
+        .ghost-bubble { 
+            background: var(--panel); border: 1px solid var(--border); padding: 10px; 
+            border-radius: 0 15px 15px 15px; font-size: 11px; color: var(--text-main); 
+            flex: 1; line-height: 1.5; font-weight: bold; border-left: 3px solid var(--accent-color);
+            transition: 0.3s;
+        }
+
+        /* ==========================================================================
+           4. KOMPONEN INPUT & FORM
+           ========================================================================== */
+        .input-group { margin-bottom: 15px; position: relative; }
+        .input-group label { display: block; font-size: 11px; color: var(--accent-color); text-transform: uppercase; margin-bottom: 8px; font-weight: bold; transition: 0.3s; }
+        .input-group input, .input-group textarea, .input-group select {
+            width: 100%; background: var(--input-bg); border: 1px solid var(--border); border-radius: 12px;
+            padding: 14px; color: var(--text-main); font-size: 14px; transition: 0.3s;
+            -webkit-user-select: auto; user-select: auto; 
+        }
+        .input-group input:focus, .input-group textarea:focus, .input-group select:focus { border-color: var(--accent-color); box-shadow: 0 0 10px var(--secondary-glow); }
+        
+        .btn-main { width: 100%; background: var(--primary); color: #fff; border: none; padding: 18px; border-radius: 15px; font-weight: 900; font-size: 14px; text-transform: uppercase; cursor: pointer; transition: 0.3s; box-shadow: 0 5px 15px var(--primary-glow); }
+        .btn-main:active { transform: scale(0.96); }
+        .btn-secondary { flex: 1; background: rgba(128, 128, 128, 0.1); color: var(--text-main); border: 1px solid var(--border); padding: 18px; border-radius: 15px; font-weight: 900; font-size: 14px; text-transform: uppercase; cursor: pointer; transition: 0.3s; }
+        .btn-secondary:active { transform: scale(0.95); background: rgba(128, 128, 128, 0.2); }
+        .btn-outline { width: 100%; background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); padding: 12px; border-radius: 12px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 10px; }
+        .btn-outline:active { background: rgba(255,255,255,0.1); }
+        
+        .btn-voice { position: absolute; right: 10px; top: 35px; background: rgba(255,255,255,0.1); border: 1px solid var(--accent-color); color: var(--accent-color); border-radius: 50%; width: 35px; height: 35px; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px; transition: 0.3s; }
+        .btn-voice.recording { background: var(--primary); border-color: var(--primary); color: white; animation: pulse 1s infinite; }
+        .btn-ai { background: linear-gradient(90deg, #8e2de2, #4a00e0); border: none; color: white; padding: 12px; border-radius: 12px; width: 100%; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(142, 45, 226, 0.3); transition: 0.3s; margin-top: 5px; font-size: 11px; }
+
+        /* ==========================================================================
+           5. KATEGORI & SUMMARY UI
+           ========================================================================== */
+        .grid-kategori { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .card-kat { background: var(--card-bg); border: 1px solid var(--border); border-radius: 18px; padding: 20px 10px; text-align: center; cursor: pointer; transition: 0.3s; position: relative; }
+        .card-kat.active-node { border-color: var(--accent-color); box-shadow: 0 5px 15px rgba(0,0,0,0.3); transform: scale(1.02); background: rgba(255,255,255,0.05); }
+        .card-kat .icon { font-size: 35px; display: block; margin-bottom: 8px; }
+        .card-kat .label { font-size: 11px; font-weight: 800; color: var(--text-main); text-transform: uppercase; }
+        
+        .cyber-checkbox-wrapper { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.05); padding: 15px; border: 1px solid var(--border); margin-bottom: 20px; cursor: pointer; border-radius: 12px; transition: 0.3s; }
+        .cyber-checkbox-wrapper.checked { border-color: var(--accent-color); background: rgba(255,255,255,0.1); }
+        .cyber-checkbox-wrapper .box { width: 20px; height: 20px; border: 2px solid var(--accent-color); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: transparent; transition: 0.3s; }
+        .cyber-checkbox-wrapper.checked .box { background: var(--accent-color); color: white; }
+        .cyber-checkbox-wrapper .label { font-size: 11px; font-weight: bold; color: var(--accent-color); letter-spacing: 1px; }
+
+        .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .price-card { background: var(--input-bg); border: 1px solid var(--border); padding: 15px 5px; text-align: center; border-radius: 12px; cursor: pointer; transition: 0.3s; }
+        .price-card.active { border-color: var(--accent-color); background: rgba(255,255,255,0.05); box-shadow: 0 0 15px rgba(0,0,0,0.2); }
+        .price-card .tier { font-size: 9px; color: var(--text-muted); display: block; margin-bottom: 5px; font-weight: bold; }
+        .price-card .amount { font-size: 14px; color: var(--text-main); font-weight: 900; }
+        .price-card.active .tier { color: var(--accent-color); }
+        .price-hint { font-size: 10px; color: var(--accent-color); text-align: center; margin-top: -10px; margin-bottom: 15px; animation: blink 2s infinite; font-weight: bold; }
+        
+        .nego-display { text-align: center; padding: 20px; background: rgba(255, 204, 0, 0.1); border: 1px dashed var(--gold); border-radius: 15px; margin-bottom: 20px; }
+        .nego-display h3 { color: var(--gold); margin-bottom: 5px; font-size: 24px; letter-spacing: 2px;}
+
+        .summary-box { background: rgba(0,0,0,0.3); border: 1px dashed var(--gold); padding: 15px; border-radius: 12px; font-family: var(--font-mono); font-size: 11px; color: var(--text-main); margin-bottom: 20px; line-height: 1.4; }
+        .summary-box div { margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+        .summary-box .highlight { color: var(--gold); font-weight: bold; }
+
+        /* ==========================================================================
+           6. MAP & LOCATION HISTORY
+           ========================================================================== */
+        .location-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 15px; padding: 15px; display: flex; align-items: center; gap: 15px; margin-bottom: 10px; transition: 0.3s; cursor: pointer;}
+        .location-card:active { transform: scale(0.98); }
+        .location-card.empty { border-color: var(--border); background: var(--input-bg); color: var(--text-muted); justify-content: center; padding: 25px;}
+        .location-card .icon { font-size: 30px; }
+        .location-card .info { flex: 1; }
+        .location-card .info-title { font-size: 10px; color: var(--accent-color); font-weight: bold; margin-bottom: 5px; }
+        .location-card .info-text { font-size: 14px; font-weight: bold; color: var(--text-main); line-height: 1.4; word-break: break-word; }
+        
+        .history-list { margin-top: 15px; display: none; }
+        .history-item { display: flex; align-items: center; gap: 10px; background: var(--input-bg); border: 1px solid var(--border); padding: 10px; border-radius: 10px; margin-bottom: 8px; cursor: pointer; }
+        .history-item:hover { border-color: var(--accent-color); }
+        .history-item .icon { font-size: 16px; }
+        .history-item .text { font-size: 12px; color: var(--text-main); flex:1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .map-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-dark); z-index: 50000; display: none; flex-direction: column; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .map-overlay.active { transform: translateY(0); display: flex; }
+        .map-header { background: rgba(10, 10, 10, 0.9); backdrop-filter: blur(10px); padding: 15px 20px; padding-top: max(15px, env(safe-area-inset-top)); display: flex; gap: 10px; align-items: center; z-index: 50010; border-bottom: 1px solid var(--accent-color); }
+        .map-header-search { flex: 1; background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 12px 15px; color: white; font-size: 14px; outline: none; -webkit-user-select: auto; user-select: auto; }
+        .map-header-close { background: transparent; border: none; color: var(--text-main); font-size: 24px; font-weight: bold; cursor: pointer; padding: 0 10px; }
+        .map-body { flex: 1; position: relative; }
+        #fullMap { width: 100%; height: 100%; }
+
+        /* Pulse Pin */
+        .map-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -100%); z-index: 50010; pointer-events: none; text-align: center; }
+        .map-crosshair .pin { font-size: 40px; text-shadow: 0 5px 10px rgba(0,0,0,0.5); transition: 0.3s; }
+        .map-crosshair .pulse-ring { position: absolute; top: 35px; left: 50%; transform: translateX(-50%); width: 20px; height: 10px; background: var(--accent-color); border-radius: 50%; display: none; animation: pulseMap 1.5s infinite; }
+        @keyframes pulseMap { 0% { transform: translateX(-50%) scale(1); opacity: 0.8; } 100% { transform: translateX(-50%) scale(4); opacity: 0; } }
+        
+        .map-crosshair.is-moving .pin { transform: translateY(-15px) scale(1.1); }
+        .map-crosshair.is-set .pin { filter: hue-rotate(180deg); } /* Indikator Set */
+        .map-crosshair.is-set .pulse-ring { display: block; }
+
+        .btn-floating-set { position: absolute; bottom: max(30px, env(safe-area-inset-bottom)); left: 5%; width: 90%; background: var(--accent-color); color: #000; border: none; padding: 18px; border-radius: 15px; font-weight: 900; font-size: 14px; text-transform: uppercase; cursor: pointer; z-index: 50010; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .btn-gps-lokasi { position: absolute; bottom: max(90px, env(safe-area-inset-bottom)); right: 20px; background: #fff; color: #000; border: none; width: 45px; height: 45px; border-radius: 50%; font-size: 20px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center; z-index: 50010; }
+        
+        /* Modal Bottom Sheet */
+        .bottom-sheet { position: fixed; bottom: -100%; left: 0; width: 100%; max-height: 85vh; background: var(--panel); border-top: 3px solid var(--accent-color); z-index: 60000; transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; padding: 20px; border-radius: 20px 20px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,0.8); overflow-y: auto; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+        .bottom-sheet.active { bottom: 0; }
+        .radio-item { display: flex; align-items: center; gap: 12px; background: var(--input-bg); padding: 15px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 10px;}
+        .radio-item.selected { border-color: var(--accent-color); background: rgba(255,255,255,0.05); }
+        .radio-item .circle { width: 18px; height: 18px; border: 2px solid var(--text-muted); border-radius: 50%; display: flex; justify-content: center; align-items: center; }
+        .radio-item.selected .circle { border-color: var(--accent-color); }
+        .radio-item.selected .circle::after { content: ''; width: 10px; height: 10px; background: var(--accent-color); border-radius: 50%; }
+        .radio-item .title { font-size: 13px; font-weight: bold; color: var(--text-main); }
+        .radio-item .desc { font-size: 10px; color: var(--text-muted); margin-top: 3px; display: block;}
+
+        /* ==========================================================================
+           7. WHATSAPP FULL SCREEN UI (BELANJA & JASA)
+           ========================================================================== */
+        .wa-overlay { position: fixed; inset: 0; background: var(--bg-dark); z-index: 40000; display: none; flex-direction: column; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .wa-overlay.active { transform: translateY(0); display: flex; }
+        .wa-header { background: var(--panel); padding: 15px; padding-top: max(15px, env(safe-area-inset-top)); display: flex; align-items: center; border-bottom: 1px solid var(--border); gap: 10px; }
+        .wa-chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; background: url('https://www.transparenttextures.com/patterns/cubes.png'); }
+        .wa-bubble { background: var(--card-bg); border: 1px solid var(--border); padding: 12px 15px; border-radius: 15px 15px 0 15px; align-self: flex-end; max-width: 85%; font-size: 13px; color: var(--text-main); position: relative; box-shadow: 0 2px 10px rgba(0,0,0,0.2); border-right: 3px solid var(--accent-color); }
+        .wa-bubble .wa-actions { display: flex; gap: 10px; margin-top: 8px; font-size: 10px; color: var(--accent-color); font-weight: bold; justify-content: flex-end; }
+        
+        .wa-input-area { background: var(--panel); padding: 15px; padding-bottom: max(15px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); display: flex; align-items: flex-end; gap: 10px; }
+        .wa-textarea { flex: 1; background: var(--input-bg); border: 1px solid var(--border); border-radius: 20px; padding: 12px 15px; color: var(--text-main); font-size: 14px; outline: none; resize: none; max-height: 100px; -webkit-user-select: auto; user-select: auto; }
+        .wa-tools { display: flex; gap: 8px; margin-bottom: 10px; padding: 0 15px; overflow-x: auto; }
+        .wa-tool-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--border); padding: 8px 12px; border-radius: 20px; font-size: 10px; color: var(--text-main); font-weight: bold; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
+        .wa-tool-btn:active { background: rgba(255,255,255,0.1); }
+        .btn-send-wa { background: var(--accent-color); color: #000; border: none; border-radius: 50%; width: 45px; height: 45px; display: flex; justify-content: center; align-items: center; font-size: 18px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+
+        /* ==========================================================================
+           8. MODALS, NOTIF & LOADERS
+           ========================================================================== */
+        .mega-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; align-items: center; justify-content: center; z-index: 80000; padding: 20px; backdrop-filter: blur(8px); opacity: 0; transition: opacity 0.3s; }
+        .mega-modal.show { display: flex; opacity: 1; }
+        .modal-content { background: var(--panel); border: 2px solid var(--accent-color); padding: 30px 20px; border-radius: 20px; text-align: center; max-width: 350px; width: 100%; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+        
+        #toast { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: var(--accent-color); color: #000; padding: 12px 30px; border-radius: 50px; font-weight: bold; z-index: 99999; transition: 0.5s; font-size: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); pointer-events: none; }
+        #toast.show { top: max(40px, env(safe-area-inset-top)); }
+        
+        #loaderOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 90000; display: none; justify-content: center; align-items: center; flex-direction: column; backdrop-filter: blur(5px);}
+        .spinner { width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.1); border-top-color: var(--accent-color); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    </style>
+</head>
+<body>
+
+<div class="top-controls">
+    <div class="resync-btn" onclick="resyncSignal()" title="Refresh Koneksi GPS & Database">🔄</div>
+    <div class="theme-toggle" onclick="toggleTheme()"><span class="icon" id="themeIcon">☀️</span></div>
+</div>
+
+<div id="toast">Notifikasi</div>
+
+<div id="loaderOverlay">
+    <div class="spinner"></div>
+    <div id="loaderText" style="color:var(--text-main); font-weight:bold; letter-spacing:2px; font-size:12px;">MEMPROSES DATA...</div>
+</div>
+
+<div id="introModal" class="mega-modal show">
+    <div class="modal-content" style="border-color: var(--secondary);">
+        <span style="font-size:40px; display:block; margin-bottom:10px;">🌐</span>
+        <h3 style="color: var(--secondary); letter-spacing: 1px;">IZIN SISTEM DIPERLUKAN</h3>
+        <p style="color: var(--text-muted); line-height: 1.6; margin: 15px 0; font-size:12px;">
+            Aplikasi ini membutuhkan akses <b>Lokasi (GPS)</b> untuk akurasi penjemputan dan pengantaran.<br><br>
+            <i>Pastikan koneksi internet Anda stabil. Jika terjadi kendala saat memuat peta, klik tombol 🔄 di pojok kanan atas.</i>
+        </p>
+        <button class="btn-main" onclick="requestUniversalPermission()" style="background: var(--secondary); color: #000; box-shadow: 0 0 15px var(--secondary-glow);">SAYA MENGERTI & IZINKAN</button>
+    </div>
+</div>
+
+<div id="cyberAlert" class="mega-modal">
+    <div class="modal-content" style="border-color: var(--primary);">
+        <span id="alertIcon" style="font-size:40px; display:block; margin-bottom:10px;">⚠️</span>
+        <h3 id="alertTitle" style="color: var(--primary); letter-spacing: 2px;">PERHATIAN</h3>
+        <p id="alertMessage" style="color: var(--text-main); line-height: 1.6; margin: 15px 0; font-size:13px;"></p>
+        <button class="btn-main" onclick="closeCyberAlert()">MENGERTI</button>
+    </div>
+</div>
+
+<div class="map-overlay" id="mapOverlay">
+    <div class="map-header">
+        <input type="text" class="map-header-search" id="mapSearchInput" placeholder="Ketik nama Desa untuk mencari..." autocomplete="off">
+        <button class="map-header-close" onclick="closeMap()">✖</button>
+    </div>
+    <div class="map-suggest" id="mapSuggestBox" style="position:absolute; top:70px; left:20px; right:20px; background:var(--panel); border:1px solid var(--border); border-radius:12px; z-index:50020; display:none; max-height:250px; overflow-y:auto;"></div>
+    
+    <div class="map-body">
+        <div id="fullMap"></div>
+        <div class="map-crosshair" id="mapPin">
+            <div class="pin">📍</div>
+            <div class="pulse-ring"></div>
+            <div style="position: absolute; top: -45px; left: -60px; width: 160px; background: rgba(0,0,0,0.8); color: #fff; font-size: 10px; padding: 5px; border-radius: 5px;">Geser peta untuk memindahkan Pin</div>
+        </div>
+        
+        <button class="btn-gps-lokasi" onclick="centerToGPS()">🎯</button>
+        <button class="btn-floating-set" onclick="prepareLocationDetails()">SET TITIK DI SINI</button>
+    </div>
+</div>
+
+<div class="mega-modal" id="sheetOverlay" onclick="closeDetailModal()" style="z-index: 59999;"></div>
+<div class="bottom-sheet" id="detailSheet">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:15px; margin-bottom:15px;">
+        <h3 style="color:var(--accent-color); font-size:14px; margin:0; letter-spacing:1px;">KONFIRMASI DETAIL TITIK</h3>
+        <span onclick="closeDetailModal()" style="color:var(--text-muted); font-size:12px; font-weight:bold; cursor:pointer;">[ BATAL ]</span>
+    </div>
+    
+    <div style="background:var(--input-bg); padding:12px; border-radius:10px; margin-bottom:15px; border:1px dashed var(--border);">
+        <span style="font-size:10px; color:var(--text-muted); display:block;">Wilayah Terdeteksi (Sistem):</span>
+        <strong id="deteksiSistem" style="color:var(--text-main); font-size:14px;">-</strong>
+    </div>
+
+    <label style="font-size:11px; color:var(--accent-color); font-weight:bold; margin-bottom:10px; display:block;">SEBERAPA AKURAT TITIK PETA ANDA?</label>
+    <div class="radio-item selected" onclick="selectAccuracy(this, 'Titik peta sudah pas di lokasi.')">
+        <div class="circle"></div>
+        <div>
+            <span class="title">Sudah Sangat Pas</span>
+            <span class="desc">Titik pin tepat di depan rumah/lokasi.</span>
+        </div>
+    </div>
+    <div class="radio-item" onclick="selectAccuracy(this, 'Titik peta hanya perkiraan (agak geser).')">
+        <div class="circle"></div>
+        <div>
+            <span class="title">Hanya Perkiraan (Agak Geser)</span>
+            <span class="desc">Beri patokan tambahan di bawah agar kurir tidak bingung.</span>
+        </div>
+    </div>
+
+    <div class="input-group">
+        <label>Patokan Tambahan (Ciri Bangunan/Warna Pagar)</label>
+        <div style="position:relative;">
+            <textarea id="modalPatokan" rows="3" placeholder="Contoh: Rumah cat biru, pagar hitam..." style="padding-right:45px;" onfocus="triggerGhost('Kak, jangan lupa deskripsikan warna pagar atau ciri bangunan ya agar kurir cepat sampai.')"></textarea>
+            <button class="btn-voice" onclick="startVoiceToText('modalPatokan', this)" style="top:10px;">🎙️</button>
+        </div>
+        <button class="btn-ai" onclick="polishFieldWithAI('modalPatokan')">✨ PERBAIKI TYPO (AI)</button>
+    </div>
+
+    <button class="btn-main" style="margin-top:10px; background:var(--accent-color); color:#000;" onclick="saveLocationDetails()">SIMPAN & LANJUTKAN</button>
+</div>
+
+<div class="wa-overlay" id="waOverlay">
+    <div class="wa-header">
+        <button style="background:transparent; border:none; color:var(--text-main); font-size:20px; padding:0 10px;" onclick="closeWAUI()">⬅</button>
+        <div>
+            <div style="font-size:14px; font-weight:bold; color:var(--accent-color);" id="waTitle">Daftar Belanja</div>
+            <div style="font-size:10px; color:var(--text-muted);">Ketik atau Tempel (Paste) catatan Anda</div>
+        </div>
+    </div>
+    
+    <div class="wa-tools">
+        <button class="wa-tool-btn" onclick="document.getElementById('ocrInput').click()">📷 Ekstrak Teks (Foto/Struk)</button>
+        <button class="wa-tool-btn" onclick="pasteAndParseWA()">📋 Tempel & Rapihkan (Auto-Parse)</button>
+        <button class="wa-tool-btn" onclick="polishWAInputAI()">✨ Rapihkan Typo (AI)</button>
+        <input type="file" id="ocrInput" accept="image/*" style="display:none;" onchange="processOCR(this)">
+    </div>
+
+    <div class="wa-chat-area" id="waChatArea">
+        </div>
+
+    <div class="wa-input-area">
+        <button style="background:none; border:none; font-size:20px; padding:10px;" onclick="startVoiceToText('waTextInput', this)">🎙️</button>
+        <textarea class="wa-textarea" id="waTextInput" rows="1" placeholder="Ketik item belanja..."></textarea>
+        <button class="btn-send-wa" onclick="sendWABubble()">➤</button>
+    </div>
+    <button class="btn-main" style="border-radius:0; padding:20px; font-size:16px; background:var(--accent-color); color:#000;" onclick="finishWAInput()">SELESAI & LANJUT ➔</button>
+</div>
+
+
+<div class="app-container">
+    <div class="quest-board">
+        <div class="terminal-header">
+            <h2 class="main-title" id="displayHeader">SOVEREIGN GUILD</h2>
+            <span class="sub-title" id="userReputationDisplay">STATUS: MENGHUBUNGKAN...</span>
+        </div>
+
+        <div class="ghost-assistant" id="ghostAssistant">
+            <div class="ghost-avatar" id="ghostIcon">🧚‍♀️</div>
+            <div class="ghost-bubble" id="ghostText">Halo! Aku asisten pemandumu. Tentukan kendaraan utamanya dulu ya!</div>
+        </div>
+
+        <div id="step1" class="step-page active">
+            <p class="instruction">Pilih tipe layanan yang Anda butuhkan.</p>
+            <div class="grid-kategori">
+                <div class="card-kat" onclick="selectPrimaryIntent('Motor')">
+                    <span class="icon">🏍️</span><span class="label">MOTOR</span>
+                </div>
+                <div class="card-kat" onclick="selectPrimaryIntent('Mobil')">
+                    <span class="icon">🚗</span><span class="label">MOBIL</span>
+                </div>
+                <div class="card-kat" style="grid-column: span 2; border-color: var(--gold);" onclick="selectPrimaryIntent('Beli')">
+                    <span class="icon">🛍️</span><span class="label" style="color:var(--gold);">TITIP BELI (SHOPPING)</span>
+                </div>
+                <div class="card-kat" style="grid-column: span 2; border-color: #ff5500;" onclick="selectPrimaryIntent('Bantu')">
+                    <span class="icon">🛠️</span><span class="label" style="color:#ff5500;">JASA BANTUAN (NEGO)</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="step1-sub" class="step-page">
+            <p class="instruction">Apa yang ingin diantar/dikirim?</p>
+            <div class="grid-kategori">
+                <div class="card-kat" id="btnOrang" onclick="selectSubIntent('Orang')">
+                    <span class="icon">👤</span><span class="label">KIRIM ORANG</span>
+                </div>
+                <div class="card-kat" id="btnBarang" onclick="selectSubIntent('Barang')">
+                    <span class="icon">📦</span><span class="label">KIRIM BARANG</span>
+                </div>
+            </div>
+
+            <div id="detailOrang" style="display:none; margin-top:20px;">
+                <div id="maticArea" style="display:none;">
+                    <div class="cyber-checkbox-wrapper" id="maticWrapper" onclick="toggleMatic()">
+                        <div class="box"></div>
+                        <input type="checkbox" id="maticCheck" style="display:none;">
+                        <span class="label">WAJIB MATIC (OPSIONAL)</span>
+                    </div>
+                </div>
+                <div id="penumpangArea" style="display:none;" class="input-group">
+                    <label>Jumlah Penumpang</label>
+                    <select id="penumpangCount">
+                        <option value="1 Orang">1 Orang</option>
+                        <option value="2 Orang">2 Orang</option>
+                        <option value="3 Orang">3 Orang</option>
+                        <option value="4 Orang (Maks)">4 Orang (Maksimal)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="detailBarang" style="display:none; margin-top:20px;">
+                <div class="input-group">
+                    <label>Estimasi Berat Barang</label>
+                    <select id="beratBarang">
+                        <option value="Ringan">Ringan (Bisa diikat/dibawa tangan)</option>
+                        <option value="Sedang">Sedang (Butuh ruang bagasi/kaki)</option>
+                        <option value="Berat">Berat (Kargo Full / Kardus Besar)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Deskripsi Barang</label>
+                    <input type="text" id="descBarang" placeholder="Misal: Dus Sepatu / Koper Sedang">
+                </div>
+            </div>
+
+            <div style="display:flex; gap:12px; margin-top:25px;">
+                <button class="btn-secondary" onclick="navStep('1')">⬅️ KEMBALI</button>
+                <button class="btn-main" style="flex: 2;" onclick="validateSubIntent()">LANJUTKAN ➔</button>
+            </div>
+        </div>
+
+        <div id="step2" class="step-page">
+            <p class="instruction">Tentukan koordinat penjemputan dan pengantaran.</p>
+            
+            <div class="input-group">
+                <label id="lblOrigin">Titik Jemput / Awal</label>
+                <div id="originDisplay" class="location-card empty" onclick="openMap('origin')">
+                    <div class="icon">📍</div><div class="info">Ketuk untuk menentukan Lokasi dari Peta</div>
+                </div>
+            </div>
+
+            <div id="historyOriginBox" class="history-list">
+                <label style="font-size:10px; color:var(--text-muted); font-weight:bold;">RIWAYAT LOKASI TERAKHIR:</label>
+                <div id="historyOriginContainer"></div>
+            </div>
+
+            <div class="input-group" id="destWrap" style="margin-top: 25px;">
+                <label>Titik Tujuan Akhir</label>
+                <div id="destDisplay" class="location-card empty" onclick="openMap('dest')">
+                    <div class="icon">🏁</div><div class="info">Ketuk untuk menentukan Tujuan dari Peta</div>
+                </div>
+            </div>
+
+            <div id="historyDestBox" class="history-list">
+                <label style="font-size:10px; color:var(--text-muted); font-weight:bold;">RIWAYAT LOKASI TERAKHIR:</label>
+                <div id="historyDestContainer"></div>
+            </div>
+
+            <div style="display:flex; gap:12px; margin-top:30px;">
+                <button class="btn-secondary" onclick="goBackFromLocation()">⬅️ KEMBALI</button>
+                <button class="btn-main" style="flex: 2;" onclick="validateLocations()">SELANJUTNYA ➔</button>
+            </div>
+        </div>
+
+        <div id="step5" class="step-page">
+            <p class="instruction">Konfigurasi Kompensasi & Kontrak.</p>
+
+            <div id="priceCalculationArea">
+                <label style="font-size: 11px; color: var(--text-muted); margin-bottom:10px; display:block; text-align:center;">PILIH PENAWARAN TARIF ANDA</label>
+                <div class="price-hint">Harga belum final, biaya parkir/tol dibicarakan di lapangan.</div>
+                <div class="price-grid" id="priceGrid">
+                    <div class="price-card" onclick="selectPriceTier(this)">
+                        <span class="tier">MINIMUM</span><span class="amount" id="valHemat">0</span>
+                    </div>
+                    <div class="price-card active" onclick="selectPriceTier(this)">
+                        <span class="tier">STANDAR</span><span class="amount" id="valReguler">0</span>
+                    </div>
+                    <div class="price-card" onclick="selectPriceTier(this)">
+                        <span class="tier">LEBIH TINGGI</span><span class="amount" id="valExpress">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="negoArea" class="nego-display" style="display:none;">
+                <label style="font-size:11px; color:var(--text-main); font-weight:bold; letter-spacing:1px;">KOMPENSASI TUGAS</label>
+                <h3>HARGA NEGO</h3>
+                <span style="font-size:11px; color:var(--text-muted);">Biaya akan ditawarkan oleh Adventurer di lapangan.</span>
+            </div>
+
+            <div class="input-group" id="finalPriceWrap">
+                <label id="labelFinalPrice" style="text-align:center;">Final Bounty (IDR)</label>
+                <input type="number" id="finalPriceInput" placeholder="Min. 10000" style="font-size: 20px; font-weight: 900; color: var(--gold); text-align: center; background: rgba(0,0,0,0.5);">
+            </div>
+
+            <div class="summary-box">
+                <div style="text-align:center; color:var(--text-main); font-weight:bold; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:10px;">=== KONTRAK MISI ===</div>
+                <div>Kategori : <span id="sumCat" class="highlight">-</span></div>
+                <div>Jarak Est: <span id="sumDist" class="highlight">0 KM</span></div>
+                <div>Asal     : <span id="sumOri" style="color:var(--text-main);">-</span></div>
+                <div>Tujuan   : <span id="sumDest" style="color:var(--text-main);">-</span></div>
+            </div>
+
+            <div id="authGateArea" style="display:none; background: rgba(255,0,85,0.1); border: 1px solid var(--primary); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                <h4 style="color:var(--primary); font-size:12px; margin-bottom:10px; text-align:center;">⚠️ LOGIN DIPERLUKAN UNTUK KATEGORI INI</h4>
+                <div class="input-group" style="margin-bottom:10px;">
+                    <input type="text" id="loginNick" placeholder="Nickname Citizen">
+                </div>
+                <div class="input-group" style="margin-bottom:10px;">
+                    <input type="password" id="loginPass" placeholder="Password">
+                </div>
+                <p style="font-size:10px; color:var(--text-muted); text-align:center; margin-bottom:0;">Belum punya akun? <a href="login.html" style="color:var(--accent-color);">Daftar di sini</a></p>
+            </div>
+
+            <div style="display:flex; gap:12px; margin-top:10px;">
+                <button class="btn-secondary" onclick="goBackFromFinal()">⬅️ EDIT</button>
+                <button class="btn-main" id="btnBroadcast" style="flex: 2; background: linear-gradient(45deg, var(--primary), #bc00ff);" onclick="processFinalStep()">BROADCAST 📡</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================================================
+    // 1. STATE & GLOBAL VARIABLES (FULL FROM ORIGIN)
+    // ==========================================================================
+    let isDarkMode = true;
+    let globalIntent = ''; // Motor, Mobil, Beli, Bantu
+    let subIntent = ''; // Orang, Barang
+    let waItems = []; // Array untuk WA Overlay
+    let pointCounter = 0; // Limit toko
+
+    let questData = {
+        category: 'Motor Ride', // Default
+        client: { id: "GUEST-123", name: "Anonim", reputation: "PENGGUNA BARU" },
+        origin: { lat: 0, lng: 0, kec: '', desa: '', details: '', originalDetails: '', isSet: false },
+        destination: { lat: 0, lng: 0, kec: '', desa: '', details: '', originalDetails: '', points: [], isSet: false },
+        specs: { vehicle: '', passenger: '', goodsWeight: '', goodsDesc: '', injectText: '' },
+        distanceEst: 0,
+        reward: 0,
+        rpgStats: {}
+    };
+
+    let currentMapTarget = 'origin';
+    let tempMapData = { lat: 0, lng: 0, kec: '', desa: '', diff: 1.0 };
+    let tempAccuracyText = "Titik peta sudah pas di lokasi.";
+
+    const VALID_KEYWORDS = ["Jalan", "Depan", "Dekat", "Samping", "Gang", "Masjid", "Pasar", "Kantor", "Gerbang", "Lampu", "Rumah", "Toko", "Warung", "Blok", "Bantu", "Tolong", "Perbaiki", "Bersihkan", "Angkut", "Antar", "Belikan", "Pasang", "Cuci", "Servis", "Ganti", "Bawa"];
+
+    // Personas for Ghost Assistant
+    const personas = {
+        'Motor': { color: '#00f2ff', icon: '🤖', text: "Siap! Kendaraan Roda 2 dipilih. Mau kirim orang atau logistik hari ini?" },
+        'Mobil': { color: '#00f2ff', icon: '🤖', text: "Roger. Kendaraan Roda 4 disiapkan. Kirim personel atau kargo besar?" },
+        'Beli':  { color: '#ffcc00', icon: '🧚‍♀️', text: "Yeay Shopping! Kasih tau dulu ya lokasi pengantarannya di mana." },
+        'Bantu': { color: '#ff5500', icon: '👷', text: "Butuh bantuan tenaga? Tentukan lokasinya, biar aku panggilkan Adventurer terbaik!" }
+    };
+
+    function toggleTheme() {
+        isDarkMode = !isDarkMode;
+        document.body.classList.toggle('light-mode', !isDarkMode);
+        document.getElementById('themeIcon').innerText = isDarkMode ? "☀️" : "🌙";
+        document.getElementById('themeMeta').setAttribute('content', isDarkMode ? "#020202" : "#f0f4f8");
+    }
+
+    // ==========================================================================
+    // 2. AUDIO, ALERT & HELPERS (FULL FROM ORIGIN)
+    // ==========================================================================
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSfx(f, t, d, v=0.1) {
+        try {
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.type = t; o.frequency.value = f;
+            g.gain.setValueAtTime(v, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+            o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + d);
+        } catch(e) {}
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg; t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function showCyberAlert(msg, type = 'warning') {
+        document.getElementById('alertMessage').innerText = msg;
+        document.getElementById('alertTitle').innerText = type === 'error' ? "CRITICAL ERROR" : "PERHATIAN";
+        document.getElementById('alertIcon').innerText = type === 'error' ? "🚫" : "⚠️";
+        document.getElementById('cyberAlert').classList.add('show');
+        playSfx(type === 'error' ? 150 : 600, type === 'error' ? 'sawtooth' : 'sine', type === 'error' ? 0.5 : 0.2);
+    }
+    function closeCyberAlert() { document.getElementById('cyberAlert').classList.remove('show'); }
+    
+    function showLoader(ms, callback) {
+        document.getElementById('loaderOverlay').style.display = 'flex';
+        setTimeout(() => {
+            document.getElementById('loaderOverlay').style.display = 'none';
+            if(callback) callback();
+        }, ms);
+    }
+
+    function triggerGhost(msg, color, icon) {
+        const g = document.getElementById('ghostAssistant');
+        document.getElementById('ghostText').innerText = msg;
+        if(color) document.documentElement.style.setProperty('--accent-color', color);
+        if(icon) document.getElementById('ghostIcon').innerText = icon;
+        
+        // Animasi pop
+        g.style.transform = 'scale(1.05)';
+        g.style.borderColor = 'var(--accent-color)';
+        setTimeout(() => g.style.transform = 'scale(1)', 300);
+    }
+
+    // ==========================================================================
+    // 3. INITIALIZATION & AUTH (FULL FROM ORIGIN)
+    // ==========================================================================
+    function checkUserAuth() {
+        const storedUID = localStorage.getItem('current_customer_id');
+        if(storedUID && !storedUID.includes("GUEST") && !storedUID.includes("STRANGER")) {
+            questData.client.id = storedUID;
+            questData.client.reputation = "CITIZEN"; 
+            document.getElementById('userReputationDisplay').innerText = "STATUS: CITIZEN";
+        } else {
+            questData.client.id = "STRANGER-" + Math.floor(Math.random() * 1000);
+            document.getElementById('userReputationDisplay').innerHTML = "STATUS: <span style='color:var(--primary)'>STRANGER</span>";
+        }
+    }
+
+    function requestUniversalPermission() {
+        document.getElementById('introModal').classList.remove('show');
+        if(navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(()=>showToast("Izin GPS Diberikan"), ()=>{});
+        }
+        loadLocationHistory();
+    }
+
+    function resyncSignal() {
+        showLoader(1500, () => {
+            if(navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    tempMapData.lat = pos.coords.latitude;
+                    tempMapData.lng = pos.coords.longitude;
+                    showToast("Sinyal & Lokasi Diperbarui");
+                }, () => showToast("Gagal menyinkronkan GPS"));
+            }
+        });
+    }
+
+    window.onload = () => { 
+        checkUserAuth(); 
+        const savedNick = localStorage.getItem('saved_citizen_nick');
+        if(savedNick) document.getElementById('loginNick').value = savedNick;
+    };
+
+    // ==========================================================================
+    // 4. NAVIGATION FLOW (MODIFIED UNTUK NEW FLOW)
+    // ==========================================================================
+    function navStep(num) {
+        showLoader(500, () => {
+            document.querySelectorAll('.step-page').forEach(p => p.classList.remove('active'));
+            document.getElementById('step' + num).classList.add('active');
+            document.querySelector('.app-container').scrollTo({top: 0, behavior: 'smooth'});
+            playSfx(800, 'sine', 0.2);
+        });
+    }
+
+    function selectPrimaryIntent(intent) {
+        globalIntent = intent;
+        questData.specs.vehicle = intent;
+        triggerGhost(personas[intent].text, personas[intent].color, personas[intent].icon);
+        
+        showLoader(400, () => {
+            if(intent === 'Motor' || intent === 'Mobil') {
+                navStep('1-sub');
+                document.querySelectorAll('#step1-sub .card-kat').forEach(c => c.classList.remove('active-node'));
+                document.getElementById('detailOrang').style.display = 'none';
+                document.getElementById('detailBarang').style.display = 'none';
+                subIntent = '';
+            } else {
+                // Beli atau Bantu langsung ke Step Lokasi (Origin)
+                questData.category = intent === 'Beli' ? 'Titip Beli' : 'Help';
+                document.getElementById('lblOrigin').innerText = intent === 'Beli' ? "Titik Antar (Lokasi Anda)" : "Titik Lokasi Bantuan";
+                document.getElementById('destWrap').style.display = 'none'; // Sembunyikan Dest untuk Beli/Bantu
+                document.getElementById('historyDestBox').style.display = 'none';
+                navStep('2');
+            }
+        });
+    }
+
+    function selectSubIntent(sub) {
+        subIntent = sub;
+        document.getElementById('btnOrang').classList.toggle('active-node', sub === 'Orang');
+        document.getElementById('btnBarang').classList.toggle('active-node', sub === 'Barang');
+        
+        document.getElementById('detailOrang').style.display = sub === 'Orang' ? 'block' : 'none';
+        document.getElementById('detailBarang').style.display = sub === 'Barang' ? 'block' : 'none';
+
+        if(sub === 'Orang') {
+            questData.category = globalIntent === 'Motor' ? 'Motor Ride' : 'Car Ride';
+            document.getElementById('maticArea').style.display = globalIntent === 'Motor' ? 'block' : 'none';
+            document.getElementById('penumpangArea').style.display = globalIntent === 'Mobil' ? 'block' : 'none';
+            triggerGhost("Pilih spesifikasi detailnya agar driver membawa armada yang tepat.", personas[globalIntent].color);
+        } else {
+            questData.category = 'Pick & Drop'; // Di database tetap Pick & Drop
+            triggerGhost("Kirim paket? Sesuaikan estimasi beratnya ya biar kurir bersiap bawa tali/tas.", personas[globalIntent].color);
+        }
+    }
+
+    function toggleMatic() {
+        const wrap = document.getElementById('maticWrapper');
+        const chk = document.getElementById('maticCheck');
+        chk.checked = !chk.checked;
+        wrap.classList.toggle('checked', chk.checked);
+        wrap.querySelector('.box').innerHTML = chk.checked ? '✔' : '';
+    }
+
+    function validateSubIntent() {
+        if(!subIntent) return showCyberAlert("Pilih Kirim Orang atau Kirim Barang terlebih dahulu!");
+        
+        let inject = "";
+        if(subIntent === 'Orang') {
+            if(globalIntent === 'Motor' && document.getElementById('maticCheck').checked) inject += "[KENDARAAN: WAJIB MATIC]\n";
+            if(globalIntent === 'Mobil') inject += `[PENUMPANG: ${document.getElementById('penumpangCount').value}]\n`;
+        } else {
+            const b = document.getElementById('beratBarang').value;
+            const d = document.getElementById('descBarang').value.trim();
+            if(!d) return showCyberAlert("Deskripsi barang wajib diisi (misal: Dus Sepatu)!");
+            // Sesuaikan kategori sistem jika mobil pick & drop
+            if(globalIntent === 'Mobil') questData.category = 'Car Pick & Drop';
+            inject += `[BARANG (${b.toUpperCase()})]: ${d}\n`;
+        }
+        
+        questData.specs.injectText = inject; // Simpan untuk disuntik ke dest_details nanti
+        
+        document.getElementById('lblOrigin').innerText = "Titik Jemput / Awal";
+        document.getElementById('destWrap').style.display = 'block';
+        if(JSON.parse(localStorage.getItem('saved_locations') || '[]').length > 0) {
+            document.getElementById('historyDestBox').style.display = 'block';
+        }
+        triggerGhost("Sekarang tentukan koordinat penjemputan dan tujuan.", personas[globalIntent].color);
+        navStep('2');
+    }
+
+    function goBackFromLocation() {
+        if(globalIntent === 'Motor' || globalIntent === 'Mobil') navStep('1-sub');
+        else navStep('1');
+    }
+
+    // ==========================================================================
+    // 5. SMART MAP & LOCATION HISTORY (FULL FROM ORIGIN)
+    // ==========================================================================
+    let appMap;
+    function initMapOnce() {
+        if(appMap) return;
+        appMap = L.map('fullMap', { tap: false, zoomControl: false }).setView([-6.9765, 108.4841], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(appMap);
+        
+        appMap.on('moveend', function() {
+            const center = appMap.getCenter();
+            tempMapData.lat = center.lat; tempMapData.lng = center.lng;
+            const nearest = cariDesaTerdekat(center.lat, center.lng);
+            tempMapData.kec = nearest.kec; tempMapData.desa = nearest.name; tempMapData.diff = nearest.diff;
+            
+            // Peringatan Jauh dari Jalan (Simulasi logik jika diff besar)
+            if(tempMapData.diff > 2.0) { 
+                triggerGhost("⚠️ Titik ini terdeteksi jauh dari jalan utama. Pastikan patokan jelas ya!", "#ff0055", "⚠️");
+            }
+        });
+        appMap.on('dragstart', () => document.getElementById('mapPin').classList.remove('is-set', 'pulse'));
+        appMap.on('dragend', () => document.getElementById('mapPin').classList.add('is-set', 'pulse'));
+    }
+
+    function openMap(target) {
+        currentMapTarget = target;
+        document.getElementById('mapOverlay').classList.add('active');
+        document.getElementById('mapSearchInput').value = '';
+        initMapOnce();
+        setTimeout(() => { 
+            appMap.invalidateSize(); 
+            let targetData = target === 'origin' ? questData.origin : questData.destination;
+            if(targetData.isSet && targetData.lat !== 0) {
+                appMap.setView([targetData.lat, targetData.lng], 16);
+                document.getElementById('mapPin').classList.add('is-set');
+            } else {
+                centerToGPS();
+            }
+        }, 400);
+    }
+
+    function closeMap() {
+        document.getElementById('mapOverlay').classList.remove('active');
+        document.getElementById('mapSuggestBox').style.display = 'none';
+    }
+
+    function centerToGPS() {
+        if(navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                appMap.setView([pos.coords.latitude, pos.coords.longitude], 16);
+                document.getElementById('mapPin').classList.add('is-set');
+            }, () => showToast("Geser peta secara manual."));
+        }
+    }
+
+    // Autocomplete Search Peta
+    document.getElementById('mapSearchInput').addEventListener('input', function() {
+        const val = this.value.toLowerCase(); const box = document.getElementById('mapSuggestBox'); box.innerHTML = '';
+        if(val.length < 2) { box.style.display = 'none'; return; }
+        let count = 0;
+        // Check if LOKASI_DB exists (from terminal_router.js)
+        if(typeof LOKASI_DB !== 'undefined') {
+            for(let k in LOKASI_DB) {
+                LOKASI_DB[k].desa.forEach((d) => {
+                    if(d.name.toLowerCase().includes(val) && count < 6) {
+                        let div = document.createElement('div'); div.className = 'history-item';
+                        div.innerHTML = `<div class="icon">📍</div><div class="text"><b>${d.name}</b> - Kec. ${k}</div>`;
+                        div.onclick = () => { appMap.setView([d.lat, d.lng], 16); box.style.display = 'none'; document.getElementById('mapSearchInput').value = d.name; };
+                        box.appendChild(div); count++;
+                    }
+                });
+            }
+        }
+        box.style.display = count > 0 ? 'block' : 'none';
+    });
+
+    function cariDesaTerdekat(lat, lng) {
+        let terdekat = { name: "Luar Area", kec: "KNG", dist: 999, diff: 1.0 };
+        if(typeof LOKASI_DB !== 'undefined') {
+            for (const kec in LOKASI_DB) {
+                LOKASI_DB[kec].desa.forEach(d => {
+                    const dist = Math.sqrt(Math.pow(lat - d.lat, 2) + Math.pow(lng - d.lng, 2));
+                    if (dist < terdekat.dist) { terdekat = { name: d.name, kec: kec, dist: dist, diff: d.diff || 1.0 }; }
+                });
+            }
+        } else {
+            terdekat = { name: "Koordinat Custom", kec: "KNG", dist: 0, diff: 1.0 };
+        }
+        return terdekat;
+    }
+
+    // Bottom Sheet Detail
+    function prepareLocationDetails() {
+        document.getElementById('deteksiSistem').innerText = `${tempMapData.desa}, Kec. ${tempMapData.kec}`;
+        document.getElementById('modalPatokan').value = '';
+        document.querySelectorAll('.radio-item').forEach(el => el.classList.remove('selected'));
+        document.querySelectorAll('.radio-item')[0].classList.add('selected');
+        tempAccuracyText = "Titik peta sudah pas di lokasi.";
+
+        document.getElementById('sheetOverlay').classList.add('show');
+        setTimeout(() => document.getElementById('detailSheet').classList.add('active'), 10);
+    }
+
+    function selectAccuracy(element, text) {
+        document.querySelectorAll('.radio-item').forEach(el => el.classList.remove('selected'));
+        element.classList.add('selected'); tempAccuracyText = text;
+    }
+
+    function closeDetailModal() {
+        document.getElementById('detailSheet').classList.remove('active');
+        setTimeout(() => document.getElementById('sheetOverlay').classList.remove('show'), 300);
+    }
+
+    function saveLocationDetails() {
+        const patokan = document.getElementById('modalPatokan').value.trim();
+        const finalDetails = `Patokan: ${patokan || "-"}\nKet Peta: ${tempAccuracyText}`;
+
+        const target = currentMapTarget === 'origin' ? questData.origin : questData.destination;
+        target.lat = tempMapData.lat; target.lng = tempMapData.lng;
+        target.kec = tempMapData.kec; target.desa = tempMapData.desa;
+        target.details = finalDetails; target.originalDetails = finalDetails; 
+        target.isSet = true;
+
+        saveToHistory({lat: target.lat, lng: target.lng, kec: target.kec, desa: target.desa, details: finalDetails});
+        updateLocationCards(); closeDetailModal(); closeMap();
+    }
+
+    function updateLocationCards() {
+        const formatCard = (data) => `<div class="icon">📍</div><div class="info"><div class="info-title">Kec. ${data.kec}</div><div class="info-text">${data.desa}<br><span style="font-size:11px; color:var(--text-muted); font-weight:normal;">${data.details.split('\n')[0]}</span></div></div>`;
+        const oCard = document.getElementById('originDisplay');
+        if(questData.origin.isSet) { oCard.classList.remove('empty'); oCard.innerHTML = formatCard(questData.origin); oCard.style.borderColor = 'var(--accent-color)'; oCard.style.background = 'rgba(255,255,255,0.05)';}
+        const dCard = document.getElementById('destDisplay');
+        if(questData.destination.isSet) { dCard.classList.remove('empty'); dCard.innerHTML = formatCard(questData.destination); dCard.querySelector('.icon').innerText = '🏁'; dCard.style.borderColor = 'var(--accent-color)'; dCard.style.background = 'rgba(255,255,255,0.05)';}
+    }
+
+    // Local Storage History
+    function saveToHistory(locData) {
+        let history = JSON.parse(localStorage.getItem('saved_locations') || '[]');
+        history = history.filter(h => !(h.lat === locData.lat && h.lng === locData.lng));
+        history.unshift(locData);
+        if(history.length > 5) history.pop();
+        localStorage.setItem('saved_locations', JSON.stringify(history));
+        loadLocationHistory();
+    }
+
+    function loadLocationHistory() {
+        let history = JSON.parse(localStorage.getItem('saved_locations') || '[]');
+        ['Origin', 'Dest'].forEach(type => {
+            const container = document.getElementById(`history${type}Container`);
+            const box = document.getElementById(`history${type}Box`);
+            if(!container || !box) return;
+            container.innerHTML = '';
+            if(history.length > 0) {
+                box.style.display = 'block';
+                history.forEach(h => {
+                    let div = document.createElement('div'); div.className = 'history-item';
+                    div.innerHTML = `<div class="icon">🕒</div><div class="text"><b>${h.desa}</b> - ${h.details.split('\n')[0]}</div>`;
+                    div.onclick = () => quickPickLocation(type.toLowerCase(), h);
+                    container.appendChild(div);
+                });
+            } else {
+                box.style.display = 'none';
+            }
+        });
+    }
+
+    function quickPickLocation(targetStr, data) {
+        const target = targetStr === 'origin' ? questData.origin : questData.destination;
+        target.lat = data.lat; target.lng = data.lng; target.kec = data.kec; target.desa = data.desa; target.details = data.details; target.originalDetails = data.details; target.isSet = true;
+        updateLocationCards(); showToast("Riwayat dipilih!");
+    }
+
+    // Location Validation (Bridge to Next Step)
+    function validateLocations() {
+        if(!questData.origin.isSet) return showCyberAlert("Titik Awal wajib diisi!");
+        
+        if(globalIntent === 'Beli' || globalIntent === 'Bantu') {
+            // Untuk Beli/Bantu, Dest disamakan dengan Origin (Pengantaran ke user)
+            questData.destination.lat = 0; questData.destination.lng = 0; questData.destination.kec = questData.origin.kec; questData.destination.desa = "Sesuai Origin"; questData.destination.isSet = true;
+            openWAUI(); // Masuk Full Screen Input WhatsApp Style
+        } else {
+            if(!questData.destination.isSet) return showCyberAlert("Titik Tujuan wajib diisi!");
+            // Suntik detail (Kirim orang/barang)
+            questData.destination.details = (questData.specs.injectText || "") + questData.destination.originalDetails;
+            setupFinalStep();
+        }
+    }
+
+    // ==========================================================================
+    // 6. WHATSAPP FULL SCREEN UI (SHOPPING & HELP)
+    // ==========================================================================
+    function openWAUI() {
+        document.getElementById('waTitle').innerText = globalIntent === 'Beli' ? 'Daftar Belanja' : 'Detail Bantuan';
+        document.getElementById('waTextInput').placeholder = globalIntent === 'Beli' ? "Ketik barang belanjaan..." : "Jelaskan bantuan yang dibutuhkan...";
+        document.getElementById('waOverlay').classList.add('active');
+        triggerGhost(globalIntent === 'Beli' ? "Tulis semua daftar belanjamu di sini. Bisa pakai voice atau foto struk lho!" : "Deskripsikan dengan detail ya agar Adventurer paham tugasnya.", personas[globalIntent].color);
+        renderWABubbles();
+    }
+    function closeWAUI() { document.getElementById('waOverlay').classList.remove('active'); }
+
+    function sendWABubble() {
+        const text = document.getElementById('waTextInput').value.trim();
+        if(!text) return;
+        if(waItems.length >= 4 && globalIntent === 'Beli') return showToast("Maksimal 4 item untuk menjaga kerapihan!");
+        waItems.push({ text: text, type: 'text' });
+        document.getElementById('waTextInput').value = '';
+        renderWABubbles();
+    }
+
+    function renderWABubbles() {
+        const area = document.getElementById('waChatArea');
+        area.innerHTML = '';
+        waItems.forEach((item, index) => {
+            area.innerHTML += `
+                <div class="wa-bubble">
+                    <div style="white-space: pre-wrap;">${item.text}</div>
+                    <div class="wa-actions">
+                        <span onclick="removeWAItem(${index})" style="cursor:pointer; color:#ff0055;">🗑️ Hapus</span>
+                    </div>
+                </div>`;
+        });
+        area.scrollTop = area.scrollHeight;
+    }
+
+    function removeWAItem(index) { waItems.splice(index, 1); renderWABubbles(); }
+
+    function pasteAndParseWA() {
+        navigator.clipboard.readText().then(text => {
+            if(!text) return;
+            // Auto parse by newline
+            const lines = text.split('\n').filter(l => l.trim().length > 1);
+            lines.forEach(l => {
+                if(waItems.length < 4 || globalIntent !== 'Beli') waItems.push({text: l.trim(), type: 'auto'});
+            });
+            renderWABubbles();
+            showToast("✅ Berhasil menempel dan merapihkan teks!");
+        }).catch(err => showToast("Gagal membaca clipboard."));
+    }
+
+    // Tesseract OCR Integration
+    function processOCR(input) {
+        if(!input.files || !input.files[0]) return;
+        const file = input.files[0];
+        showLoader(100, null);
+        document.getElementById('loaderText').innerText = "MEMBACA GAMBAR (OCR)...";
+        
+        Tesseract.recognize(file, 'ind', { logger: m => console.log(m) })
+            .then(({ data: { text } }) => {
+                document.getElementById('loaderOverlay').style.display = 'none';
+                if(text.trim()) {
+                    if(waItems.length < 4 || globalIntent !== 'Beli') {
+                        waItems.push({ text: "📄 Hasil Ekstrak:\n" + text.trim(), type: 'ocr' });
+                        renderWABubbles();
+                        showToast("✅ Teks berhasil diekstrak!");
+                    } else { showToast("Limit item tercapai."); }
+                } else {
+                    showCyberAlert("Tidak ada teks terbaca pada gambar.");
+                }
+            })
+            .catch(err => {
+                document.getElementById('loaderOverlay').style.display = 'none';
+                showCyberAlert("Gagal memproses gambar.");
+            });
+    }
+
+    function polishWAInputAI() {
+        if(waItems.length === 0) return showToast("Daftar masih kosong!");
+        // Simulasi AI memperbaiki typo (Menggunakan Levenshtein dari logic lama)
+        waItems.forEach(item => {
+            let words = item.text.split(/(\s+|\n)/);
+            let correctedWords = words.map(word => {
+                if (word.trim().length < 3) return word;
+                let bestMatch = word; let minDistance = 2;
+                VALID_KEYWORDS.forEach(validWord => {
+                    let distance = getLevenshteinDistance(word.toLowerCase(), validWord.toLowerCase());
+                    if (distance < minDistance) { minDistance = distance; bestMatch = validWord; }
+                });
+                return bestMatch;
+            });
+            item.text = correctedWords.join("");
+        });
+        renderWABubbles(); showToast("✨ Disempurnakan oleh AI"); playSfx(1200, 'sine', 0.2);
+    }
+
+    function finishWAInput() {
+        if(waItems.length === 0) return showCyberAlert("Data tidak boleh kosong!");
+        let combined = `[DETAIL ${globalIntent.toUpperCase()}]\n`;
+        waItems.forEach((item, i) => { combined += `${i+1}. ${item.text}\n\n`; });
+        
+        // Masukkan ke dest details
+        questData.destination.details = combined + "\n" + questData.destination.originalDetails;
+        closeWAUI(); setupFinalStep();
+    }
+
+    // ==========================================================================
+    // 7. PRICING & RPG STATS (FULL FROM ORIGIN)
+    // ==========================================================================
+    function calculateRealDistance(lat1, lon1, lat2, lon2) {
+        if(lat1 === 0 || lat2 === 0) return 0;
+        const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    function setupFinalStep() {
+        navStep('5');
+        triggerGhost("Terakhir, tentukan kompensasinya. Kami akan pastikan sinyalmu sampai ke seluruh Adventurer!", "var(--gold)", "📡");
+        
+        const pArea = document.getElementById('priceCalculationArea');
+        const nArea = document.getElementById('negoArea');
+        const inputWrap = document.getElementById('finalPriceWrap');
+        const inputFinal = document.getElementById('finalPriceInput');
+
+        if(globalIntent === 'Beli' || globalIntent === 'Bantu') {
+            pArea.style.display = 'none'; nArea.style.display = 'block'; inputWrap.style.display = 'none';
+            inputFinal.value = 0; questData.distanceEst = 0;
+            updateSummaryUI();
+        } else {
+            pArea.style.display = 'block'; nArea.style.display = 'none'; inputWrap.style.display = 'block';
+            inputFinal.readOnly = true; 
+            
+            let diff = 1.0; 
+            const distLurus = calculateRealDistance(questData.origin.lat, questData.origin.lng, questData.destination.lat, questData.destination.lng);
+            questData.distanceEst = (distLurus * 1.5).toFixed(1); 
+            
+            let baseK = questData.category.includes('Car') ? 1.8 : 1.0; 
+            const round1k = (num) => Math.ceil(num / 1000) * 1000;
+            
+            let vHemat = Math.max(8000 * baseK, round1k((questData.distanceEst * 2200 * baseK) * diff));
+            let vReg = Math.max(10000 * baseK, round1k((questData.distanceEst * 2600 * baseK) * diff));
+            let vExp = Math.max(13000 * baseK, round1k((questData.distanceEst * 3200 * baseK) * diff));
+
+            document.getElementById('valHemat').innerText = vHemat.toLocaleString('id-ID'); document.getElementById('valHemat').parentElement.dataset.val = vHemat;
+            document.getElementById('valReguler').innerText = vReg.toLocaleString('id-ID'); document.getElementById('valReguler').parentElement.dataset.val = vReg;
+            document.getElementById('valExpress').innerText = vExp.toLocaleString('id-ID'); document.getElementById('valExpress').parentElement.dataset.val = vExp;
+
+            selectPriceTier(document.querySelector('.price-card.active') || document.querySelectorAll('.price-card')[1]);
+        }
+        
+        checkAuthGate();
+    }
+
+    function selectPriceTier(element) {
+        if(!element) return;
+        document.querySelectorAll('.price-card').forEach(c => c.classList.remove('active'));
+        element.classList.add('active');
+        document.getElementById('finalPriceInput').value = element.dataset.val;
+        updateSummaryUI();
+    }
+    document.getElementById('finalPriceInput').addEventListener('input', updateSummaryUI);
+
+    function getFishTier(price) {
+        if(price === 0) return "NEGO"; if (price < 15000) return "KECIL"; if (price < 25000) return "SEDANG";
+        if (price < 40000) return "MANTAP"; if (price < 100000) return "KAKAP"; if (price < 150000) return "HIU";
+        if (price < 200000) return "PAUS"; return "MEGALODON";
+    }
+
+    function calculateRPGStats(bounty, distance, category) {
+        const catWeights = { "help": 1.0, "titip beli": 1.5, "pick & drop": 1.0, "motor ride": 0.8, "car ride": 1.2, "car pick & drop": 1.2 };
+        const multiplier = catWeights[category.toLowerCase()] || 1.0;
+        let totalStamina = (10 + (distance * 5)) * multiplier;
+        const expReward = (bounty / 1000) * 10;
+        const tier = getFishTier(bounty); let tierMultiplier = tier === "HIU" ? 1.5 : (tier === "PAUS" ? 2.0 : 1.0);
+        return { stamina: Math.round(totalStamina), exp: Math.round(expReward), greenStone: Math.round((bounty / 1000) * tierMultiplier) };
+    }
+
+    function updateSummaryUI() {
+        const amt = parseInt(document.getElementById('finalPriceInput').value) || 0;
+        questData.reward = amt;
+        document.getElementById('sumCat').innerText = (questData.category || "Umum").toUpperCase();
+        document.getElementById('sumDist').innerText = questData.distanceEst > 0 ? questData.distanceEst + " KM" : "UNTRACKED";
+        document.getElementById('sumOri').innerText = `${questData.origin.desa} (Kec. ${questData.origin.kec})`;
+        document.getElementById('sumDest').innerText = `${questData.destination.desa}`;
+        questData.rpgStats = calculateRPGStats(amt, questData.distanceEst, questData.category);
+    }
+
+    function goBackFromFinal() {
+        if(globalIntent === 'Beli' || globalIntent === 'Bantu') openWAUI();
+        else navStep('2');
+    }
+
+    // ==========================================================================
+    // 8. FINALIZATION & DATABASE SUBMISSION (FULL FROM ORIGIN)
+    // ==========================================================================
+    function checkAuthGate() {
+        const gate = document.getElementById('authGateArea');
+        if(questData.client.id.includes("STRANGER") && questData.category !== 'Motor Ride') {
+            gate.style.display = 'block';
+            document.getElementById('btnBroadcast').innerText = "VERIFIKASI & BROADCAST";
+        } else {
+            gate.style.display = 'none';
+            document.getElementById('btnBroadcast').innerText = "BROADCAST 📡";
+        }
+    }
+
+    async function processFinalStep() {
+        const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
+        if(bountyAmt < 8000 && globalIntent !== 'Beli' && globalIntent !== 'Bantu') return showCyberAlert("Bounty otomatis minimal Rp 8.000!");
+        
+        const gate = document.getElementById('authGateArea');
+        if(gate.style.display === 'block') {
+            // Verifikasi Login
+            const nick = document.getElementById('loginNick').value.trim();
+            const pass = document.getElementById('loginPass').value.trim();
+            if(!nick || !pass) return showCyberAlert("Nickname dan Password wajib diisi!");
+            
+            showLoader(2000, async () => {
+                try {
+                    const db1 = getTerminal ? getTerminal('FB1_MASTER') : null;
+                    if(!db1) throw new Error("Database tidak ditemukan.");
+                    
+                    const reqRef = db1.ref('requester_index');
+                    const snapshot = await reqRef.orderByChild('nickname').equalTo(nick).once('value');
+                    
+                    if(!snapshot.exists()) throw new Error("Akun tidak ditemukan.");
+                    let validUser = null;
+                    snapshot.forEach(child => { if(child.val().password === pass) validUser = child.val(); });
+                    
+                    if(!validUser) throw new Error("Password salah.");
+                    
+                    // Update Auth & Lanjut Submit
+                    questData.client.id = validUser.id_requester || validUser.uid;
+                    localStorage.setItem('current_customer_id', questData.client.id);
+                    localStorage.setItem('saved_citizen_nick', nick);
+                    submitMission();
+                    
+                } catch(e) {
+                    showCyberAlert(e.message, 'error');
+                }
+            });
+        } else {
+            submitMission();
+        }
+    }
+
+    async function submitMission() {
+        const btn = document.getElementById('btnBroadcast');
+        btn.innerText = "TRANSMITTING..."; btn.disabled = true;
+        playSfx(2000, 'sine', 1, 0.5);
+
+        try {
+            const shard = (typeof getShardDariKecamatan === "function") ? getShardDariKecamatan(questData.origin.kec) : "S1";
+            const mid = "MS-" + Date.now();
+            const db1 = getTerminal ? getTerminal('FB1_MASTER') : null;
+            const db4 = getTerminal ? getTerminal('FB4_BOARD') : null;
+
+            if(!db1 || !db4) throw new Error("Terminal DB Router tidak ditemukan.");
+
+            const boardData = {
+                id_misi: mid,
+                id_requester: questData.client.id,
+                client_name: questData.client.id.includes("STRANGER") ? "Stranger" : "Member",
+                category: questData.category,
+                reward: questData.reward,
+                difficulty_rate: 1.0, 
+                zona: questData.origin.kec || "KNG",
+                shard_id: shard,
+                rank: "BIASA",
+                fish_tier: getFishTier(questData.reward),
+                rpg_reward: questData.rpgStats,
+                
+                origin_name: questData.origin.kec,
+                origin_desa: questData.origin.desa, 
+                origin_details: questData.origin.details,
+                origin_coords: questData.origin.lat !== 0 ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
+                
+                dest_name: questData.destination.kec,
+                dest_desa: questData.destination.desa,
+                dest_details: questData.destination.details,
+                dest_coords: questData.destination.lat !== 0 ? `${questData.destination.lat},${questData.destination.lng}` : "NEGO",
+
+                specs: questData.specs,
+                distance_est: questData.distanceEst || 0,
+                status: "open",
+                created_at: Date.now()
+            };
+
+            await Promise.all([
+                db1.ref(`misi_index/${mid}`).set({ id_misi: mid, id_shard: shard, zona: questData.origin.kec, status: "open", id_requester: questData.client.id }),
+                db4.ref(`mission-${shard}/${questData.origin.desa}/${mid}`).set(boardData)
+            ]);
+
+            sessionStorage.setItem('active_mission_id', mid);
+            sessionStorage.setItem('active_mission_shard', shard);
+            sessionStorage.setItem('active_mission_desa', questData.origin.desa);
+
+            showLoader(1500, () => {
+                showToast("SINYAL TERSEBAR!");
+                window.location.href = "lobby_requester.html";
+            });
+
+        } catch (e) {
+            console.error(e); showCyberAlert("Gagal Transmisi: " + e.message, "error");
+            btn.disabled = false; btn.innerText = "BROADCAST 📡";
+        }
+    }
+
+    // ==========================================================================
+    // 9. AI & VOICE TO TEXT HELPERS (FULL FROM ORIGIN)
+    // ==========================================================================
+    function startVoiceToText(targetId, btnEl) {
+        if (!('webkitSpeechRecognition' in window) && !('speechRecognition' in window)) return showToast("Voice Input tidak didukung.");
+        const SpeechRecognition = window.webkitSpeechRecognition || window.speechRecognition;
+        const rec = new SpeechRecognition();
+        rec.lang = 'id-ID'; rec.continuous = false; rec.interimResults = false;
+        rec.onstart = () => { btnEl.classList.add('recording'); showToast("Mendengarkan..."); };
+        rec.onresult = (e) => { const txt = e.results[0][0].transcript; const target = document.getElementById(targetId); target.value = target.value ? target.value + " " + txt : txt; };
+        rec.onend = () => { btnEl.classList.remove('recording'); };
+        rec.onerror = (e) => { btnEl.classList.remove('recording'); showToast("Error Voice Input."); };
+        rec.start();
+    }
+
+    function getLevenshteinDistance(a, b) {
+        const matrix = []; for (let i = 0; i <= b.length; i++) matrix[i] = [i]; for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) matrix[i][j] = matrix[i - 1][j - 1];
+                else matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+            }
+        }
+        return matrix[b.length][a.length];
+    }
+    function polishFieldWithAI(id) {
+        const area = document.getElementById(id);
+        if(!area.value) return showToast("Teks kosong!");
+        let words = area.value.split(/(\s+|\n)/);
+        let correctedWords = words.map(word => {
+            if (word.trim().length < 3) return word;
+            let bestMatch = word; let minDistance = 2;
+            VALID_KEYWORDS.forEach(validWord => {
+                let distance = getLevenshteinDistance(word.toLowerCase(), validWord.toLowerCase());
+                if (distance < minDistance) { minDistance = distance; bestMatch = validWord; }
+            });
+            return bestMatch;
+        });
+        area.value = correctedWords.join("");
+        showToast("✨ Teks dirapikan AI"); playSfx(1200, 'sine', 0.2);
+    }
+
+</script>
+</body>
+</html>
