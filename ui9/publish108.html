@@ -1256,16 +1256,30 @@
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
-        return showToast("Browser tidak mendukung Speech API");
+        return showToast("Browser tidak mendukung Voice Input.");
     }
 
     try {
-        // MEMAKSA PROMPT IZIN UNIVERSAL
+        // 1. Cek status izin menggunakan Permissions API
+        const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+
+        if (permissionStatus.state === 'denied') {
+            // Tampilkan pesan khusus jika sudah permanen ditolak
+            showCyberAlert(
+                "❌ AKSES DITOLAK", 
+                "Anda telah memblokir mikrofon. Silakan klik ikon gembok di bar alamat browser dan aktifkan kembali izin mikrofon secara manual.",
+                "⚠️"
+            );
+            return;
+        }
+
+        // 2. Minta izin universal melalui getUserMedia (ini memicu popup jika belum diatur)
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Jika berhasil, kita segera hentikan stream-nya agar tidak membebani baterai,
-        // tapi browser sekarang sudah mencatat izin diberikan.
+        
+        // Matikan stream segera setelah izin didapat agar tidak membebani sistem
         stream.getTracks().forEach(track => track.stop());
 
+        // 3. Jalankan Recognition jika izin diberikan
         const rec = new SpeechRecognition();
         rec.lang = 'id-ID';
         rec.continuous = false;
@@ -1280,15 +1294,13 @@
             const text = e.results[0][0].transcript;
             const input = document.getElementById(id);
             input.value = (input.value ? input.value + " " : "") + text;
-            input.dispatchEvent(new Event('input')); // Trigger auto-resize
+            input.dispatchEvent(new Event('input')); 
         };
 
         rec.onerror = (e) => {
             btnEl.classList.remove('recording');
             if(e.error === 'not-allowed') {
-                showToast("Akses Ditolak! Cek HTTPS / Pengaturan Browser.");
-            } else {
-                showToast("Error: " + e.error);
+                showToast("Izin Mikrofon diperlukan!");
             }
         };
 
@@ -1297,10 +1309,24 @@
         rec.start();
 
     } catch (err) {
-        console.error("Izin Universal Gagal:", err);
-        showToast("Gagal akses Mikrofon: " + err.message);
+        console.error("Izin Gagal:", err);
+        // Jika getUserMedia gagal, tampilkan panduan reset izin
+        showCyberAlert(
+            "IZIN DIBUTUHKAN",
+            "Sistem tidak bisa mengakses suara. Pastikan Anda klik 'Izinkan' pada popup browser atau cek pengaturan situs.",
+            "🎙️"
+        );
     }
 }
+
+// Fungsi tambahan untuk memunculkan modal peringatan (menggunakan modal yang sudah ada di jjk.html)
+function showCyberAlert(title, message, icon) {
+    document.getElementById('alertTitle').innerText = title;
+    document.getElementById('alertMessage').innerText = message;
+    document.getElementById('alertIcon').innerText = icon;
+    document.getElementById('cyberAlert').classList.add('show');
+}
+
 
 
 
