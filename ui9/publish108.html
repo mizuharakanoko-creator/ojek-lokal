@@ -1252,58 +1252,59 @@
     // ==========================================================================
     // 9. AI & VOICE TO TEXT HELPERS (FULL FROM ORIGIN)
     // ==========================================================================
-    function startVoiceToText(targetId, btnEl) {
-    // 1. Cek dukungan browser
-    const SpeechRecognition = window.webkitSpeechRecognition || window.speechRecognition;
-    if (!SpeechRecognition) return showToast("Voice Input tidak didukung di browser ini.");
+    function startVoiceToText(id, btnEl) {
+    // Cek apakah browser mendukung Web Speech API
+    window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    const rec = new SpeechRecognition();
-    rec.lang = 'id-ID'; 
-    rec.continuous = false; 
-    rec.interimResults = false;
+    if (!window.SpeechRecognition) {
+        showToast("Browser Anda tidak mendukung Voice Input.");
+        return;
+    }
 
-    // 2. Saat mulai merekam
-    rec.onstart = () => { 
-        btnEl.classList.add('recording'); // Memberi efek visual (merah/berdenyut)
-        showToast("Mendengarkan... Silakan bicara."); 
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'id-ID'; // Mengatur ke Bahasa Indonesia
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    // Saat mulai merekam
+    recognition.onstart = () => {
+        btnEl.classList.add('recording');
+        showToast("Mendengarkan...");
     };
 
-    // 3. Saat suara berhasil diproses
-    rec.onresult = (e) => { 
-        const txt = e.results[0][0].transcript; 
-        const target = document.getElementById(targetId); 
-        if (target) {
-            target.value = target.value ? target.value + " " + txt : txt; 
-            autoExpandTextarea(target); 
-            if(targetId === 'waTextInput') saveWADraft();
+    // Saat hasil suara keluar
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        const inputArea = document.getElementById(id);
+        
+        // Tambahkan hasil ke teks yang sudah ada
+        if (inputArea.value) {
+            inputArea.value += " " + transcript;
+        } else {
+            inputArea.value = transcript;
+        }
+        
+        // Trigger event input agar textarea otomatis menyesuaikan tinggi jika ada fungsi auto-resize
+        inputArea.dispatchEvent(new Event('input'));
+    };
+
+    // Saat berhenti atau terjadi error
+    recognition.onend = () => {
+        btnEl.classList.remove('recording');
+    };
+
+    recognition.onerror = (event) => {
+        btnEl.classList.remove('recording');
+        if (event.error === 'not-allowed') {
+            showToast("Izin Mikrofon Ditolak!");
+        } else {
+            showToast("Error: " + event.error);
         }
     };
 
-    // 4. Saat proses berakhir
-    rec.onend = () => { 
-        btnEl.classList.remove('recording'); 
-    };
-
-    // 5. Penanganan Error yang lebih spesifik (Professional Approach)
-    rec.onerror = (e) => { 
-        btnEl.classList.remove('recording'); 
-        
-        let msg = "Error Voice Input.";
-        if (e.error === 'not-allowed') msg = "Akses Mikrofon Ditolak!";
-        if (e.error === 'network') msg = "Koneksi Internet Bermasalah.";
-        if (e.error === 'no-speech') msg = "Suara tidak terdengar.";
-        
-        showToast(msg);
-        console.error("Voice Error Detail:", e.error);
-    };
-
-    // Jalankan
-    try {
-        rec.start();
-    } catch (err) {
-        rec.stop(); // Jika sudah berjalan, kita hentikan dulu
-    }
+    recognition.start();
 }
+
 
 
     function getLevenshteinDistance(a, b) {
