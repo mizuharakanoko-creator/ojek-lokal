@@ -1252,58 +1252,56 @@
     // ==========================================================================
     // 9. AI & VOICE TO TEXT HELPERS (FULL FROM ORIGIN)
     // ==========================================================================
-    function startVoiceToText(id, btnEl) {
-    // Cek apakah browser mendukung Web Speech API
-    window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!window.SpeechRecognition) {
-        showToast("Browser Anda tidak mendukung Voice Input.");
-        return;
+    async function startVoiceToText(id, btnEl) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+        return showToast("Browser tidak mendukung Speech API");
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'id-ID'; // Mengatur ke Bahasa Indonesia
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    try {
+        // MEMAKSA PROMPT IZIN UNIVERSAL
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Jika berhasil, kita segera hentikan stream-nya agar tidak membebani baterai,
+        // tapi browser sekarang sudah mencatat izin diberikan.
+        stream.getTracks().forEach(track => track.stop());
 
-    // Saat mulai merekam
-    recognition.onstart = () => {
-        btnEl.classList.add('recording');
-        showToast("Mendengarkan...");
-    };
+        const rec = new SpeechRecognition();
+        rec.lang = 'id-ID';
+        rec.continuous = false;
+        rec.interimResults = false;
 
-    // Saat hasil suara keluar
-    recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        const inputArea = document.getElementById(id);
+        rec.onstart = () => {
+            btnEl.classList.add('recording');
+            showToast("Mendengarkan...");
+        };
+
+        rec.onresult = (e) => {
+            const text = e.results[0][0].transcript;
+            const input = document.getElementById(id);
+            input.value = (input.value ? input.value + " " : "") + text;
+            input.dispatchEvent(new Event('input')); // Trigger auto-resize
+        };
+
+        rec.onerror = (e) => {
+            btnEl.classList.remove('recording');
+            if(e.error === 'not-allowed') {
+                showToast("Akses Ditolak! Cek HTTPS / Pengaturan Browser.");
+            } else {
+                showToast("Error: " + e.error);
+            }
+        };
+
+        rec.onend = () => { btnEl.classList.remove('recording'); };
         
-        // Tambahkan hasil ke teks yang sudah ada
-        if (inputArea.value) {
-            inputArea.value += " " + transcript;
-        } else {
-            inputArea.value = transcript;
-        }
-        
-        // Trigger event input agar textarea otomatis menyesuaikan tinggi jika ada fungsi auto-resize
-        inputArea.dispatchEvent(new Event('input'));
-    };
+        rec.start();
 
-    // Saat berhenti atau terjadi error
-    recognition.onend = () => {
-        btnEl.classList.remove('recording');
-    };
-
-    recognition.onerror = (event) => {
-        btnEl.classList.remove('recording');
-        if (event.error === 'not-allowed') {
-            showToast("Izin Mikrofon Ditolak!");
-        } else {
-            showToast("Error: " + event.error);
-        }
-    };
-
-    recognition.start();
+    } catch (err) {
+        console.error("Izin Universal Gagal:", err);
+        showToast("Gagal akses Mikrofon: " + err.message);
+    }
 }
+
 
 
 
