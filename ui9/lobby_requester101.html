@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Requester Lobby</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        :root {
+            --primary: #ff0055;
+            --neon-blue: #00ffff;
+            --neon-green: #00ff00;
+            --bg-dark: #050505;
+            --card-bg: #0a0a0a;
+            --text-main: #e0e0e0;
+            --text-muted: #888;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+
+        body { 
+            background: var(--bg-dark); 
+            color: var(--text-main); 
+            font-family: 'Courier New', Courier, monospace; 
+            padding: 0; 
+            margin: 0;
+            background-image: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #050505 100%);
+            overflow-x: hidden;
+        }
+
+        /* === LOADER OVERLAY === */
+        #pageLoader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-dark); z-index: 99999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s ease;
+        }
+        .spinner {
+            width: 50px; height: 50px;
+            border: 3px solid rgba(0, 255, 255, 0.1);
+            border-top: 3px solid var(--neon-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* === HEADER & STATUS === */
+        .header-bar {
+            background: rgba(10, 10, 10, 0.9);
+            border-bottom: 1px solid #222;
+            padding: 15px;
+            position: sticky; top: 0; z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+        .status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .btn-refresh {
+            background: transparent; color: var(--neon-blue); border: 1px solid var(--neon-blue);
+            padding: 4px 10px; font-size: 10px; cursor: pointer; border-radius: 3px;
+            transition: 0.3s; display: flex; align-items: center; gap: 5px;
+        }
+        .btn-refresh:hover { background: var(--neon-blue); color: #000; box-shadow: 0 0 10px var(--neon-blue); }
+
+        /* === RADAR SCANNER EFFECT === */
+        .radar-container { position: relative; height: 3px; background: #111; overflow: hidden; border-radius: 2px; }
+        .radar-bar { position: absolute; height: 100%; width: 30%; background: linear-gradient(90deg, transparent, var(--primary), transparent); animation: scan 2s linear infinite; }
+        @keyframes scan { 0% { left: -30%; } 100% { left: 100%; } }
+
+        /* === TAB SYSTEM === */
+        .tab-container { display: flex; background: #0a0a0a; border-bottom: 2px solid #222; }
+        .tab-btn {
+            flex: 1; background: transparent; color: var(--text-muted); border: none; padding: 12px 5px;
+            font-family: inherit; font-size: 12px; font-weight: bold; cursor: pointer;
+            border-bottom: 2px solid transparent; transition: all 0.3s ease; position: relative;
+        }
+        .tab-btn:hover { color: #fff; background: rgba(255,255,255,0.02); }
+        .tab-btn.active { color: var(--neon-blue); border-bottom-color: var(--neon-blue); background: rgba(0, 255, 255, 0.05); }
+        .badge {
+            background: var(--primary); color: #fff; font-size: 9px; padding: 2px 5px;
+            border-radius: 10px; position: absolute; top: 5px; right: 5px; animation: pulseRed 2s infinite; display: none;
+        }
+
+        .tab-content { padding: 15px; display: none; animation: fadeInSlideUp 0.4s ease forwards; }
+        .tab-content.active { display: block; }
+
+        @keyframes fadeInSlideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* === CARDS & DETAILS === */
+        .card { background: var(--card-bg); border: 1px solid #222; padding: 15px; margin-bottom: 15px; border-radius: 4px; position: relative; }
+        .btn-abort { background: #1a0505; color: #ff4444; border: 1px solid #ff4444; padding: 8px 12px; font-size: 11px; cursor: pointer; width: 100%; transition: 0.3s; font-weight: bold; margin-top: 10px; }
+        .btn-abort:hover { background: #ff4444; color: #fff; box-shadow: 0 0 15px rgba(255,68,68,0.5); }
+
+        .reward-tag { color: var(--neon-green); font-size: 20px; font-weight: bold; display: block; margin: 10px 0; text-shadow: 0 0 5px rgba(0, 255, 0, 0.3); }
+        .timer-tag { color: #ffcc00; font-size: 14px; font-weight: bold; }
+        .status-msg { color: #888; font-size: 11px; margin-top: 5px; letter-spacing: 1px; }
+
+        /* === MAP ROUTE === */
+        .route-map { margin: 15px 0; padding: 15px; background: #080808; border: 1px solid #1a1a1a; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; position: relative; }
+        .route-point { text-align: center; z-index: 2; background: #080808; padding: 0 10px; width: 40%; }
+        .route-point span { font-size: 9px; color: var(--text-muted); display: block; margin-bottom: 5px; letter-spacing: 1px; }
+        .route-point b { color: #fff; font-size: 12px; text-shadow: 0 0 5px rgba(255,255,255,0.2); }
+        .route-line-container { flex-grow: 1; height: 2px; background: #333; position: relative; z-index: 1; overflow: hidden; }
+        .route-scanner { position: absolute; top: 0; left: 0; width: 30px; height: 2px; background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); animation: scanRoute 2s linear infinite; }
+
+        /* === BIDS & RANKS === */
+        .bid-item { background: #111; padding: 15px; margin-bottom: 12px; border-radius: 4px; border-left: 4px solid #333; transition: 0.3s; display: flex; justify-content: space-between; align-items: center; animation: fadeInSlideUp 0.3s ease-out forwards; }
+        .bid-item:hover { background: #151515; border-left-color: var(--neon-blue); }
+        .bid-info-container { flex-grow: 1; }
+        
+        .btn-profile { background: rgba(168, 85, 247, 0.1); color: #a855f7; border: 1px solid #a855f7; padding: 4px 8px; font-size: 10px; cursor: pointer; margin-left: 8px; border-radius: 3px; transition: 0.3s; }
+        .btn-profile:hover { background: #a855f7; color: #fff; box-shadow: 0 0 8px #a855f7; }
+        
+        .btn-acc { background: rgba(0, 255, 255, 0.05); color: var(--neon-blue); border: 1px solid var(--neon-blue); padding: 12px 20px; font-weight: bold; cursor: pointer; transition: all 0.3s; margin-left: 10px; }
+        .btn-acc:hover { background: var(--neon-blue); color: #000; box-shadow: 0 0 15px var(--neon-blue); }
+
+        .rank-badge { padding: 3px 6px; border-radius: 2px; font-size: 10px; font-weight: bold; margin-right: 5px; display: inline-block; text-transform: uppercase; }
+        
+        /* Rank Colors */
+        .rank-trainer { background: #222; color: #888; border: 1px solid #888; }
+        .rank-F { background: #222; color: #a3a3a3; border: 1px solid #a3a3a3; }
+        .rank-E { background: rgba(74, 222, 128, 0.1); color: #4ade80; border: 1px solid #4ade80; }
+        .rank-D { background: rgba(96, 165, 250, 0.1); color: #60a5fa; border: 1px solid #60a5fa; }
+        .rank-C { background: rgba(168, 85, 247, 0.1); color: #a855f7; border: 1px solid #a855f7; }
+        .rank-B { background: rgba(250, 204, 21, 0.1); color: #facc15; border: 1px solid #facc15; }
+        .rank-A { background: rgba(251, 146, 60, 0.2); color: #fb923c; border: 1px solid #fb923c; }
+        .rank-A-plus { background: rgba(248, 113, 113, 0.2); color: #f87171; border: 1px solid #f87171; animation: pulseRed 1.5s infinite; }
+        .rank-S { background: linear-gradient(45deg, #ff0000, #ff7300, #ff0000); background-size: 200% 200%; color: #fff; border: 1px solid #ff4500; box-shadow: 0 0 10px #ff4500; animation: fireGlow 2s ease infinite; }
+
+        /* === INTEL LOGS === */
+        .intel-log { background: linear-gradient(90deg, rgba(255, 204, 0, 0.08), transparent); border-left: 3px solid #ffcc00; padding: 12px; margin-bottom: 10px; font-size: 11px; animation: fadeInSlideUp 0.3s ease-out; }
+        
+        /* === MODALS === */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(4px); animation: fadeIn 0.2s ease; }
+        .modal-box { background: #0a0a0a; border: 1px solid var(--neon-blue); padding: 20px; width: 85%; max-width: 350px; text-align: center; box-shadow: 0 0 20px rgba(0, 255, 255, 0.1); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .modal-box.danger { border-color: #ff4444; box-shadow: 0 0 20px rgba(255, 68, 68, 0.15); }
+        .modal-title { margin: 0 0 15px 0; color: var(--neon-blue); letter-spacing: 1px; border-bottom: 1px solid #222; padding-bottom: 10px; }
+        .modal-box.danger .modal-title { color: #ff4444; }
+        .modal-msg { font-size: 13px; color: #ccc; margin-bottom: 20px; line-height: 1.5; }
+        .modal-btn-group { display: flex; gap: 10px; }
+        .btn-modal { flex: 1; padding: 10px; cursor: pointer; font-weight: bold; font-family: monospace; transition: 0.3s; }
+        .btn-modal.primary { background: var(--neon-blue); color: #000; border: none; }
+        .btn-modal.danger-fill { background: #ff4444; color: #fff; border: none; }
+        .btn-modal.secondary { background: transparent; color: var(--text-muted); border: 1px solid #444; }
+        .btn-modal:hover { filter: brightness(1.2); }
+        
+        .profile-stat { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding: 8px 0; font-size: 12px; }
+
+        #promptInput { background: #050505; border: 1px solid #ff4444; color: #ff4444; padding: 12px; width: 100%; box-sizing: border-box; text-align: center; font-family: monospace; font-size: 16px; margin-bottom: 15px; outline: none; transition: 0.3s; }
+        #promptInput:focus { box-shadow: inset 0 0 10px rgba(255, 68, 68, 0.2); }
+
+        /* === ANIMATIONS === */
+        @keyframes fireGlow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; box-shadow: 0 0 15px #ffcc00; } 100% { background-position: 0% 50%; } }
+        @keyframes pulseRed { 0% { box-shadow: 0 0 5px #ff4444; } 50% { box-shadow: 0 0 15px #ff4444; } 100% { box-shadow: 0 0 5px #ff4444; } }
+        @keyframes typeStatus { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+        @keyframes scanRoute { 0% { left: -30px; } 100% { left: 100%; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .pulsing-text { animation: typeStatus 1.5s infinite; }
+    </style>
+</head>
+<body>
+
+<div id="pageLoader">
+    <div class="spinner"></div>
+    <div style="color: var(--neon-blue); letter-spacing: 2px; font-size: 12px; animation: typeStatus 1s infinite;">SINKRONISASI DATA...</div>
+</div>
+
+<div class="header-bar">
+    <div class="status-row">
+        <div>
+            <div id="connectionStatus" style="color: #555; font-size: 11px; font-weight: bold;">● MENGHUBUNGKAN...</div>
+            <div id="pingDisplay" style="color: #555; font-size: 9px; margin-top: 2px;">LATENCY: --ms</div>
+        </div>
+        <button class="btn-refresh" onclick="forceRefreshData()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-12.28l5.67 5.67"/></svg>
+            REFRESH
+        </button>
+    </div>
+    <div class="radar-container"><div class="radar-bar"></div></div>
+    <div class="status-msg pulsing-text" id="statusPulsing">MENYIARKAN SINYAL KE LOBBY...</div>
+</div>
+
+<div class="tab-container">
+    <button class="tab-btn active" onclick="openTab('tab-detail')">DETAIL MISI</button>
+    <button class="tab-btn" onclick="openTab('tab-bids')">
+        PELAMAR
+        <span id="bidCountBadge" class="badge">0</span>
+    </button>
+    <button class="tab-btn" onclick="openTab('tab-intel')">
+        LAPORAN
+        <span id="intelCountBadge" class="badge" style="background:#ffcc00; color:#000; animation:none;">0</span>
+    </button>
+</div>
+
+<div id="tab-detail" class="tab-content active">
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <h3 id="missionTitle" style="margin: 0; color: var(--primary); letter-spacing: 1px; font-size: 16px;">MEMINDAI...</h3>
+            <div style="text-align: right;">
+                <div class="timer-tag" id="countdownTimer">00:00</div>
+                <div style="font-size: 9px; color: #888;">TOLERANSI WAKTU</div>
+            </div>
+        </div>
+
+        <div class="route-map" id="routeMap" style="display: none;">
+            <div class="route-point">
+                <span>ORIGIN</span>
+                <b id="mapOrigin">---</b>
+            </div>
+            <div class="route-line-container"><div class="route-scanner"></div></div>
+            <div class="route-point">
+                <span>DESTINATION</span>
+                <b id="mapDest">---</b>
+            </div>
+        </div>
+
+        <div id="missionDetail" style="margin-top: 15px; font-size: 13px; line-height: 1.6; border-bottom: 1px solid #222; padding-bottom: 15px;"></div>
+        
+        <span class="reward-tag" id="rewardTag">Rp 0</span>
+
+        <div id="systemIntelligence" style="margin-top: 15px; padding: 12px; background: rgba(0, 255, 255, 0.03); border: 1px solid rgba(0, 255, 255, 0.1); border-radius: 4px;">
+            <small style="color: #555; display: block; font-size: 9px; letter-spacing: 1px; margin-bottom: 5px;">PANDUAN PENGGUNA (SSI):</small>
+            <div id="intelText" style="color: var(--neon-blue); font-size: 11px; font-style: italic; min-height: 26px;">Menginisialisasi modul edukasi...</div>
+        </div>
+
+        <button class="btn-abort" onclick="reqHancurkanMisi()">[ HANCURKAN MISI ]</button>
+    </div>
+</div>
+
+<div id="tab-bids" class="tab-content">
+    <h4 style="margin-top:0; border-bottom: 1px solid #333; padding-bottom: 10px; color: #aaa; font-size: 13px;">DAFTAR KONTRAKTOR TERSEDIA:</h4>
+    <div id="bidList">
+        <p style='color:#E0FFFF; font-style:italic; font-size:12px; text-align:center; margin-top:30px; opacity: 0.5;'>Belum ada lamaran masuk...</p>
+    </div>
+</div>
+
+<div id="tab-intel" class="tab-content">
+    <h4 style="margin-top:0; border-bottom: 1px solid #333; padding-bottom: 10px; color: #ffcc00; font-size: 13px; letter-spacing: 1px;">
+        <span style="animation: typeStatus 2s infinite;">▶</span> LOG KENDALA LAPANGAN:
+    </h4>
+    <div id="intelList">
+        <p style='color:#666; font-style:italic; font-size:12px; text-align:center; margin-top:30px;'>Tidak ada laporan kendala saat ini.</p>
+    </div>
+</div>
+
+<div id="sovAlert" class="modal-overlay">
+    <div class="modal-box">
+        <h3 class="modal-title">SYSTEM ALERT</h3>
+        <p class="modal-msg" id="sovAlertMsg">Pesan</p>
+        <button class="btn-modal primary" style="width: 100%;" onclick="closeAlert()">MENGERTI</button>
+    </div>
+</div>
+
+<div id="sovConfirm" class="modal-overlay">
+    <div class="modal-box" id="sovConfirmBox">
+        <h3 class="modal-title" id="sovConfirmTitle">KONFIRMASI</h3>
+        <p class="modal-msg" id="sovConfirmMsg">Pesan</p>
+        <div class="modal-btn-group">
+            <button class="btn-modal secondary" onclick="closeConfirm(false)">BATAL</button>
+            <button class="btn-modal primary" id="btnConfirmYes">PROSES</button>
+        </div>
+    </div>
+</div>
+
+<div id="sovProfile" class="modal-overlay">
+    <div class="modal-box" style="border-color: #a855f7;">
+        <h3 class="modal-title" style="color: #a855f7;">DATA ADVENTURER</h3>
+        <div style="margin-bottom: 20px; text-align: left;">
+            <div class="profile-stat"><span>Codename:</span> <b id="profNick" style="color:#fff;">-</b></div>
+            <div class="profile-stat"><span>Guild Rank:</span> <span id="profRankBadge" class="rank-badge">-</span></div>
+            <div class="profile-stat"><span>Reputasi:</span> <b style="color:#4ade80;">98% Berhasil</b></div>
+            <div class="profile-stat"><span>Status Akun:</span> <b style="color:#aaa;">Terverifikasi</b></div>
+        </div>
+        <button class="btn-modal secondary" onclick="closeProfile()" style="width: 100%;">TUTUP PROFIL</button>
+    </div>
+</div>
+
+<div id="sovPrompt" class="modal-overlay">
+    <div class="modal-box danger">
+        <h3 class="modal-title">PERINGATAN KRITIS!</h3>
+        <p class="modal-msg">Ketik <b style="color: #fff;">HANCURKAN</b> untuk mengonfirmasi pembatalan misi:</p>
+        <input type="text" id="promptInput" placeholder="HANCURKAN" autocomplete="off">
+        <div class="modal-btn-group">
+            <button class="btn-modal secondary" onclick="closePrompt()">BATAL</button>
+            <button class="btn-modal danger-fill" onclick="validatePrompt()">PROSES</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // === 0. TAB SYSTEM LOGIC ===
+    function openTab(tabId) {
+        // Hapus kelas aktif dari semua tombol & konten
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        // Tambahkan kelas aktif ke target
+        document.getElementById(tabId).classList.add('active');
+        // Cari tombol yang mengarah ke tabId ini dan jadikan aktif
+        event.currentTarget.classList.add('active');
+
+        // Reset badge notifikasi saat tab dibuka
+        if(tabId === 'tab-bids') {
+            document.getElementById('bidCountBadge').style.display = 'none';
+        } else if (tabId === 'tab-intel') {
+            document.getElementById('intelCountBadge').style.display = 'none';
+        }
+        
+        // Coba unlock audio context jika user belum interaksi
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    // === 1. SISTEM AUDIO (SFX) ===
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Unlocker Audio untuk mobile
+    document.body.addEventListener('click', () => {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+    }, { once: true });
+
+    function playSFX(type) {
+        if(audioCtx.state === 'suspended') return; // Jangan paksa resume jika belum interaksi
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        if (type === 'beep') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        } else if (type === 'alert') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+        } else if (type === 'success') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(600, audioCtx.currentTime); osc.frequency.setValueAtTime(900, audioCtx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+        }
+    }
+
+    // === 2. SISTEM MODAL UI ===
+    function showSovereignAlert(msg) {
+        playSFX('alert');
+        document.getElementById('sovAlertMsg').innerText = msg;
+        document.getElementById('sovAlert').style.display = 'flex';
+    }
+    function closeAlert() { document.getElementById('sovAlert').style.display = 'none'; }
+
+    let confirmCallback = null;
+    function showSovereignConfirm(title, msg, isDanger, callback) {
+        playSFX('beep');
+        document.getElementById('sovConfirmTitle').innerText = title;
+        document.getElementById('sovConfirmMsg').innerText = msg;
+        
+        const box = document.getElementById('sovConfirmBox');
+        const btnYes = document.getElementById('btnConfirmYes');
+        
+        if (isDanger) {
+            box.classList.add('danger');
+            btnYes.className = 'btn-modal danger-fill';
+            btnYes.innerText = 'HANCURKAN';
+        } else {
+            box.classList.remove('danger');
+            btnYes.className = 'btn-modal primary';
+            btnYes.innerText = 'TERIMA';
+        }
+        confirmCallback = callback;
+        document.getElementById('sovConfirm').style.display = 'flex';
+    }
+    function closeConfirm(isAccepted) {
+        document.getElementById('sovConfirm').style.display = 'none';
+        if (isAccepted && confirmCallback) confirmCallback();
+    }
+    document.getElementById('btnConfirmYes').addEventListener('click', () => { closeConfirm(true); playSFX('success'); });
+
+    function showProfile(nick, rank) {
+        playSFX('beep');
+        document.getElementById('profNick').innerText = nick;
+        const badge = document.getElementById('profRankBadge');
+        badge.className = `rank-badge rank-${rank.replace('+', '-plus')}`;
+        badge.innerText = `RANK ${rank}`;
+        document.getElementById('sovProfile').style.display = 'flex';
+    }
+    function closeProfile() { document.getElementById('sovProfile').style.display = 'none'; }
+
+    // === 3. INISIALISASI DATA & FIREBASE ===
+    const user = Clearchance.enforceIdentity();
+    const activeMid = sessionStorage.getItem('active_mission_id');
+    const activeShard = sessionStorage.getItem('active_mission_shard');
+    const activeDesa = sessionStorage.getItem('active_mission_desa');
+
+    if (!activeMid || !activeShard || !activeDesa) {
+        showSovereignAlert("Sesi misi tidak ditemukan. Kembali ke modul Publish.");
+        setTimeout(() => { window.location.href = "publish.html"; }, 2000);
+    }
+
+    const db1 = getTerminal('FB1_MASTER');
+    const db4 = getTerminal('FB4_BOARD');
+    const missionRefPath = `mission-${activeShard}/${activeDesa}/${activeMid}`;
+
+    let missionTimer = null;
+    let signalTimeLeft = 900; 
+
+    function updateTimer() {
+        if (signalTimeLeft <= 0) {
+            document.getElementById('countdownTimer').innerText = "EXPIRED";
+            document.getElementById('countdownTimer').style.color = "#ff4444";
+            clearInterval(missionTimer);
+            return;
+        }
+        signalTimeLeft--;
+        const m = Math.floor(signalTimeLeft / 60).toString().padStart(2, '0');
+        const s = (signalTimeLeft % 60).toString().padStart(2, '0');
+        document.getElementById('countdownTimer').innerText = `${m}:${s}`;
+    }
+
+    // State trackers for notifications
+    let prevBidCount = 0;
+    let prevIntelCount = 0;
+    let initialLoadComplete = false;
+
+    // === 4. FUNGSI UTAMA: ATTACH LISTENERS ===
+    function attachFirebaseListeners() {
+        // A. Pantau Detail Misi
+        db4.ref(missionRefPath).on('value', snap => {
+            if (!snap.exists()) {
+                showSovereignAlert("Sinyal misi terputus / sudah dihancurkan.");
+                setTimeout(() => { window.location.href = "publish.html"; }, 2000);
+                return;
+            }
+            const m = snap.val();
+            document.getElementById('missionTitle').innerText = `ID: ${m.id_misi}`;
+            document.getElementById('rewardTag').innerText = `Rp ${m.reward.toLocaleString()}`;
+            
+            const typeMap = {
+                'Motor Ride': 'Pengantaran dengan Motor',
+                'Car Ride': 'Pengantaran dengan Mobil',
+                'Pick & Drop': 'Pengiriman paket Dokumen/Barang',
+                'Help': 'Butuh Pertolongan',
+                'Titip Beli': 'Pemesanan Makanan/Belanja'
+            };
+
+            document.getElementById('missionDetail').innerHTML = `
+                <div style="margin-bottom: 8px;"><span style="color:#888; display:inline-block; width:100px;">Kategori</span> : <span style="color:var(--neon-blue);">${typeMap[m.category] || m.category || 'Umum'}</span></div>
+                <div><span style="color:#888; display:inline-block; width:100px;">Catatan</span> : <span style="color:#ccc;">${m.catatan || 'Bukan Harga Final'}</span></div>
+            `;
+
+            document.getElementById('mapOrigin').innerText = (m.origin_name || '---').toUpperCase();
+            document.getElementById('mapDest').innerText = (m.dest_desa || '---').toUpperCase();
+            document.getElementById('routeMap').style.display = 'flex';
+
+            if (!missionTimer) { missionTimer = setInterval(updateTimer, 1000); }
+            
+            // Hilangkan loader saat data pertama masuk
+            if(!initialLoadComplete) {
+                document.getElementById('pageLoader').style.opacity = '0';
+                setTimeout(() => document.getElementById('pageLoader').style.display = 'none', 500);
+                initialLoadComplete = true;
+            }
+        });
+
+        // B. Pantau Bids (Penawaran)
+        db4.ref(`bids/${activeMid}`).on('value', snap => {
+            const list = document.getElementById('bidList');
+            const currentBidCount = snap.numChildren();
+            
+            // Cek jika ada lamaran baru
+            if(initialLoadComplete && currentBidCount > prevBidCount) {
+                playSFX('success'); // Bunyi saat lamaran baru masuk
+                // Update badge tab jika user tidak sedang di tab bids
+                if(!document.getElementById('tab-bids').classList.contains('active')) {
+                    const badge = document.getElementById('bidCountBadge');
+                    badge.innerText = currentBidCount;
+                    badge.style.display = 'inline-block';
+                }
+            }
+            prevBidCount = currentBidCount;
+
+            list.innerHTML = "";
+            
+            if (!snap.exists()) {
+                list.innerHTML = "<p style='color:#E0FFFF; font-style:italic; font-size:12px; text-align:center; margin-top:30px; opacity:0.5;'>Belum ada lamaran masuk...</p>";
+                document.getElementById('statusPulsing').innerText = "MENUNGGU RESPONS KONTRAKTOR...";
+                document.getElementById('statusPulsing').style.color = "#888";
+                return;
+            }
+
+            document.getElementById('statusPulsing').innerText = `${currentBidCount} ADVENTURER MENGIRIM LAMARAN!`;
+            document.getElementById('statusPulsing').style.color = "var(--neon-blue)";
+
+            snap.forEach(child => {
+                const b = child.val();
+                const rank = b.rank || 'F'; 
+                const formattedRank = rank.replace('+', '-plus');
+
+                const div = document.createElement('div');
+                div.className = 'bid-item';
+                div.innerHTML = `
+                    <div class="bid-info-container">
+                        <div style="margin-bottom: 5px;">
+                            <span class="rank-badge rank-${formattedRank}">${rank}</span>
+                            <b style="color:#e0e0e0; font-size: 14px;">${b.adventurer_nick}</b>
+                            <button class="btn-profile" onclick="showProfile('${b.adventurer_nick}', '${rank}')">🔍 PROFIL</button>
+                        </div>
+                        <div style="color:#aaa; font-size: 12px;">Penawaran: <b style="color:var(--neon-blue); font-size: 14px;">Rp ${b.offer_price.toLocaleString()}</b></div>
+                    </div>
+                    <button class="btn-acc" onclick="reqTerimaPenawaran('${child.key}', '${b.adventurer_id}', '${b.adventurer_nick}', ${b.offer_price})">TERIMA</button>
+                `;
+                list.appendChild(div);
+            });
+        });
+
+        // C. Pantau Intel Reports
+        db4.ref(`intel_reports/${activeMid}`).on('value', snap => {
+            const intelList = document.getElementById('intelList');
+            const currentIntelCount = snap.numChildren();
+
+            if(initialLoadComplete && currentIntelCount > prevIntelCount) {
+                playSFX('beep'); // Bunyi saat ada laporan baru
+                if(!document.getElementById('tab-intel').classList.contains('active')) {
+                    const badge = document.getElementById('intelCountBadge');
+                    badge.innerText = currentIntelCount;
+                    badge.style.display = 'inline-block';
+                }
+            }
+            prevIntelCount = currentIntelCount;
+
+            intelList.innerHTML = "";
+            
+            if (!snap.exists()) {
+                intelList.innerHTML = "<p style='color:#666; font-style:italic; font-size:12px; text-align:center; margin-top:30px;'>Tidak ada laporan kendala saat ini.</p>";
+                return;
+            }
+
+            snap.forEach(child => {
+                const report = child.val();
+                const div = document.createElement('div');
+                div.className = 'intel-log';
+                div.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,204,0,0.2); padding-bottom: 5px; margin-bottom: 8px;">
+                        <span style="color: #ffcc00; font-weight: bold;">[LOG_${child.key.substring(0,6).toUpperCase()}]</span>
+                        <span style="color: #888;">${report.timestamp ? new Date(report.timestamp).toLocaleTimeString() : 'RECORDED'}</span>
+                    </div>
+                    <div style="color: #e0e0e0; line-height: 1.5; white-space: pre-wrap;">${report.pesan || report.info || "Data Log Kosong"}</div>
+                    <div style="margin-top: 8px; font-size: 10px; color: #666; text-align: right; text-transform: uppercase;">
+                        Author: ${report.author || 'Sistem'}
+                    </div>
+                `;
+                intelList.appendChild(div);
+            });
+        });
+    }
+
+    // === FITUR REFRESH MANUAL ===
+    function forceRefreshData() {
+        playSFX('beep');
+        // Tampilkan loader
+        document.getElementById('pageLoader').style.display = 'flex';
+        document.getElementById('pageLoader').style.opacity = '1';
+        
+        // Detach all listeners
+        db4.ref(missionRefPath).off();
+        db4.ref(`bids/${activeMid}`).off();
+        db4.ref(`intel_reports/${activeMid}`).off();
+
+        // Reset state
+        initialLoadComplete = false;
+        
+        // Re-attach after short delay (simulasi network reconnect)
+        setTimeout(() => {
+            attachFirebaseListeners();
+        }, 800);
+    }
+
+    // === 5. FUNGSI TERIMA ===
+    function reqTerimaPenawaran(bidId, advenId, advenNick, finalPrice) {
+        showSovereignConfirm(
+            "TANDA TANGAN KONTRAK", 
+            `Serahkan misi ini kepada [${advenNick}] dengan nilai Rp ${finalPrice.toLocaleString()}?`, 
+            false, 
+            () => executeTerima(bidId, advenId, advenNick, finalPrice)
+        );
+    }
+
+    async function executeTerima(bidId, advenId, advenNick, finalPrice) {
+        document.getElementById('statusPulsing').innerText = "MENYUSUN KONTRAK SISTEM...";
+        document.getElementById('pageLoader').style.display = 'flex';
+        document.getElementById('pageLoader').style.opacity = '1';
+
+        const contractId = "CTR-" + Date.now();
+        const missionSnap = await db4.ref(missionRefPath).once('value');
+        const m = missionSnap.val();
+        
+        const contractData = {
+            id_kontrak: contractId,
+            id_misi: activeMid,
+            id_requester: user.uid,
+            requester_nick: user.nick || "Requester",
+            id_adventurer: advenId,
+            adventurer_nick: advenNick,
+            reward: finalPrice,
+            id_shard: activeShard,
+            id_desa: activeDesa,
+            status: 'briefing',
+            is_started: false,
+            created_at: Date.now(),
+            full_mission_data: m
+        };
+
+        try {
+            await db4.ref(`kontrak_mission/${contractId}`).set(contractData);
+            await db4.ref(missionRefPath).update({ 
+                status: 'taken',
+                active_contract_id: contractId,
+                adventurer_id: advenId
+            });
+            await db4.ref(`bids/${activeMid}`).remove();
+
+            sessionStorage.setItem('active_contract_id', contractId);
+            showSovereignAlert("KONTRAK TERBENTUK. Mengalihkan ke Briefing Room...");
+            setTimeout(() => { window.location.href = "briefing_room.html"; }, 1500);
+        } catch (e) {
+            document.getElementById('pageLoader').style.display = 'none';
+            showSovereignAlert("Kegagalan Sistem: " + e.message);
+        }
+    }
+
+    // === 6. FUNGSI HANCURKAN ===
+    function reqHancurkanMisi() {
+        playSFX('alert');
+        document.getElementById('promptInput').value = ""; 
+        document.getElementById('sovPrompt').style.display = 'flex';
+        document.getElementById('promptInput').focus();
+    }
+
+    function closePrompt() { document.getElementById('sovPrompt').style.display = 'none'; }
+
+    function validatePrompt() {
+        const input = document.getElementById('promptInput').value;
+        if (input === "HANCURKAN") {
+            closePrompt();
+            showSovereignConfirm(
+                "KONFIRMASI TERAKHIR", 
+                "Semua data transmisi akan dihapus permanen. Lanjutkan?", 
+                true, 
+                () => executeHancurkan()
+            );
+        } else {
+            playSFX('alert');
+            showSovereignAlert("Verifikasi gagal. Teks harus sesuai."); 
+        }
+    }
+
+    async function executeHancurkan() {
+        document.getElementById('statusPulsing').innerText = "MENGHAPUS JEJAK SINYAL...";
+        document.getElementById('pageLoader').style.display = 'flex';
+        document.getElementById('pageLoader').style.opacity = '1';
+        try {
+            await db1.ref(`misi_index/${activeMid}`).remove();
+            await db4.ref(missionRefPath).remove();
+            await db4.ref(`bids/${activeMid}`).remove();
+            sessionStorage.clear();
+            showSovereignAlert("MISI BERHASIL DIHANCURKAN.");
+            setTimeout(() => { window.location.href = "publish.html"; }, 1500);
+        } catch (e) { 
+            document.getElementById('pageLoader').style.display = 'none';
+            showSovereignAlert("Gagal Menghancurkan Misi: " + e.message); 
+        }
+    }
+
+    // === 7. SOVEREIGN SYSTEM INTELLIGENCE (SSI) ===
+    const ssiMessages = [
+        "[INFO] PICK ME hanyalah media informasi digital yang mempertemukan Requester dan Adventurer.",
+        "[INFO] Klik tombol PROFIL untuk meninjau rekam jejak dan reputasi Kontraktor.",
+        "[MEKANIK] Penawaran (Bid) akan otomatis kadaluarsa jika tidak direspon dalam 15 menit.",
+        "[TIPS] Gunakan fitur 'Hancurkan Misi' jika Anda ingin merevisi instruksi atau koordinat.",
+        "[PROSEDUR] Pastikan logistik Anda siap sebelum menandatangani kontrak digital.",
+        "[PERINTAH] Periksa kembali koordinat tujuan. Kesalahan input adalah tanggung jawab Requester.",
+        "[PERINGATAN] Segala bentuk penipuan akan berakibat pada reputasi ID Requester.",
+        "[SISTEM] Terdeteksi upaya pemindaian dari luar... Protokol keamanan tetap aktif."
+    ];
+
+    function rotateSystemIntelligence() {
+        const intelEl = document.getElementById('intelText');
+        if (!intelEl) return;
+        const msg = ssiMessages[Math.floor(Math.random() * ssiMessages.length)];
+        
+        intelEl.style.opacity = 0;
+        intelEl.style.transition = "opacity 0.5s ease";
+        
+        setTimeout(() => {
+            intelEl.innerText = msg;
+            if (msg.includes("[LARANGAN]") || msg.includes("[PERINGATAN]")) intelEl.style.color = "#ff4444"; 
+            else if (msg.includes("[PERINTAH]") || msg.includes("[PROSEDUR]")) intelEl.style.color = "#ffcc00"; 
+            else if (msg.includes("[TIPS]") || msg.includes("[MEKANIK]")) intelEl.style.color = "#00ff00"; 
+            else intelEl.style.color = "var(--neon-blue)"; 
+            
+            intelEl.style.opacity = 1;
+        }, 500);
+    }
+
+    // === 8. MONITOR KONEKSI ===
+    function monitorConnection() {
+        const statusEl = document.getElementById('connectionStatus');
+        const pingEl = document.getElementById('pingDisplay');
+        const connectedRef = db1.ref(".info/connected");
+
+        connectedRef.on("value", (snap) => {
+            if (snap.val() === true) {
+                statusEl.innerText = "● SYSTEM ONLINE";
+                statusEl.style.color = "var(--neon-green)";
+                const startTime = Date.now();
+                db1.ref('.info/serverTimeOffset').once('value', () => {
+                    const ping = Date.now() - startTime;
+                    pingEl.innerText = `LATENCY: ${ping}ms`;
+                });
+            } else {
+                statusEl.innerText = "○ SYSTEM OFFLINE";
+                statusEl.style.color = "var(--primary)";
+            }
+        });
+    }
+
+    // === INIT SAAT WINDOW SIAP ===
+    window.addEventListener('load', () => {
+        monitorConnection();
+        attachFirebaseListeners();
+        rotateSystemIntelligence();
+        setInterval(rotateSystemIntelligence, 8000);
+    });
+
+</script>
+</body>
+</html>
