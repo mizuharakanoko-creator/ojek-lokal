@@ -4,19 +4,45 @@
 
 // 1. Kamus Singkatan Kecamatan (Kunci Shard Database)
 const ZONA_MAP = {
-    "KNG": "Kuningan Kota",
+    "KNG": "Kuningan", 
     "KGD": "Kadugede",
     "CGR": "Cigugur", 
     "JLS": "Jalaksana",
-    "KRAMAT": "Kramatmulya",
+    "KRA": "Kramatmulya",
+
     "CLM": "Cilimus",
     "DRM": "Darma",
     "CWG": "Ciawigebang", 
     "CBR": "Cibeureum", 
     "CBB": "Cibingbin",
+
     "CDH": "Cidahu",
     "CMK": "Cigandamekar",
-    "LRG": "Luragung"
+    "LRG": "Luragung",
+    "CLB": "Cilebak",
+    "CMH": "Cimahi",
+
+    "CNR": "Ciniru",
+    "CPC": "Cipicung",
+    "CWR": "Ciwaru",
+    "GRW": "Garawangi",
+    "HTR": "Hantara",
+
+    "JPR": "Japara",
+    "KLM": "Kalimanggis",
+    "KRK": "Karangkancana",
+    "LBW": "Lebakwangi",
+    "MLB": "Maleber",
+
+    "MDR": "Mandirancan",
+    "NSH": "Nusaherang",
+    "PCL": "Pancalang",
+    "PSW": "Pasawahan",
+    "SLJ": "Selajambe",
+
+    "SDA": "Sindangagung",
+    "SBG": "Subang"
+
     // Tambahkan singkatan lain jika perlu
 };
 
