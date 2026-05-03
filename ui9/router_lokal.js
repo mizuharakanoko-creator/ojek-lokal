@@ -132,6 +132,32 @@ const LOKASI_DB = {
             { name: "Cihirup", lat: -6.9284331, lng: 108.6303730, diff: 1.0 }
         ]
     },
+    "Kramatmulya": {
+        lat: -6.936329, lng: 108.486134,
+        desa: [
+            { name: "Bojong", lat: -6.945892, lng: 108.502855, diff: 1.0 },
+            { name: "Cibentang", lat: -6.936788, lng: 108.475254, diff: 1.1 },
+            { name: "Cikaso", lat: -6.931933, lng: 108.496606, diff: 1.0 },
+            { name: "Cikubangsari", lat: -6.953463, lng: 108.520522, diff: 1.0 },
+            { name: "Cilaja", lat: -6.946709, lng: 108.507233, diff: 1.0 },
+            { name: "Cilowa", lat: -6.945522, lng: 108.499399, diff: 1.0 },
+            { name: "Gandasoli", lat: -6.933596, lng: 108.472011, diff: 1.0 },
+            { name: "Gereba", lat: -6.953186, lng: 108.504194, diff: 1.0 },
+            { name: "Kalapagunung", lat: -6.931506, lng: 108.483145, diff: 1.0 },
+            { name: "Karangmangu", lat: -6.928769, lng: 108.499622, diff: 1.0 },
+            { name: "Kramatmulya", lat: -6.930850, lng: 108.489853, diff: 1.0 },
+            { name: "Pajambon", lat: -6.937648, lng: 108.457466, diff: 1.0 },
+            { name: "Ragawacana", lat: -6.941014, lng: 108.470252, diff: 1.0 },
+            { name: "Widarasari", lat: -6.949706, lng: 108.521142, diff: 1.0 },
+            { name: "Perum Bhumiland Asri Gereba", lat: -6.954127, lng: 108.504817, diff: 1.0 },
+            { name: "Perum Kalapagunung Regency", lat: -6.933493, lng: 108.478587, diff: 1.0 },
+            { name: "Perum Griya Karimah", lat: -6.944626, lng: 108.506422, diff: 1.0 },
+            { name: "Perum Puri Pelangi", lat: -6.933610, lng: 108.477427, diff: 1.0 },
+            { name: "Perum Tiga Raja Land", lat: -6.949553, lng: 108.509937, diff: 1.0 },
+            { name: "Pasar Kalapagunung", lat: -6.931159, lng: 108.487265, diff: 1.0 },
+            { name: "Pasar Kramatmulya", lat: -6.930915, lng: 108.487367, diff: 1.0 }
+        ]
+    },
     "Kuningan Kota": {
         lat: -6.977726, lng: 108.484035,
         desa: [
