@@ -78,7 +78,7 @@ const LOKASI_DB = {
         ]
     },
     "Ciawigebang": {
-        lat: -6,9516992, lng: 108,5885916,
+        lat: -6.9516992, lng: 108.5885916,
         desa: [
             { name: "Ciawilor", lat: -6.9649463, lng: 108.5784414, diff: 1.0 },
             { name: "Ciawigebang", lat: -6.9726675, lng: 108.5824775, diff: 1.0 },
@@ -224,5 +224,7 @@ function getShardDariKecamatan(namaKecamatan) {
 // 5. Fungsi: Mengambil Data Koordinat & Difficulty Desa
 function getDetailDesa(kecamatan, namaDesa) {
     if(!LOKASI_DB[kecamatan]) return null;
+    const search = namaDesa.toLowerCase();
     return LOKASI_DB[kecamatan].desa.find(d => d.name === namaDesa);
 }
+
