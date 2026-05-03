@@ -103,6 +103,37 @@ const LOKASI_DB = {
             { name: "Tarikolot", lat: -7.044098, lng: 108.729637, diff: 1.1 }
         ]
     },
+    "Sindangagung": {
+        lat: -6.976087, lng: 108.535782,
+        desa: [
+            { name: "Babakanreuma", lat: -6.963055, lng: 108.525078, diff: 1.0 },
+            { name: "Balong", lat: -6.981504, lng: 108.546820, diff: 1.0 },
+            { name: "Dukuhlor", lat: -6.955857, lng: 108.534926, diff: 1.0 },
+            { name: "Kaduagung", lat: -6.981055, lng: 108.522600, diff: 1.0 },
+            { name: "Kertaungaran", lat: -6.981292, lng: 108.533345, diff: 1.0 },
+            { name: "Kertawangunan", lat: -6.972003, lng: 108.529484, diff: 1.0 },
+            { name: "Kertayasa", lat: -6.972376, lng: 108.536116, diff: 1.0 },
+            { name: "Mekarmukti", lat: -6.973369, lng: 108.541363, diff: 1.0 },
+            { name: "Sindangagung", lat: -6.975617, lng: 108.533581, diff: 1.0 },
+            { name: "Sindangsari", lat: -6.977708, lng: 108.514386, diff: 1.0 },
+            { name: "Taraju", lat: -6.947969, lng: 108.533498, diff: 1.0 },
+            { name: "Tirtawangunan", lat: -6.965853, lng: 108.531775, diff: 1.0 },
+            { name: "Blok Cipetir Kertawangunan", lat: -6.970545, lng: 108.532176, diff: 1.0 },
+            { name: "Pakarden Kertayasa", lat: -6.959878, lng: 108.538821, diff: 1.0 },
+            { name: "Parenca", lat: -6.971868, lng: 108.523649, diff: 1.0 },
+            { name: "Parenca Kulon", lat: -6.968556, lng: 108.523957, diff: 1.0 },
+            { name: "Babayak Sindangagung", lat: -6.982392, lng: 108.542202, diff: 1.0 },
+            { name: "Perum Kertamulya Residence", lat: -6.969822, lng: 108.542281, diff: 1.0 },
+            { name: "Perum Griya Kuningan Permai", lat: -6.976427, lng: 108.530205, diff: 1.0 },
+            { name: "Perum Brata Kertayasa", lat: -6.968620, lng: 108.537274, diff: 1.0 },
+            { name: "Perum Griya Nuansa Lestari Kertaungaran", lat: -6.980536, lng: 108.527742, diff: 1.0 },
+            { name: "Perum Babakanreuma Endah", lat: -6.962442, lng: 108.520974, diff: 1.0 },
+            { name: "Perum Bima Agung Regency", lat: -6.978791, lng: 108.535141, diff: 1.0 },
+            { name: "Bhumiland Babakanreuma", lat: -6.962769, lng: 108.527281, diff: 1.0 },
+            { name: "Rs KMC", lat: -6.973641, lng: 108.526171, diff: 1.0 },
+            { name: "Terminal Kertawangunan", lat: -6.972475, lng: 108.525658, diff: 1.0 }
+        ]
+    },
     "Ciawigebang": {
         lat: -6.9516992, lng: 108.5885916,
         desa: [
