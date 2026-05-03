@@ -189,6 +189,18 @@ const LOKASI_DB = {
             { name: "Pasar Kramatmulya", lat: -6.930915, lng: 108.487367, diff: 1.0 }
         ]
     },
+    "Subang": {
+        lat: -7.128174, lng: 108.532188,
+        desa: [
+            { name: "Bangunjaya", lat: -7.127425, lng: 108.515738, diff: 1.1 },
+            { name: "Gunungaci", lat: -7.103378, lng: 108.536133, diff: 1.1 },
+            { name: "Jatisari", lat: -7.153526, lng: 108.548843, diff: 1.1 },
+            { name: "Pamulihan", lat: -7.147121, lng: 108.545918, diff: 1.1 },
+            { name: "Situgede", lat: -7.105484, lng: 108.556943, diff: 1.1 },
+            { name: "Subang", lat: -7.127614, lng: 108.528987, diff: 1.1 },
+            { name: "Tangkolo", lat: -7.163002, lng: 108.518905, diff: 1.1 }
+        ]
+    },
     "Kuningan Kota": {
         lat: -6.977726, lng: 108.484035,
         desa: [
