@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOVEREIGN | COMMAND CENTER</title>
+    <title>SOVEREIGN | DEEP AUDIT COMMANDER</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="terminal_router.js"></script>
@@ -14,239 +14,195 @@
             --bg-card: #0f0000;
             --border-color: #330000;
             --text-main: #ffffff;
-            --text-muted: #888888;
             --font-terminal: 'Courier New', Courier, monospace;
         }
 
-        body { background-color: var(--bg-main); color: var(--text-main); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
+        body { background: var(--bg-main); color: var(--text-main); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
         
-        .header { text-align: center; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-bottom: 20px; }
-        .header h1 { color: var(--neon-red); font-family: var(--font-terminal); letter-spacing: 4px; margin: 0; }
+        /* SHARD MONITOR */
+        .shard-monitor { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .shard-box { background: #1a0000; border: 1px solid var(--border-color); padding: 10px; text-align: center; border-radius: 4px; border-bottom: 2px solid var(--neon-red); }
+        .shard-box small { font-size: 9px; color: #888; display: block; }
+        .shard-box b { font-family: var(--font-terminal); font-size: 18px; color: var(--neon-red); }
 
-        /* SHARD COUNTER GRID */
-        .shard-status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
-        .shard-box { background: #1a0000; border: 1px solid var(--border-color); padding: 10px; text-align: center; border-radius: 4px; border-top: 3px solid var(--neon-red); }
-        .shard-box h4 { margin: 0; font-size: 10px; color: var(--text-muted); }
-        .shard-count { font-family: var(--font-terminal); font-size: 20px; color: #fff; display: block; margin-top: 5px; }
-
-        /* CONTROLS */
-        .admin-controls { position: sticky; top: 0; z-index: 100; background: var(--bg-main); padding: 15px 0; display: flex; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid var(--border-color); }
-        #searchInput { flex: 2; padding: 12px; background: #111; border: 1px solid var(--border-color); color: var(--neon-red); font-family: var(--font-terminal); min-width: 200px; }
-        #filterArea { flex: 1; padding: 12px; background: #111; border: 1px solid var(--border-color); color: #fff; font-family: var(--font-terminal); }
+        /* SEARCH & FILTER */
+        .controls { position: sticky; top: 0; z-index: 100; background: var(--bg-main); padding: 10px 0; display: flex; gap: 10px; border-bottom: 1px solid var(--border-color); }
+        #uSearch { flex: 1; padding: 12px; background: #111; border: 1px solid var(--border-color); color: var(--neon-red); font-family: var(--font-terminal); }
 
         /* DOSSIER CARD */
-        .dossier-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 20px; overflow: hidden; border-left: 4px solid var(--neon-red); transition: 0.3s; }
-        .dossier-header { background: #1a0000; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-        .dossier-body { padding: 20px; transition: max-height 0.3s ease-out; max-height: 2000px; overflow: hidden; opacity: 1; }
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #444; transition: 0.3s; }
+        .card.active { border-left-color: var(--neon-red); box-shadow: 0 0 15px rgba(255,0,0,0.1); }
         
-        /* MINIMIZE LOGIC */
-        .minimized .dossier-body { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
-        .btn-toggle { background: transparent; border: 1px solid #444; color: #888; font-size: 9px; padding: 4px 8px; cursor: pointer; border-radius: 3px; }
+        .card-header { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #0a0000; }
+        .card-header:hover { background: #150000; }
+        
+        .main-info b { color: var(--neon-red); font-family: var(--font-terminal); font-size: 14px; }
+        .main-info span { font-size: 11px; color: #888; margin-left: 10px; }
 
-        .data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 15px; }
-        .data-item { background: rgba(255,255,255,0.02); padding: 8px; border-radius: 4px; }
-        .data-item label { display: block; color: var(--neon-red); font-size: 9px; font-weight: bold; margin-bottom: 2px; }
-        .data-item span { font-size: 12px; font-family: var(--font-terminal); color: #fff; }
+        /* DATA CONTENT (MINIMIZE LOGIC) */
+        .card-content { display: none; padding: 20px; border-top: 1px solid #220000; animation: slideIn 0.3s ease; }
+        .card.active .card-content { display: block; }
 
-        .dossier-footer { background: #0a0000; padding: 15px; border-top: 1px solid var(--border-color); }
-        .shard-picker { width: 100%; padding: 10px; background: #000; border: 1px solid var(--neon-red); color: #fff; margin-bottom: 10px; }
-        .btn-group { display: flex; gap: 10px; }
-        .btn { flex: 1; padding: 12px; border: none; font-family: var(--font-terminal); font-weight: bold; cursor: pointer; border-radius: 4px; }
-        .btn-verify { background: #00ff00; color: #000; }
-        .btn-reject { background: var(--neon-red); color: #fff; flex: 0 0 100px; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* DATA GRID - FULL DISPLAY */
+        .data-category { margin-bottom: 20px; }
+        .cat-title { font-size: 10px; color: var(--neon-red); font-weight: bold; border-bottom: 1px dashed #440000; padding-bottom: 5px; margin-bottom: 10px; display: block; letter-spacing: 1px; }
+        
+        .data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+        .data-node { background: rgba(255,255,255,0.03); padding: 8px; border-radius: 3px; border: 1px solid transparent; }
+        .data-node:hover { border-color: #440000; background: rgba(255,255,255,0.05); }
+        .data-node label { display: block; font-size: 9px; color: #666; text-transform: uppercase; margin-bottom: 2px; }
+        .data-node div { font-size: 12px; font-family: var(--font-terminal); color: #ddd; word-break: break-all; }
+
+        /* FOOTER ACTIONS */
+        .card-footer { margin-top: 20px; padding-top: 15px; border-top: 1px solid #220000; display: flex; gap: 10px; align-items: flex-end; }
+        .shard-select { background: #000; color: #fff; border: 1px solid var(--neon-red); padding: 10px; font-family: var(--font-terminal); flex: 1; }
+        .btn { padding: 12px 20px; border: none; font-family: var(--font-terminal); font-weight: bold; cursor: pointer; border-radius: 4px; text-transform: uppercase; }
+        .btn-ok { background: #00ff00; color: #000; flex: 2; }
+        .btn-del { background: #444; color: #fff; font-size: 10px; }
+        .btn-del:hover { background: var(--neon-red); }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <h1>SOVEREIGN RADAR & INDEX</h1>
-    <span style="font-size: 10px; color: #444;">DATA SYNC: ACTIVE | SHARDING: ENABLED</span>
+<div class="shard-monitor" id="monitors">
+    <div class="shard-box"><small>FB2_RUNNER</small><b id="m_FB2_RUNNER">0</b></div>
+    <div class="shard-box"><small>FB3_EXT</small><b id="m_FB3_EXT">0</b></div>
+    <div class="shard-box"><small>FB4_LAB</small><b id="m_FB4_LAB">0</b></div>
 </div>
 
-<div class="shard-status-grid" id="shardCounters">
-    <div class="shard-box"><h4>FB2_RUNNER</h4><span class="shard-count" id="count_FB2_RUNNER">0</span></div>
-    <div class="shard-box"><h4>FB3_EXT</h4><span class="shard-count" id="count_FB3_EXT">0</span></div>
-    <div class="shard-box"><h4>FB4_LAB</h4><span class="shard-count" id="count_FB4_LAB">0</span></div>
+<div class="controls">
+    <input type="text" id="uSearch" placeholder="[ TERMINAL SEARCH: CARI APAPUN DALAM DATA... ]" onkeyup="doSearch()">
 </div>
 
-<div class="admin-controls">
-    <input type="text" id="searchInput" placeholder="SEARCH: NICKNAME, ID, AREA, ALAMAT, KENDARAAN..." onkeyup="universalFilter()">
-    <select id="filterArea" onchange="universalFilter()">
-        <option value="">-- SEMUA AREA --</option>
-    </select>
-</div>
-
-<div id="pendingList">
-    <div style="text-align: center; padding: 50px; color: #444;">Menghubungkan ke Satellite...</div>
+<div id="pList" style="margin-top: 20px;">
+    <div style="text-align: center; color: #444; padding: 40px;">MENGHUBUNGKAN KE FB1_MASTER...</div>
 </div>
 
 <script>
     const db1 = getTerminal('FB1_MASTER');
-    const radarPings = new Audio('https://www.soundjay.com/buttons/beep-01a.mp3');
+    const ping = new Audio('https://www.soundjay.com/buttons/beep-01a.mp3');
 
-    // ==========================================
-    // 1. POPULATION COUNTER (FB1 INDEX)
-    // ==========================================
-    function syncPopulation() {
+    // 1. MONITOR POPULASI (FB1 INDEX)
+    function syncMon() {
         db1.ref('adventurer_index').on('value', snap => {
             const counts = { "FB2_RUNNER": 0, "FB3_EXT": 0, "FB4_LAB": 0 };
-            snap.forEach(child => {
-                const sId = child.val().shard_id;
-                if(counts[sId] !== undefined) counts[sId]++;
-            });
-            for (const [key, val] of Object.entries(counts)) {
-                document.getElementById(`count_${key}`).innerText = val;
-            }
+            snap.forEach(c => { if(counts[c.val().shard_id] !== undefined) counts[c.val().shard_id]++; });
+            for(let s in counts) document.getElementById(`m_${s}`).innerText = counts[s];
         });
     }
 
-    // ==========================================
-    // 2. RENDER PENDING LIST
-    // ==========================================
-    const areaSet = new Set();
-
+    // 2. RENDER SEMUA DATA (NO EXCEPTIONS)
     db1.ref('register_pending').on('value', snap => {
-        const list = document.getElementById('pendingList');
-        const countBefore = list.querySelectorAll('.dossier-card').length;
+        const list = document.getElementById('pList');
+        const oldSize = list.querySelectorAll('.card').length;
         list.innerHTML = "";
         
-        if (!snap.exists()) {
-            list.innerHTML = "<div style='text-align:center; padding:50px; color:#333;'>DATA CLEAR: TIDAK ADA SINYAL BARU</div>";
+        if(!snap.exists()) {
+            list.innerHTML = "<div style='text-align:center; padding:50px; color:#333;'>REGISTER_PENDING: EMPTY_ANTREAN</div>";
             return;
         }
 
-        // Radar Sound on New Item
-        if (snap.numChildren() > countBefore && countBefore !== 0) {
-            radarPings.play();
-        }
+        if(snap.numChildren() > oldSize && oldSize !== 0) ping.play();
 
         snap.forEach(child => {
             const u = child.val();
             const id = child.key;
-            const area = u.domisili_lengkap?.area_tugas || u.domisili || "UNKNOWN";
-            areaSet.add(area);
 
             const div = document.createElement('div');
-            div.className = 'dossier-card';
+            div.className = 'card';
             div.id = `card_${id}`;
+            
+            // Rekursif Helper untuk bongkar semua object data (termasuk yang tidak terduga)
+            const renderObject = (obj, label) => {
+                if(!obj) return "";
+                let html = `<span class="cat-title">${label}</span><div class="data-grid">`;
+                for(let key in obj) {
+                    const val = typeof obj[key] === 'object' ? JSON.stringify(obj[key]) : obj[key];
+                    html += `<div class="data-node"><label>${key}</label><div>${val || 'NULL'}</div></div>`;
+                }
+                html += `</div><br>`;
+                return html;
+            };
+
             div.innerHTML = `
-                <div class="dossier-header" onclick="toggleCard('${id}')">
-                    <span class="id-badge">ID: ${u.id_adv} | ${u.nickname.toUpperCase()}</span>
-                    <div>
-                        <span style="font-size:10px; color:#666; margin-right:10px;">AREA: ${area.toUpperCase()}</span>
-                        <button class="btn-toggle">[ MINIMIZE ]</button>
+                <div class="card-header" onclick="document.getElementById('card_${id}').classList.toggle('active')">
+                    <div class="main-info">
+                        <b>${u.nickname || 'N/A'}</b>
+                        <span>${u.id_adv || id}</span>
+                        <span style="color:var(--neon-red)">[${u.domisili_lengkap?.area_tugas || u.domisili || 'NO_AREA'}]</span>
                     </div>
+                    <div class="btn-toggle" style="color:#666; font-size:10px;">KLIK UNTUK AUDIT</div>
                 </div>
-                <div class="dossier-body">
-                    <div class="data-grid">
-                        <div class="data-item"><label>FULL NAME</label><span>${u.nama_lengkap || '-'}</span></div>
-                        <div class="data-item"><label>WA / TELEPON</label><span>${u.nomor_telepon}</span></div>
-                        <div class="data-item"><label>AREA TUGAS</label><span class="area-val">${area}</span></div>
-                        <div class="data-item"><label>ALAMAT</label><span>${u.domisili_lengkap?.alamat_utama || '-'}</span></div>
-                        <div class="data-item"><label>ARSENAL</label><span>${u.arsenal?.jenis} - ${u.arsenal?.merk}</span></div>
-                        <div class="data-item"><label>PLAT NOMOR</label><span>${u.arsenal?.plat}</span></div>
+                <div class="card-content">
+                    <div class="data-category">
+                        ${renderObject(u, "CORE_IDENTITY")}
+                        ${renderObject(u.domisili_lengkap, "LOCATION_OBJECT")}
+                        ${renderObject(u.arsenal, "ARSENAL_OBJECT")}
+                        ${renderObject(u.vault, "VAULT_OBJECT")}
+                        ${renderObject(u.metadata, "SYSTEM_METADATA (SAMPAH CHECK)")}
                     </div>
-                    <div class="dossier-footer">
-                        <select id="shard_${id}" class="shard-picker">
-                            <option value="FB2_RUNNER">FB2_RUNNER (Recommended)</option>
-                            <option value="FB3_EXT">FB3_EXT</option>
-                            <option value="FB4_LAB">FB4_LAB</option>
-                        </select>
-                        <div class="btn-group">
-                            <button class="btn btn-verify" onclick="verifikasiUser('${id}')">KONFIRMASI PENERIMAAN</button>
-                            <button class="btn btn-reject" onclick="tolakUser('${id}')">TOLAK</button>
+
+                    <div class="card-footer">
+                        <div style="flex:1">
+                            <label style="font-size:9px; color:var(--neon-red); display:block; margin-bottom:5px;">PILIH SHARD TUJUAN:</label>
+                            <select id="s_${id}" class="shard-select">
+                                <option value="FB2_RUNNER">FB2_RUNNER</option>
+                                <option value="FB3_EXT">FB3_EXT</option>
+                                <option value="FB4_LAB">FB4_LAB</option>
+                            </select>
                         </div>
+                        <button class="btn btn-ok" onclick="terima('${id}')">BANGKITKAN AGEN</button>
+                        <button class="btn btn-del" onclick="hapus('${id}')">WIPE</button>
                     </div>
                 </div>
             `;
             list.appendChild(div);
         });
-        updateAreaFilter();
     });
 
-    // ==========================================
-    // 3. LOGIKA FILTER & MINIMIZE
-    // ==========================================
-    function toggleCard(id) {
-        const card = document.getElementById(`card_${id}`);
-        card.classList.toggle('minimized');
-        card.querySelector('.btn-toggle').innerText = card.classList.contains('minimized') ? "[ EXPAND ]" : "[ MINIMIZE ]";
-    }
-
-    function updateAreaFilter() {
-        const select = document.getElementById('filterArea');
-        const current = select.value;
-        select.innerHTML = '<option value="">-- SEMUA AREA --</option>';
-        [...areaSet].sort().forEach(a => {
-            const opt = document.createElement('option');
-            opt.value = a;
-            opt.innerText = a.toUpperCase();
-            select.appendChild(opt);
+    // 3. SEARCH & ACTIONS
+    function doSearch() {
+        const s = document.getElementById('uSearch').value.toUpperCase();
+        document.querySelectorAll('.card').forEach(c => {
+            c.style.display = c.innerText.toUpperCase().includes(s) ? "" : "none";
         });
-        select.value = current;
     }
 
-    function universalFilter() {
-        const search = document.getElementById('searchInput').value.toUpperCase();
-        const areaFilter = document.getElementById('filterArea').value.toUpperCase();
-        const cards = document.getElementsByClassName('dossier-card');
-
-        for (let card of cards) {
-            const content = card.textContent || card.innerText;
-            const areaVal = card.querySelector('.area-val').innerText.toUpperCase();
-            
-            const matchSearch = content.toUpperCase().indexOf(search) > -1;
-            const matchArea = areaFilter === "" || areaVal === areaFilter;
-
-            card.style.display = (matchSearch && matchArea) ? "" : "none";
-        }
-    }
-
-    // ==========================================
-    // 4. LOGIKA DATABASE
-    // ==========================================
-    async function verifikasiUser(idAdv) {
-        const shard = document.getElementById(`shard_${idAdv}`).value;
-        if (!confirm(`Terbitkan karakter ke ${shard}?`)) return;
+    async function terima(id) {
+        const shard = document.getElementById(`s_${id}`).value;
+        if(!confirm(`Kirim data ke ${shard}?`)) return;
 
         try {
             const dbTarget = getTerminal(shard);
-            const snap = await db1.ref(`register_pending/${idAdv}`).once('value');
-            const data = snap.val();
-            const area = data.domisili_lengkap?.area_tugas || data.domisili || "UNKNOWN";
+            const snap = await db1.ref(`register_pending/${id}`).once('value');
+            const u = snap.val();
+            const area = u.domisili_lengkap?.area_tugas || u.domisili || "UNKNOWN";
 
-            const payload = {};
-            // Inisialisasi Tabel Identitas & Gamifikasi
-            payload[`adventurer-${area}/Umum/${idAdv}`] = { ...data, shard_id: shard };
-            payload[`adventurer_profile/${idAdv}`] = { id_adventurer: idAdv, gelar: "Novice Traveler", level: 1, rank: "F" };
-            payload[`adventurer_experience/${idAdv}`] = { id_adventurer: idAdv, exp: 0, max_exp: 100, current_stamina: 100, max_stamina: 100 };
-            payload[`adventurer_reputation/${idAdv}`] = { id_adventurer: idAdv, reputation_score: 0 };
-            payload[`adventurer_inventory/${idAdv}`] = { id_adventurer: idAdv, small_stamina_potion: 3 };
-            payload[`adventurer_contracts/${idAdv}`] = { id_adventurer: idAdv, kontrak_lusuh: 10 };
-
-            // Update Index Login (FB1)
-            const targetIndex = (data.role === 'adventurer') ? 'adventurer_index' : 'requester_index';
+            const p = {};
+            p[`adventurer-${area}/Umum/${id}`] = u;
+            p[`adventurer_profile/${id}`] = { id_adventurer: id, gelar: "Novice Traveler", level: 1, rank: "F" };
+            p[`adventurer_experience/${id}`] = { id_adventurer: id, exp: 0, max_exp: 100, current_stamina: 100, max_stamina: 100 };
+            p[`adventurer_reputation/${id}`] = { id_adventurer: id, reputation_score: 0 };
+            p[`adventurer_inventory/${id}`] = { id_adventurer: id, small_stamina_potion: 3 };
+            p[`adventurer_contracts/${id}`] = { id_adventurer: id, kontrak_lusuh: 10 };
 
             await Promise.all([
-                dbTarget.ref().update(payload),
-                db1.ref(`${targetIndex}/${idAdv}`).set({
-                    id_adv: data.id_adv, nickname: data.nickname, password: data.password,
-                    role: data.role, shard_id: shard, area_tugas: area
+                dbTarget.ref().update(p),
+                db1.ref(`${u.role === 'adventurer' ? 'adventurer_index' : 'requester_index'}/${id}`).set({
+                    id_adv: u.id_adv, nickname: u.nickname, password: u.password,
+                    role: u.role, shard_id: shard, area_tugas: area
                 }),
-                db1.ref(`register_pending/${idAdv}`).remove()
+                db1.ref(`register_pending/${id}`).remove()
             ]);
-
-            alert(`Karakter ${data.nickname} Berhasil Diaktivasi!`);
-        } catch (e) { alert("ERROR: " + e.message); }
+            alert("Aktivasi Berhasil!");
+        } catch(e) { alert("Transmisi Gagal: " + e.message); }
     }
 
-    async function tolakUser(idAdv) {
-        if (confirm("Hapus pendaftaran?")) db1.ref(`register_pending/${idAdv}`).remove();
-    }
+    function hapus(id) { if(confirm("Wipe data pendaftaran?")) db1.ref(`register_pending/${id}`).remove(); }
 
-    // Jalankan Sinkronisasi Populasi
-    syncPopulation();
+    syncMon();
 </script>
-
 </body>
 </html>
