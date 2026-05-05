@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOVEREIGN | REGISTER PENDING EXPLORER</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+
+    <style>
+        :root {
+            --neon-red: #ff1a1a;
+            --bg-main: #050000;
+            --bg-card: #0f0000;
+            --border-color: #330000;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --font-terminal: 'Courier New', Courier, monospace;
+        }
+
+        body { 
+            background-color: var(--bg-main); 
+            color: var(--text-main); 
+            font-family: 'Segoe UI', sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: var(--neon-red);
+            font-family: var(--font-terminal);
+            letter-spacing: 4px;
+            margin: 0;
+            text-shadow: 0 0 10px rgba(255,0,0,0.5);
+        }
+
+        /* Dossier Card Style */
+        .dossier-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 25px;
+            overflow: hidden;
+            border-left: 4px solid var(--neon-red);
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .dossier-header {
+            background: #1a0000;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .id-badge { font-family: var(--font-terminal); color: var(--neon-red); font-weight: bold; }
+
+        /* Grid Data */
+        .data-section { padding: 20px; }
+        .section-label { 
+            color: var(--neon-red); 
+            font-family: var(--font-terminal); 
+            font-size: 13px; 
+            margin-bottom: 15px; 
+            display: block;
+            border-bottom: 1px solid #220000;
+        }
+
+        .full-data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .data-item {
+            background: rgba(255,255,255,0.02);
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .data-item label {
+            display: block;
+            color: var(--text-muted);
+            font-size: 10px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .data-item span {
+            color: #fff;
+            font-size: 13px;
+            font-family: var(--font-terminal);
+            word-break: break-all;
+        }
+
+        /* Action Area */
+        .dossier-footer {
+            background: #0a0000;
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .shard-picker-container {
+            margin-bottom: 15px;
+        }
+
+        .shard-picker {
+            width: 100%;
+            padding: 12px;
+            background: #000;
+            border: 1px solid var(--neon-red);
+            color: #fff;
+            font-family: var(--font-terminal);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-group { display: flex; gap: 10px; }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 4px;
+            font-family: var(--font-terminal);
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: 0.3s;
+        }
+
+        .btn-verify { background: #00ff00; color: #000; }
+        .btn-verify:hover { background: #00cc00; box-shadow: 0 0 15px rgba(0,255,0,0.3); }
+        .btn-reject { background: var(--neon-red); color: #fff; flex: 0 0 120px; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        #emptyState { text-align: center; color: var(--text-muted); padding: 50px; font-family: var(--font-terminal); }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>PENDING_REGISTRATION_DASHBOARD</h1>
+    <p style="color: #666; font-size: 11px;">MENGONTROL ANTRIAN DATA FB1_MASTER</p>
+</div>
+
+<div id="pendingList">
+    <div id="emptyState">Inisialisasi Sensor Database...</div>
+</div>
+
+<script>
+    // Koneksi Awal ke FB1
+    const db1 = getTerminal('FB1_MASTER');
+
+    // MENDENGARKAN DATA DARI REGISTER_PENDING
+    db1.ref('register_pending').on('value', snap => {
+        const list = document.getElementById('pendingList');
+        list.innerHTML = "";
+        
+        if (!snap.exists()) {
+            list.innerHTML = "<div id='emptyState'>[ STATUS: BERSIH ]<br>Tidak ada entitas baru yang terdeteksi di antrean.</div>";
+            return;
+        }
+
+        snap.forEach(child => {
+            const u = child.val();
+            const id = child.key;
+
+            const div = document.createElement('div');
+            div.className = 'dossier-card';
+            div.innerHTML = `
+                <div class="dossier-header">
+                    <span class="id-badge">MASTER_ID: ${u.id_adv}</span>
+                    <span style="color:#555; font-size:10px;">TIMESTAMP: ${new Date(u.created_at).toLocaleString()}</span>
+                </div>
+                
+                <div class="data-section">
+                    <span class="section-label">01. KREDENSIAL & PROFIL</span>
+                    <div class="full-data-grid">
+                        <div class="data-item"><label>Nickname</label><span>${u.nickname}</span></div>
+                        <div class="data-item"><label>Password</label><span>${u.password}</span></div>
+                        <div class="data-item"><label>Role</label><span>${u.role}</span></div>
+                        <div class="data-item"><label>Nama Lengkap</label><span>${u.nama_lengkap || '-'}</span></div>
+                        <div class="data-item"><label>NIK KTP</label><span>${u.nik_ktp || '-'}</span></div>
+                        <div class="data-item"><label>WA / HP</label><span>${u.nomor_telepon}</span></div>
+                        <div class="data-item"><label>Email</label><span>${u.email}</span></div>
+                    </div>
+
+                    <span class="section-label">02. LOKASI OPERASIONAL</span>
+                    <div class="full-data-grid">
+                        <div class="data-item"><label>Provinsi</label><span>${u.domisili_lengkap?.provinsi || '-'}</span></div>
+                        <div class="data-item"><label>Kabupaten</label><span>${u.domisili_lengkap?.kabupaten || '-'}</span></div>
+                        <div class="data-item"><label>Kecamatan</label><span>${u.domisili_lengkap?.kecamatan || '-'}</span></div>
+                        <div class="data-item"><label>Desa</label><span>${u.domisili_lengkap?.desa || '-'}</span></div>
+                        <div class="data-item"><label>Area Tugas</label><span>${u.domisili_lengkap?.area_tugas || u.domisili}</span></div>
+                        <div class="data-item"><label>Alamat Detail</label><span>${u.domisili_lengkap?.alamat_utama || '-'}</span></div>
+                    </div>
+
+                    <span class="section-label">03. ARSENAL & VAULT SECURITY</span>
+                    <div class="full-data-grid">
+                        <div class="data-item"><label>Kendaraan</label><span>${u.arsenal?.jenis || '-'}</span></div>
+                        <div class="data-item"><label>Plat Nomor</label><span>${u.arsenal?.plat || '-'}</span></div>
+                        <div class="data-item"><label>Merk/Model</label><span>${u.arsenal?.merk || '-'}</span></div>
+                        <div class="data-item"><label>Vault Q1</label><span>${u.vault?.q1}: ${u.vault?.a1}</span></div>
+                        <div class="data-item"><label>Vault Q2</label><span>${u.vault?.q2}: ${u.vault?.a2}</span></div>
+                        <div class="data-item"><label>Vault Q3</label><span>${u.vault?.q3}: ${u.vault?.a3}</span></div>
+                    </div>
+                </div>
+
+                <div class="dossier-footer">
+                    <div class="shard-picker-container">
+                        <label style="color:var(--text-muted); font-size:10px; display:block; margin-bottom:5px;">PILIH TERMINAL TUJUAN (SHARD):</label>
+                        <select id="shard_${id}" class="shard-picker">
+                            <option value="FB2_RUNNER">FB2_RUNNER (Utama - Kuningan)</option>
+                            <option value="FB3_EXT">FB3_EXT (Eksternal Shard)</option>
+                            <option value="FB4_LAB">FB4_LAB (Experimental Shard)</option>
+                        </select>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-verify" onclick="eksekusiPenerimaan('${id}')">KONFIRMASI & TERBITKAN KE SHARD</button>
+                        <button class="btn btn-reject" onclick="tolakUser('${id}')">TOLAK</button>
+                    </div>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+    });
+
+    // LOGIKA PENERIMAAN DAN ROUTING SHARD
+    async function eksekusiPenerimaan(idAdv) {
+        const shardTujuan = document.getElementById(`shard_${idAdv}`).value;
+        
+        if (!confirm(`Terbitkan User ke ${shardTujuan}? Tindakan ini akan mengaktifkan 9 tabel di Shard tujuan.`)) return;
+
+        try {
+            // Dapatkan referensi DB target berdasarkan pilihan
+            const dbTarget = getTerminal(shardTujuan);
+            
+            // Ambil data asli dari pending
+            const snap = await db1.ref(`register_pending/${idAdv}`).once('value');
+            const data = snap.val();
+            
+            const area = data.domisili_lengkap?.area_tugas || data.domisili || "UNKNOWN";
+
+            // 1. Identitas Dasar untuk Shard
+            const baseIdentitas = {
+                id_adv: data.id_adv,
+                nickname: data.nickname,
+                password: data.password,
+                role: data.role,
+                kategori: data.starter_kit || "UMUM",
+                area_tugas: area,
+                create_at: data.created_at
+            };
+
+            // 2. Persiapan 9 Tabel Gamifikasi (Inisialisasi Awal)
+            const payload = {
+                [`adventurer-${area}/Umum/${idAdv}`]: baseIdentitas,
+                [`adventurer_profile/${idAdv}`]: { id_adventurer: idAdv, gelar: "Novice Traveler", level: 1, rank: "F" },
+                [`adventurer_experience/${idAdv}`]: { id_adventurer: idAdv, exp: 0, max_exp: 100, current_stamina: 100, max_stamina: 100 },
+                [`adventurer_reputation/${idAdv}`]: { id_adventurer: idAdv, reputation_score: 0, total_mission_completed: 0 },
+                [`adventurer_judge/${idAdv}`]: { id_adventurer: idAdv, is_suspended: false, suspension_lift_time: 0 },
+                [`adventurer_inventory/${idAdv}`]: { id_adventurer: idAdv, small_stamina_potion: 3, priority_ticket: 0 },
+                [`adventurer_coxin/${idAdv}`]: { id_adventurer: idAdv, green_stone: 10, white_stone: 0 },
+                [`adventurer_diagram/${idAdv}`]: { id_adventurer: idAdv, nilai_kecerdasan: 10, nilai_kepercayaan: 10, nilai_keamanan: 10, nilai_keramahan: 10, nilai_penampilan: 10 },
+                [`adventurer_contracts/${idAdv}`]: { id_adventurer: idAdv, kontrak_lusuh: 10, kontrak_normal: 5 }
+            };
+
+            // 3. Persiapan Index Login di FB1
+            const targetIndex = (data.role === 'adventurer') ? 'adventurer_index' : 'requester_index';
+            const indexData = {
+                id_adv: data.id_adv,
+                nickname: data.nickname,
+                password: data.password,
+                role: data.role,
+                shard_id: shardTujuan, // Info penting: user ini ada di Shard mana
+                area_tugas: area
+            };
+
+            // EKSEKUSI PARALEL
+            await Promise.all([
+                dbTarget.ref().update(payload),           // Kirim 9 tabel ke Shard (FB2/FB3/dst)
+                db1.ref(`${targetIndex}/${idAdv}`).set(indexData), // Catat di Index Utama (FB1)
+                db1.ref(`register_pending/${idAdv}`).remove()       // Bersihkan antrean
+            ]);
+
+            alert(`TRANSMISI BERHASIL: Agen ${data.nickname} telah aktif di ${shardTujuan}.`);
+
+        } catch (e) {
+            console.error(e);
+            alert("GAGAL TRANSMISI: " + e.message);
+        }
+    }
+
+    async function tolakUser(idAdv) {
+        if (!confirm("Hapus pendaftaran ini? User tidak akan bisa login atau terdaftar di sistem.")) return;
+        await db1.ref(`register_pending/${idAdv}`).remove();
+    }
+</script>
+
+</body>
+</html>
