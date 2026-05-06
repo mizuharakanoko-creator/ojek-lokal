@@ -68,8 +68,8 @@
 
 <div class="shard-monitor" id="monitors">
     <div class="shard-box"><small>FB2_RUNNER</small><b id="m_FB2_RUNNER">0</b></div>
-    <div class="shard-box"><small>FB3_EXT</small><b id="m_FB3_EXT">0</b></div>
-    <div class="shard-box"><small>FB4_LAB</small><b id="m_FB4_LAB">0</b></div>
+    <div class="shard-box"><small>FBCIGUGUR</small><b id="m_FBCIGUGUR">0</b></div>
+    <div class="shard-box"><small>FBKADUGEDE</small><b id="m_FBKADUGEDE">0</b></div>
 </div>
 
 <div class="controls">
@@ -87,7 +87,7 @@
     // 1. MONITOR POPULASI (FB1 INDEX)
     function syncMon() {
         db1.ref('adventurer_index').on('value', snap => {
-            const counts = { "FB2_RUNNER": 0, "FB3_EXT": 0, "FB4_LAB": 0 };
+            const counts = { "FB2_RUNNER": 0, "FBCIGUGUR": 0, "FBKADUGEDE": 0 };
             snap.forEach(c => { if(counts[c.val().shard_id] !== undefined) counts[c.val().shard_id]++; });
             for(let s in counts) document.getElementById(`m_${s}`).innerText = counts[s];
         });
@@ -178,15 +178,19 @@
             const dbTarget = getTerminal(shard);
             const snap = await db1.ref(`register_pending/${id}`).once('value');
             const u = snap.val();
-            const area = u.domisili_lengkap?.area_tugas || u.domisili || "UNKNOWN";
+            
+            const areaMentah = u.domisili_lengkap?.area_tugas || u.domisili || "UNKNOWN";
+            // Ubah "Kuningan" menjadi "KNG", "Kadugede" menjadi "KGD", dst.
+            const areaSingkat = getShardDariKecamatan(areaMentah); 
 
+ 
             const p = {};
-            p[`adventurer-${area}/Umum/${id}`] = u;
-            p[`adventurer_profile/${id}`] = { id_adventurer: id, gelar: "Novice Traveler", level: 1, rank: "F" };
+            p[`adventurer-${areaSingkat}/Umum/${id}`] = u;
+            p[`adventurer_profile/${id}`] = { id_adventurer: id, gelar: "Novice Traveler", level: 1, rank: "TRAINER" };
             p[`adventurer_experience/${id}`] = { id_adventurer: id, exp: 0, max_exp: 100, current_stamina: 100, max_stamina: 100 };
             p[`adventurer_reputation/${id}`] = { id_adventurer: id, reputation_score: 0 };
-            p[`adventurer_inventory/${id}`] = { id_adventurer: id, small_stamina_potion: 3 };
-            p[`adventurer_contracts/${id}`] = { id_adventurer: id, kontrak_lusuh: 10 };
+            p[`adventurer_inventory/${id}`] = { id_adventurer: id, small_stamina_potion: 10 };
+            p[`adventurer_contracts/${id}`] = { id_adventurer: id, kontrak_lusuh: 30, kontrak_normal: 30, kontrak_medium: 20, kontrak_premium: 5, kontrak_emas: 1 };
 
             await Promise.all([
                 dbTarget.ref().update(p),
