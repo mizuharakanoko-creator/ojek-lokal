@@ -5,10 +5,100 @@
 // 1. Konfigurasi 5 Terminal Firebase (Ganti URL dengan Firebase asli kamu)
 const TERMINAL_URLS = {
     FB1_MASTER: "https://data1-fe8b7-default-rtdb.asia-southeast1.firebasedatabase.app/",     // Data Akun & Buku Induk
-    FB2_RUNNER: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",    // Status Adventurer Online
     FB3_DIRECTORY: "https://requester-2c6d9-default-rtdb.asia-southeast1.firebasedatabase.app/",    // Data Requester Zone
     FB4_BOARD: "https://biding-c8f01-default-rtdb.asia-southeast1.firebasedatabase.app/",      // Misi Open & Bids
-    FB5_DEAL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/"         // Chat & Kontrak Privat
+    FB5_DEAL: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",         // Chat & Kontrak Privat
+
+
+    // FB2_RUNNER = ADV KUNINGAN
+    FB2_RUNNER: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",    // Status Adventurer Online
+    FBKADUGEDE: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/", 
+    FBCIGUGUR: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBJALAKSANA: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBKRAMATMULYA: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    FBCILIMUS: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBDARMA: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBCIBEUREUM: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBCIAWIGEBANG: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBCIBINGBIN: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    FBCIDAHU: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBCIGANDAMEKAR: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBLURAGUNG: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBCILEBAK: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBCIMAHI: "https://adventurer-e9797-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    FBCINIRU: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBCIPICUNG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBCIWARU: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBGARAWANGI: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBHANTARA: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    FBJAPARA: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBKALIMANGGIS: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBKARANGKANCANA: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBLEBAKWANGI: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBMALEBER: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    FBMANDIRANCAN: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBNUSAHERANG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBPANCALANG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBPASAWAHAN: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBSELAJAMBE: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    FBSINDANGAGUNG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    FBSUBANG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    
+
+    
+    // --- TAMBAHAN SHARD REQUESTER PER KECAMATAN ---
+    // Ganti URL di bawah dengan URL Firebase asli untuk masing-masing zona
+    REQKUNINGAN: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQKADUGEDE: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/", 
+    REQCIGUGUR: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQJALAKSANA: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQKRAMATMULYA: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    REQKUNINGAN2: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQKADUGEDE2: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/", 
+    REQCIGUGUR2: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQJALAKSANA2: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQKRAMATMULYA2: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    REQCILIMUS: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQDARMA: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQCIBEUREUM: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQCIAWIGEBANG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQCIBINGBIN: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    REQCIDAHU: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQCIGANDAMEKAR: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQLURAGUNG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQCILEBAK: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQCIMAHI: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    REQCINIRU: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQCIPICUNG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQCIWARU: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQGARAWANGI: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQHANTARA: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    REQJAPARA: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQKALIMANGGIS: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQKARANGKANCANA: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQLEBAKWANGI: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQMALEBER: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    REQMANDIRANCAN: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQNUSAHERANG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQPANCALANG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQPASAWAHAN: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQSELAJAMBE: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+
+    REQSINDANGAGUNG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    REQSUBANG: "https://ojeklokal-42b84-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    
 };
 
 // 2. Tempat menyimpan instance koneksi agar tidak dobel (Hemat Kuota)
@@ -134,3 +224,40 @@ async function getSupremeData(contractId) {
         return null;
     }
 }
+
+
+
+/**
+ * AUTO-SCALING ROUTER
+ * Mencari Shard yang masih tersedia (dibawah 100 user)
+ */
+async function cariShardTersedia(kecamatan) {
+    const masterDB = getTerminal('FB1_MASTER');
+    const namaKec = kecamatan.toUpperCase().trim();
+    let suffix = 1; // Mulai dari REQKUNINGAN (atau REQKUNINGAN1)
+    let shardDitemukan = "";
+
+    while (shardDitemukan === "") {
+        // Jika suffix 1, nama terminal REQKUNINGAN, jika > 1 jadi REQKUNINGAN2, dst.
+        let currentShard = suffix === 1 ? "REQ" + namaKec : "REQ" + namaKec + suffix;
+        
+        // Cek jumlah user di index master yang ada di shard ini
+        const snap = await masterDB.ref('requester_index')
+            .orderByChild('shard_id')
+            .equalTo(currentShard)
+            .once('value');
+        
+        const jumlahUser = snap.numChildren();
+
+        if (jumlahUser < 100) {
+            shardDitemukan = currentShard;
+        } else {
+            suffix++; // Jika penuh (100), naik ke angka berikutnya
+            
+            // Safety Break: Mencegah loop tak terhingga jika belum buat terminal di router
+            if (suffix > 10) break; 
+        }
+    }
+    return shardDitemukan;
+}
+
