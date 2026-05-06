@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOVEREIGN | FB3 SHARD EXPLORER</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <style>
+        :root {
+            --neon-amber: #ffaa00; /* Warna pembeda untuk FB3 */
+            --bg-dark: #050505;
+            --border-amber: #3d2b00;
+            --font-mono: 'Courier New', monospace;
+        }
+
+        body { background: var(--bg-dark); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
+        
+        .header { border-bottom: 2px solid var(--border-amber); padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-family: var(--font-mono); color: var(--neon-amber); margin: 0; font-size: 20px; letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 170, 0, 0.3); }
+
+        .table-nav { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 15px; margin-bottom: 20px; }
+        .nav-btn { background: #0a0a0a; border: 1px solid var(--border-amber); color: var(--neon-amber); padding: 8px 15px; cursor: pointer; font-family: var(--font-mono); font-size: 11px; white-space: nowrap; border-radius: 3px; }
+        .nav-btn.active { background: var(--neon-amber); color: #000; font-weight: bold; }
+
+        .data-container { background: #0a0a0a; border: 1px solid var(--border-amber); border-radius: 4px; overflow: hidden; }
+        .data-header { background: #1b1400; padding: 10px 15px; font-size: 12px; border-bottom: 1px solid var(--border-amber); display: flex; justify-content: space-between; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { background: #271d00; color: var(--neon-amber); text-align: left; padding: 12px; border-bottom: 1px solid var(--border-amber); text-transform: uppercase; }
+        td { padding: 10px 12px; border-bottom: 1px solid #111; vertical-align: top; font-family: var(--font-mono); color: #ccc; }
+        tr:hover { background: rgba(255, 170, 0, 0.03); }
+
+        .json-cell { color: #888; font-size: 10px; font-style: italic; }
+        .id-cell { color: var(--neon-amber); font-weight: bold; }
+
+        .search-box { background: #000; border: 1px solid var(--border-amber); color: #fff; padding: 10px; width: 300px; font-family: var(--font-mono); outline: none; }
+        .search-box:focus { border-color: var(--neon-amber); }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>SHARD_EXPLORER: FB3_EXT</h1>
+    <input type="text" id="dbSearch" class="search-box" placeholder="CARI DATA DI FB3..." onkeyup="filterTable()">
+</div>
+
+<div class="table-nav" id="tableNav">
+    <span style="color: #444; font-size: 11px;">MENGHUBUNGKAN KE SATELIT FB3...</span>
+</div>
+
+<div class="data-container">
+    <div class="data-header">
+        <span id="tableName">TUNGGU SINYAL...</span>
+        <span id="rowCount">TOTAL_DATA: 0</span>
+    </div>
+    <div id="tableWrapper" style="overflow-x: auto;">
+        <table id="dataTable">
+            <thead><tr id="tableHead"></tr></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Pastikan terminal_router.js Anda sudah memiliki case untuk 'FB3_EXT' atau 'FB3_SHARD'
+    const db3 = getTerminal('FB3_EXT'); 
+
+    // SCAN NODE UTAMA FB3
+    db3.ref().on('value', snap => {
+        const nav = document.getElementById('tableNav');
+        nav.innerHTML = "";
+        
+        if (!snap.exists()) {
+            nav.innerHTML = "<span style='color:#555'>[ DATABASE KOSONG ]</span>";
+            return;
+        }
+
+        snap.forEach(child => {
+            const nodeName = child.key;
+            const btn = document.createElement('button');
+            btn.className = 'nav-btn';
+            btn.innerText = nodeName.toUpperCase();
+            btn.onclick = (e) => loadNode(nodeName, e.target);
+            nav.appendChild(btn);
+        });
+    });
+
+    function loadNode(path, element) {
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        element.classList.add('active');
+        document.getElementById('tableName').innerText = `PATH: /${path}`;
+
+        db3.ref(path).on('value', snap => {
+            const head = document.getElementById('tableHead');
+            const body = document.getElementById('tableBody');
+            head.innerHTML = "";
+            body.innerHTML = "";
+
+            if (!snap.exists()) {
+                document.getElementById('rowCount').innerText = "ROWS: 0";
+                return;
+            }
+
+            let keys = new Set();
+            let rows = [];
+
+            snap.forEach(child => {
+                const data = child.val();
+                // Jika data langsung string/number (bukan object), bungkus ke object
+                const rowObj = (typeof data === 'object' && data !== null) 
+                               ? { _id: child.key, ...data } 
+                               : { _id: child.key, value: data };
+                rows.push(rowObj);
+                Object.keys(rowObj).forEach(k => keys.add(k));
+            });
+
+            // Render Headers
+            keys.forEach(k => {
+                const th = document.createElement('th');
+                th.innerText = k.toUpperCase();
+                head.appendChild(th);
+            });
+
+            // Render Rows
+            rows.forEach(row => {
+                const tr = document.createElement('tr');
+                keys.forEach(k => {
+                    const td = document.createElement('td');
+                    const val = row[k];
+                    
+                    if (k === '_id') td.className = 'id-cell';
+
+                    if (typeof val === 'object' && val !== null) {
+                        td.innerHTML = `<div class="json-cell">${JSON.stringify(val)}</div>`;
+                    } else {
+                        td.innerText = val !== undefined ? val : '-';
+                    }
+                    tr.appendChild(td);
+                });
+                body.appendChild(tr);
+            });
+
+            document.getElementById('rowCount').innerText = `TOTAL_DATA: ${rows.length}`;
+        });
+    }
+
+    function filterTable() {
+        const input = document.getElementById('dbSearch').value.toUpperCase();
+        const trs = document.getElementById('tableBody').getElementsByTagName('tr');
+        for (let i = 0; i < trs.length; i++) {
+            trs[i].style.display = (trs[i].textContent.toUpperCase().includes(input)) ? "" : "none";
+        }
+    }
+</script>
+
+</body>
+</html>
