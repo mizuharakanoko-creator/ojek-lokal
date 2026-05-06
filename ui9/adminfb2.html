@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOVEREIGN | FB2 SHARD EXPLORER</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <style>
+        :root {
+            --neon-blue: #00f2ff;
+            --bg-dark: #050505;
+            --border-blue: #003a3d;
+            --font-mono: 'Courier New', monospace;
+        }
+
+        body { background: var(--bg-dark); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }
+        
+        .header { border-bottom: 2px solid var(--border-blue); padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-family: var(--font-mono); color: var(--neon-blue); margin: 0; font-size: 20px; letter-spacing: 2px; }
+
+        /* TABEL NAVIGATION */
+        .table-nav { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 15px; margin-bottom: 20px; }
+        .nav-btn { background: #0a0a0a; border: 1px solid var(--border-blue); color: var(--neon-blue); padding: 8px 15px; cursor: pointer; font-family: var(--font-mono); font-size: 11px; white-space: nowrap; border-radius: 3px; }
+        .nav-btn.active { background: var(--neon-blue); color: #000; font-weight: bold; }
+
+        /* DATA DISPLAY */
+        .data-container { background: #0a0a0a; border: 1px solid var(--border-blue); border-radius: 4px; overflow: hidden; }
+        .data-header { background: #001a1b; padding: 10px 15px; font-size: 12px; border-bottom: 1px solid var(--border-blue); display: flex; justify-content: space-between; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { background: #002527; color: var(--neon-blue); text-align: left; padding: 12px; border-bottom: 1px solid var(--border-blue); text-transform: uppercase; }
+        td { padding: 10px 12px; border-bottom: 1px solid #111; vertical-align: top; font-family: var(--font-mono); color: #ccc; }
+        tr:hover { background: rgba(0, 242, 255, 0.03); }
+
+        .json-cell { color: #888; font-size: 10px; }
+        .id-cell { color: var(--neon-blue); font-weight: bold; }
+
+        .search-box { background: #000; border: 1px solid var(--border-blue); color: #fff; padding: 10px; width: 300px; font-family: var(--font-mono); outline: none; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>SHARD_EXPLORER: FB2_RUNNER</h1>
+    <input type="text" id="dbSearch" class="search-box" placeholder="CARI DATA DI TABEL INI..." onkeyup="filterTable()">
+</div>
+
+<div class="table-nav" id="tableNav">
+    <span style="color: #444; font-size: 12px;">Scanning Database Nodes...</span>
+</div>
+
+<div class="data-container">
+    <div class="data-header">
+        <span id="tableName">SELECT_NODE</span>
+        <span id="rowCount">ROWS: 0</span>
+    </div>
+    <div id="tableWrapper" style="overflow-x: auto;">
+        <table id="dataTable">
+            <thead><tr id="tableHead"></tr></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const db2 = getTerminal('FB2_RUNNER');
+    let currentData = {};
+
+    // 1. SCAN SELURUH NODE UTAMA DI FB2
+    db2.ref().on('value', snap => {
+        const nav = document.getElementById('tableNav');
+        nav.innerHTML = "";
+        
+        if (!snap.exists()) {
+            nav.innerHTML = "DATABASE_EMPTY";
+            return;
+        }
+
+        snap.forEach(child => {
+            const nodeName = child.key;
+            const btn = document.createElement('button');
+            btn.className = 'nav-btn';
+            btn.innerText = nodeName.toUpperCase();
+            btn.onclick = () => loadNode(nodeName);
+            nav.appendChild(btn);
+        });
+    });
+
+    // 2. LOAD DATA DARI NODE YANG DIPILIH
+    function loadNode(path) {
+        // UI Update
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('tableName').innerText = `NODE: ${path.toUpperCase()}`;
+
+        db2.ref(path).on('value', snap => {
+            const head = document.getElementById('tableHead');
+            const body = document.getElementById('tableBody');
+            head.innerHTML = "";
+            body.innerHTML = "";
+
+            if (!snap.exists()) return;
+
+            let keys = new Set();
+            let rows = [];
+
+            // Kumpulkan semua possible keys (header) karena data NoSQL bisa beda-beda tiap row
+            snap.forEach(child => {
+                const data = child.val();
+                const rowObj = { _id: child.key, ...data };
+                rows.push(rowObj);
+                Object.keys(rowObj).forEach(k => keys.add(k));
+            });
+
+            // Buat Header
+            keys.forEach(k => {
+                const th = document.createElement('th');
+                th.innerText = k.replace('_', ' ').toUpperCase();
+                head.appendChild(th);
+            });
+
+            // Buat Body
+            rows.forEach(row => {
+                const tr = document.createElement('tr');
+                keys.forEach(k => {
+                    const td = document.createElement('td');
+                    const val = row[k];
+
+                    if (k === '_id') td.className = 'id-cell';
+                    
+                    if (typeof val === 'object' && val !== null) {
+                        td.innerHTML = `<div class="json-cell">${JSON.stringify(val)}</div>`;
+                    } else {
+                        td.innerText = val !== undefined ? val : '-';
+                    }
+                    tr.appendChild(td);
+                });
+                body.appendChild(tr);
+            });
+
+            document.getElementById('rowCount').innerText = `ROWS: ${rows.length}`;
+        });
+    }
+
+    // 3. FITUR SEARCH TABLE
+    function filterTable() {
+        const input = document.getElementById('dbSearch').value.toUpperCase();
+        const trs = document.getElementById('tableBody').getElementsByTagName('tr');
+
+        for (let i = 0; i < trs.length; i++) {
+            const text = trs[i].textContent || trs[i].innerText;
+            trs[i].style.display = text.toUpperCase().includes(input) ? "" : "none";
+        }
+    }
+</script>
+
+</body>
+</html>
