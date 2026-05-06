@@ -26,8 +26,6 @@
             overflow-x: hidden;
         }
 
-        .hidden { display: none !important; }
-
         .reg-container {
             width: 100%; max-width: 500px; background: var(--panel-bg);
             border: 1px solid var(--border-color); border-radius: 8px;
@@ -268,36 +266,6 @@
         document.getElementById('customModal').classList.remove('show');
     }
 
-    // --- FUNGSI AUTO-SCALING SHARD ---
-    async function cariShardTersedia(kecamatan) {
-        const masterDB = getTerminal('FB1_MASTER');
-        const namaKec = kecamatan.toUpperCase().trim();
-        let suffix = 1;
-        let shardDitemukan = "";
-
-        while (shardDitemukan === "") {
-            // Logika: REQKUNINGAN, REQKUNINGAN2, REQKUNINGAN3...
-            let currentShard = suffix === 1 ? "REQ" + namaKec : "REQ" + namaKec + suffix;
-            
-            // Cek di master index berapa orang yang pakai shard_id ini
-            const snap = await masterDB.ref('requester_index')
-                .orderByChild('shard_id')
-                .equalTo(currentShard)
-                .once('value');
-            
-            const jumlahUser = snap.numChildren();
-
-            if (jumlahUser < 100) {
-                shardDitemukan = currentShard;
-            } else {
-                suffix++;
-                // Batas aman agar tidak loop terus jika lupa daftar terminal di router
-                if (suffix > 10) break; 
-            }
-        }
-        return shardDitemukan;
-    }
-
     function nextStep(current) {
         playClick();
         if (current === 1) {
@@ -332,7 +300,7 @@
         document.getElementById(`prog${current - 1}`).classList.add('active');
     }
 
-    // --- SUBMIT REGISTRATION DENGAN AUTO-SCALING ---
+    // --- LOGIKA SUBMIT TERBARU ---
     async function submitRegistration() {
         playClick();
         const a1 = document.getElementById('a1').value.trim();
@@ -348,16 +316,18 @@
             const nick = document.getElementById('r_nick').value.trim();
             const kec = document.getElementById('r_kecamatan').value;
 
-            // 1. CARI SHARD YANG MASIH DIBAWAH 100 USER
+            // 1. CARI SHARD (Fungsi ini dipanggil dari terminal_router.js)
             const targetTerminal = await cariShardTersedia(kec);
             
-            // Cek apakah terminal terdaftar di router (TERMINAL_URLS)
-            // Catatan: Pastikan di terminal_router.js variabel TERMINAL_URLS bersifat global/window
-            if (!targetTerminal || !window.TERMINAL_URLS[targetTerminal]) {
-                return showAlert("SYSTEM ERROR", `Terminal ${targetTerminal} belum aktif di router.`);
+            // 2. AMBIL KONEKSI DATABASE
+            // Menggunakan jembatan getTerminal langsung untuk menghindari error variabel lokal
+            const targetDB = getTerminal(targetTerminal);
+            
+            if (!targetDB) {
+                return showAlert("SYSTEM ERROR", `Terminal ${targetTerminal} tidak ditemukan atau belum didaftarkan di Router.`);
             }
 
-            // 2. CEK NICKNAME UNIK
+            // 3. CEK NICKNAME UNIK
             const snapIndex = await dbMaster.ref('requester_index').orderByChild('nickname').equalTo(nick).once('value');
             if(snapIndex.exists()) {
                 return showAlert("AKSES DITOLAK", `Nickname [${nick}] sudah digunakan.`);
@@ -366,7 +336,6 @@
             document.getElementById('loadingText').innerText = `[ MENGISI SEKTOR: ${targetTerminal} ]`;
 
             const reqId = "REQ-" + Date.now();
-            const targetDB = getTerminal(targetTerminal);
 
             const profileData = {
                 nickname: nick,
@@ -397,10 +366,11 @@
                 nickname: nick,
                 password: profileData.password,
                 role: "requester",
-                shard_id: targetTerminal, // Menyimpan ID Shard (misal: REQKUNINGAN2)
+                shard_id: targetTerminal,
                 kecamatan: kec.toUpperCase()
             };
 
+            // 4. SIMPAN DATA SECARA PARALEL
             await Promise.all([
                 targetDB.ref(`requester_data/${reqId}`).set(profileData),
                 dbMaster.ref(`requester_index/${reqId}`).set(indexData)
@@ -411,7 +381,7 @@
 
         } catch (error) {
             console.error(error);
-            showAlert("UPLINK GAGAL", "Kesalahan: " + error.message);
+            showAlert("UPLINK GAGAL", "Terjadi kesalahan: " + error.message);
         }
     }
 </script>
