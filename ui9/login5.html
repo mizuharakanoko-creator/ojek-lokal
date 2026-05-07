@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SOVEREIGN | GATEWAY ACCESS</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="router_lokal.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        :root {
+            --neon-cyan: #00ffff;
+            --neon-cyan-dim: rgba(0, 255, 255, 0.3);
+            --neon-red: #ff2a2a;
+            --neon-red-dim: rgba(255, 42, 42, 0.2);
+            --bg-dark: #050505;
+            --panel-dark: rgba(17, 17, 17, 0.75); /* Diubah untuk efek kaca */
+        }
+
+        /* ANTI-WEB BEHAVIORS (NATIVE APP FEEL) */
+        * { 
+            -webkit-user-select: none; 
+            user-select: none; 
+            -webkit-tap-highlight-color: transparent; 
+            box-sizing: border-box; 
+        }
+        
+        /* TRANSISI GLOBAL UNTUK TEMA & LATAR BELAKANG GRID */
+        html, body {
+            overscroll-behavior-y: none; 
+            touch-action: manipulation; 
+            -webkit-touch-callout: none; 
+            background-color: var(--bg-dark); 
+            
+            /* Penambahan Latar Belakang Cyber Grid */
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 25px 25px;
+            background-position: center center;
+            
+            color: #fff; 
+            min-height: 100vh; 
+            margin: 0; 
+            font-family: 'Courier New', monospace; 
+            overflow-x: hidden;
+            transition: background-color 0.8s cubic-bezier(0.4, 0, 0.2, 1), color 0.8s ease;
+        }
+        
+        input { -webkit-user-select: text; user-select: text; touch-action: auto; }
+
+        /* ANIMASI MASUK (ENTRY ANIMATIONS) */
+        @keyframes cyberFadeIn {
+            0% { opacity: 0; transform: translateY(30px) scale(0.98); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes glowPulse {
+            0% { text-shadow: 0 0 10px var(--neon-red-dim); }
+            50% { text-shadow: 0 0 25px var(--neon-red), 0 0 5px var(--neon-red); }
+            100% { text-shadow: 0 0 10px var(--neon-red-dim); }
+        }
+
+        /* NETWORK STATUS */
+        .network-status {
+            position: fixed; top: 15px; left: 15px; display: flex; align-items: center; gap: 8px; font-size: 9px; letter-spacing: 1px; z-index: 1001;
+            animation: cyberFadeIn 1s ease forwards;
+            background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px; border: 1px solid #333;
+            backdrop-filter: blur(4px);
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #555; transition: background-color 0.5s, box-shadow 0.5s; }
+        .status-dot.online { background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+
+        /* LOADING LAYER */
+        #page-loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 10000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.6s ease, visibility 0.6s;
+        }
+        .loader-bar { width: 200px; height: 2px; background: rgba(255,255,255,0.1); position: relative; overflow: hidden; margin-top: 20px; }
+        .loader-progress { width: 0%; height: 100%; background: var(--neon-red); position: absolute; animation: loadAnim 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+        @keyframes loadAnim { 0% { width: 0%; left: 0; } 50% { width: 100%; left: 0; } 100% { width: 0%; left: 100%; } }
+
+        /* UI ELEMENTS */
+        .app-container { 
+            max-width: 400px; margin: 0 auto; padding: 20px; padding-bottom: 140px; position: relative;
+        }
+        
+        .header-title { animation: glowPulse 4s infinite, cyberFadeIn 0.8s ease forwards; }
+        
+        .theme-toggle {
+            width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.05); cursor: pointer; border: 1px solid transparent;
+            backdrop-filter: blur(4px);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.5s, border-color 0.5s, box-shadow 0.3s;
+        }
+        .theme-toggle:hover { transform: rotate(45deg) scale(1.1); box-shadow: 0 0 15px rgba(255,255,255,0.1); }
+        .theme-toggle:active { background: var(--neon-red-dim); border-color: var(--neon-red); transform: rotate(90deg) scale(0.9); }
+        svg { transition: stroke 0.8s ease; }
+
+        .card { 
+            background: var(--panel-dark); padding: 25px; border-radius: 12px; border: 1px solid #333; margin-top: 20px; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.9), inset 0 0 20px rgba(0,255,255,0.02);
+            backdrop-filter: blur(12px); /* Efek Kaca (Glassmorphism) */
+            -webkit-backdrop-filter: blur(12px);
+            opacity: 0;
+            animation: cyberFadeIn 1s 0.2s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+            transition: background-color 0.8s ease, border-color 0.8s ease, box-shadow 0.8s ease;
+        }
+        
+        .input-group { margin-bottom: 18px; }
+        .input-group label { display: block; font-size: 10px; color: #aaa; margin-bottom: 8px; letter-spacing: 1.5px; font-weight: bold; transition: color 0.5s; }
+        
+        .input-field {
+            width: 100%; padding: 14px; background: rgba(0, 0, 0, 0.6); border: 1px solid #444; color: var(--neon-cyan);
+            border-radius: 6px; outline: none; font-family: monospace; font-size: 14px;
+            transition: background-color 0.5s, border-color 0.3s, box-shadow 0.3s, color 0.5s;
+        }
+        .input-field:focus { border-color: var(--neon-cyan); background: #000; box-shadow: 0 0 15px var(--neon-cyan-dim); transform: translateY(-2px); }
+        .input-field::placeholder { color: #555; transition: color 0.5s; }
+
+        .pass-wrapper { position: relative; }
+        .toggle-pass { 
+            position: absolute; right: 12px; top: 50%; transform: translateY(-50%); 
+            color: var(--neon-cyan); font-size: 10px; font-weight: bold; cursor: pointer; padding: 10px;
+            background: rgba(0,0,0,0.5); border-radius: 4px;
+            transition: all 0.3s;
+        }
+        .toggle-pass:hover { background: rgba(0,255,255,0.1); }
+        .toggle-pass:active { text-shadow: 0 0 10px currentColor; }
+
+        .btn {
+            width: 100%; padding: 16px; border: none; border-radius: 6px; font-weight: bold;
+            cursor: pointer; font-family: monospace; letter-spacing: 2px; font-size: 13px;
+            position: relative; overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .btn-primary { 
+            background: linear-gradient(135deg, var(--neon-red) 0%, #aa0000 100%); 
+            color: #fff; text-shadow: 0 0 5px rgba(0,0,0,0.5); box-shadow: 0 4px 15px var(--neon-red-dim); 
+            border: 1px solid #ff4d4d;
+        }
+        .btn-primary:hover { box-shadow: 0 6px 25px rgba(255, 42, 42, 0.5); transform: translateY(-2px); border-color: #fff; }
+        .btn-primary:active { transform: scale(0.96); box-shadow: none; }
+        .btn-primary:disabled { background: #333; border-color: #444; color: #666; transform: none; box-shadow: none; }
+
+        .extra-tools { display: flex; justify-content: space-between; align-items: center; margin: 20px 0; font-size: 11px; }
+        
+        .forgot-btn { 
+            color: var(--neon-red); padding: 8px 12px; background: rgba(255, 42, 42, 0.05); 
+            border: 1px solid rgba(255, 42, 42, 0.3); border-radius: 4px; cursor: pointer; font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .forgot-btn:hover { border-color: var(--neon-red); background: var(--neon-red-dim); box-shadow: 0 0 10px var(--neon-red-dim); }
+        .forgot-btn:active { background: var(--neon-red); color: #fff; transform: scale(0.95); }
+
+        /* BILAH EDUKASI (EDUCATIONAL BAR) - DIBUAT STATIS DAN RAPI */
+        .edu-bar {
+            position: fixed; bottom: 0; left: 0; width: 100%; 
+            background: rgba(5, 5, 5, 0.95); border-top: 1px solid var(--neon-cyan);
+            padding: 15px 20px; z-index: 1000; 
+            backdrop-filter: blur(10px); box-shadow: 0 -5px 25px var(--neon-cyan-dim);
+            transition: background-color 0.8s, border-color 0.8s, box-shadow 0.8s;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .edu-track {
+            font-size: 11px; color: var(--neon-cyan); font-weight: normal; letter-spacing: 1px;
+            line-height: 1.8; text-align: center; max-width: 600px;
+            white-space: normal; /* Mengizinkan teks turun ke bawah */
+            transition: color 0.8s;
+        }
+        .edu-track span { color: var(--neon-red); margin: 0 5px; font-weight: bold; }
+        .edu-title { color: #fff; font-weight: bold; display: block; margin-bottom: 5px; letter-spacing: 2px; }
+
+        /* MODAL (CUSTOM ALERT) */
+        #customModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.4s; }
+        .modal-box { width: 85%; max-width: 350px; padding: 30px; border: 1px solid var(--neon-cyan); background: var(--panel-dark); text-align: center; border-radius: 8px; box-shadow: 0 0 40px var(--neon-cyan-dim); transform: scale(0.8); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.8s; }
+
+        /* LIGHT THEME ADJUSTMENTS */
+        [data-theme="light"] body { 
+            background-color: #f5f5f5; 
+            background-image: 
+                linear-gradient(rgba(255, 42, 42, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 42, 42, 0.05) 1px, transparent 1px);
+            color: #111; 
+        }
+        [data-theme="light"] .network-status { background: rgba(255,255,255,0.8); border-color: #ddd; color: #333; }
+        [data-theme="light"] .card { background: rgba(255, 255, 255, 0.85); border-color: #ddd; box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
+        [data-theme="light"] .input-field { background: #fff; border-color: #ccc; color: #000; }
+        [data-theme="light"] .input-field:focus { background: #fff; box-shadow: 0 0 15px rgba(255, 42, 42, 0.2); }
+        [data-theme="light"] .input-group label { color: #555; }
+        [data-theme="light"] .modal-box { background: rgba(255, 255, 255, 0.95); border: 2px solid var(--neon-red); box-shadow: 0 0 30px var(--neon-red-dim); }
+        [data-theme="light"] .edu-bar { background: rgba(255, 255, 255, 0.95); border-top: 2px solid var(--neon-red); box-shadow: 0 -5px 25px var(--neon-red-dim); }
+        [data-theme="light"] .edu-track { color: #333; }
+        [data-theme="light"] .edu-track span { color: var(--neon-red); }
+        [data-theme="light"] .edu-title { color: #000; }
+    </style>
+</head>
+<body oncontextmenu="return false;"> 
+
+<div class="network-status">
+    <div id="netDot" class="status-dot"></div>
+    <span id="netText">TERMINAL OFFLINE</span>
+</div>
+
+<div id="page-loader">
+    <h2 style="letter-spacing: 5px; font-size: 14px; color: var(--neon-red);">AUTHENTICATING SYSTEM</h2>
+    <div class="loader-bar"><div class="loader-progress"></div></div>
+</div>
+
+<div class="app-container">
+    <div style="display:flex; justify-content: flex-end; padding:10px;">
+        <div class="theme-toggle" onclick="toggleTheme()" id="themeBtn">
+            <svg id="sunIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--neon-cyan)" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        </div>
+    </div>
+
+    <div style="text-align:center; margin-top: 5px;" class="header-title">
+        <h1 style="font-size:38px; color: var(--neon-red); margin:0; letter-spacing:4px;">SOVEREIGN</h1>
+        <p style="color:var(--neon-cyan); font-size:10px; letter-spacing:3px; margin-top:5px; font-weight:bold; transition: color 0.8s;">MISSION TERMINAL GATEWAY</p>
+    </div>
+
+    <div class="card">
+        <div class="input-group">
+            <label>NICKNAME / ACCESS ID</label>
+            <input id="userInput" class="input-field" placeholder="Ketik ID Anda..." autocomplete="off">
+        </div>
+
+        <div class="input-group">
+            <label>ACCESS PASSWORD</label>
+            <div class="pass-wrapper">
+                <input type="password" id="passInput" class="input-field" placeholder="••••••••">
+                <span class="toggle-pass" onclick="togglePass()">SHOW</span>
+            </div>
+        </div>
+
+        <div class="extra-tools">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="rememberMe" style="width:16px; height:16px; accent-color: var(--neon-cyan); transition: accent-color 0.8s; cursor: pointer;"> 
+                <label for="rememberMe" style="margin:0; font-size: 11px; font-weight:bold; color:#aaa; cursor: pointer;">INGAT SAYA</label>
+            </div>
+            <div class="forgot-btn" onclick="forgotAccess()">LUPA PASSWORD</div>
+        </div>
+
+        <div class="input-group" style="border: 1px solid var(--neon-cyan-dim); padding:18px; border-radius:8px; background: rgba(0,255,255,0.03); transition: border-color 0.8s, background 0.8s;">
+            <label style="color: var(--neon-cyan);">VERIFIKASI SISTEM: <span id="mathQ" style="color:var(--neon-red); font-size:16px; letter-spacing: 2px;"></span></label>
+            <input type="number" id="mathA" class="input-field" placeholder="Masukkan Hasil Captcha" style="margin-top:10px;">
+        </div>
+
+        <button class="btn btn-primary" onclick="prosesLogin()" id="btnLogin" style="margin-top:20px;">INITIALIZE LOGIN</button>
+
+        <div style="text-align:center; margin-top:25px; font-size:11px;">
+            <span style="color:#777; transition: color 0.8s;">BELUM MEMILIKI IZIN AKSES?</span><br>
+            <a href="register.html" style="color:var(--neon-cyan); text-decoration:none; font-weight:bold; display:inline-block; margin-top:10px; padding:8px 15px; border: 1px dashed var(--neon-cyan-dim); border-radius: 4px; transition: all 0.3s;">DAFTAR ADVENTURER BARU</a>
+        </div>
+    </div>
+</div>
+
+<div class="edu-bar">
+    <div class="edu-track">
+        <span class="edu-title">[ SYSTEM LOG ]</span>
+        Sinkronisasi terminal berjalan normal <span>♦</span> 
+        Pastikan kerahasiaan Access ID dan Password Anda dari entitas tak dikenal <span>♦</span> 
+        Akses Lupa Password membutuhkan penyelesaian Security Override <span>♦</span> 
+        Pendaftaran peran Adventurer / Requester harus melalui validasi pusat.
+    </div>
+</div>
+
+<div id="customModal">
+    <div class="modal-box" id="modalBox">
+        <h2 id="modalTitle" style="color: var(--neon-red); font-size: 18px; margin-top:0; letter-spacing: 2px;">NOTICE</h2>
+        <p id="modalMsg" style="font-size:13px; color:#ddd; line-height:1.6; word-wrap: break-word; transition: color 0.8s;"></p>
+        <div id="modalExtra"></div> 
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;">
+            <button class="btn btn-primary" style="padding:12px; background:var(--neon-cyan); color:#000;" id="modalActionBtn" onclick="closeModal()">OK</button>
+            <button class="btn btn-primary" style="padding:12px; background:#222; color:#fff; border: 1px solid #444;" id="modalCancelBtn" onclick="closeModal()">BATAL</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- KONFIGURASI & INIT ---
+    if(typeof Clearchance !== 'undefined') {
+        Clearchance.nuclearWipe();
+    } else {
+        sessionStorage.clear();
+    }
+
+    // Audio & Haptic Logic
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function hapticClick() { 
+        if(navigator.vibrate) navigator.vibrate(20); 
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        o.type="sine"; o.frequency.value=800; g.gain.value=0.05;
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime+0.05);
+    }
+
+    // Network Monitor
+    function updateNet() {
+        const dot = document.getElementById('netDot');
+        const txt = document.getElementById('netText');
+        if(navigator.onLine) {
+            dot.className = "status-dot online"; txt.innerText = "TERMINAL ONLINE";
+        } else {
+            dot.className = "status-dot"; txt.innerText = "SYSTEM OFFLINE";
+        }
+    }
+    window.addEventListener('online', updateNet);
+    window.addEventListener('offline', updateNet);
+
+    // Captcha Logic
+    let n1, n2;
+    function genCap() {
+        n1 = Math.floor(Math.random()*10); n2 = Math.floor(Math.random()*10);
+        document.getElementById('mathQ').innerText = n1 + " + " + n2;
+    }
+
+    function togglePass() {
+        hapticClick();
+        const p = document.getElementById('passInput');
+        const t = document.querySelector('.toggle-pass');
+        p.type = p.type === 'password' ? 'text' : 'password';
+        t.innerText = p.type === 'password' ? 'HIDE' : 'SHOW';
+        t.style.color = p.type === 'password' ? 'var(--neon-cyan)' : 'var(--neon-red)';
+    }
+
+    function toggleTheme() {
+        hapticClick();
+        const html = document.documentElement;
+        const icon = document.getElementById('sunIcon');
+        const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', next);
+        icon.setAttribute('stroke', next === 'dark' ? 'var(--neon-cyan)' : 'var(--neon-red)');
+        
+        // Dynamic adjustment for text inside modal based on theme
+        const modalTxt = document.getElementById('modalMsg');
+        if(modalTxt) modalTxt.style.color = next === 'dark' ? '#ddd' : '#333';
+    }
+
+    // --- LOGIKA UTAMA SOVEREIGN ---
+
+    function showModalMsg(title, msg, isError = false) {
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalTitle').style.color = isError ? "var(--neon-red)" : "var(--neon-cyan)";
+        document.getElementById('modalBox').style.borderColor = isError ? "var(--neon-red)" : "var(--neon-cyan)";
+        document.getElementById('modalBox').style.boxShadow = isError ? "0 0 30px var(--neon-red-dim)" : "0 0 30px var(--neon-cyan-dim)";
+        
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+        document.getElementById('modalMsg').style.color = isLight ? '#333' : '#ddd';
+        document.getElementById('modalMsg').innerText = msg;
+        
+        const modal = document.getElementById('customModal');
+        modal.style.display = 'flex';
+        setTimeout(() => { modal.style.opacity = '1'; document.getElementById('modalBox').style.transform = 'scale(1)'; }, 10);
+        
+        document.getElementById('modalExtra').innerHTML = "";
+        
+        document.getElementById('modalCancelBtn').style.display = "none";
+        const actionBtn = document.getElementById('modalActionBtn');
+        actionBtn.innerText = "MENGERTI";
+        actionBtn.style.background = isError ? "var(--neon-red)" : "var(--neon-cyan)";
+        actionBtn.style.color = isError ? "#fff" : "#000";
+        actionBtn.onclick = closeModal;
+    }
+
+    function closeModal() {
+        hapticClick();
+        const modal = document.getElementById('customModal');
+        modal.style.opacity = '0';
+        document.getElementById('modalBox').style.transform = 'scale(0.8)';
+        setTimeout(() => {
+            modal.style.display = 'none';
+            document.getElementById('modalExtra').innerHTML = "";
+            document.getElementById('modalCancelBtn').style.display = "none";
+        }, 400);
+    }
+
+    async function prosesLogin() {
+        hapticClick();
+        const input = document.getElementById('userInput').value.trim();
+        const pass = document.getElementById('passInput').value.trim();
+        const ans = document.getElementById('mathA').value;
+        const btn = document.getElementById('btnLogin');
+        const remember = document.getElementById('rememberMe').checked;
+
+        if (!input || !pass) return showModalMsg("AKSES DITOLAK", "Harap isi Nickname dan Password!", true);
+        if (parseInt(ans) !== (n1+n2)) {
+            genCap();
+            return showModalMsg("SECURITY WARNING", "Verifikasi Sistem (Captcha) tidak tepat!", true);
+        }
+
+        btn.disabled = true;
+        btn.innerText = "DECRYPTING SYSTEM...";
+
+        const dbMaster = getTerminal('FB1_MASTER');
+
+        try {
+            // 1. Cek Tabel Adventurer
+            let userFound = await findUserInTable(dbMaster, 'adventurer_index', input);
+            if (userFound && userFound.password === pass) {
+                handleSuccess(userFound, 'adventurer', "lobby_adventurer.html", remember);
+                return;
+            }
+
+            // 2. Cek Tabel Requester
+            userFound = await findUserInTable(dbMaster, 'requester_index', input);
+            if (userFound && userFound.password === pass) {
+                handleSuccess(userFound, 'requester', "lobby_requester.html", remember);
+                return;
+            }
+
+            // 3. Cek Tabel Register Pending
+            userFound = await findUserInTable(dbMaster, 'register_pending', input);
+            if (userFound && userFound.password === pass) {
+                handleSuccess(userFound, 'pending', "waiting_room.html", remember);
+                return;
+            }
+
+            failLogin("Kredensial tidak valid di database kami.");
+        } catch (e) {
+            console.error(e);
+            failLogin("Kegagalan Transmisi pada Terminal Utama.");
+        }
+    }
+
+    async function findUserInTable(db, path, val) {
+        const snapById = await db.ref(`${path}/${val}`).once('value');
+        if (snapById.exists()) return snapById.val();
+
+        const snapByNick = await db.ref(path).orderByChild('nickname').equalTo(val).once('value');
+        if (snapByNick.exists()) {
+            const result = snapByNick.val();
+            return result[Object.keys(result)[0]];
+        }
+        return null;
+    }
+
+    function handleSuccess(data, role, target, remember) {
+        if(navigator.vibrate) navigator.vibrate([50, 50, 50]);
+        
+        if(remember) localStorage.setItem('saved_nick', data.nickname || data.nick);
+        else localStorage.removeItem('saved_nick');
+
+        const sessionData = {
+            uid: data.uid || data.id_adventurer || data.id_requester || data.id_adv || data.id_req || "USR-" + Date.now(),
+            nick: data.nickname || data.nick,
+            role: role,
+            zone: data.area_tugas || data.zone || "KNG"
+        };
+
+        sessionStorage.setItem('user_identity', JSON.stringify(sessionData));
+        
+        const loader = document.getElementById('page-loader');
+        loader.style.display = 'flex';
+        setTimeout(() => { loader.style.opacity = '1'; }, 10);
+        
+        loader.querySelector('h2').innerText = "ACCESS GRANTED";
+        loader.querySelector('h2').style.color = "var(--neon-cyan)";
+        loader.querySelector('.loader-progress').style.background = "var(--neon-cyan)";
+        
+        setTimeout(() => { window.location.href = target; }, 1200);
+    }
+
+    function failLogin(msg) {
+        showModalMsg("AKSES DITOLAK", msg, true);
+        genCap();
+        const btn = document.getElementById('btnLogin');
+        btn.disabled = false;
+        btn.innerText = "INITIALIZE LOGIN";
+    }
+
+    // Fitur Lupa Password dengan UI Custom Alert
+    async function forgotAccess() {
+        hapticClick();
+        const nicknameInput = document.getElementById('userInput').value.trim();
+        if(!nicknameInput) return showModalMsg("PELACAKAN GAGAL", "Silakan ketik Nickname Anda di kolom input sebelum melacak data pemulihan.", true);
+
+        const dbMaster = getTerminal('FB1_MASTER');
+        if(!dbMaster) return showModalMsg("CRITICAL ERROR", "Koneksi ke Pusat (FB1_MASTER) terputus.", true);
+
+        try {
+            // --- STEP 1: CARI ROLE DI MASTER ---
+            let masterData = await findUserInTable(dbMaster, 'adventurer_index', nicknameInput);
+            let userRole = 'adventurer';
+
+            if(!masterData) {
+                masterData = await findUserInTable(dbMaster, 'requester_index', nicknameInput);
+                userRole = 'requester';
+            }
+
+            if(!masterData) return showModalMsg("DATA TIDAK DITEMUKAN", `Nickname "${nicknameInput}" tidak terdaftar di terminal mana pun.`, true);
+
+            // --- STEP 2: PENETAPAN ID & SHARD ---
+            const targetShard = masterData.shard_id; 
+            let userId = "";
+
+            if (userRole === 'adventurer') {
+                userId = masterData.id_adv; 
+            } else {
+                userId = masterData.id_req; 
+            }
+
+            if(!userId) return showModalMsg("SYSTEM HALT", `User_ID tidak terbaca. Kunci tidak valid di FB1.`, true);
+
+            // --- STEP 3: ROUTING PATH ---
+            let fullPath = "";
+            let securityNode = "";
+
+            if(userRole === 'adventurer') {
+                const area = masterData.area_tugas || "KNG";
+                const shardCode = Object.keys(ZONA_MAP).find(key => ZONA_MAP[key] === area) || area;
+                fullPath = `adventurer-${shardCode}/Umum/${userId}`;
+                securityNode = "vault"; 
+            } else {
+                fullPath = `requester_data/${userId}`;
+                securityNode = "recovery"; 
+            }
+
+            // --- STEP 4: EKSEKUSI DATA DI TERMINAL SHARD ---
+            const shardDb = getTerminal(targetShard);
+            if(!shardDb) return showModalMsg("KONEKSI GAGAL", `Terminal wilayah "${targetShard}" tidak memberikan respon.`, true);
+
+            const snap = await shardDb.ref(fullPath).once('value');
+            
+            if(!snap.exists()) {
+                return showModalMsg("PATH ERROR", `Terhenti di Terminal ${targetShard}!\n\nSistem tidak mendeteksi rute: ${fullPath}`, true);
+            }
+
+            const fullData = snap.val();
+            const security = fullData[securityNode];
+
+            if(!security || !security.q1) {
+                return showModalMsg("VAULT KOSONG", `Node keamanan [${securityNode}] belum disetel oleh entitas ini.`, true);
+            }
+
+            // --- STEP 5: TAMPILKAN tantangan keamanan ---
+            const rand = Math.floor(Math.random() * 3) + 1;
+            const question = security[`q${rand}`];
+            const answer = security[`a${rand}`];
+
+            document.getElementById('modalTitle').innerText = "SECURITY OVERRIDE";
+            document.getElementById('modalTitle').style.color = "var(--neon-cyan)";
+            document.getElementById('modalBox').style.borderColor = "var(--neon-cyan)";
+            document.getElementById('modalBox').style.boxShadow = "0 0 40px var(--neon-cyan-dim)";
+
+            const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+            document.getElementById('modalMsg').style.color = isLight ? '#333' : '#ddd';
+            document.getElementById('modalMsg').innerText = `Jawab pertanyaan di bawah ini untuk memulihkan akses:\n\n"${question}"`;
+            document.getElementById('modalExtra').innerHTML = `<input type="text" id="secAns" class="input-field" placeholder="Ketik jawaban rahasia..." style="text-align:center; margin-top:15px; border-color: var(--neon-cyan);">`;
+            
+            const modal = document.getElementById('customModal');
+            modal.style.display = 'flex';
+            setTimeout(() => { modal.style.opacity = '1'; document.getElementById('modalBox').style.transform = 'scale(1)'; }, 10);
+            
+            const actionBtn = document.getElementById('modalActionBtn');
+            const cancelBtn = document.getElementById('modalCancelBtn');
+            
+            actionBtn.innerText = "DECRYPT CODE";
+            actionBtn.style.background = "var(--neon-cyan)";
+            actionBtn.style.color = "#000";
+            
+            cancelBtn.style.display = "block";
+            cancelBtn.style.background = "#222";
+            cancelBtn.style.color = "#fff";
+
+            actionBtn.onclick = () => {
+                const userAns = document.getElementById('secAns').value;
+                if(userAns && userAns.toLowerCase() === answer.toLowerCase()) {
+                    document.getElementById('modalExtra').innerHTML = "";
+                    cancelBtn.style.display = "none";
+                    showModalMsg("AKSES DIPULIHKAN", `Identitas terverifikasi.\n\nPASSWORD ANDA:\n[ ${fullData.password} ]`);
+                } else {
+                    hapticClick();
+                    document.getElementById('secAns').style.borderColor = "var(--neon-red)";
+                    document.getElementById('secAns').style.color = "var(--neon-red)";
+                    document.getElementById('secAns').style.boxShadow = "0 0 15px var(--neon-red-dim)";
+                    document.getElementById('secAns').value = "JAWABAN SALAH";
+                    setTimeout(() => {
+                        document.getElementById('secAns').value = "";
+                        document.getElementById('secAns').style.color = "var(--neon-cyan)";
+                        document.getElementById('secAns').style.borderColor = "var(--neon-cyan)";
+                        document.getElementById('secAns').style.boxShadow = "none";
+                    }, 1000);
+                }
+            };
+
+        } catch(e) {
+            showModalMsg("CRITICAL ERROR", e.message, true);
+        }
+    }
+
+    window.onload = () => {
+        updateNet();
+        genCap();
+        
+        const saved = localStorage.getItem('saved_nick');
+        if(saved) {
+            document.getElementById('userInput').value = saved;
+            document.getElementById('rememberMe').checked = true;
+        }
+
+        setTimeout(() => {
+            const loader = document.getElementById('page-loader');
+            loader.style.opacity = '0';
+            setTimeout(() => { loader.style.display = 'none'; }, 600);
+        }, 1500);
+    };
+</script>
+</body>
+</html>
