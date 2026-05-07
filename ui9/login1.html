@@ -307,105 +307,93 @@
 
     // Fitur Lupa Password dengan Security Question
     async function forgotAccess() {
+   async function forgotAccess() {
     hapticClick();
     const nicknameInput = document.getElementById('userInput').value.trim();
-    if(!nicknameInput) return showMsg("Masukkan Nickname untuk memulai pelacakan.");
+    if(!nicknameInput) return showMsg("Masukkan Nickname untuk pelacakan.");
 
-    // --- STEP 1: MASTER TERMINAL ---
     const dbMaster = getTerminal('FB1_MASTER');
-    if(!dbMaster) return alert("STOP: Koneksi ke FB1_MASTER (Pusat) gagal.");
+    if(!dbMaster) return alert("STOP: Koneksi ke FB1_MASTER gagal.");
 
     try {
-        // Cari di Index Adventurer
+        // --- STEP 1: CARI ROLE DI MASTER (FB1) ---
         let masterData = await findUserInTable(dbMaster, 'adventurer_index', nicknameInput);
         let userRole = 'adventurer';
 
-        // Jika tidak ada, cari di Index Requester
         if(!masterData) {
             masterData = await findUserInTable(dbMaster, 'requester_index', nicknameInput);
             userRole = 'requester';
         }
 
-        if(!masterData) {
-            return alert(`STOP: Nickname "${nicknameInput}" tidak ditemukan di tabel adventurer_index maupun requester_index pada FB1.`);
+        if(!masterData) return alert(`STOP: Nickname "${nicknameInput}" tidak ditemukan.`);
+
+        // --- STEP 2: PENETAPAN ID & SHARD (SESUAI FOTO FB1) ---
+        const targetShard = masterData.shard_id; // Mengambil "FB2_RUNNER"
+        let userId = "";
+
+        // Penyesuaian kunci (key) berdasarkan role
+        if (userRole === 'adventurer') {
+            userId = masterData.id_adv; // Mengambil "adv-kng-40772973"
+        } else {
+            userId = masterData.id_req; // Mengambil "REQ-1778056175406"
         }
 
-        // --- STEP 2: PENGECEKAN DATA DARI MASTER ---
-        const targetShard = masterData.shard_id;
-        const area = masterData.area_tugas || "Kuningan";
-        const userId = (userRole === 'adventurer') ? masterData.id_adventurer : masterData.id_requester;
+        if(!userId) return alert(`STOP: User_ID (${userId}) tidak terbaca. Periksa key id_adv/id_req di FB1.`);
 
-        if(!targetShard || !userId) {
-            return alert(`STOP: Data Master ditemukan, tapi Shard_ID (${targetShard}) atau User_ID (${userId}) kosong!`);
-        }
-
-        // --- STEP 3: ROUTING WILAYAH (Khusus Adventurer) ---
-        let shardCode = "KNG"; // Default
-        if(userRole === 'adventurer') {
-            shardCode = Object.keys(ZONA_MAP).find(key => ZONA_MAP[key] === area);
-            if(!shardCode) {
-                alert(`WARNING: Area "${area}" tidak ada di ZONA_MAP. Menggunakan default: KNG`);
-                shardCode = "KNG";
-            }
-        }
-
-        // --- STEP 4: KONSTRUKSI ALAMAT (PATH) ---
+        // --- STEP 3: ROUTING PATH (SESUAI STRUKTUR SHARD) ---
         let fullPath = "";
         let securityNode = "";
 
         if(userRole === 'adventurer') {
+            const area = masterData.area_tugas || "KNG";
+            // Mencari di ZONA_MAP, jika "Kuningan" ubah ke "KNG", jika sudah "KNG" tetap "KNG"
+            const shardCode = Object.keys(ZONA_MAP).find(key => ZONA_MAP[key] === area) || area;
+            
+            // Path: adventurer-KNG/Umum/adv-kng-40772973
             fullPath = `adventurer-${shardCode}/Umum/${userId}`;
-            securityNode = "vault";
+            securityNode = "vault"; // Node vault untuk adventurer
         } else {
+            // Path: requester_data/REQ-1778056175406
             fullPath = `requester_data/${userId}`;
-            securityNode = "recovery";
+            securityNode = "recovery"; // Node recovery untuk requester
         }
 
-        // ALERT STATUS: Sebelum melompat ke Shard
-        alert(`ALUR BERHASIL SAMPAI SINI:\n\n` +
-              `Role: ${userRole}\n` +
-              `Terminal Tujuan: ${targetShard}\n` +
-              `Path yang dicari: ${fullPath}\n\n` +
-              `Sistem sekarang akan mencoba masuk ke terminal ${targetShard}...`);
-
-        // --- STEP 5: AKSES TERMINAL SHARD ---
+        // --- STEP 4: EKSEKUSI DATA DI TERMINAL SHARD ---
         const shardDb = getTerminal(targetShard);
-        if(!shardDb) return alert(`STOP: Gagal menghubungkan ke Terminal "${targetShard}". Periksa terminal_router.js!`);
+        if(!shardDb) return alert(`STOP: Terminal "${targetShard}" tidak terdaftar.`);
 
         const snap = await shardDb.ref(fullPath).once('value');
         
         if(!snap.exists()) {
-            return alert(`STOP: Terhenti di Terminal ${targetShard}!\n\n` +
-                         `Alamat "${fullPath}" dinyatakan TIDAK ADA (Undefined) oleh Firebase.\n\n` +
-                         `Saran: Buka Firebase ${targetShard}, cek apakah folder "${fullPath}" benar-benar ada.`);
+            return alert(`STOP: Terhenti di Terminal ${targetShard}!\nPath tidak ditemukan: ${fullPath}`);
         }
 
         const fullData = snap.val();
         const security = fullData[securityNode];
 
-        // --- STEP 6: CEK DATA KEAMANAN ---
         if(!security || !security.q1) {
-            return alert(`STOP: Data User ditemukan, tapi folder "${securityNode}" kosong atau tidak ada q1, a1, dll.`);
+            return alert(`STOP: Node [${securityNode}] kosong. Pertanyaan keamanan belum dibuat.`);
         }
 
-        // Jika sampai sini, berarti sukses. Tampilkan Pertanyaan Keamanan.
+        // --- STEP 5: TAMPILKAN CHALLENGE ---
         const rand = Math.floor(Math.random() * 3) + 1;
         const question = security[`q${rand}`];
         const answer = security[`a${rand}`];
 
         document.getElementById('modalTitle').innerText = "SECURITY CHALLENGE";
         document.getElementById('modalMsg').innerText = `PERTANYAAN ${rand}:\n${question}`;
-        document.getElementById('modalExtra').innerHTML = `<input type="text" id="secAns" class="input-field" placeholder="Jawaban..." style="text-align:center; margin-top:10px;">`;
+        document.getElementById('modalExtra').innerHTML = `<input type="text" id="secAns" class="input-field" placeholder="Ketik jawaban..." style="text-align:center; margin-top:10px;">`;
         
         const actionBtn = document.getElementById('modalActionBtn');
-        actionBtn.innerText = "VERIFIKASI";
+        actionBtn.innerText = "VERIFY";
         document.getElementById('modalCancelBtn').style.display = "block";
 
         actionBtn.onclick = () => {
             const userAns = document.getElementById('secAns').value;
             if(userAns && userAns.toLowerCase() === answer.toLowerCase()) {
                 document.getElementById('modalExtra').innerHTML = "";
-                showMsg(`VERIFIKASI BERHASIL.\nAccess Code: ${fullData.password}`);
+                // Password diambil dari data utama di Shard
+                showMsg(`AKSES DIPULIHKAN.\nPassword: ${fullData.password}`);
             } else {
                 alert("Jawaban salah!");
                 hapticClick();
@@ -413,10 +401,10 @@
         };
 
     } catch(e) {
-        alert("CRITICAL ERROR: " + e.message);
-        console.error(e);
+        alert("ERROR: " + e.message);
     }
 }
+
 
 
 
