@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>SOVEREIGN - GATEWAY</title>
+    <style>
+        :root {
+            --cyan: #00ffff;
+            --red: #ff0055;
+            --bg: #050505;
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none; /* Mencegah seleksi teks */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: var(--bg);
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            /* Efek Zoom Out saat load */
+            animation: initialZoom 0.8s ease-out forwards;
+        }
+
+        @keyframes initialZoom {
+            0% { transform: scale(1.5); opacity: 0; filter: blur(10px); }
+            100% { transform: scale(1); opacity: 1; filter: blur(0); }
+        }
+
+        /* Background Overlay untuk System Info */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        /* Container Utama */
+        .gateway-container {
+            text-align: center;
+            width: 90%;
+            max-width: 600px;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin: 0;
+            letter-spacing: 8px;
+            color: white;
+            text-shadow: 0 0 20px rgba(255,255,255,0.3);
+        }
+
+        #typing-text {
+            height: 20px;
+            color: #888;
+            font-size: 14px;
+            margin: 20px 0 40px 0;
+        }
+
+        /* Role Selection Logic */
+        .role-wrapper {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            transition: 0.5s;
+        }
+
+        .role-card {
+            flex: 1;
+            padding: 40px 20px;
+            border: 1px solid #333;
+            border-radius: 10px;
+            background: var(--glass);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Efek Membesar/Mengecil */
+        .role-wrapper:has(.role-citizen:hover) .role-adventurer { transform: scale(0.8); opacity: 0.3; filter: blur(2px); }
+        .role-wrapper:has(.role-adventurer:hover) .role-citizen { transform: scale(0.8); opacity: 0.3; filter: blur(2px); }
+
+        .role-citizen { border-color: var(--cyan); color: var(--cyan); }
+        .role-citizen:hover { transform: scale(1.1); box-shadow: 0 0 30px rgba(0, 255, 255, 0.2); background: rgba(0, 255, 255, 0.05); }
+
+        .role-adventurer { border-color: var(--red); color: var(--red); }
+        .role-adventurer:hover { transform: scale(1.1); box-shadow: 0 0 30px rgba(255, 0, 85, 0.2); background: rgba(255, 0, 85, 0.05); }
+
+        .role-card h3 { margin: 0; font-size: 1.2rem; letter-spacing: 2px; }
+        .role-card p { font-size: 10px; opacity: 0.7; margin-top: 10px; color: white; }
+
+        /* Custom Alert System */
+        #custom-alert {
+            position: fixed;
+            top: 20px;
+            border: 2px solid var(--red);
+            background: #111;
+            padding: 15px 30px;
+            color: white;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(255, 0, 85, 0.4);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spinner {
+            width: 50px; height: 50px;
+            border: 3px solid #111;
+            border-top: 3px solid var(--cyan);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Navigasi Bawah (Info/Event) */
+        .bottom-nav {
+            position: fixed;
+            bottom: 30px;
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-item {
+            font-size: 12px;
+            color: #555;
+            cursor: pointer;
+            transition: 0.3s;
+            text-decoration: underline;
+        }
+
+        .nav-item:hover { color: white; }
+
+    </style>
+</head>
+<body oncontextmenu="return false;"> <div id="loading-screen">
+        <div class="spinner"></div>
+        <p style="letter-spacing: 3px; font-size: 10px; margin-top: 20px;" id="loading-text">SYNCHRONIZING...</p>
+    </div>
+
+    <div id="custom-alert">SYSTEM_ERROR: AKSES DITOLAK</div>
+
+    <div class="gateway-container">
+        <h1>SOVEREIGN</h1>
+        <div id="typing-text"></div>
+
+        <div class="role-wrapper">
+            <div class="role-card role-citizen" onclick="showSubMenu('citizen')">
+                <h3>CITIZEN</h3>
+                <p>PUBLISH QUEST & REQUEST SERVICE</p>
+            </div>
+
+            <div class="role-card role-adventurer" onclick="showSubMenu('adventurer')">
+                <h3>ADVENTURER</h3>
+                <p>ACCEPT MISSION & EARN CREDIT</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="sub-menu-overlay" class="overlay" onclick="closeOverlay()">
+        <div id="menu-content" style="text-align: center; width: 80%;" onclick="event.stopPropagation()">
+            </div>
+    </div>
+
+    <div class="bottom-nav">
+        <span class="nav-item" onclick="openInfo('info')">SYSTEM_INFO</span>
+        <span class="nav-item" onclick="openInfo('event')">ACTIVE_EVENTS</span>
+        <span class="nav-item" onclick="startTutorial()">TUTORIAL</span>
+    </div>
+
+<script>
+    const typingElement = document.getElementById('typing-text');
+    const text = "Menunggu otorisasi pengguna... Pilih jalur akses Anda.";
+    let index = 0;
+
+    // Typing Effect
+    function type() {
+        if (index < text.length) {
+            typingElement.innerHTML += text.charAt(index);
+            index++;
+            setTimeout(type, 50);
+        }
+    }
+
+    window.onload = () => {
+        // Clearchance.nuclearWipe(); // Aktifkan jika file js sudah ada
+        setTimeout(type, 1000);
+    };
+
+    function showLoading(target) {
+        const ls = document.getElementById('loading-screen');
+        ls.style.display = 'flex';
+        setTimeout(() => {
+            window.location.href = target;
+        }, 1500);
+    }
+
+    function showSubMenu(type) {
+        const overlay = document.getElementById('sub-menu-overlay');
+        const content = document.getElementById('menu-content');
+        overlay.style.display = 'flex';
+
+        if(type === 'citizen') {
+            content.innerHTML = `
+                <h2 style="color:var(--cyan)">CITIZEN ACCESS</h2>
+                <button class="btn-opt" onclick="showLoading('publish.html')" style="border-color:var(--cyan)">GUEST_PUBLISH</button>
+                <button class="btn-opt" onclick="showLoading('register_reg.html')" style="border-color:var(--cyan)">REGISTER_CITIZEN</button>
+                <p style="color:#555; font-size:10px; margin-top:20px;">*Akses guest akan dihapus setelah sesi berakhir</p>
+            `;
+        } else {
+            content.innerHTML = `
+                <h2 style="color:var(--red)">ADVENTURER ACCESS</h2>
+                <button class="btn-opt" onclick="showLoading('login.html')" style="border-color:var(--red)">LOGIN_SYSTEM</button>
+                <button class="btn-opt" onclick="showLoading('register.html')" style="border-color:var(--red)">REGISTER_ADVENTURER</button>
+            `;
+        }
+    }
+
+    function openInfo(mode) {
+        const overlay = document.getElementById('sub-menu-overlay');
+        const content = document.getElementById('menu-content');
+        overlay.style.display = 'flex';
+
+        if(mode === 'info') {
+            content.innerHTML = `<h3>SYSTEM INFO</h3><p>SOVEREIGN v1.0.4<br>Tactical Mission Board System.<br>Encrypted by SOVEREIGN_CORE.</p>`;
+        } else {
+            content.innerHTML = `<h3 style="color:var(--cyan)">ACTIVE_EVENT</h3><p>NO EVENT CURRENTLY ACTIVE</p>`;
+        }
+    }
+
+    function closeOverlay() {
+        document.getElementById('sub-menu-overlay').style.display = 'none';
+    }
+
+    function startTutorial() {
+        customAlert("SYNCHRONIZING TUTORIAL... [PAGE 1/1]");
+        setTimeout(() => {
+            customAlert("Gunakan Citizen untuk memposting misi, Adventurer untuk mengambil misi.");
+        }, 2000);
+    }
+
+    function customAlert(msg) {
+        const alertBox = document.getElementById('custom-alert');
+        alertBox.innerText = msg;
+        alertBox.style.display = 'block';
+        setTimeout(() => { alertBox.style.display = 'none'; }, 3000);
+    }
+
+    // Mencegah double tap zoom & fitur browser lainnya
+    document.addEventListener('touchstart', function (event) {
+        if (event.touches.length > 1) { event.preventDefault(); }
+    }, { passive: false });
+</script>
+
+<style>
+    /* Tambahan Style untuk Tombol di Overlay */
+    .btn-opt {
+        display: block; width: 100%; background: transparent; 
+        color: white; border: 1px solid; padding: 15px; 
+        margin: 10px 0; cursor: pointer; letter-spacing: 2px;
+        transition: 0.3s;
+    }
+    .btn-opt:hover { background: white; color: black; }
+</style>
+
+</body>
+</html>
