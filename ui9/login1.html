@@ -306,43 +306,92 @@
 
     // Fitur Lupa Password dengan Security Question
     async function forgotAccess() {
-        hapticClick();
-        const input = document.getElementById('userInput').value.trim();
-        if(!input) return showMsg("Masukkan Nickname/ID Anda terlebih dahulu.");
+    hapticClick();
+    const input = document.getElementById('userInput').value.trim();
+    if(!input) return showMsg("Identitas diperlukan untuk pelacakan.");
 
-        const dbMaster = getTerminal('FB1_MASTER');
-        showMsg("Mencari data identitas...");
+    const dbMaster = getTerminal('FB1_MASTER');
+    showMsg("Menghubungkan ke pusat data wilayah...");
 
-        try {
-            // Cari di adventurer saja untuk recovery (atau sesuaikan tabel lain)
-            let user = await findUserInTable(dbMaster, 'adventurer_index', input);
-            if(!user) user = await findUserInTable(dbMaster, 'requester_index', input);
+    try {
+        // --- TAHAP 1: DETEKSI ROLE DI MASTER ---
+        let masterData = await findUserInTable(dbMaster, 'adventurer_index', input);
+        let userRole = 'adventurer';
 
-            if(user && user.pertanyaan_lupa_password) {
-                document.getElementById('modalTitle').innerText = "SECURITY CHALLENGE";
-                document.getElementById('modalMsg').innerText = `PERTANYAAN: ${user.pertanyaan_lupa_password}`;
-                
-                const extra = document.getElementById('modalExtra');
-                extra.innerHTML = `<input type="text" id="secAns" class="input-field" placeholder="Jawaban Anda..." style="text-align:center; margin-top:10px;">`;
-                
-                const actionBtn = document.getElementById('modalActionBtn');
-                actionBtn.innerText = "VERIFIKASI";
-                document.getElementById('modalCancelBtn').style.display = "block";
+        if(!masterData) {
+            masterData = await findUserInTable(dbMaster, 'requester_index', input);
+            userRole = 'requester';
+        }
 
-                actionBtn.onclick = () => {
-                    const ans = document.getElementById('secAns').value;
-                    if(ans && ans.toLowerCase() === user.jawaban_lupa_password.toLowerCase()) {
-                        extra.innerHTML = "";
-                        showMsg(`AKSES DIPULIHKAN. Password Anda: ${user.password}`);
-                    } else {
-                        alert("Jawaban Salah!");
-                    }
-                };
-            } else {
-                showMsg("ID tidak ditemukan atau tidak memiliki pertanyaan keamanan.");
+        if(!masterData) return showMsg("Nickname tidak ditemukan di terminal manapun.");
+
+        // --- TAHAP 2: ROUTING SHARD & ZONA ---
+        const areaTugas = masterData.area_tugas || "Kuningan";
+        const shardCode = Object.keys(ZONA_MAP).find(key => ZONA_MAP[key] === areaTugas) || "KNG";
+        const shardDb = getTerminal(masterData.shard_id);
+        
+        let detailPath = "";
+        let recoveryNode = "";
+        let userId = "";
+
+        // --- TAHAP 3: ADAPTASI STRUKTUR BERDASARKAN ROLE ---
+        if(userRole === 'adventurer') {
+            userId = masterData.id_adventurer;
+            detailPath = `adventurer-${shardCode}/Umum/${userId}`; // Struktur Gambar 2
+            recoveryNode = "vault"; 
+        } else {
+            userId = masterData.id_requester;
+            detailPath = `requester_data/${userId}`; // Struktur Gambar 1
+            recoveryNode = "recovery"; 
+        }
+
+        // --- TAHAP 4: EKSTRAKSI DATA DARI SHARD ---
+        const snap = await shardDb.ref(detailPath).once('value');
+        
+        if(snap.exists()) {
+            const fullData = snap.val();
+            const securityData = fullData[recoveryNode];
+
+            if(!securityData || !securityData.q1) {
+                return showMsg("Data pemulihan (Security Question) belum disetel.");
             }
-        } catch(e) { showMsg("Error: " + e.message); }
+
+            // Pilih pertanyaan acak (q1 - q3)
+            const rand = Math.floor(Math.random() * 3) + 1;
+            const question = securityData[`q${rand}`];
+            const answer = securityData[`a${rand}`];
+
+            // Tampilkan Modal UI
+            document.getElementById('modalTitle').innerText = "SECURITY CHALLENGE";
+            document.getElementById('modalMsg').innerText = `PERTANYAAN ${rand}:\n${question}`;
+            
+            const extra = document.getElementById('modalExtra');
+            extra.innerHTML = `<input type="text" id="secAns" class="input-field" placeholder="Jawaban Anda..." style="text-align:center; margin-top:10px;">`;
+            
+            const actionBtn = document.getElementById('modalActionBtn');
+            actionBtn.innerText = "VERIFY ACCESS";
+            document.getElementById('modalCancelBtn').style.display = "block";
+
+            actionBtn.onclick = () => {
+                const userAns = document.getElementById('secAns').value;
+                if(userAns && userAns.toLowerCase() === answer.toLowerCase()) {
+                    extra.innerHTML = "";
+                    showMsg(`VERIFIKASI BERHASIL.\nAccess Code: ${fullData.password}`);
+                } else {
+                    alert("Akses Ditolak: Jawaban tidak sesuai.");
+                    hapticClick();
+                }
+            };
+        } else {
+            showMsg(`Data tidak ditemukan di shard ${shardCode}.`);
+        }
+    } catch(e) { 
+        console.error(e);
+        showMsg("Error: Terminal gagal merespon permintaan."); 
     }
+}
+
+    
 
     function showMsg(m) {
         document.getElementById('modalMsg').innerText = m;
