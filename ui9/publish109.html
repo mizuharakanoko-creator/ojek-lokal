@@ -1320,75 +1320,130 @@ function handleLogin() {
 
     async function submitMission() {
     const btn = document.getElementById('btnBroadcast');
-    if(btn) { btn.innerText = "TRANSMITTING..."; btn.disabled = true; }
+    if (btn) {
+        btn.innerText = "TRANSMITTING..."; 
+        btn.disabled = true;
+    }
+    
+    // Menjalankan SFX jika tersedia
+    if (typeof playSfx === "function") playSfx(2000, 'sine', 1, 0.5);
 
     try {
-        // JIKA ID HILANG DI VARIABEL, AMBIL DARI STORAGE
+        // 1. VALIDASI IDENTITAS (Mencegah Identitas Hilang/Kosong)
+        // Jika variabel global kosong, coba ambil dari cadangan localStorage
         if (!questData.client.id || questData.client.id === "") {
             questData.client.id = localStorage.getItem('current_customer_id');
         }
 
-        // Jika setelah diambil dari storage masih kosong, baru error
         if (!questData.client.id) {
-            throw new Error("Identitas terputus. Silahkan ketik ulang nickname/login.");
+            throw new Error("Identitas tidak ditemukan atau kadaluarsa. Silakan login ulang.");
         }
 
-        if (!questData.origin.desa) throw new Error("Lokasi asal (Desa) belum ditentukan.");
+        // 2. VALIDASI DATA LOKASI
+        if (!questData.origin || !questData.origin.desa) {
+            throw new Error("Data lokasi asal (Desa) belum terisi.");
+        }
 
+        // 3. SANITASI & PERSIAPAN PATH FIREBASE
+        // Menghapus karakter terlarang (. # $ [ ]) yang bisa membuat Firebase Error/Reset
+        const cleanDesa = questData.origin.desa.replace(/[.#$\[\]]/g, "").trim();
         const shard = (typeof getShardDariKecamatan === "function") ? getShardDariKecamatan(questData.origin.kec) : "S1";
         const mid = "MS-" + Date.now();
-        const cleanDesa = questData.origin.desa.replace(/[.#$\[\]]/g, "").trim();
 
+        // 4. CEK KONEKSI DATABASE (Terminal Router)
         const db1 = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
         const db4 = typeof getTerminal === "function" ? getTerminal('FB4_BOARD') : null;
-        if(!db1 || !db4) throw new Error("Terminal DB Router Offline.");
 
+        if (!db1 || !db4) {
+            throw new Error("Terminal DB Router (FB1/FB4) tidak terdeteksi.");
+        }
+
+        // 5. PENYUSUNAN DATA LENGKAP (Tanpa ada field yang dikurangi)
         const boardData = {
             id_misi: mid,
             id_requester: questData.client.id,
-            client_name: questData.client.id.toString().includes("STRANGER") ? "Stranger" : "Member",
-            category: questData.category || "Umum",
+            client_name: (questData.client.id.toString().includes("STRANGER")) ? "Stranger" : "Member",
+            category: questData.category || "General",
             reward: questData.reward || 0,
-            difficulty_rate: 1.0,
+            difficulty_rate: 1.0, 
             zona: questData.origin.kec || "KNG",
             shard_id: shard,
             rank: "BIASA",
             fish_tier: (typeof getFishTier === "function") ? getFishTier(questData.reward) : 1,
             rpg_reward: questData.rpgStats || {},
-            origin_name: questData.origin.kec,
-            origin_desa: cleanDesa,
+            
+            origin_name: questData.origin.kec || "Unknown",
+            origin_desa: cleanDesa, 
             origin_details: questData.origin.details || "",
-            origin_coords: questData.origin.lat !== 0 ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
+            origin_coords: (questData.origin.lat && questData.origin.lat !== 0) ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
+            
             dest_name: questData.destination?.kec || "",
             dest_desa: questData.destination?.desa || "",
             dest_details: questData.destination?.details || "",
             dest_coords: (questData.destination?.lat && questData.destination?.lat !== 0) ? `${questData.destination.lat},${questData.destination.lng}` : "NEGO",
+
             specs: questData.specs || [],
             distance_est: questData.distanceEst || 0,
             status: "open",
             created_at: Date.now()
         };
 
-        // Kirim dan tunggu sampai selesai
+        // 6. TRANSMISI KE FIREBASE (Wajib menggunakan AWAIT)
+        // Kita menunggu sampai Firebase memberi konfirmasi "Sukses" sebelum pindah halaman
         await Promise.all([
-            db1.ref(`misi_index/${mid}`).set({ id_misi: mid, id_shard: shard, zona: questData.origin.kec, status: "open", id_requester: questData.client.id }),
+            // Indexing Global
+            db1.ref(`misi_index/${mid}`).set({ 
+                id_misi: mid, 
+                id_shard: shard, 
+                zona: questData.origin.kec, 
+                status: "open", 
+                id_requester: questData.client.id 
+            }),
+            // Board Sharding
             db4.ref(`mission-${shard}/${cleanDesa}/${mid}`).set(boardData)
         ]);
 
-        // Simpan state untuk Lobby
+        // 7. PENGUNCIAN IDENTITAS SEBELUM PINDAH HALAMAN
+        // Simpan ke semua lini agar Lobby tidak menganggap ID kadaluarsa
+        const finalID = questData.client.id;
+        localStorage.setItem('current_customer_id', finalID);
+        sessionStorage.setItem('logged_user', finalID);
+        sessionStorage.setItem('user_id', finalID); // Cadangan kunci tambahan
+
+        // Simpan State Misi Aktif
         sessionStorage.setItem('active_mission_id', mid);
         sessionStorage.setItem('active_mission_shard', shard);
         sessionStorage.setItem('active_mission_desa', cleanDesa);
 
-        showToast("SINYAL TERSEBAR!");
-        setTimeout(() => { window.location.href = "lobby_requester.html"; }, 1000);
+        // 8. NAVIGASI DENGAN JEDA (Agar penulisan Storage selesai)
+        showToast("TRANSMISI SUKSES!");
+        
+        setTimeout(() => {
+            if (typeof showLoader === "function") {
+                showLoader(1000, () => {
+                    window.location.href = "lobby_requester.html";
+                });
+            } else {
+                window.location.href = "lobby_requester.html";
+            }
+        }, 800); // Jeda aman untuk sinkronisasi browser storage
 
     } catch (e) {
-        console.error(e);
-        showCyberAlert("Gagal Transmisi: " + e.message, "error");
-        if(btn) { btn.disabled = false; btn.innerText = "BROADCAST 📡"; }
+        console.error("CRITICAL_SUBMIT_ERROR:", e);
+        if (typeof showCyberAlert === "function") {
+            showCyberAlert("GAGAL TRANSMISI: " + e.message, "error");
+        } else {
+            alert("Gagal Transmisi: " + e.message);
+        }
+        
+        // Kembalikan tombol agar bisa dicoba lagi
+        if (btn) {
+            btn.disabled = false; 
+            btn.innerText = "RETRY BROADCAST 📡";
+        }
     }
 }
+
 
  
 
