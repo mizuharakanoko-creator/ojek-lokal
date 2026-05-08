@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Sovereign - Waiting Room</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    
+    <style>
+        :root {
+            --cyan: #00ffff;
+            --red: #ff0055;
+            --bg: #050505;
+            --terminal-bg: rgba(0, 20, 20, 0.8);
+            --glass: rgba(255, 255, 255, 0.03);
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
+        }
+
+        body {
+            background: var(--bg);
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* Efek Spawn Zoom Out identik dengan Gateway */
+            animation: spawnZoom 1.2s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+        }
+
+        @keyframes spawnZoom {
+            0% { transform: scale(0.3); opacity: 0; filter: blur(20px); }
+            100% { transform: scale(1); opacity: 1; filter: blur(0); }
+        }
+
+        /* --- BACKGROUND DECORATION --- */
+        .grid-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+        }
+
+        /* --- MAIN CARD --- */
+        .main-card {
+            background: #0a0a0a;
+            border: 1px solid #222;
+            width: 95%;
+            max-width: 450px;
+            padding: 30px;
+            border-radius: 4px;
+            box-shadow: 0 0 50px rgba(0,0,0,1);
+            text-align: center;
+        }
+
+        /* --- TERMINAL BOX --- */
+        .terminal-box {
+            background: var(--terminal-bg);
+            border-left: 3px solid var(--red); /* Warna merah karena sedang tertahan/menunggu */
+            padding: 15px;
+            margin: 25px 0;
+            min-height: 60px;
+            position: relative;
+            text-align: left;
+        }
+
+        .terminal-box::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 2px);
+            pointer-events: none;
+        }
+
+        #typing-text {
+            color: var(--red);
+            font-size: 12px;
+            line-height: 1.5;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            letter-spacing: 5px;
+            margin: 0;
+            font-size: 20px;
+            color: var(--red);
+            text-shadow: 0 0 10px var(--red);
+        }
+
+        /* --- CUSTOM LOADER --- */
+        .loader-container {
+            margin-bottom: 20px;
+        }
+
+        .loader {
+            width: 40px; height: 40px;
+            border: 2px solid #111;
+            border-top: 2px solid var(--red);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* --- BUTTONS --- */
+        .btn-action {
+            display: block; width: 100%; padding: 12px;
+            background: transparent; border: 1px solid #333;
+            color: #666; cursor: pointer;
+            text-align: center; font-size: 11px; 
+            letter-spacing: 2px; transition: 0.3s;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .btn-action:hover { border-color: var(--red); color: white; background: rgba(255, 0, 85, 0.05); }
+
+        /* --- CUSTOM ALERT --- */
+        #system-alert {
+            position: fixed;
+            top: -100px; left: 50%;
+            transform: translateX(-50%);
+            background: #111;
+            border: 1px solid var(--cyan);
+            padding: 15px 40px;
+            z-index: 9999;
+            transition: 0.5s;
+            color: var(--cyan);
+            font-weight: bold;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+            text-align: center;
+        }
+    </style>
+</head>
+<body oncontextmenu="return false">
+
+    <div class="grid-bg"></div>
+    <div id="system-alert">VERIFIKASI_BERHASIL</div>
+
+    <div class="main-card">
+        <div class="loader-container">
+            <div class="loader"></div>
+        </div>
+
+        <h1>PENDING_VERIFICATION</h1>
+        <p style="font-size: 9px; color: #555; letter-spacing: 2px; margin-top: 5px;">SOVEREIGN_ID: AUTHENTICATING...</p>
+
+        <div class="terminal-box">
+            <div id="typing-text"></div>
+        </div>
+
+        <button class="btn-action" onclick="abortAccess()">BATALKAN & KELUAR</button>
+    </div>
+
+<script>
+    const typingDisplay = document.getElementById('typing-text');
+    const waitMsg = "> MENGHUBUNGKAN KE MASTER_SHARD... \n> STATUS: MENUNGGU OTORISASI ADMIN. \n> HARAP TETAP DI HALAMAN INI.";
+    
+    let charIndex = 0;
+    function typeEffect(text, element, speed = 30) {
+        element.innerHTML = "";
+        charIndex = 0;
+        function typing() {
+            if (charIndex < text.length) {
+                element.innerHTML += text.charAt(charIndex) === "\n" ? "<br>" : text.charAt(charIndex);
+                charIndex++;
+                setTimeout(typing, speed);
+            }
+        }
+        typing();
+    }
+
+    // Firebase Logic
+    const user = Clearchance.enforceIdentity();
+    const masterDB = getTerminal('FB1_MASTER');
+
+    window.onload = () => {
+        typeEffect(waitMsg, typingDisplay);
+
+        // Real-time listener
+        masterDB.ref(`users/${user.uid}/status`).on('value', snap => {
+            const status = snap.val();
+            if (status === 'active') {
+                showSuccessAlert("AKSES_DIBERIKAN! MEMASUKI LOBBY...");
+                
+                user.status = 'active';
+                sessionStorage.setItem('pickme_user', JSON.stringify(user));
+                
+                setTimeout(() => {
+                    window.location.href = "lobby_adventurer.html";
+                }, 2000);
+            }
+        });
+    };
+
+    function showSuccessAlert(msg) {
+        const alertBox = document.getElementById('system-alert');
+        alertBox.innerText = msg;
+        alertBox.style.top = '20px';
+    }
+
+    function abortAccess() {
+        Clearchance.nuclearWipe();
+        window.location.href = 'index.html';
+    }
+</script>
+
+</body>
+</html>
