@@ -1324,72 +1324,70 @@ function handleLogin() {
         btn.innerText = "TRANSMITTING..."; 
         btn.disabled = true;
     }
-    
-    if (typeof playSfx === "function") playSfx(2000, 'sine', 1, 0.5);
 
     try {
-        // 1. TENTUKAN ID AWAL (BACKUP)
-        // Coba ambil dari localStorage dulu, jika tidak ada pakai Stranger
-        let finalID = localStorage.getItem('current_customer_id') || "";
-        if (!finalID) {
-            finalID = "STRANGER-" + Date.now();
-        }
-
-        // 2. LOGIKA REPLACER JIKA LOGIN AKTIF
+        // --- 1. TRANSPARANSI: IDENTIFIKASI MODE (STRANGER ATAU MEMBER) ---
         const gate = document.getElementById('authGateArea');
-        if (gate && gate.style.display === 'block') {
+        const isLoginMode = (gate && gate.style.display === 'block');
+        
+        // Default ID jika tidak login (Stranger)
+        let finalID = "STRANGER-" + Date.now();
+        let clientType = "Stranger";
+
+        if (isLoginMode) {
+            // Ambil input dari field login di UI
             const nick = document.getElementById('loginNick').value.trim();
             const pass = document.getElementById('loginPass').value.trim();
 
             if (!nick || !pass) throw new Error("Nickname & Password wajib diisi!");
 
+            // Ambil koneksi ke FB1 (Master Database)
             const db1 = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
-            if (!db1) throw new Error("Database Master Offline.");
+            if (!db1) throw new Error("Koneksi FB1 Master tidak ditemukan.");
 
-            // Tunggu data dari FB1
+            // PROSES CARI: Mencari berdasarkan nickname
             const snapshot = await db1.ref('requester_index').orderByChild('nickname').equalTo(nick).once('value');
             
-            if (!snapshot.exists()) throw new Error("Akun tidak ditemukan.");
+            if (!snapshot.exists()) throw new Error("Akun tidak ditemukan di database.");
             
             let userData = null;
             snapshot.forEach(child => { 
-                const val = child.val();
-                if (val.password === pass) userData = val; 
+                if (child.val().password === pass) userData = child.val(); 
             });
             
             if (!userData) throw new Error("Password salah.");
 
-            // Ganti ID Stranger dengan ID Member asli
-            finalID = userData.id_requester || userData.uid || nick;
+            // AMBIL id_req (Sesuai nama field di FB1 Anda)
+            if (!userData.id_req) {
+                console.warn("Peringatan: field id_req tidak ditemukan, menggunakan UID.");
+                finalID = userData.uid || userData.id_requester || nick;
+            } else {
+                finalID = userData.id_req;
+            }
             
-            // Simpan permanen agar tidak hilang
-            localStorage.setItem('current_customer_id', finalID);
-            localStorage.setItem('saved_citizen_nick', nick);
+            clientType = "Member";
         }
 
-        // Kunci ID ke objek utama
-        questData.client.id = finalID;
+        // --- 2. MONITORING DATA (TRANSPARANSI SEBELUM KIRIM) ---
+        console.log("DATA SIAP KIRIM:", {
+            id_pengirim: finalID,
+            tipe: clientType,
+            desa: questData.origin?.desa
+        });
 
-        // 3. VALIDASI DATA LOKASI
-        if (!questData.origin || !questData.origin.desa) {
-            throw new Error("Data lokasi asal belum lengkap.");
-        }
-
-        const cleanDesa = questData.origin.desa.replace(/[.#$\[\]]/g, "").trim();
+        // --- 3. PENYUSUNAN BOARD DATA ---
+        const cleanDesa = (questData.origin?.desa || "TanpaDesa").replace(/[.#$\[\]]/g, "").trim();
         const shard = (typeof getShardDariKecamatan === "function") ? getShardDariKecamatan(questData.origin.kec) : "S1";
         const mid = "MS-" + Date.now();
 
         const db4 = typeof getTerminal === "function" ? getTerminal('FB4_BOARD') : null;
         const db1_master = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
 
-        // 4. PENYUSUNAN DATA (DENGAN PROTEKSI TOSTRING)
-        const isStranger = (finalID && finalID.toString().includes("STRANGER"));
-
         const boardData = {
             id_misi: mid,
-            id_requester: finalID,
-            client_name: isStranger ? "Stranger" : "Member",
-            category: questData.category || "General",
+            id_requester: finalID, // Menggunakan id_req yang diambil tadi
+            client_name: clientType,
+            category: questData.category || "Umum",
             reward: questData.reward || 0,
             difficulty_rate: 1.0, 
             zona: questData.origin.kec || "KNG",
@@ -1411,7 +1409,7 @@ function handleLogin() {
             created_at: Date.now()
         };
 
-        // 5. TRANSMISI
+        // --- 4. EKSEKUSI TRANSMISI ---
         await Promise.all([
             db1_master.ref(`misi_index/${mid}`).set({ 
                 id_misi: mid, id_shard: shard, zona: questData.origin.kec, status: "open", id_requester: finalID 
@@ -1419,7 +1417,9 @@ function handleLogin() {
             db4.ref(`mission-${shard}/${cleanDesa}/${mid}`).set(boardData)
         ]);
 
-        // 6. SYNC STORAGE UNTUK LOBBY
+        // --- 5. PENGUNCIAN IDENTITAS (Penting untuk Lobby) ---
+        // Simpan ke semua kemungkinan key agar Lobby tidak menganggap kadaluarsa
+        localStorage.setItem('current_customer_id', finalID);
         sessionStorage.setItem('logged_user', finalID);
         sessionStorage.setItem('user_id', finalID);
         sessionStorage.setItem('active_mission_id', mid);
@@ -1428,19 +1428,18 @@ function handleLogin() {
 
         showToast("SINYAL TERSEBAR!");
         
+        // Beri jeda agar storage selesai ditulis
         setTimeout(() => {
             window.location.href = "lobby_requester.html";
         }, 1200);
 
     } catch (e) {
-        console.error("DEBUG:", e);
-        showCyberAlert("Gagal Transmisi: " + e.message, "error");
-        if (btn) {
-            btn.disabled = false; 
-            btn.innerText = "BROADCAST 📡";
-        }
+        console.error("DEBUG_ERROR:", e);
+        showCyberAlert("Gagal: " + e.message, "error");
+        if (btn) { btn.innerText = "BROADCAST 📡"; btn.disabled = false; }
     }
 }
+
 
 
 
