@@ -1275,55 +1275,42 @@ function handleLogin() {
     
     const gate = document.getElementById('authGateArea');
     
-    // JIKA HARUS LOGIN (Auth Gate Terbuka)
     if(gate && gate.style.display === 'block') {
         const nick = document.getElementById('loginNick').value.trim();
         const pass = document.getElementById('loginPass').value.trim();
         if(!nick || !pass) return showCyberAlert("Nickname dan Password wajib diisi!");
         
-        // Gunakan async di dalam showLoader agar kita bisa menunggu (await) hasil Firebase
-        showLoader(2000, async () => {
+        // Mulai proses verifikasi
+        showLoader(1500, async () => {
             try {
                 const db1 = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
-                if(!db1) throw new Error("Terminal DB Router tidak ditemukan.");
+                if(!db1) throw new Error("Database Master tidak terdeteksi.");
                 
-                const reqRef = db1.ref('requester_index');
-                const snapshot = await reqRef.orderByChild('nickname').equalTo(nick).once('value');
+                const snapshot = await db1.ref('requester_index').orderByChild('nickname').equalTo(nick).once('value');
+                if(!snapshot.exists()) throw new Error("Akun tidak terdaftar.");
                 
-                if(!snapshot.exists()) throw new Error("Akun tidak ditemukan.");
+                let userData = null;
+                snapshot.forEach(child => { if(child.val().password === pass) userData = child.val(); });
                 
-                let validUser = null;
-                snapshot.forEach(child => { 
-                    if(child.val().password === pass) validUser = child.val(); 
-                });
-                
-                if(!validUser) throw new Error("Password salah.");
-                
-                // PENTING: Pastikan ID masuk ke questData SEBELUM memanggil submitMission
-                const finalUserID = validUser.id_requester || validUser.uid || validUser.nickname;
-                questData.client.id = finalUserID;
-                
-                // PENTING: Simpan ke localStorage agar identitas tidak "kadaluarsa" saat halaman pindah
-                localStorage.setItem('current_customer_id', finalUserID);
-                localStorage.setItem('saved_citizen_nick', nick);
-                
-                // Pastikan variabel global questData benar-benar terupdate
-                console.log("Login Sukses, ID disimpan:", questData.client.id);
+                if(!userData) throw new Error("Password salah.");
 
-                // Jalankan pengiriman misi
+                // KUNCI ID DI SINI (Dua lapis: Global & LocalStorage)
+                const currentID = userData.id_requester || userData.uid;
+                questData.client.id = currentID;
+                localStorage.setItem('current_customer_id', currentID);
+                localStorage.setItem('saved_citizen_nick', nick);
+
+                // Langsung panggil kirim misi
                 submitMission();
                 
             } catch(e) {
                 showCyberAlert(e.message, 'error');
-                console.error("Login Error:", e);
             }
         });
     } else {
-        // JIKA TIDAK BUTUH LOGIN (Mode Stranger/Biasa)
-        // Jika ID kosong, beri ID sementara agar tidak error
+        // Jika tidak butuh login, pastikan ID tidak kosong
         if(!questData.client.id) {
-            const savedID = localStorage.getItem('current_customer_id');
-            questData.client.id = savedID || "STRANGER-" + Date.now();
+            questData.client.id = localStorage.getItem('current_customer_id') || "STRANGER-" + Date.now();
         }
         submitMission();
     }
@@ -1334,49 +1321,44 @@ function handleLogin() {
     async function submitMission() {
     const btn = document.getElementById('btnBroadcast');
     if(btn) { btn.innerText = "TRANSMITTING..."; btn.disabled = true; }
-    
+
     try {
-        // CADANGAN: Jika questData.client.id kosong, coba ambil dari localStorage
-        if (!questData.client.id) {
+        // JIKA ID HILANG DI VARIABEL, AMBIL DARI STORAGE
+        if (!questData.client.id || questData.client.id === "") {
             questData.client.id = localStorage.getItem('current_customer_id');
         }
 
-        // VALIDASI AKHIR: Jika masih kosong juga, baru lempar error
+        // Jika setelah diambil dari storage masih kosong, baru error
         if (!questData.client.id) {
-            throw new Error("Identitas tidak ditemukan. Silakan login ulang.");
+            throw new Error("Identitas terputus. Silahkan ketik ulang nickname/login.");
         }
 
-        if (!questData.origin.desa) {
-            throw new Error("Data lokasi asal (Desa) belum terisi.");
-        }
+        if (!questData.origin.desa) throw new Error("Lokasi asal (Desa) belum ditentukan.");
 
         const shard = (typeof getShardDariKecamatan === "function") ? getShardDariKecamatan(questData.origin.kec) : "S1";
         const mid = "MS-" + Date.now();
-        
-        // PENGAMAN FIREBASE: Bersihkan nama desa dari karakter titik dll
         const cleanDesa = questData.origin.desa.replace(/[.#$\[\]]/g, "").trim();
 
         const db1 = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
         const db4 = typeof getTerminal === "function" ? getTerminal('FB4_BOARD') : null;
-
-        if(!db1 || !db4) throw new Error("Terminal DB Router tidak terdeteksi.");
+        if(!db1 || !db4) throw new Error("Terminal DB Router Offline.");
 
         const boardData = {
             id_misi: mid,
             id_requester: questData.client.id,
-            client_name: (questData.client.id.toString().includes("STRANGER")) ? "Stranger" : "Member",
+            client_name: questData.client.id.toString().includes("STRANGER") ? "Stranger" : "Member",
             category: questData.category || "Umum",
             reward: questData.reward || 0,
-            difficulty_rate: 1.0, 
+            difficulty_rate: 1.0,
             zona: questData.origin.kec || "KNG",
             shard_id: shard,
             rank: "BIASA",
             fish_tier: (typeof getFishTier === "function") ? getFishTier(questData.reward) : 1,
             rpg_reward: questData.rpgStats || {},
             origin_name: questData.origin.kec,
-            origin_desa: cleanDesa, 
+            origin_desa: cleanDesa,
             origin_details: questData.origin.details || "",
-            origin_coords: (questData.origin.lat && questData.origin.lat !== 0) ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
+            origin_coords: questData.origin.lat !== 0 ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
             dest_name: questData.destination?.kec || "",
             dest_desa: questData.destination?.desa || "",
             dest_details: questData.destination?.details || "",
@@ -1387,28 +1369,27 @@ function handleLogin() {
             created_at: Date.now()
         };
 
-        // Kirim data dan TUNGGU (await) sampai selesai
+        // Kirim dan tunggu sampai selesai
         await Promise.all([
-            db1.ref(`misi_index/${mid}`).set({ 
-                id_misi: mid, id_shard: shard, zona: questData.origin.kec, status: "open", id_requester: questData.client.id 
-            }),
+            db1.ref(`misi_index/${mid}`).set({ id_misi: mid, id_shard: shard, zona: questData.origin.kec, status: "open", id_requester: questData.client.id }),
             db4.ref(`mission-${shard}/${cleanDesa}/${mid}`).set(boardData)
         ]);
 
-        // Simpan state agar lobby bisa membaca misi ini
+        // Simpan state untuk Lobby
         sessionStorage.setItem('active_mission_id', mid);
         sessionStorage.setItem('active_mission_shard', shard);
         sessionStorage.setItem('active_mission_desa', cleanDesa);
 
-        showToast("TRANSMISI SUKSES!");
-        window.location.href = "lobby_requester.html";
+        showToast("SINYAL TERSEBAR!");
+        setTimeout(() => { window.location.href = "lobby_requester.html"; }, 1000);
 
     } catch (e) {
-        console.error("Critical Error:", e);
+        console.error(e);
         showCyberAlert("Gagal Transmisi: " + e.message, "error");
         if(btn) { btn.disabled = false; btn.innerText = "BROADCAST 📡"; }
     }
 }
+
  
 
     // ==========================================================================
