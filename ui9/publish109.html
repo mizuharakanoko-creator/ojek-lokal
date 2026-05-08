@@ -1328,45 +1328,51 @@ function handleLogin() {
     if (typeof playSfx === "function") playSfx(2000, 'sine', 1, 0.5);
 
     try {
-        // 1. SET ID DEFAULT (STRANGER) TERLEBIH DAHULU
-        // Agar jika tidak login, sistem tetap punya ID dan tidak error
-        let finalID = localStorage.getItem('current_customer_id') || "STRANGER-" + Date.now();
+        // 1. TENTUKAN ID AWAL (BACKUP)
+        // Coba ambil dari localStorage dulu, jika tidak ada pakai Stranger
+        let finalID = localStorage.getItem('current_customer_id') || "";
+        if (!finalID) {
+            finalID = "STRANGER-" + Date.now();
+        }
 
-        // 2. LOGIKA REPLACER (Jika kategori butuh nickname & Auth Gate terbuka)
+        // 2. LOGIKA REPLACER JIKA LOGIN AKTIF
         const gate = document.getElementById('authGateArea');
         if (gate && gate.style.display === 'block') {
             const nick = document.getElementById('loginNick').value.trim();
             const pass = document.getElementById('loginPass').value.trim();
 
-            if (!nick || !pass) throw new Error("Nickname & Password wajib diisi untuk kategori ini!");
+            if (!nick || !pass) throw new Error("Nickname & Password wajib diisi!");
 
-            // Ambil ID dari FB1 secara Synchronous (menunggu hasil)
             const db1 = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
             if (!db1) throw new Error("Database Master Offline.");
 
+            // Tunggu data dari FB1
             const snapshot = await db1.ref('requester_index').orderByChild('nickname').equalTo(nick).once('value');
             
-            if (!snapshot.exists()) throw new Error("Akun tidak terdaftar.");
+            if (!snapshot.exists()) throw new Error("Akun tidak ditemukan.");
             
             let userData = null;
-            snapshot.forEach(child => { if (child.val().password === pass) userData = child.val(); });
+            snapshot.forEach(child => { 
+                const val = child.val();
+                if (val.password === pass) userData = val; 
+            });
             
             if (!userData) throw new Error("Password salah.");
 
-            // REPLACER: Ganti ID Stranger dengan ID asli dari Database
-            finalID = userData.id_requester || userData.uid;
+            // Ganti ID Stranger dengan ID Member asli
+            finalID = userData.id_requester || userData.uid || nick;
             
-            // Simpan ke storage agar Lobby tahu ini Member, bukan Stranger lagi
+            // Simpan permanen agar tidak hilang
             localStorage.setItem('current_customer_id', finalID);
             localStorage.setItem('saved_citizen_nick', nick);
         }
 
-        // Kunci ID ke variabel utama
+        // Kunci ID ke objek utama
         questData.client.id = finalID;
 
-        // 3. VALIDASI LOKASI
+        // 3. VALIDASI DATA LOKASI
         if (!questData.origin || !questData.origin.desa) {
-            throw new Error("Lokasi asal belum ditentukan.");
+            throw new Error("Data lokasi asal belum lengkap.");
         }
 
         const cleanDesa = questData.origin.desa.replace(/[.#$\[\]]/g, "").trim();
@@ -1374,13 +1380,16 @@ function handleLogin() {
         const mid = "MS-" + Date.now();
 
         const db4 = typeof getTerminal === "function" ? getTerminal('FB4_BOARD') : null;
-        const db1_fix = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
+        const db1_master = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
+
+        // 4. PENYUSUNAN DATA (DENGAN PROTEKSI TOSTRING)
+        const isStranger = (finalID && finalID.toString().includes("STRANGER"));
 
         const boardData = {
             id_misi: mid,
             id_requester: finalID,
-            client_name: finalID.toString().includes("STRANGER") ? "Stranger" : "Member",
-            category: questData.category || "Umum",
+            client_name: isStranger ? "Stranger" : "Member",
+            category: questData.category || "General",
             reward: questData.reward || 0,
             difficulty_rate: 1.0, 
             zona: questData.origin.kec || "KNG",
@@ -1391,7 +1400,7 @@ function handleLogin() {
             origin_name: questData.origin.kec,
             origin_desa: cleanDesa, 
             origin_details: questData.origin.details || "",
-            origin_coords: questData.origin.lat !== 0 ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
+            origin_coords: (questData.origin.lat && questData.origin.lat !== 0) ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
             dest_name: questData.destination?.kec || "",
             dest_desa: questData.destination?.desa || "",
             dest_details: questData.destination?.details || "",
@@ -1402,15 +1411,15 @@ function handleLogin() {
             created_at: Date.now()
         };
 
-        // 4. TRANSMISI
+        // 5. TRANSMISI
         await Promise.all([
-            db1_fix.ref(`misi_index/${mid}`).set({ 
+            db1_master.ref(`misi_index/${mid}`).set({ 
                 id_misi: mid, id_shard: shard, zona: questData.origin.kec, status: "open", id_requester: finalID 
             }),
             db4.ref(`mission-${shard}/${cleanDesa}/${mid}`).set(boardData)
         ]);
 
-        // 5. TRIPLE LOCK (Supaya Lobby tidak 'Kadaluarsa')
+        // 6. SYNC STORAGE UNTUK LOBBY
         sessionStorage.setItem('logged_user', finalID);
         sessionStorage.setItem('user_id', finalID);
         sessionStorage.setItem('active_mission_id', mid);
@@ -1419,20 +1428,20 @@ function handleLogin() {
 
         showToast("SINYAL TERSEBAR!");
         
-        // Beri jeda sedikit lebih lama agar storage benar-benar terkunci
         setTimeout(() => {
             window.location.href = "lobby_requester.html";
-        }, 1500);
+        }, 1200);
 
     } catch (e) {
-        console.error(e);
-        showCyberAlert("Gagal: " + e.message, "error");
+        console.error("DEBUG:", e);
+        showCyberAlert("Gagal Transmisi: " + e.message, "error");
         if (btn) {
             btn.disabled = false; 
             btn.innerText = "BROADCAST 📡";
         }
     }
 }
+
 
 
 
