@@ -1325,45 +1325,62 @@ function handleLogin() {
         btn.disabled = true;
     }
     
-    // Menjalankan SFX jika tersedia
     if (typeof playSfx === "function") playSfx(2000, 'sine', 1, 0.5);
 
     try {
-        // 1. VALIDASI IDENTITAS (Mencegah Identitas Hilang/Kosong)
-        // Jika variabel global kosong, coba ambil dari cadangan localStorage
-        if (!questData.client.id || questData.client.id === "") {
-            questData.client.id = localStorage.getItem('current_customer_id');
+        // 1. SET ID DEFAULT (STRANGER) TERLEBIH DAHULU
+        // Agar jika tidak login, sistem tetap punya ID dan tidak error
+        let finalID = localStorage.getItem('current_customer_id') || "STRANGER-" + Date.now();
+
+        // 2. LOGIKA REPLACER (Jika kategori butuh nickname & Auth Gate terbuka)
+        const gate = document.getElementById('authGateArea');
+        if (gate && gate.style.display === 'block') {
+            const nick = document.getElementById('loginNick').value.trim();
+            const pass = document.getElementById('loginPass').value.trim();
+
+            if (!nick || !pass) throw new Error("Nickname & Password wajib diisi untuk kategori ini!");
+
+            // Ambil ID dari FB1 secara Synchronous (menunggu hasil)
+            const db1 = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
+            if (!db1) throw new Error("Database Master Offline.");
+
+            const snapshot = await db1.ref('requester_index').orderByChild('nickname').equalTo(nick).once('value');
+            
+            if (!snapshot.exists()) throw new Error("Akun tidak terdaftar.");
+            
+            let userData = null;
+            snapshot.forEach(child => { if (child.val().password === pass) userData = child.val(); });
+            
+            if (!userData) throw new Error("Password salah.");
+
+            // REPLACER: Ganti ID Stranger dengan ID asli dari Database
+            finalID = userData.id_requester || userData.uid;
+            
+            // Simpan ke storage agar Lobby tahu ini Member, bukan Stranger lagi
+            localStorage.setItem('current_customer_id', finalID);
+            localStorage.setItem('saved_citizen_nick', nick);
         }
 
-        if (!questData.client.id) {
-            throw new Error("Identitas tidak ditemukan atau kadaluarsa. Silakan login ulang.");
-        }
+        // Kunci ID ke variabel utama
+        questData.client.id = finalID;
 
-        // 2. VALIDASI DATA LOKASI
+        // 3. VALIDASI LOKASI
         if (!questData.origin || !questData.origin.desa) {
-            throw new Error("Data lokasi asal (Desa) belum terisi.");
+            throw new Error("Lokasi asal belum ditentukan.");
         }
 
-        // 3. SANITASI & PERSIAPAN PATH FIREBASE
-        // Menghapus karakter terlarang (. # $ [ ]) yang bisa membuat Firebase Error/Reset
         const cleanDesa = questData.origin.desa.replace(/[.#$\[\]]/g, "").trim();
         const shard = (typeof getShardDariKecamatan === "function") ? getShardDariKecamatan(questData.origin.kec) : "S1";
         const mid = "MS-" + Date.now();
 
-        // 4. CEK KONEKSI DATABASE (Terminal Router)
-        const db1 = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
         const db4 = typeof getTerminal === "function" ? getTerminal('FB4_BOARD') : null;
+        const db1_fix = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
 
-        if (!db1 || !db4) {
-            throw new Error("Terminal DB Router (FB1/FB4) tidak terdeteksi.");
-        }
-
-        // 5. PENYUSUNAN DATA LENGKAP (Tanpa ada field yang dikurangi)
         const boardData = {
             id_misi: mid,
-            id_requester: questData.client.id,
-            client_name: (questData.client.id.toString().includes("STRANGER")) ? "Stranger" : "Member",
-            category: questData.category || "General",
+            id_requester: finalID,
+            client_name: finalID.toString().includes("STRANGER") ? "Stranger" : "Member",
+            category: questData.category || "Umum",
             reward: questData.reward || 0,
             difficulty_rate: 1.0, 
             zona: questData.origin.kec || "KNG",
@@ -1371,78 +1388,52 @@ function handleLogin() {
             rank: "BIASA",
             fish_tier: (typeof getFishTier === "function") ? getFishTier(questData.reward) : 1,
             rpg_reward: questData.rpgStats || {},
-            
-            origin_name: questData.origin.kec || "Unknown",
+            origin_name: questData.origin.kec,
             origin_desa: cleanDesa, 
             origin_details: questData.origin.details || "",
-            origin_coords: (questData.origin.lat && questData.origin.lat !== 0) ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
-            
+            origin_coords: questData.origin.lat !== 0 ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
             dest_name: questData.destination?.kec || "",
             dest_desa: questData.destination?.desa || "",
             dest_details: questData.destination?.details || "",
             dest_coords: (questData.destination?.lat && questData.destination?.lat !== 0) ? `${questData.destination.lat},${questData.destination.lng}` : "NEGO",
-
             specs: questData.specs || [],
             distance_est: questData.distanceEst || 0,
             status: "open",
             created_at: Date.now()
         };
 
-        // 6. TRANSMISI KE FIREBASE (Wajib menggunakan AWAIT)
-        // Kita menunggu sampai Firebase memberi konfirmasi "Sukses" sebelum pindah halaman
+        // 4. TRANSMISI
         await Promise.all([
-            // Indexing Global
-            db1.ref(`misi_index/${mid}`).set({ 
-                id_misi: mid, 
-                id_shard: shard, 
-                zona: questData.origin.kec, 
-                status: "open", 
-                id_requester: questData.client.id 
+            db1_fix.ref(`misi_index/${mid}`).set({ 
+                id_misi: mid, id_shard: shard, zona: questData.origin.kec, status: "open", id_requester: finalID 
             }),
-            // Board Sharding
             db4.ref(`mission-${shard}/${cleanDesa}/${mid}`).set(boardData)
         ]);
 
-        // 7. PENGUNCIAN IDENTITAS SEBELUM PINDAH HALAMAN
-        // Simpan ke semua lini agar Lobby tidak menganggap ID kadaluarsa
-        const finalID = questData.client.id;
-        localStorage.setItem('current_customer_id', finalID);
+        // 5. TRIPLE LOCK (Supaya Lobby tidak 'Kadaluarsa')
         sessionStorage.setItem('logged_user', finalID);
-        sessionStorage.setItem('user_id', finalID); // Cadangan kunci tambahan
-
-        // Simpan State Misi Aktif
+        sessionStorage.setItem('user_id', finalID);
         sessionStorage.setItem('active_mission_id', mid);
         sessionStorage.setItem('active_mission_shard', shard);
         sessionStorage.setItem('active_mission_desa', cleanDesa);
 
-        // 8. NAVIGASI DENGAN JEDA (Agar penulisan Storage selesai)
-        showToast("TRANSMISI SUKSES!");
+        showToast("SINYAL TERSEBAR!");
         
+        // Beri jeda sedikit lebih lama agar storage benar-benar terkunci
         setTimeout(() => {
-            if (typeof showLoader === "function") {
-                showLoader(1000, () => {
-                    window.location.href = "lobby_requester.html";
-                });
-            } else {
-                window.location.href = "lobby_requester.html";
-            }
-        }, 800); // Jeda aman untuk sinkronisasi browser storage
+            window.location.href = "lobby_requester.html";
+        }, 1500);
 
     } catch (e) {
-        console.error("CRITICAL_SUBMIT_ERROR:", e);
-        if (typeof showCyberAlert === "function") {
-            showCyberAlert("GAGAL TRANSMISI: " + e.message, "error");
-        } else {
-            alert("Gagal Transmisi: " + e.message);
-        }
-        
-        // Kembalikan tombol agar bisa dicoba lagi
+        console.error(e);
+        showCyberAlert("Gagal: " + e.message, "error");
         if (btn) {
             btn.disabled = false; 
-            btn.innerText = "RETRY BROADCAST 📡";
+            btn.innerText = "BROADCAST 📡";
         }
     }
 }
+
 
 
  
