@@ -792,25 +792,27 @@
 
     // Tambahkan ini di bagian script
 function handleLogin() {
-    const nickInput = document.getElementById('nickname_input'); // Sesuaikan dengan ID di HTML Anda
-    const passInput = document.getElementById('password_input'); 
+    const nickInput = document.getElementById('nickname_input'); // Ganti dengan ID input nickname Anda
+    const passInput = document.getElementById('password_input'); // Ganti dengan ID input password Anda
 
     if (!nickInput.value) {
         return showCyberAlert("Nickname wajib diisi!", "error");
     }
 
-    // Simulasi verifikasi atau hubungkan dengan database
-    // Di sini kita anggap verifikasi berhasil
-    
-    // BAGIAN KRITIS: Menyimpan nickname ke dalam objek questData
+    // DISINI PROSES PENYAMBUNGAN DATA:
     questData.client.id = nickInput.value.trim().toUpperCase();
     
+    // Simpan ke session agar tidak hilang saat refresh
+    sessionStorage.setItem('logged_user', questData.client.id);
+
     showToast("Akses Diterima: " + questData.client.id);
     
-    // Pindah ke tahap pengisian data misi
-    document.getElementById('step_login').classList.add('hidden');
-    document.getElementById('step_mission_data').classList.remove('hidden');
+    // Pindah ke step berikutnya (tutup login, buka form misi)
+    // Sesuaikan ID 'section_login' dan 'section_mission' dengan HTML Anda
+    if(document.getElementById('section_login')) document.getElementById('section_login').classList.add('hidden');
+    if(document.getElementById('section_mission')) document.getElementById('section_mission').classList.remove('hidden');
 }
+
 
 
     // ==========================================================================
@@ -1265,61 +1267,84 @@ function handleLogin() {
     }
 
     async function processFinalStep() {
-        const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
-        if(bountyAmt < 8000 && globalIntent !== 'Beli' && globalIntent !== 'Bantu') return showCyberAlert("Bounty otomatis minimal Rp 8.000!");
-        
-        const gate = document.getElementById('authGateArea');
-        if(gate.style.display === 'block') {
-            const nick = document.getElementById('loginNick').value.trim();
-            const pass = document.getElementById('loginPass').value.trim();
-            if(!nick || !pass) return showCyberAlert("Nickname dan Password wajib diisi!");
-            
-            showLoader(2000, async () => {
-                try {
-                    const db1 = getTerminal ? getTerminal('FB1_MASTER') : null;
-                    if(!db1) throw new Error("Database tidak ditemukan.");
-                    
-                    const reqRef = db1.ref('requester_index');
-                    const snapshot = await reqRef.orderByChild('nickname').equalTo(nick).once('value');
-                    
-                    if(!snapshot.exists()) throw new Error("Akun tidak ditemukan.");
-                    let validUser = null;
-                    snapshot.forEach(child => { if(child.val().password === pass) validUser = child.val(); });
-                    
-                    if(!validUser) throw new Error("Password salah.");
-                    
-                    questData.client.id = validUser.id_requester || validUser.uid;
-                    localStorage.setItem('current_customer_id', questData.client.id);
-                    localStorage.setItem('saved_citizen_nick', nick);
-                    submitMission();
-                    
-                } catch(e) {
-                    showCyberAlert(e.message, 'error');
-                }
-            });
-        } else {
-            submitMission();
-        }
+    const bountyAmt = parseInt(document.getElementById('finalPriceInput').value) || 0;
+    if(bountyAmt < 8000 && globalIntent !== 'Beli' && globalIntent !== 'Bantu') {
+        return showCyberAlert("Bounty otomatis minimal Rp 8.000!");
     }
+    
+    const gate = document.getElementById('authGateArea');
+    
+    // Kondisi JIKA harus Login (Auth Gate terbuka)
+    if(gate && gate.style.display === 'block') {
+        const nick = document.getElementById('loginNick').value.trim();
+        const pass = document.getElementById('loginPass').value.trim();
+        
+        if(!nick || !pass) return showCyberAlert("Nickname dan Password wajib diisi!");
+        
+        showLoader(2000, async () => {
+            try {
+                const db1 = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
+                if(!db1) throw new Error("Database Master tidak ditemukan.");
+                
+                const reqRef = db1.ref('requester_index');
+                const snapshot = await reqRef.orderByChild('nickname').equalTo(nick).once('value');
+                
+                if(!snapshot.exists()) throw new Error("Akun tidak ditemukan.");
+                
+                let validUser = null;
+                snapshot.forEach(child => { 
+                    if(child.val().password === pass) validUser = child.val(); 
+                });
+                
+                if(!validUser) throw new Error("Password salah.");
+                
+                // SIMPAN ID KE QUESTDATA
+                questData.client.id = validUser.id_requester || validUser.uid || nick;
+                
+                // Simpan ke storage agar aman
+                localStorage.setItem('current_customer_id', questData.client.id);
+                localStorage.setItem('saved_citizen_nick', nick);
+                
+                // LANJUT KIRIM
+                submitMission();
+                
+            } catch(e) {
+                showCyberAlert(e.message, 'error');
+            }
+        });
+    } else {
+        // Kondisi JIKA tidak butuh login (Mode Stranger/Biasa)
+        if(!questData.client.id) {
+            questData.client.id = "STRANGER-" + Date.now();
+        }
+        submitMission();
+    }
+}
+
 
     async function submitMission() {
     const btn = document.getElementById('btnBroadcast');
-    btn.innerText = "TRANSMITTING..."; 
-    btn.disabled = true;
-    playSfx(2000, 'sine', 1, 0.5);
+    if (btn) {
+        btn.innerText = "TRANSMITTING..."; 
+        btn.disabled = true;
+    }
+    
+    // Tetap menjalankan SFX asli
+    if (typeof playSfx === "function") playSfx(2000, 'sine', 1, 0.5);
 
     try {
-        // 1. VALIDASI AWAL: Pastikan questData dan lokasi sudah siap
+        // 1. VALIDASI AWAL: Memastikan objek data tidak corrupt
         if (!questData || !questData.origin || !questData.origin.desa) {
             throw new Error("Data lokasi (Desa Asal) belum lengkap.");
         }
 
+        // Validasi ID Pengirim (Penyebab utama error sebelumnya)
         if (!questData.client || !questData.client.id) {
-            throw new Error("ID Pengirim tidak ditemukan. Silahkan login ulang.");
+            throw new Error("ID Pengirim tidak ditemukan. Silakan login ulang.");
         }
 
-        // 2. SANITASI DATA (Firebase tidak suka karakter tertentu di Path)
-        // Menghapus karakter . # $ [ ] agar tidak error saat jadi Path
+        // 2. SANITASI DATA (Penting untuk Path Firebase)
+        // Menghapus karakter . # $ [ ] agar tidak error 'Invalid Path'
         const cleanDesa = questData.origin.desa.replace(/[.#$\[\]]/g, "").trim();
         const shard = (typeof getShardDariKecamatan === "function") ? getShardDariKecamatan(questData.origin.kec) : "S1";
         const mid = "MS-" + Date.now();
@@ -1332,11 +1357,11 @@ function handleLogin() {
             throw new Error("Terminal DB Router (FB1/FB4) tidak terdeteksi.");
         }
 
-        // 4. PENYUSUNAN DATA (Gunakan default value agar tidak undefined)
+        // 4. PENYUSUNAN DATA (Sesuai struktur asli dengan proteksi default value)
         const boardData = {
             id_misi: mid,
             id_requester: questData.client.id,
-            // Perbaikan logic includes agar tidak crash jika id null
+            // Null-safe check untuk pengecekan Member/Stranger
             client_name: (questData.client.id && questData.client.id.toString().includes("STRANGER")) ? "Stranger" : "Member",
             category: questData.category || "General",
             reward: questData.reward || 0,
@@ -1344,11 +1369,11 @@ function handleLogin() {
             zona: questData.origin.kec || "KNG",
             shard_id: shard,
             rank: "BIASA",
-            fish_tier: typeof getFishTier === "function" ? getFishTier(questData.reward) : 1,
+            fish_tier: (typeof getFishTier === "function") ? getFishTier(questData.reward) : 1,
             rpg_reward: questData.rpgStats || {},
             
             origin_name: questData.origin.kec || "Unknown",
-            origin_desa: cleanDesa, 
+            origin_desa: cleanDesa, // Menggunakan nama desa yang sudah dibersihkan
             origin_details: questData.origin.details || "",
             origin_coords: (questData.origin.lat && questData.origin.lat !== 0) ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
             
@@ -1363,9 +1388,9 @@ function handleLogin() {
             created_at: Date.now()
         };
 
-        // 5. PROSES TRANSMISI KE FIREBASE
-        // Menggunakan path yang sudah dibersihkan (cleanDesa)
+        // 5. PROSES TRANSMISI KE FIREBASE (Double Injection)
         await Promise.all([
+            // Indexing Global
             db1.ref(`misi_index/${mid}`).set({ 
                 id_misi: mid, 
                 id_shard: shard, 
@@ -1373,27 +1398,44 @@ function handleLogin() {
                 status: "open", 
                 id_requester: questData.client.id 
             }),
+            // Board Sharding (Menggunakan cleanDesa agar tidak Invalid Path)
             db4.ref(`mission-${shard}/${cleanDesa}/${mid}`).set(boardData)
         ]);
 
-        // 6. SIMPAN STATE KE SESSION
+        // 6. SIMPAN STATE KE SESSION (Agar data tersinkron di Lobby)
         sessionStorage.setItem('active_mission_id', mid);
         sessionStorage.setItem('active_mission_shard', shard);
         sessionStorage.setItem('active_mission_desa', cleanDesa);
 
-        showLoader(1500, () => {
+        // 7. FEEDBACK BERHASIL
+        if (typeof showLoader === "function") {
+            showLoader(1500, () => {
+                showToast("SINYAL TERSEBAR!");
+                window.location.href = "lobby_requester.html";
+            });
+        } else {
+            // Fallback jika showLoader gagal dimuat
             showToast("SINYAL TERSEBAR!");
             window.location.href = "lobby_requester.html";
-        });
+        }
 
     } catch (e) {
         console.error("DEBUG_ERROR_MISSION:", e); 
-        // Pesan error lebih spesifik agar user tahu apa yang salah
-        showCyberAlert("Gagal Transmisi: " + e.message, "error");
-        btn.disabled = false; 
-        btn.innerText = "BROADCAST 📡";
+        // Notifikasi error CyberAlert tetap dipertahankan
+        if (typeof showCyberAlert === "function") {
+            showCyberAlert("Gagal Transmisi: " + e.message, "error");
+        } else {
+            alert("Gagal Transmisi: " + e.message);
+        }
+        
+        // Reset tombol agar bisa dicoba kembali
+        if (btn) {
+            btn.disabled = false; 
+            btn.innerText = "BROADCAST 📡";
+        }
     }
 }
+
 
 
     // ==========================================================================
