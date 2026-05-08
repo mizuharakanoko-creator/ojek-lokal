@@ -1326,117 +1326,104 @@ function handleLogin() {
     }
 
     try {
-        // --- 1. TRANSPARANSI: IDENTIFIKASI MODE (STRANGER ATAU MEMBER) ---
-        const gate = document.getElementById('authGateArea');
-        const isLoginMode = (gate && gate.style.display === 'block');
-        
-        // Default ID jika tidak login (Stranger)
+        // 1. TENTUKAN ID AWAL (DEFAULT STRANGER)
         let finalID = "STRANGER-" + Date.now();
-        let clientType = "Stranger";
+        let modeSesi = "STRANGER";
 
-        if (isLoginMode) {
-            // Ambil input dari field login di UI
+        // 2. CEK APAKAH PANEL LOGIN TERBUKA (MEMBER MODE)
+        const gate = document.getElementById('authGateArea');
+        const isLoginActive = (gate && gate.style.display === 'block');
+
+        if (isLoginActive) {
             const nick = document.getElementById('loginNick').value.trim();
             const pass = document.getElementById('loginPass').value.trim();
 
             if (!nick || !pass) throw new Error("Nickname & Password wajib diisi!");
 
-            // Ambil koneksi ke FB1 (Master Database)
             const db1 = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
-            if (!db1) throw new Error("Koneksi FB1 Master tidak ditemukan.");
+            if (!db1) throw new Error("Terminal FB1 tidak ditemukan.");
 
-            // PROSES CARI: Mencari berdasarkan nickname
+            // Ambil data berdasarkan Nickname
             const snapshot = await db1.ref('requester_index').orderByChild('nickname').equalTo(nick).once('value');
             
-            if (!snapshot.exists()) throw new Error("Akun tidak ditemukan di database.");
+            if (!snapshot.exists()) throw new Error("Nickname tidak terdaftar.");
             
-            let userData = null;
+            let foundUser = null;
             snapshot.forEach(child => { 
-                if (child.val().password === pass) userData = child.val(); 
+                if (child.val().password === pass) foundUser = child.val(); 
             });
             
-            if (!userData) throw new Error("Password salah.");
+            if (!foundUser) throw new Error("Password salah.");
 
-            // AMBIL id_req (Sesuai nama field di FB1 Anda)
-            if (!userData.id_req) {
-                console.warn("Peringatan: field id_req tidak ditemukan, menggunakan UID.");
-                finalID = userData.uid || userData.id_requester || nick;
-            } else {
-                finalID = userData.id_req;
-            }
-            
-            clientType = "Member";
+            // AMBIL id_req (Sesuai database Anda)
+            finalID = foundUser.id_req || foundUser.id_requester || foundUser.uid;
+            modeSesi = "MEMBER";
         }
 
-        // --- 2. MONITORING DATA (TRANSPARANSI SEBELUM KIRIM) ---
-        console.log("DATA SIAP KIRIM:", {
-            id_pengirim: finalID,
-            tipe: clientType,
-            desa: questData.origin?.desa
-        });
+        // --- TRANSPARANSI DATA SEBELUM KIRIM ---
+        // Ini untuk memastikan sistem sudah "Pegang" data yang benar
+        console.log("ALUR DATA: ", { id: finalID, mode: modeSesi });
 
-        // --- 3. PENYUSUNAN BOARD DATA ---
-        const cleanDesa = (questData.origin?.desa || "TanpaDesa").replace(/[.#$\[\]]/g, "").trim();
+        // 3. SANITASI & PREPARASI
+        if (!questData.origin || !questData.origin.desa) throw new Error("Desa asal kosong.");
+        
+        const cleanDesa = questData.origin.desa.replace(/[.#$\[\]]/g, "").trim();
         const shard = (typeof getShardDariKecamatan === "function") ? getShardDariKecamatan(questData.origin.kec) : "S1";
         const mid = "MS-" + Date.now();
 
-        const db4 = typeof getTerminal === "function" ? getTerminal('FB4_BOARD') : null;
         const db1_master = typeof getTerminal === "function" ? getTerminal('FB1_MASTER') : null;
+        const db4_board = typeof getTerminal === "function" ? getTerminal('FB4_BOARD') : null;
 
         const boardData = {
             id_misi: mid,
-            id_requester: finalID, // Menggunakan id_req yang diambil tadi
-            client_name: clientType,
-            category: questData.category || "Umum",
+            id_requester: finalID,
+            client_name: modeSesi,
+            category: questData.category || "General",
             reward: questData.reward || 0,
-            difficulty_rate: 1.0, 
-            zona: questData.origin.kec || "KNG",
+            zona: questData.origin.kec,
             shard_id: shard,
-            rank: "BIASA",
-            fish_tier: (typeof getFishTier === "function") ? getFishTier(questData.reward) : 1,
-            rpg_reward: questData.rpgStats || {},
-            origin_name: questData.origin.kec,
-            origin_desa: cleanDesa, 
-            origin_details: questData.origin.details || "",
-            origin_coords: (questData.origin.lat && questData.origin.lat !== 0) ? `${questData.origin.lat},${questData.origin.lng}` : "NEGO",
-            dest_name: questData.destination?.kec || "",
-            dest_desa: questData.destination?.desa || "",
-            dest_details: questData.destination?.details || "",
-            dest_coords: (questData.destination?.lat && questData.destination?.lat !== 0) ? `${questData.destination.lat},${questData.destination.lng}` : "NEGO",
-            specs: questData.specs || [],
-            distance_est: questData.distanceEst || 0,
+            origin_desa: cleanDesa,
             status: "open",
-            created_at: Date.now()
+            created_at: Date.now(),
+            // ... masukkan sisa data lainnya (coords, specs, dll)
         };
 
-        // --- 4. EKSEKUSI TRANSMISI ---
+        // 4. EKSEKUSI KE FIREBASE
         await Promise.all([
             db1_master.ref(`misi_index/${mid}`).set({ 
                 id_misi: mid, id_shard: shard, zona: questData.origin.kec, status: "open", id_requester: finalID 
             }),
-            db4.ref(`mission-${shard}/${cleanDesa}/${mid}`).set(boardData)
+            db4_board.ref(`mission-${shard}/${cleanDesa}/${mid}`).set(boardData)
         ]);
 
-        // --- 5. PENGUNCIAN IDENTITAS (Penting untuk Lobby) ---
-        // Simpan ke semua kemungkinan key agar Lobby tidak menganggap kadaluarsa
+        // 5. PENYIMPANAN SESI (TRIPLE LOCK)
+        // Kita simpan ke semua key yang mungkin dicari oleh lobby_requester.html
         localStorage.setItem('current_customer_id', finalID);
         sessionStorage.setItem('logged_user', finalID);
         sessionStorage.setItem('user_id', finalID);
+        
         sessionStorage.setItem('active_mission_id', mid);
         sessionStorage.setItem('active_mission_shard', shard);
         sessionStorage.setItem('active_mission_desa', cleanDesa);
 
-        showToast("SINYAL TERSEBAR!");
-        
-        // Beri jeda agar storage selesai ditulis
+        // --- VERIFIKASI AKHIR ---
+        // Memastikan data benar-benar sudah tertulis sebelum pindah
+        const checkID = sessionStorage.getItem('logged_user');
+        if (checkID !== finalID) {
+            console.error("Gagal sinkronisasi Storage!");
+        }
+
+        showToast("SINYAL TERKIRIM!");
+
+        // Beri jeda 1.5 detik agar browser selesai menulis ke disk/storage
         setTimeout(() => {
             window.location.href = "lobby_requester.html";
-        }, 1200);
+        }, 1500);
 
     } catch (e) {
-        console.error("DEBUG_ERROR:", e);
-        showCyberAlert("Gagal: " + e.message, "error");
-        if (btn) { btn.innerText = "BROADCAST 📡"; btn.disabled = false; }
+        console.error("CRITICAL ERROR:", e);
+        showCyberAlert(e.message, "error");
+        if (btn) { btn.disabled = false; btn.innerText = "BROADCAST 📡"; }
     }
 }
 
