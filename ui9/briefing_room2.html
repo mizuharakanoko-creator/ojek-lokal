@@ -196,41 +196,64 @@
   // Fungsi untuk mengambil nama asli berdasarkan nickname
 async function getRealNameByNick(nickname, type) {
     try {
+        console.log(`[SYSTEM] Mencari ${type}: ${nickname}`);
+        
         // Step 1: Cari di Index (FB1)
         const db1 = getTerminal('FB1_INDEX');
         const indexPath = type === 'requester' ? 'requester_index' : 'adventurer_index';
-        const idField = type === 'requester' ? 'id_req' : 'id_adv';
         
         const indexSnap = await db1.ref(indexPath).orderByChild('nickname').equalTo(nickname).once('value');
         
-        if (!indexSnap.exists()) return "Unknown";
-
-        // Ambil data pertama yang cocok
-        const indexKey = Object.keys(indexSnap.val())[0];
-        const indexData = indexSnap.val()[indexKey];
-        const shardId = indexData.shard_id;
-        const userId = indexData[idField];
-
-        // Step 2: Ambil Alamat Shard dari terminal_router.js
-        const targetDb = getTerminal(shardId);
-        
-        // Step 3: Ambil Nama Asli dari Shard Tujuan
-        let realName = "Unknown";
-        if (type === 'requester') {
-            const profileSnap = await targetDb.ref(`requester_data/${userId}/nama_asli`).once('value');
-            realName = profileSnap.val();
-        } else {
-            // Berdasarkan struktur gambar: adventurer-KNG/Umum/id_adv/nama_lengkap
-            const profileSnap = await targetDb.ref(`adventurer-KNG/Umum/${userId}/nama_lengkap`).once('value');
-            realName = profileSnap.val();
+        if (!indexSnap.exists()) {
+            console.error(`[ERROR] Nickname ${nickname} tidak ditemukan di index.`);
+            return "Nick Not Found";
         }
 
-        return realName || "No Name";
+        // Ambil data index
+        const indexVal = indexSnap.val();
+        const firstKey = Object.keys(indexVal)[0];
+        const data = indexVal[firstKey];
+        
+        const shardId = data.shard_id;
+        const userId = type === 'requester' ? data.id_req : data.id_adv;
+
+        console.log(`[SYSTEM] Shard: ${shardId}, ID: ${userId}`);
+
+        // Step 2: Masuk ke Shard melalui Router
+        const targetDb = getTerminal(shardId);
+        
+        // Step 3: Ambil Data Berdasarkan Path Database
+        let path = "";
+        let field = "";
+
+        if (type === 'requester') {
+            // Path sesuai gambar 1001267363.jpg
+            path = `requester_data/${userId}`;
+            field = "nama_asli";
+        } else {
+            // Path sesuai gambar 36011b8c-f58a-40c0-80e1-99b422181c24
+            // Perhatikan: Folder 'Umum' diawali huruf besar
+            path = `adventurer-KNG/Umum/${userId}`;
+            field = "nama_lengkap";
+        }
+
+        const profileSnap = await targetDb.ref(path).once('value');
+        
+        if (profileSnap.exists()) {
+            const fullName = profileSnap.val()[field];
+            console.log(`[SUCCESS] Ditemukan: ${fullName}`);
+            return fullName || "No Name Set";
+        } else {
+            console.error(`[ERROR] Path ${path} tidak ditemukan di ${shardId}`);
+            return "Profile Missing";
+        }
+
     } catch (e) {
-        console.error("Fetch Error:", e);
+        console.error("[CRITICAL ERROR]", e);
         return "Error Loading";
     }
 }
+
 
 
     // === RENDER UI (FULL TANPA RINGKASAN) ===
