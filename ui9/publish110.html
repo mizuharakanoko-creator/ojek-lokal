@@ -16,296 +16,267 @@
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
     <style>
-        /* ==========================================================================
-   1. VARIABEL & RESET GLOBAL (TERMINAL THEME)
-   ========================================================================== */
-:root {
-    --bg-dark: #050505;
-    --panel: #0a0a0a;
-    --text-main: #ffffff;
-    --text-muted: #666666;
-    --primary: #ff0055;
-    --primary-glow: rgba(255, 0, 85, 0.3);
-    --secondary: #00ffff;
-    --secondary-glow: rgba(0, 255, 255, 0.3);
-    --gold: #ffcc00;
-    --success: #00ff88;
-    --border: #222222;
-    --input-bg: rgba(255, 255, 255, 0.02);
-    --glass: rgba(255, 255, 255, 0.03);
-    --terminal-bg: rgba(0, 20, 20, 0.8);
-    --font-main: 'Courier New', Courier, monospace;
-    --font-mono: 'Courier New', Courier, monospace;
-    --accent-color: var(--secondary);
-    --radius: 4px; /* Sudut tajam ala terminal */
-    transition: all 0.3s ease;
-}
+    /* ==========================================================================
+       1. VARIABEL & RESET GLOBAL (TACTICAL TERMINAL THEME)
+       ========================================================================== */
+    :root {
+        --bg-dark: #0a0b12; /* Deep Navy Charcoal, menyerap silau */
+        --panel: rgba(15, 18, 25, 0.95);
+        --text-main: #ffffff;
+        --text-muted: #94a3b8; /* Abu-abu kebiruan, visibilitas tinggi */
+        --primary: #ff0055; /* Crimson */
+        --primary-glow: rgba(255, 0, 85, 0.4);
+        --secondary: #00f2ff; /* Electric Cyan */
+        --secondary-glow: rgba(0, 242, 255, 0.4);
+        --accent: #ffcc00; /* Amber Yellow untuk alert/peringatan */
+        --border: rgba(0, 242, 255, 0.2);
+        --input-bg: rgba(0, 0, 0, 0.5);
+        --glass: rgba(255, 255, 255, 0.03);
+        --font-mono: 'Courier New', Courier, monospace;
+        --radius: 2px; /* Hampir kotak tajam */
+        transition: all 0.3s ease;
+    }
 
-/* Mengubah Light Mode menjadi Tema "Matrix Green" agar fungsionalitas JS tidak rusak */
-body.light-mode {
-    --bg-dark: #010a01;
-    --panel: #021202;
-    --text-main: #00ff00;
-    --primary: #ffaa00;
-    --secondary: #00ff00;
-    --secondary-glow: rgba(0, 255, 0, 0.3);
-    --border: #004400;
-    --accent-color: var(--secondary);
-    --terminal-bg: rgba(0, 30, 0, 0.8);
-}
+    body.light-mode {
+        --bg-dark: #e2e8f0;
+        --panel: #ffffff;
+        --text-main: #0f172a;
+        --text-muted: #475569;
+        --primary: #e11d48;
+        --secondary: #0369a1;
+        --accent: #d97706;
+        --border: #cbd5e1;
+        --input-bg: #f1f5f9;
+        --glass: rgba(0, 0, 0, 0.05);
+    }
 
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; margin: 0; padding: 0; font-family: var(--font-mono); }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; margin: 0; padding: 0; font-family: var(--font-mono); }
+    
+    body, html { 
+        background-color: var(--bg-dark); color: var(--text-main); 
+        width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; user-select: none;
+    }
 
-body, html { 
-    background: var(--bg-dark); color: var(--text-main); 
-    width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; user-select: none;
-}
+    /* Grid & Scanline FX */
+    body::before {
+        content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background-image: linear-gradient(var(--border) 1px, transparent 1px),
+                          linear-gradient(90deg, var(--border) 1px, transparent 1px);
+        background-size: 30px 30px; z-index: -2; opacity: 0.2; pointer-events: none;
+    }
+    body::after {
+        content: ""; position: fixed; top: 0; left: 0; bottom: 0; right: 0;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+        background-size: 100% 4px; z-index: 9999; pointer-events: none; opacity: 0.3;
+    }
 
-/* Background Grid Overlay */
-body::before {
-    content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background-image: linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
-    background-size: 50px 50px; z-index: -1; pointer-events: none;
-}
-body.light-mode::before {
-    background-image: linear-gradient(rgba(0, 255, 0, 0.05) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(0, 255, 0, 0.05) 1px, transparent 1px);
-}
+    .app-container {
+        width: 100%; height: 100%; overflow-y: auto; padding: 15px; 
+        padding-bottom: max(90px, env(safe-area-inset-bottom));
+        display: flex; flex-direction: column; align-items: center; scroll-behavior: smooth;
+        animation: spawnZoom 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+    }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: var(--bg-dark); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius); }
-::-webkit-scrollbar-thumb:hover { background: var(--accent-color); }
+    @keyframes spawnZoom {
+        0% { transform: scale(0.8); opacity: 0; filter: blur(10px); }
+        100% { transform: scale(1); opacity: 1; filter: blur(0); }
+    }
 
-.app-container {
-    width: 100%; height: 100%; overflow-y: auto; padding: 15px; 
-    padding-bottom: max(90px, env(safe-area-inset-bottom));
-    display: flex; flex-direction: column; align-items: center; scroll-behavior: smooth;
-    animation: spawnZoom 1.2s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
-}
+    .leaflet-control-attribution { display: none !important; }
+    .leaflet-container { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(110%); }
+    body.light-mode .leaflet-container { filter: none; }
 
-@keyframes spawnZoom {
-    0% { transform: scale(0.6); opacity: 0; filter: blur(15px); }
-    100% { transform: scale(1); opacity: 1; filter: blur(0); }
-}
+    /* ==========================================================================
+       2. LAYOUT & HEADER
+       ========================================================================== */
+    .top-controls { position: absolute; top: 15px; right: 15px; z-index: 100; display: flex; gap: 10px; }
+    .theme-toggle, .resync-btn {
+        background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+        width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;
+        font-size: 16px; cursor: pointer; transition: 0.3s; backdrop-filter: blur(5px);
+    }
+    .theme-toggle:active, .resync-btn:active { transform: scale(0.9); background: var(--secondary); color: #000; }
 
-.leaflet-control-attribution { display: none !important; }
-.leaflet-container { background: #000; filter: grayscale(80%) contrast(120%) brightness(80%); }
+    .quest-board {
+        width: 100%; max-width: 480px; background: var(--panel); border: 1px solid var(--border); 
+        border-radius: var(--radius); padding: 25px; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        backdrop-filter: blur(10px); margin-top: 40px; border-top: 3px solid var(--secondary);
+    }
 
-/* ==========================================================================
-   2. LAYOUT & THEME CONTROLS
-   ========================================================================== */
-.top-controls { position: absolute; top: 15px; right: 15px; z-index: 100; display: flex; gap: 10px; }
-.theme-toggle, .resync-btn {
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-    width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;
-    font-size: 16px; cursor: pointer; transition: 0.3s;
-}
-.theme-toggle:hover, .resync-btn:hover { border-color: var(--accent-color); color: var(--accent-color); box-shadow: 0 0 10px var(--secondary-glow); }
+    .terminal-header { text-align: center; margin-bottom: 25px; border-bottom: 1px dashed var(--border); padding-bottom: 15px; }
+    .main-title { font-size: 22px; font-weight: bold; letter-spacing: 5px; color: var(--text-main); text-shadow: 0 0 8px var(--secondary-glow); }
+    .sub-title { font-size: 11px; color: var(--secondary); letter-spacing: 2px; }
+    .instruction { font-size: 12px; color: var(--accent); text-align: center; margin-bottom: 20px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
 
-.quest-board {
-    width: 100%; max-width: 500px; background: var(--panel); border: 1px solid var(--border); 
-    border-radius: var(--radius); padding: 25px; position: relative; box-shadow: 0 0 40px rgba(0,0,0,0.8);
-    transition: background 0.5s, border-color 0.5s; margin-top: 40px;
-}
+    .step-page { display: none; opacity: 0; transform: translateY(15px); transition: all 0.3s ease; }
+    .step-page.active { display: block; opacity: 1; transform: translateY(0); }
 
-.terminal-header { text-align: center; margin-bottom: 25px; border-bottom: 1px dashed var(--border); padding-bottom: 15px; }
-.main-title { font-size: 24px; font-weight: bold; letter-spacing: 8px; color: var(--text-main); text-transform: uppercase; text-shadow: 0 0 10px var(--accent-color); }
-.sub-title { font-size: 10px; color: var(--accent-color); letter-spacing: 3px; }
-.instruction { font-size: 12px; color: var(--accent-color); text-align: center; margin-bottom: 20px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+    /* ==========================================================================
+       3. GHOST ASSISTANT (SYSTEM LOG STYLE)
+       ========================================================================== */
+    .ghost-assistant {
+        background: rgba(0, 20, 20, 0.6); border: 1px solid var(--border); border-left: 4px solid var(--secondary);
+        padding: 15px; margin-bottom: 25px; position: relative; display: flex; align-items: flex-start; gap: 15px;
+    }
+    .ghost-assistant::before {
+        content: "SYSTEM LOG"; position: absolute; top: -10px; left: 10px;
+        background: var(--secondary); color: #000; font-size: 9px; padding: 2px 6px; font-weight: bold;
+    }
+    .ghost-avatar { font-size: 24px; filter: drop-shadow(0 0 5px var(--secondary)); }
+    .ghost-bubble { background: transparent; border: none; padding: 0; font-size: 11px; color: var(--secondary); flex: 1; line-height: 1.6; text-transform: uppercase; font-weight: bold; }
 
-.step-page { display: none; opacity: 0; transform: translateY(10px); transition: all 0.4s ease; }
-.step-page.active { display: block; opacity: 1; transform: translateY(0); }
+    /* ==========================================================================
+       4. INPUTS, FORMS & BUTTONS
+       ========================================================================== */
+    .input-group { margin-bottom: 15px; position: relative; }
+    .input-group label { display: block; font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; font-weight: bold; letter-spacing: 1px; }
+    
+    .input-group input, .input-group textarea, .input-group select {
+        width: 100%; background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 14px; color: var(--text-main); font-size: 14px; transition: 0.3s;
+        resize: none; white-space: pre-wrap; word-wrap: break-word; overflow-y: hidden; appearance: none;
+    }
+    .input-group input:focus, .input-group textarea:focus, .input-group select:focus { border-color: var(--secondary); box-shadow: inset 0 0 10px var(--secondary-glow); outline: none; }
+    
+    /* Custom panah dropdown */
+    .input-group select {
+        background-image: linear-gradient(45deg, transparent 50%, var(--secondary) 50%), linear-gradient(135deg, var(--secondary) 50%, transparent 50%);
+        background-position: calc(100% - 20px) calc(1em + 2px), calc(100% - 15px) calc(1em + 2px);
+        background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+    }
 
-/* ==========================================================================
-   3. GHOST ASSISTANT UI (TERMINAL STYLE)
-   ========================================================================== */
-.ghost-assistant {
-    background: var(--terminal-bg); border-left: 3px solid var(--accent-color);
-    padding: 15px; margin-bottom: 25px; min-height: 70px; position: relative;
-    overflow: hidden; display: flex; align-items: flex-start; gap: 15px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.5);
-}
-.ghost-assistant::after {
-    content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 2px); pointer-events: none;
-}
-.ghost-avatar { font-size: 20px; filter: drop-shadow(0 0 5px var(--accent-color)); }
-.ghost-bubble { 
-    background: transparent; border: none; padding: 0; border-radius: 0;
-    font-size: 12px; color: var(--accent-color); flex: 1; line-height: 1.5; font-weight: normal;
-    text-transform: uppercase;
-}
+    .btn-main { width: 100%; background: var(--secondary); color: #000; border: none; padding: 16px; font-weight: bold; font-size: 13px; text-transform: uppercase; cursor: pointer; transition: 0.2s; letter-spacing: 2px; clip-path: polygon(0 0, 100% 0, 100% 70%, 95% 100%, 0 100%); }
+    .btn-main:active { transform: scale(0.96); filter: brightness(0.8); }
+    
+    .btn-secondary { flex: 1; background: transparent; color: var(--text-muted); border: 1px solid var(--text-muted); padding: 16px; font-weight: bold; font-size: 12px; text-transform: uppercase; cursor: pointer; transition: 0.2s; border-radius: var(--radius); }
+    .btn-secondary:active { background: var(--text-muted); color: #000; }
+    
+    .btn-outline { width: 100%; background: transparent; border: 1px solid var(--border); color: var(--secondary); padding: 12px; font-size: 11px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 10px; text-transform: uppercase; }
+    .btn-outline:active { background: var(--secondary); color: #000; }
+    
+    .btn-voice { position: absolute; right: 10px; top: 32px; background: transparent; border: 1px solid var(--secondary); color: var(--secondary); width: 35px; height: 35px; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 14px; transition: 0.3s; }
+    .btn-voice.recording { background: var(--primary); border-color: var(--primary); color: white; animation: pulse 1s infinite; }
+    
+    .btn-ai { background: rgba(176, 38, 255, 0.1); border: 1px solid #b026ff; color: #b026ff; padding: 12px; width: 100%; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 5px; font-size: 11px; text-transform: uppercase; }
+    .btn-ai:active { background: #b026ff; color: #fff; }
 
-/* ==========================================================================
-   4. KOMPONEN INPUT, FORM & DROPDOWN
-   ========================================================================== */
-.input-group { margin-bottom: 15px; position: relative; }
-.input-group label { display: block; font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+    /* ==========================================================================
+       5. CARDS & CATEGORIES
+       ========================================================================== */
+    .grid-kategori { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+    .card-kat { background: var(--glass); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 10px; text-align: center; cursor: pointer; transition: 0.2s; }
+    .card-kat.active-node { border-color: var(--secondary); background: rgba(0, 242, 255, 0.1); box-shadow: inset 0 0 15px var(--secondary-glow); transform: scale(1.03); }
+    .card-kat .icon { font-size: 28px; display: block; margin-bottom: 10px; filter: grayscale(1); }
+    .card-kat.active-node .icon { filter: grayscale(0); }
+    .card-kat .label { font-size: 11px; font-weight: bold; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+    .card-kat.active-node .label { color: var(--secondary); }
+    
+    .cyber-checkbox-wrapper { display: flex; align-items: center; gap: 12px; background: var(--input-bg); padding: 15px; border: 1px dashed var(--border); margin-bottom: 20px; cursor: pointer; border-radius: var(--radius); transition: 0.3s; }
+    .cyber-checkbox-wrapper.checked { border-color: var(--secondary); background: rgba(0, 242, 255, 0.1); border-style: solid; }
+    .cyber-checkbox-wrapper .box { width: 18px; height: 18px; border: 1px solid var(--secondary); display: flex; align-items: center; justify-content: center; font-size: 12px; color: transparent; }
+    .cyber-checkbox-wrapper.checked .box { background: var(--secondary); color: #000; }
+    .cyber-checkbox-wrapper .label { font-size: 11px; font-weight: bold; color: var(--text-main); letter-spacing: 1px; }
 
-.input-group input, .input-group textarea, .input-group select, .map-header-search {
-    width: 100%; background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 14px; color: var(--text-main); font-size: 13px; transition: 0.3s; font-family: var(--font-mono);
-    -webkit-user-select: auto; user-select: auto; resize: none; white-space: pre-wrap; word-wrap: break-word;
-}
-.input-group input:focus, .input-group textarea:focus, .input-group select:focus, .map-header-search:focus { 
-    border-color: var(--accent-color); box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.1); 
-}
+    .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .price-card { background: var(--input-bg); border: 1px solid var(--border); padding: 15px 5px; text-align: center; cursor: pointer; transition: 0.3s; }
+    .price-card.active { border-color: var(--accent); background: rgba(255, 204, 0, 0.1); box-shadow: inset 0 0 10px rgba(255,204,0,0.3); }
+    .price-card .tier { font-size: 9px; color: var(--text-muted); display: block; margin-bottom: 5px; font-weight: bold; letter-spacing: 1px; }
+    .price-card .amount { font-size: 13px; color: var(--text-main); font-weight: bold; }
+    .price-card.active .tier, .price-card.active .amount { color: var(--accent); }
+    .price-hint { font-size: 10px; color: var(--accent); text-align: center; margin-top: -10px; margin-bottom: 15px; font-weight: bold; }
+    
+    .nego-display { text-align: center; padding: 20px; background: rgba(255, 204, 0, 0.05); border: 1px solid var(--accent); margin-bottom: 20px; }
+    .nego-display h3 { color: var(--accent); margin-bottom: 5px; font-size: 24px; letter-spacing: 2px;}
 
-/* Styling Native Dropdown agar mirip Terminal */
-select {
-    appearance: none; -webkit-appearance: none;
-    background-image: linear-gradient(45deg, transparent 50%, var(--accent-color) 50%), linear-gradient(135deg, var(--accent-color) 50%, transparent 50%);
-    background-position: calc(100% - 20px) calc(1em + 2px), calc(100% - 15px) calc(1em + 2px);
-    background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
-}
+    .summary-box { background: rgba(0,0,0,0.5); border: 1px dashed var(--border); border-left: 3px solid var(--secondary); padding: 15px; font-size: 11px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; text-transform: uppercase; }
+    .summary-box div { margin-bottom: 8px; border-bottom: 1px solid #222; padding-bottom: 8px; }
+    .summary-box .highlight { color: var(--text-main); font-weight: bold; }
 
-.btn-main, .btn-secondary, .btn-outline, .btn-ai, .btn-floating-set {
-    background: transparent; color: var(--text-main); border: 1px solid var(--border);
-    padding: 16px; border-radius: var(--radius); font-family: var(--font-mono); font-size: 13px;
-    letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: 0.3s;
-}
-.btn-main { border-color: var(--accent-color); background: rgba(0, 255, 255, 0.05); color: var(--accent-color); }
-.btn-main:hover { background: var(--accent-color); color: #000; box-shadow: 0 0 15px var(--secondary-glow); }
-.btn-main:active { transform: scale(0.98); }
+    /* ==========================================================================
+       6. MAP, LOCATIONS & BOTTOM SHEET
+       ========================================================================== */
+    .location-card { background: var(--glass); border: 1px solid var(--border); padding: 15px; display: flex; align-items: center; gap: 15px; margin-bottom: 10px; transition: 0.3s; cursor: pointer;}
+    .location-card:active { transform: scale(0.98); background: rgba(0,242,255,0.1); }
+    .location-card.empty { border-style: dashed; justify-content: center; padding: 20px;}
+    .location-card .icon { font-size: 24px; filter: grayscale(1); }
+    .location-card .info { flex: 1; }
+    .location-card .info-title { font-size: 10px; color: var(--secondary); font-weight: bold; margin-bottom: 5px; letter-spacing: 1px; }
+    .location-card .info-text { font-size: 13px; font-weight: bold; color: var(--text-main); line-height: 1.4; word-break: break-word; }
+    
+    .history-list { margin-top: 15px; display: none; }
+    .history-item { display: flex; align-items: center; gap: 10px; background: var(--input-bg); border: 1px solid var(--border); padding: 12px; margin-bottom: 8px; cursor: pointer; transition: 0.3s; }
+    .history-item:hover { border-color: var(--secondary); background: rgba(0,242,255,0.1); }
+    .history-item .icon { font-size: 14px; }
+    .history-item .text { font-size: 11px; color: var(--text-muted); flex:1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
+    .history-item:hover .text { color: var(--text-main); }
 
-.btn-secondary { flex: 1; border-color: var(--text-muted); color: var(--text-muted); }
-.btn-secondary:hover { border-color: var(--text-main); color: var(--text-main); background: rgba(255,255,255,0.05); }
+    .map-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-dark); z-index: 50000; display: none; flex-direction: column; opacity: 0; transition: opacity 0.3s; }
+    .map-overlay.active { opacity: 1; display: flex; }
+    .map-header { background: #0a0b12; border-bottom: 1px solid var(--secondary); padding: 15px; padding-top: max(15px, env(safe-area-inset-top)); display: flex; gap: 10px; align-items: center; z-index: 50010; }
+    .map-header-search { border: 1px solid #333; border-radius: 0; }
+    .map-header-close { background: transparent; border: none; color: var(--primary); font-size: 24px; font-weight: bold; cursor: pointer; padding: 0 10px; }
+    .map-body { flex: 1; position: relative; }
 
-.btn-outline { width: 100%; border-color: var(--border); margin-top: 10px; font-size: 11px; }
-.btn-outline:hover { border-color: var(--accent-color); color: var(--accent-color); }
+    .map-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -100%); z-index: 50010; pointer-events: none; text-align: center; }
+    .map-crosshair .pin { font-size: 40px; text-shadow: 0 5px 10px rgba(0,0,0,0.8); transition: 0.3s; filter: grayscale(1) brightness(1.5); }
+    .map-crosshair .pulse-ring { position: absolute; top: 35px; left: 50%; transform: translateX(-50%); width: 20px; height: 10px; background: var(--secondary); border-radius: 50%; display: none; animation: pulseMap 1.5s infinite; }
+    
+    @keyframes pulseMap { 0% { transform: translateX(-50%) scale(1); opacity: 0.8; } 100% { transform: translateX(-50%) scale(4); opacity: 0; } }
+    @keyframes pinBounce { 0%, 100% { transform: translateY(-10px); } 50% { transform: translateY(-20px); } }
+    .map-crosshair.is-dragging .pin { animation: pinBounce 0.4s infinite alternate; color: var(--primary); }
+    .map-crosshair.is-set .pin { filter: hue-rotate(180deg); } 
+    .map-crosshair.is-set .pulse-ring { display: block; }
 
-.btn-voice { position: absolute; right: 10px; top: 32px; background: var(--bg-dark); border: 1px solid var(--accent-color); color: var(--accent-color); border-radius: var(--radius); width: 35px; height: 35px; display: flex; justify-content: center; align-items: center; font-size: 14px; cursor: pointer; }
-.btn-voice.recording { background: var(--primary); border-color: var(--primary); color: white; animation: pulse 1s infinite; }
+    .btn-floating-set { position: absolute; bottom: max(30px, env(safe-area-inset-bottom)); left: 5%; width: 90%; background: var(--secondary); color: #000; border: none; padding: 18px; font-weight: bold; font-size: 13px; text-transform: uppercase; cursor: pointer; z-index: 50010; box-shadow: 0 10px 30px rgba(0,0,0,0.8); letter-spacing: 2px; clip-path: polygon(0 0, 100% 0, 100% 70%, 95% 100%, 0 100%); }
+    .btn-gps-lokasi { position: absolute; bottom: max(90px, env(safe-area-inset-bottom)); right: 20px; background: var(--panel); color: var(--text-main); border: 1px solid var(--border); width: 45px; height: 45px; font-size: 20px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 50010; }
 
-.btn-ai { border-color: #b026ff; color: #b026ff; width: 100%; font-size: 11px; padding: 12px; margin-top: 5px; background: rgba(176, 38, 255, 0.05); }
-.btn-ai:hover { background: #b026ff; color: #000; box-shadow: 0 0 15px rgba(176, 38, 255, 0.4); }
+    .bottom-sheet { position: fixed; bottom: -100%; left: 0; width: 100%; max-height: 85vh; background: var(--panel); border-top: 2px solid var(--secondary); z-index: 60000; transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; padding: 20px; box-shadow: 0 -10px 50px rgba(0,0,0,0.9); overflow-y: auto; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+    .bottom-sheet.active { bottom: 0; }
+    .radio-item { display: flex; align-items: center; gap: 12px; background: var(--input-bg); padding: 15px; border: 1px solid var(--border); cursor: pointer; transition: 0.3s; margin-bottom: 10px;}
+    .radio-item.selected { border-color: var(--secondary); background: rgba(0,242,255,0.1); }
+    .radio-item .circle { width: 14px; height: 14px; border: 1px solid var(--text-muted); display: flex; justify-content: center; align-items: center; }
+    .radio-item.selected .circle { border-color: var(--secondary); background: var(--secondary); }
+    .radio-item .title { font-size: 12px; font-weight: bold; color: var(--text-main); text-transform: uppercase; letter-spacing: 1px; }
+    .radio-item .desc { font-size: 10px; color: var(--text-muted); margin-top: 3px; display: block;}
 
-/* ==========================================================================
-   5. KATEGORI & SUMMARY UI
-   ========================================================================== */
-.grid-kategori { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-.card-kat { background: var(--glass); border: 1px solid var(--border); border-radius: var(--radius); padding: 25px 10px; text-align: center; cursor: pointer; transition: all 0.3s ease; position: relative; }
-.card-kat.active-node { border-color: var(--accent-color); background: rgba(0, 255, 255, 0.05); box-shadow: 0 0 20px var(--secondary-glow); transform: scale(1.02); }
-.card-kat:hover { border-color: var(--accent-color); transform: translateY(-2px); }
-.card-kat .icon { font-size: 28px; display: block; margin-bottom: 12px; filter: grayscale(1); transition: 0.3s;}
-.card-kat.active-node .icon { filter: grayscale(0); }
-.card-kat .label { font-size: 11px; font-weight: bold; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; transition: 0.3s; }
-.card-kat.active-node .label { color: var(--accent-color); }
+    /* ==========================================================================
+       7. WHATSAPP UI (OFFLINE DRAFT)
+       ========================================================================== */
+    .wa-overlay { position: fixed; inset: 0; background: var(--bg-dark); z-index: 40000; display: none; flex-direction: column; opacity: 0; transition: opacity 0.3s; }
+    .wa-overlay.active { opacity: 1; display: flex; }
+    .wa-header { background: var(--panel); padding: 15px; padding-top: max(15px, env(safe-area-inset-top)); display: flex; align-items: center; border-bottom: 1px solid var(--border); gap: 10px; }
+    .wa-chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; position: relative; }
+    .wa-chat-area::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(var(--glass) 1px, transparent 1px), linear-gradient(90deg, var(--glass) 1px, transparent 1px); background-size: 20px 20px; z-index: -1; }
+    
+    .wa-bubble { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--secondary); padding: 12px 15px; align-self: flex-end; max-width: 85%; font-size: 12px; color: var(--text-main); box-shadow: 0 5px 15px rgba(0,0,0,0.5); text-transform: uppercase; }
+    .wa-bubble .wa-actions { display: flex; gap: 10px; margin-top: 8px; font-size: 10px; color: var(--primary); font-weight: bold; justify-content: flex-end; cursor: pointer; }
+    
+    .wa-input-area { background: var(--panel); padding: 15px; padding-bottom: max(15px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); display: flex; align-items: flex-end; gap: 10px; }
+    .wa-textarea { flex: 1; background: var(--input-bg); border: 1px solid var(--border); padding: 12px; color: var(--text-main); font-size: 13px; outline: none; resize: none; overflow-y: hidden; max-height: 120px; font-family: var(--font-mono); }
+    .wa-textarea:focus { border-color: var(--secondary); }
+    
+    .wa-tools { display: flex; gap: 8px; margin-bottom: 10px; padding: 0 15px; overflow-x: auto; scrollbar-width: none; }
+    .wa-tools::-webkit-scrollbar { display: none; }
+    .wa-tool-btn { background: var(--input-bg); border: 1px solid var(--border); padding: 8px 12px; font-size: 10px; color: var(--text-muted); cursor: pointer; white-space: nowrap; text-transform: uppercase; }
+    .wa-tool-btn:active { background: var(--secondary); color: #000; }
+    .btn-send-wa { background: transparent; border: 1px solid var(--secondary); color: var(--secondary); width: 42px; height: 42px; display: flex; justify-content: center; align-items: center; font-size: 16px; cursor: pointer; transition: 0.2s; }
+    .btn-send-wa:active { background: var(--secondary); color: #000; }
 
-.cyber-checkbox-wrapper { display: flex; align-items: center; gap: 12px; background: var(--input-bg); padding: 15px; border: 1px dashed var(--border); margin-bottom: 20px; cursor: pointer; border-radius: var(--radius); transition: 0.3s; }
-.cyber-checkbox-wrapper.checked { border-color: var(--accent-color); background: rgba(0, 255, 255, 0.05); border-style: solid; }
-.cyber-checkbox-wrapper .box { width: 18px; height: 18px; border: 1px solid var(--accent-color); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: transparent; }
-.cyber-checkbox-wrapper.checked .box { background: var(--accent-color); color: #000; }
-.cyber-checkbox-wrapper .label { font-size: 11px; color: var(--text-main); letter-spacing: 1px; }
+    /* ==========================================================================
+       8. MODALS & ALERTS (TERMINAL STYLE)
+       ========================================================================== */
+    .mega-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 80000; padding: 20px; backdrop-filter: blur(5px); opacity: 0; transition: opacity 0.3s; }
+    .mega-modal.show { display: flex; opacity: 1; }
+    .modal-content { background: #0a0b12; border: 1px solid var(--primary); padding: 30px 20px; text-align: center; max-width: 350px; width: 100%; box-shadow: 0 0 30px rgba(255,0,85,0.3); }
+    
+    #toast { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #000; padding: 15px 30px; font-weight: bold; z-index: 99999; transition: 0.5s; font-size: 12px; box-shadow: 5px 5px 0px #000; pointer-events: none; text-transform: uppercase; letter-spacing: 2px; border: 1px solid #000; }
+    #toast.show { top: max(30px, env(safe-area-inset-top)); }
+    
+    #loaderOverlay { position: fixed; inset: 0; background: rgba(10,11,18,0.9); z-index: 90000; display: none; justify-content: center; align-items: center; flex-direction: column; }
+    .spinner { width: 40px; height: 40px; border: 2px solid #222; border-top: 2px solid var(--secondary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 20px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
 
-.price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
-.price-card { background: var(--input-bg); border: 1px solid var(--border); padding: 15px 5px; text-align: center; border-radius: var(--radius); cursor: pointer; transition: 0.3s; }
-.price-card.active { border-color: var(--accent-color); background: rgba(0, 255, 255, 0.05); box-shadow: inset 0 0 10px var(--secondary-glow); }
-.price-card .tier { font-size: 9px; color: var(--text-muted); display: block; margin-bottom: 8px; letter-spacing: 1px; }
-.price-card .amount { font-size: 13px; color: var(--text-main); font-weight: bold; }
-.price-card.active .tier, .price-card.active .amount { color: var(--accent-color); }
-.price-hint { font-size: 10px; color: var(--text-muted); text-align: center; margin-top: -5px; margin-bottom: 15px; letter-spacing: 1px; }
-
-.nego-display { text-align: center; padding: 20px; background: rgba(255, 204, 0, 0.05); border: 1px dashed var(--gold); border-radius: var(--radius); margin-bottom: 20px; }
-.nego-display h3 { color: var(--gold); margin-bottom: 5px; font-size: 20px; letter-spacing: 4px; text-shadow: 0 0 10px rgba(255,204,0,0.3);}
-
-.summary-box { background: var(--input-bg); border: 1px solid var(--border); border-left: 3px solid var(--primary); padding: 15px; border-radius: 0; font-size: 11px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; text-transform: uppercase; }
-.summary-box div { margin-bottom: 8px; border-bottom: 1px dashed #222; padding-bottom: 8px; }
-.summary-box .highlight { color: var(--text-main); font-weight: bold; }
-
-/* ==========================================================================
-   6. MAP & LOCATION HISTORY
-   ========================================================================== */
-.location-card { background: var(--glass); border: 1px solid var(--border); border-radius: var(--radius); padding: 15px; display: flex; align-items: center; gap: 15px; margin-bottom: 10px; transition: 0.3s; cursor: pointer;}
-.location-card:hover { border-color: var(--accent-color); }
-.location-card.empty { border-style: dashed; justify-content: center; padding: 20px;}
-.location-card .icon { font-size: 20px; filter: grayscale(1); }
-.location-card:hover .icon { filter: grayscale(0); }
-.location-card .info { flex: 1; }
-.location-card .info-title { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; margin-bottom: 5px; }
-.location-card .info-text { font-size: 13px; color: var(--text-main); line-height: 1.4; word-break: break-word; }
-
-.history-item { display: flex; align-items: center; gap: 10px; background: var(--input-bg); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius); margin-bottom: 8px; cursor: pointer; transition: 0.3s; }
-.history-item:hover { border-color: var(--accent-color); background: rgba(0,255,255,0.05); }
-.history-item .icon { font-size: 14px; }
-.history-item .text { font-size: 11px; color: var(--text-muted); flex:1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
-.history-item:hover .text { color: var(--text-main); }
-
-.map-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-dark); z-index: 50000; display: none; flex-direction: column; opacity: 0; transition: opacity 0.3s; }
-.map-overlay.active { opacity: 1; display: flex; }
-.map-header { background: #050505; border-bottom: 1px solid var(--accent-color); padding: 15px; padding-top: max(15px, env(safe-area-inset-top)); display: flex; gap: 10px; align-items: center; z-index: 50010; }
-.map-header-search { border: 1px solid #333; background: #0a0a0a; border-radius: 0; }
-.map-header-close { background: transparent; border: none; color: var(--primary); font-size: 20px; cursor: pointer; padding: 0 10px; }
-.map-body { flex: 1; position: relative; }
-#fullMap { width: 100%; height: 100%; filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); } /* Dark mode map hack */
-
-.map-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -100%); z-index: 50010; pointer-events: none; text-align: center; }
-.map-crosshair .pin { font-size: 35px; text-shadow: 0 5px 10px rgba(0,0,0,0.8); transition: transform 0.3s ease; filter: grayscale(1) brightness(2); }
-.map-crosshair .pulse-ring { position: absolute; top: 35px; left: 50%; transform: translateX(-50%); width: 20px; height: 10px; border: 1px solid var(--accent-color); border-radius: 50%; display: none; animation: pulseMap 1.5s infinite; }
-@keyframes pulseMap { 0% { transform: translateX(-50%) scale(1); opacity: 0.8; } 100% { transform: translateX(-50%) scale(4); opacity: 0; } }
-@keyframes pinBounce { 0%, 100% { transform: translateY(-10px); } 50% { transform: translateY(-20px); } }
-.map-crosshair.is-dragging .pin { animation: pinBounce 0.4s infinite alternate; color: var(--primary); }
-.map-crosshair.is-set .pin { filter: grayscale(0) hue-rotate(180deg); } 
-.map-crosshair.is-set .pulse-ring { display: block; }
-
-.btn-floating-set { position: absolute; bottom: max(30px, env(safe-area-inset-bottom)); left: 5%; width: 90%; background: var(--panel); border-color: var(--accent-color); color: var(--accent-color); z-index: 50010; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
-.btn-floating-set:hover { background: var(--accent-color); color: #000; }
-.btn-gps-lokasi { position: absolute; bottom: max(100px, env(safe-area-inset-bottom)); right: 20px; background: var(--panel); color: var(--text-main); border: 1px solid var(--border); width: 45px; height: 45px; border-radius: var(--radius); font-size: 18px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50010; }
-.btn-gps-lokasi:hover { border-color: var(--accent-color); color: var(--accent-color); }
-
-/* Modal Bottom Sheet -> Terminal Modal */
-.bottom-sheet { position: fixed; bottom: -100%; left: 0; width: 100%; max-height: 85vh; background: var(--panel); border-top: 2px solid var(--accent-color); z-index: 60000; transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; padding: 20px; box-shadow: 0 -10px 50px rgba(0,0,0,0.9); overflow-y: auto; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
-.bottom-sheet.active { bottom: 0; }
-.radio-item { display: flex; align-items: center; gap: 12px; background: var(--input-bg); padding: 15px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: 0.3s; margin-bottom: 10px;}
-.radio-item.selected { border-color: var(--accent-color); background: rgba(0,255,255,0.05); }
-.radio-item .circle { width: 14px; height: 14px; border: 1px solid var(--text-muted); display: flex; justify-content: center; align-items: center; }
-.radio-item.selected .circle { border-color: var(--accent-color); background: var(--accent-color); }
-.radio-item .title { font-size: 12px; color: var(--text-main); letter-spacing: 1px; text-transform: uppercase; }
-.radio-item .desc { font-size: 10px; color: var(--text-muted); margin-top: 5px; display: block; }
-
-/* ==========================================================================
-   7. WHATSAPP FULL SCREEN UI (BELANJA & JASA)
-   ========================================================================== */
-.wa-overlay { position: fixed; inset: 0; background: var(--bg-dark); z-index: 40000; display: none; flex-direction: column; opacity: 0; transition: opacity 0.3s; }
-.wa-overlay.active { opacity: 1; display: flex; }
-.wa-header { background: var(--panel); padding: 15px; padding-top: max(15px, env(safe-area-inset-top)); display: flex; align-items: center; border-bottom: 1px solid var(--border); gap: 15px; }
-.wa-chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; background: transparent; position: relative; }
-.wa-chat-area::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(0, 255, 255, 0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 255, 0.02) 1px, transparent 1px); background-size: 20px 20px; z-index: -1; }
-
-.wa-bubble { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent-color); padding: 12px 15px; border-radius: 0; align-self: flex-end; max-width: 85%; font-size: 12px; color: var(--text-main); box-shadow: 0 5px 15px rgba(0,0,0,0.5); text-transform: uppercase; }
-.wa-bubble .wa-actions { display: flex; gap: 10px; margin-top: 10px; font-size: 10px; color: var(--primary); justify-content: flex-end; }
-
-.wa-input-area { background: var(--panel); padding: 15px; padding-bottom: max(15px, env(safe-area-inset-bottom)); border-top: 1px solid var(--border); display: flex; align-items: flex-end; gap: 10px; }
-.wa-textarea { flex: 1; background: var(--input-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; color: var(--text-main); font-size: 13px; outline: none; resize: none; overflow-y: hidden; max-height: 120px; font-family: var(--font-mono); }
-.wa-textarea:focus { border-color: var(--accent-color); }
-
-.wa-tools { display: flex; gap: 8px; margin-bottom: 10px; padding: 0 15px; overflow-x: auto; }
-.wa-tools::-webkit-scrollbar { display: none; }
-.wa-tool-btn { background: var(--input-bg); border: 1px solid var(--border); padding: 8px 12px; border-radius: var(--radius); font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); cursor: pointer; white-space: nowrap; text-transform: uppercase; }
-.wa-tool-btn:hover { border-color: var(--accent-color); color: var(--accent-color); background: rgba(0,255,255,0.05); }
-
-.btn-send-wa { background: var(--panel); border: 1px solid var(--accent-color); color: var(--accent-color); border-radius: var(--radius); width: 42px; height: 42px; display: flex; justify-content: center; align-items: center; font-size: 14px; cursor: pointer; transition: 0.3s; }
-.btn-send-wa:hover { background: var(--accent-color); color: #000; }
-
-/* ==========================================================================
-   8. MODALS, NOTIF & LOADERS (TERMINAL ALERTS)
-   ========================================================================== */
-.mega-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 80000; padding: 20px; backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.3s; }
-.mega-modal.show { display: flex; opacity: 1; }
-.modal-content { background: #111; border: 1px solid var(--primary); padding: 30px 20px; border-radius: 0; text-align: center; max-width: 350px; width: 100%; box-shadow: 0 0 30px var(--primary-glow); }
-
-#toast { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: #111; border: 1px solid var(--secondary); color: var(--secondary); padding: 15px 40px; font-weight: bold; z-index: 99999; transition: 0.5s; font-size: 12px; box-shadow: 0 0 30px var(--secondary-glow); pointer-events: none; text-align: center; letter-spacing: 2px; text-transform: uppercase; }
-#toast.show { top: max(20px, env(safe-area-inset-top)); }
-
-#loaderOverlay { position: fixed; inset: 0; background: rgba(5,5,5,0.9); z-index: 90000; display: none; justify-content: center; align-items: center; flex-direction: column; }
-.spinner { width: 40px; height: 40px; border: 2px solid #222; border-top: 2px solid var(--accent-color); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 20px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-
-    </style>
 </head>
 <body>
 
@@ -604,8 +575,10 @@ select {
 <script>
 
 // ==========================================================================
-// OVERRIDE NATIVE BROWSER ALERT (MEMBUNGKUS ALERT BAWAAN WEB)
+// 0. OVERRIDE NATIVE & TACTICAL ENHANCEMENTS
 // ==========================================================================
+
+// 1. Matikan Native Alert agar pakai UI Terminal
 window.alert = function(message) {
     if (typeof showCyberAlert === "function") {
         showCyberAlert(message, 'warning');
@@ -614,8 +587,19 @@ window.alert = function(message) {
     }
 };
 
-// Agar Ghost Assistant lebih terasa seperti teks Terminal yang diketik
-const originalTriggerGhost = triggerGhost;
+// 2. Global Haptic Feedback (Getar) pada semua tombol
+document.addEventListener('click', function(e) {
+    if (e.target.closest('button, .card-kat, .btn-main, .price-card, .radio-item')) {
+        if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(20); // Getar halus 20ms
+        }
+    }
+});
+
+// 3. Modifikasi Ghost Assistant menjadi "System Log Typing"
+// Hati-hati, ini menimpa fungsi triggerGhost lama Anda
+let typingTimeout; // Cegah tumpang tindih ketikan
+const originalTriggerGhost = triggerGhost; 
 triggerGhost = function(msg, color, icon) {
     const g = document.getElementById('ghostAssistant');
     const textEl = document.getElementById('ghostText');
@@ -623,22 +607,48 @@ triggerGhost = function(msg, color, icon) {
     if(color) document.documentElement.style.setProperty('--accent-color', color);
     if(icon) document.getElementById('ghostIcon').innerText = icon;
     
-    // Efek mengetik ala terminal
+    // Clear timeout lama jika ada
+    clearTimeout(typingTimeout);
     textEl.innerHTML = "";
     let i = 0;
+    
+    // Suara Beep Opsional saat mulai log
+    if(typeof playSfx === 'function') playSfx(1200, 'square', 0.1, 0.05);
+
     function typeWriter() {
         if (i < msg.length) {
             textEl.innerHTML += msg.charAt(i);
             i++;
-            setTimeout(typeWriter, 15); // Kecepatan ketik
+            // Suara ketikan per huruf (sangat pelan)
+            if(i % 3 === 0 && typeof playSfx === 'function') playSfx(800, 'sine', 0.02, 0.01);
+            typingTimeout = setTimeout(typeWriter, 15); // Kecepatan ketik
         }
     }
     typeWriter();
 
-    g.style.borderLeftColor = 'var(--accent-color)';
-    g.style.boxShadow = `0 0 15px ${color || 'var(--secondary)'}`;
-    setTimeout(() => g.style.boxShadow = 'none', 500);
+    g.style.borderLeftColor = color || 'var(--secondary)';
+    g.style.boxShadow = `inset 0 0 10px ${color || 'var(--secondary)'}`;
+    setTimeout(() => g.style.boxShadow = 'none', 400);
 };
+
+// 4. Auto-Contrast Sensor (Opsional)
+// Jika perangkat memiliki sensor cahaya dan dihidupkan di luar ruangan
+if ('AmbientLightSensor' in window) {
+    try {
+        const sensor = new AmbientLightSensor();
+        sensor.addEventListener('reading', () => {
+            // Jika cahaya > 1000 lux (cukup terang / matahari)
+            if (sensor.illuminance > 1000) {
+                document.body.classList.add('light-mode');
+            } else {
+                document.body.classList.remove('light-mode');
+            }
+        });
+        sensor.start();
+    } catch (err) {
+        console.log("Sensor cahaya tidak didukung/ditolak.");
+    }
+}
 
 
 
