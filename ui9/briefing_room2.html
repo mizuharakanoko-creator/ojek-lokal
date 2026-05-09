@@ -152,12 +152,56 @@
     const contractId = sessionStorage.getItem('active_contract_id');
     const db4 = getTerminal('FB4_BOARD');
     
+    // TAMBAHAN: Panggil DB1 untuk Index
+    const db1 = getTerminal('FB1_INDEX');
+    
     if (!contractId) {
         handleError("AKSES ILEGAL", "ID Kontrak hilang dari memori sesi.");
     }
 
     let isInitialLoad = true;
     let currentC = null;
+
+    // === FUNGSI TAMBAHAN: AMBIL NAMA ASLI/LENGKAP BERSARAKAN NICKNAME ===
+    async function getRealNameByNick(nickname, type) {
+        if (!nickname) return "UNKNOWN";
+        try {
+            const indexPath = type === 'requester' ? 'requester_index' : 'adventurer_index';
+            const idField = type === 'requester' ? 'id_req' : 'id_adv';
+            
+            // Cari di Index (FB1)
+            const indexSnap = await db1.ref(indexPath).orderByChild('nickname').equalTo(nickname).once('value');
+            if (!indexSnap.exists()) return "TIDAK DITEMUKAN";
+
+            // Ambil ID dan Shard
+            const indexData = Object.values(indexSnap.val())[0];
+            const shardId = indexData.shard_id;
+            const userId = indexData[idField];
+
+            // Masuk ke Shard Tujuan
+            const targetDb = getTerminal(shardId);
+            
+            let path = "";
+            let nameField = "";
+            if (type === 'requester') {
+                path = `requester_data/${userId}`;
+                nameField = "nama_asli";
+            } else {
+                path = `adventurer-KNG/Umum/${userId}`;
+                nameField = "nama_lengkap";
+            }
+
+            // Ambil data profil
+            const profileSnap = await targetDb.ref(path).once('value');
+            if (profileSnap.exists()) {
+                return profileSnap.val()[nameField] || "TANPA NAMA";
+            }
+            return "DATA HILANG";
+        } catch (e) {
+            console.error("Gagal mengambil nama:", e);
+            return "ERROR";
+        }
+    }
 
     // === FIREBASE LISTENER (UTAMA) ===
     const contractRef = db4.ref(`kontrak_mission/${contractId}`);
@@ -193,107 +237,50 @@
         }
     });
 
-  // Fungsi untuk mengambil nama asli berdasarkan nickname
-async function getRealNameByNick(nickname, type) {
-    // Validasi awal
-    if (!nickname || nickname === "undefined") {
-        console.error(`[ERROR] Nickname untuk ${type} kosong!`);
-        return "N/A";
-    }
-
-    try {
-        const db1 = getTerminal('FB1_INDEX');
-        const indexPath = type === 'requester' ? 'requester_index' : 'adventurer_index';
-        
-        // Pastikan query menargetkan child 'nickname'
-        const indexSnap = await db1.ref(indexPath).orderByChild('nickname').equalTo(nickname).once('value');
-        
-        if (!indexSnap.exists()) return "Not Found";
-
-        const indexData = Object.values(indexSnap.val())[0];
-        const shardId = indexData.shard_id;
-        const userId = type === 'requester' ? indexData.id_req : indexData.id_adv;
-
-        const targetDb = getTerminal(shardId);
-        
-        // Path sesuai struktur database Anda
-        const profilePath = type === 'requester' 
-            ? `requester_data/${userId}` 
-            : `adventurer-KNG/Umum/${userId}`;
-        
-        const field = type === 'requester' ? 'nama_asli' : 'nama_lengkap';
-
-        const profileSnap = await targetDb.ref(profilePath).once('value');
-        
-        if (profileSnap.exists()) {
-            return profileSnap.val()[field] || "Unnamed";
-        }
-        return "Data Missing";
-
-    } catch (e) {
-        console.error("Fetch Error:", e);
-        return "Error";
-    }
-}
-
-
-
-
     // === RENDER UI (FULL TANPA RINGKASAN) ===
-    async function renderUI(c) {
-    const m = c.full_mission_data || {};
-    
-    // 1. Ambil Nickname langsung dari objek kontrak (c)
-    const rNick = c.requester_nick;
-    const aNick = c.adventurer_nick;
-
-    // Log untuk pengecekan di Console (F12)
-    console.log("Data Kontrak Diterima:", { rNick, aNick });
-
-    // 2. Render struktur UI dengan ID penampung
-    document.getElementById('dataDisplay').innerHTML = `
-        <div class="data-item"><span>REQUESTER</span><b id="reqRealName">...</b></div>
-        <div class="data-item"><span>ADVENTURER</span><b id="advRealName">...</b></div>
-        <div class="data-item"><span>REWARD</span><b style="color:#00ff00;">Rp ${(c.reward || 0).toLocaleString()}</b></div>
-        <div class="data-item"><span>PERAN ANDA</span><b style="color:#ffaa00;">${user.role.toUpperCase()}</b></div>
-    `;
-
-    // 3. Jalankan pencarian jika nickname tidak kosong
-    if (rNick) {
-        getRealNameByNick(rNick, 'requester').then(name => {
-            document.getElementById('reqRealName').innerText = name;
-        });
-    } else {
-        document.getElementById('reqRealName').innerText = "NICK MISSING";
-    }
-
-    if (aNick) {
-        getRealNameByNick(aNick, 'adventurer').then(name => {
-            document.getElementById('advRealName').innerText = name;
-        });
-    } else {
-        document.getElementById('advRealName').innerText = "NICK MISSING";
-    }
-
-    // --- Sisa logika tombol tetap sama ---
-    const actionArea = document.getElementById('actionArea');
-    const statusMsg = document.getElementById('statusMsg');
-    actionArea.innerHTML = "";
-
-    if (user.role === 'adventurer') {
-        statusMsg.innerText = "Sinyal Anda terdeteksi. Silahkan eksekusi kontrak.";
-        actionArea.innerHTML = `<button id="btnStart" class="btn-action btn-start" onclick="reqStart()">EKSEKUSI KONTRAK SEKARANG</button>`;
-    } else {
-        statusMsg.innerText = "Menunggu Adventurer...";
-        actionArea.innerHTML = `
-            <div style="font-size:10px; color:#555;"><span class="pulse-dot"></span> MENANTI RESPONS...</div>
-            <button class="btn-abort" onclick="reqAbort('${m.id_misi}', '${c.id_shard}', '${c.id_desa}')">HANCURKAN KONTRAK</button>
+    function renderUI(c) {
+        const m = c.full_mission_data || {};
+        
+        document.getElementById('displayCid').innerText = `CONTRACT ID: ${c.id_kontrak}`;
+        document.getElementById('displayTitle').innerText = m.id_misi || "MISI KONTRAK";
+        
+        // MODIFIKASI: Menggunakan ID khusus untuk menampilkan nama secara asynchronous
+        document.getElementById('dataDisplay').innerHTML = `
+            <div class="data-item"><span>REQUESTER</span><b id="reqDisplay">MENYANDIKAN...</b></div>
+            <div class="data-item"><span>ADVENTURER</span><b id="advDisplay">MENYANDIKAN...</b></div>
+            <div class="data-item"><span>REWARD</span><b style="color:#00ff00;">Rp ${(c.reward || 0).toLocaleString()}</b></div>
+            <div class="data-item"><span>PERAN ANDA</span><b style="color:#ffaa00;">${user.role.toUpperCase()}</b></div>
+            <div class="data-item"><span>LOKASI ASAL</span><b>${m.origin_name || '-'}</b></div>
+            <div class="data-item"><span>LOKASI TUJUAN</span><b>${m.dest_desa || '-'}</b></div>
         `;
+
+        // MODIFIKASI: Menarik nama asli secara background lalu menampilkannya
+        getRealNameByNick(c.requester_nick, 'requester').then(namaReq => {
+            document.getElementById('reqDisplay').innerText = namaReq;
+        });
+        getRealNameByNick(c.adventurer_nick, 'adventurer').then(namaAdv => {
+            document.getElementById('advDisplay').innerText = namaAdv;
+        });
+
+        const actionArea = document.getElementById('actionArea');
+        const statusMsg = document.getElementById('statusMsg');
+        
+        actionArea.innerHTML = "";
+
+        // BRANCHING BERDASARKAN ROLE
+        if (user.role === 'adventurer') {
+            statusMsg.innerText = "Sinyal Anda terdeteksi. Untuk memulai silahkan tekan tombol terima kontrak dan segera jalin komunikasi dengan pihak pemberi misi, untuk memperjelas detail misi dan menghindari pembatalan sepihak.";
+            actionArea.innerHTML = `<button id="btnStart" class="btn-action btn-start" onclick="reqStart()">EKSEKUSI KONTRAK SEKARANG</button>`;
+        } else {
+            statusMsg.innerText = "Menunggu Adventurer menerima kontrak. Anda bisa membatalkan misi jika Adventurer tidak merespons dalam jangka waktu cukup lama.";
+            actionArea.innerHTML = `
+                <div style="font-size:10px; color:#555;"><span class="pulse-dot"></span> MENANTI RESPONS ADVENTURER...</div>
+                <button class="btn-abort" onclick="reqAbort('${m.id_misi}', '${c.id_shard}', '${c.id_desa}')">HANCURKAN KONTRAK & MISI</button>
+            `;
+        }
+        
+        updateAssistant();
     }
-    updateAssistant();
-}
-
-
 
     // === FUNCTIONS: START MISSION (ADVENTURER) ===
     function reqStart() {
