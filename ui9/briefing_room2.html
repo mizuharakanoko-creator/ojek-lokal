@@ -162,7 +162,7 @@
     // === FIREBASE LISTENER (UTAMA) ===
     const contractRef = db4.ref(`kontrak_mission/${contractId}`);
 
-    contractRef.on('value', snap => {
+    contractRef.on('value', async snap => {
         if (!snap.exists()) {
             if (isInitialLoad) { isInitialLoad = false; return; }
             handleError("KONTRAK MATI", "Kontrak telah ditarik atau dihancurkan.", true);
@@ -172,6 +172,12 @@
         isInitialLoad = false;
         const c = snap.val();
         currentC = c;
+
+        let extraData = { namaLengkap: "Memuat...", desa: "Memuat..." };
+    if (c.id_adventurer) {
+        const detail = await getAdventurerDetails(c.id_adventurer);
+        if (detail) extraData = detail;
+    }
 
         // VERIFIKASI IDENTITAS KETAT
         if (user.uid !== c.id_requester && user.uid !== c.id_adventurer) {
@@ -193,6 +199,40 @@
         }
     });
 
+
+
+    async function getAdventurerDetails(idAdv) {
+    try {
+        // STEP 1: Cari Shard dan Area di FB1 (Database Utama/Indeks)
+        const db1 = getTerminal('FB1_INDEX'); // Pastikan terminal_router punya FB1_INDEX
+        const indexSnap = await db1.ref(`adventurer_index/${idAdv}`).once('value');
+        
+        if (!indexSnap.exists()) return null;
+        
+        const { shard_id, area_tugas } = indexSnap.val();
+
+        // STEP 2: Gunakan Shard ID untuk mencari terminal DB yang tepat
+        // Misalnya shard_id bernilai 'FB2', maka kita panggil terminal tersebut
+        const dbTarget = getTerminal(shard_id); 
+
+        // STEP 3: Ambil data di tabel adventurer-(area_tugas)
+        const profileSnap = await dbTarget.ref(`adventurer-${area_tugas}/umum/${idAdv}`).once('value');
+        
+        if (profileSnap.exists()) {
+            const data = profileSnap.val();
+            return {
+                namaLengkap: data.nama_lengkap || "Tanpa Nama",
+                desa: (data.domisili_lengkap && data.domisili_lengkap.desa) ? data.domisili_lengkap.desa : "-"
+            };
+        }
+    } catch (e) {
+        console.error("Gagal mengambil detail adventurer:", e);
+    }
+    return null;
+}
+
+    
+
     // === RENDER UI (FULL TANPA RINGKASAN) ===
     function renderUI(c) {
         const m = c.full_mission_data || {};
@@ -203,6 +243,8 @@
         document.getElementById('dataDisplay').innerHTML = `
             <div class="data-item"><span>REQUESTER</span><b>${c.requester_nick}</b></div>
             <div class="data-item"><span>ADVENTURER</span><b>${c.adventurer_nick}</b></div>
+            <div class="data-item"><span>NAMA ASLI ADV</span><b>${extra.namaLengkap}</b></div>
+            <div class="data-item"><span>DESA ASAL ADV</span><b>${extra.desa}</b></div>
             <div class="data-item"><span>REWARD</span><b style="color:#00ff00;">Rp ${(c.reward || 0).toLocaleString()}</b></div>
             <div class="data-item"><span>PERAN ANDA</span><b style="color:#ffaa00;">${user.role.toUpperCase()}</b></div>
             <div class="data-item"><span>LOKASI ASAL</span><b>${m.origin_name || '-'}</b></div>
