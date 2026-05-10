@@ -183,6 +183,13 @@
     }
 
 
+    let extraReq = { namaAsli: "Memuat...", kecamatan: "Memuat..." };
+    if (c.id_requester) {
+        const detailReq = await getRequesterDetails(c.id_requester);
+        if (detailReq) extraReq = detailReq;
+    }
+
+
 
         // VERIFIKASI IDENTITAS KETAT
         if (user.uid !== c.id_requester && user.uid !== c.id_adventurer) {
@@ -259,6 +266,36 @@
 }
 
 
+
+    async function getRequesterDetails(idReq) {
+    try {
+        const db1 = getTerminal('FB1_MASTER');
+        // STEP 1: Cari Shard di requester_index
+        const indexSnap = await db1.ref(`requester_index/${idReq}`).once('value');
+        
+        if (!indexSnap.exists()) return null;
+        const { shard_id } = indexSnap.val();
+
+        // STEP 2: Koneksi ke Shard tujuan
+        const dbTarget = getTerminal(shard_id);
+
+        // STEP 3: Ambil data di requester_data/[id_requester]/metadata
+        const profileSnap = await dbTarget.ref(`requester_data/${idReq}/metadata`).once('value');
+        
+        if (profileSnap.exists()) {
+            const data = profileSnap.val();
+            return {
+                namaAsli: data.nama_asli || "Tanpa Nama",
+                kecamatan: data.kecamatan_asal || "-"
+            };
+        }
+    } catch (e) {
+        console.error("Gagal ambil detail requester:", e);
+    }
+    return null;
+}
+
+
     
 
     // === RENDER UI (FULL TANPA RINGKASAN) ===
@@ -269,7 +306,7 @@
         document.getElementById('displayTitle').innerText = m.id_misi || "MISI KONTRAK";
         
         document.getElementById('dataDisplay').innerHTML = `
-            <div class="data-item"><span>REQUESTER</span><b>${c.requester_nick}</b></div>
+            <div class="data-item"><span>REQUESTER</span><b>${extraReq.namaAsli}</b><span><small>${extraReq.kecamatan}</small></span></div>
             <div class="data-item"><span>ADVENTURER</span><b>${extra.namaLengkap}</b><span><small>${extra.desa}</small></span></div>
             <div class="data-item"><span>REWARD</span><b style="color:#00ff00;">Rp ${(c.reward || 0).toLocaleString()}</b></div>
             <div class="data-item"><span>PERAN ANDA</span><b style="color:#ffaa00;">${user.role.toUpperCase()}</b></div>
