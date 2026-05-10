@@ -152,56 +152,12 @@
     const contractId = sessionStorage.getItem('active_contract_id');
     const db4 = getTerminal('FB4_BOARD');
     
-    // TAMBAHAN: Panggil DB1 untuk Index
-    const db1 = getTerminal('FB1_INDEX');
-    
     if (!contractId) {
         handleError("AKSES ILEGAL", "ID Kontrak hilang dari memori sesi.");
     }
 
     let isInitialLoad = true;
     let currentC = null;
-
-    // === FUNGSI TAMBAHAN: AMBIL NAMA ASLI/LENGKAP BERSARAKAN NICKNAME ===
-    async function getRealNameByNick(nickname, type) {
-        if (!nickname) return "UNKNOWN";
-        try {
-            const indexPath = type === 'requester' ? 'requester_index' : 'adventurer_index';
-            const idField = type === 'requester' ? 'id_req' : 'id_adv';
-            
-            // Cari di Index (FB1)
-            const indexSnap = await db1.ref(indexPath).orderByChild('nickname').equalTo(nickname).once('value');
-            if (!indexSnap.exists()) return "TIDAK DITEMUKAN";
-
-            // Ambil ID dan Shard
-            const indexData = Object.values(indexSnap.val())[0];
-            const shardId = indexData.shard_id;
-            const userId = indexData[idField];
-
-            // Masuk ke Shard Tujuan
-            const targetDb = getTerminal(shardId);
-            
-            let path = "";
-            let nameField = "";
-            if (type === 'requester') {
-                path = `requester_data/${userId}`;
-                nameField = "nama_asli";
-            } else {
-                path = `adventurer-KNG/Umum/${userId}`;
-                nameField = "nama_lengkap";
-            }
-
-            // Ambil data profil
-            const profileSnap = await targetDb.ref(path).once('value');
-            if (profileSnap.exists()) {
-                return profileSnap.val()[nameField] || "TANPA NAMA";
-            }
-            return "DATA HILANG";
-        } catch (e) {
-            console.error("Gagal mengambil nama:", e);
-            return "ERROR";
-        }
-    }
 
     // === FIREBASE LISTENER (UTAMA) ===
     const contractRef = db4.ref(`kontrak_mission/${contractId}`);
@@ -244,23 +200,14 @@
         document.getElementById('displayCid').innerText = `CONTRACT ID: ${c.id_kontrak}`;
         document.getElementById('displayTitle').innerText = m.id_misi || "MISI KONTRAK";
         
-        // MODIFIKASI: Menggunakan ID khusus untuk menampilkan nama secara asynchronous
         document.getElementById('dataDisplay').innerHTML = `
-            <div class="data-item"><span>REQUESTER</span><b id="reqDisplay">MENYANDIKAN...</b></div>
-            <div class="data-item"><span>ADVENTURER</span><b id="advDisplay">MENYANDIKAN...</b></div>
+            <div class="data-item"><span>REQUESTER</span><b>${c.requester_nick}</b></div>
+            <div class="data-item"><span>ADVENTURER</span><b>${c.adventurer_nick}</b></div>
             <div class="data-item"><span>REWARD</span><b style="color:#00ff00;">Rp ${(c.reward || 0).toLocaleString()}</b></div>
             <div class="data-item"><span>PERAN ANDA</span><b style="color:#ffaa00;">${user.role.toUpperCase()}</b></div>
             <div class="data-item"><span>LOKASI ASAL</span><b>${m.origin_name || '-'}</b></div>
             <div class="data-item"><span>LOKASI TUJUAN</span><b>${m.dest_desa || '-'}</b></div>
         `;
-
-        // MODIFIKASI: Menarik nama asli secara background lalu menampilkannya
-        getRealNameByNick(c.requester_nick, 'requester').then(namaReq => {
-            document.getElementById('reqDisplay').innerText = namaReq;
-        });
-        getRealNameByNick(c.adventurer_nick, 'adventurer').then(namaAdv => {
-            document.getElementById('advDisplay').innerText = namaAdv;
-        });
 
         const actionArea = document.getElementById('actionArea');
         const statusMsg = document.getElementById('statusMsg');
