@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Overlord Terminal</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <!-- Router Utama Anda -->
+    <script src="terminal_router.js"></script>
+    
+    <style>
+        /* === THEME SOVEREIGN ADMIN === */
+        body { background: #050505; color: #e0e0e0; font-family: 'Courier New', Courier, monospace; margin: 0; padding: 20px; }
+        .header { border-bottom: 2px solid #00ffff; padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+        h1 { margin: 0; color: #00ffff; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 10px rgba(0,255,255,0.3); }
+        
+        .control-panel { background: #0a0a0a; border: 1px solid #333; padding: 15px; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 2fr auto auto; gap: 10px; align-items: center; border-radius: 4px; box-shadow: inset 0 0 15px rgba(0,0,0,0.8); }
+        
+        select, input { background: #000; border: 1px solid #444; color: #00ffff; padding: 10px; font-family: monospace; font-size: 14px; outline: none; width: 100%; box-sizing: border-box; }
+        select:focus, input:focus { border-color: #00ffff; box-shadow: 0 0 8px rgba(0,255,255,0.2); }
+        
+        button { background: #111; color: #fff; border: 1px solid #444; padding: 10px 20px; font-weight: bold; cursor: pointer; text-transform: uppercase; transition: 0.3s; font-family: monospace; }
+        button:hover { background: #222; border-color: #00ffff; color: #00ffff; }
+        button.btn-danger { color: #ff4444; border-color: #ff4444; background: #1a0505; }
+        button.btn-danger:hover { background: #ff4444; color: #fff; box-shadow: 0 0 15px rgba(255,68,68,0.5); }
+        
+        /* === JSON TREE VIEWER === */
+        #dataViewer { background: #080808; border: 1px solid #222; padding: 20px; min-height: 400px; max-height: 70vh; overflow-y: auto; font-size: 13px; line-height: 1.6; border-radius: 4px; }
+        
+        details { margin-left: 20px; border-left: 1px dashed #333; padding-left: 10px; }
+        summary { cursor: pointer; color: #00ffff; list-style: none; display: flex; align-items: center; }
+        summary::-webkit-details-marker { display: none; }
+        summary::before { content: "▶"; font-size: 10px; margin-right: 8px; color: #555; transition: 0.2s; }
+        details[open] > summary::before { transform: rotate(90deg); color: #00ffff; }
+        
+        .json-key { color: #aaa; cursor: crosshair; transition: 0.2s; padding: 2px 5px; border-radius: 2px; }
+        .json-key:hover { background: #333; color: #fff; }
+        
+        .json-val.string { color: #4ade80; } /* Hijau */
+        .json-val.number { color: #facc15; } /* Kuning */
+        .json-val.boolean { color: #c084fc; font-weight: bold; } /* Ungu */
+        .json-val.null { color: #ff4444; font-style: italic; } /* Merah */
+
+        /* === MODAL === */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(5px); }
+        .modal-box { background: #050505; border: 1px solid #ff4444; padding: 25px; width: 400px; text-align: center; box-shadow: 0 0 30px rgba(255,0,0,0.2); }
+        .modal-box h3 { color: #ff4444; margin-top: 0; }
+        .modal-box input { border-color: #ff4444; color: #ff4444; text-align: center; margin: 15px 0; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <h1>OVERLORD TERMINAL</h1>
+            <span style="color: #888; font-size: 12px;">Sovereign Database Aggregator & Manager</span>
+        </div>
+        <div id="statusIndicator" style="color: #4ade80; font-weight: bold; font-size: 12px; animation: blink 2s infinite;">SYSTEM READY</div>
+    </div>
+
+    <div class="control-panel">
+        <select id="terminalSelect">
+            <option value="">-- LOADING TERMINALS --</option>
+        </select>
+        
+        <input type="text" id="pathInput" placeholder="Path: / (Root) atau misal: adventurer_index/ID123" value="/">
+        
+        <button onclick="loadData()">SCAN DATA</button>
+        <button class="btn-danger" onclick="triggerDelete()">HANCURKAN PATH</button>
+    </div>
+
+    <div id="dataViewer">
+        <span style="color: #555; font-style: italic;">Pilih Terminal dan klik "SCAN DATA" untuk mulai memindai database...</span>
+    </div>
+
+    <!-- MODAL KONFIRMASI HAPUS -->
+    <div id="deleteModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>PERINGATAN KRITIS</h3>
+            <p style="color: #ccc; font-size: 12px; line-height: 1.5;">Anda akan menghapus data di terminal <b id="modalTerm" style="color:#00ffff;"></b> pada path:<br><b id="modalPath" style="color:#ffcc00;"></b></p>
+            <p style="color: #888; font-size: 11px;">Tindakan ini tidak bisa dibatalkan. Ketik <b style="color:#fff">HANCURKAN</b> untuk konfirmasi.</p>
+            
+            <input type="text" id="confirmInput" placeholder="Ketik HANCURKAN" autocomplete="off">
+            
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button onclick="closeModal()" style="flex: 1; background: #222; border:none; color: #888;">BATAL</button>
+                <button onclick="executeDelete()" class="btn-danger" style="flex: 1;">EKSEKUSI</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // === 1. INISIALISASI DROPDOWN DARI ROUTER ===
+    window.onload = () => {
+        const select = document.getElementById('terminalSelect');
+        select.innerHTML = '';
+        
+        // Membaca object TERMINAL_URLS dari terminal_router.js
+        if (typeof TERMINAL_URLS !== 'undefined') {
+            for (const key in TERMINAL_URLS) {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.innerText = `[${key}] - ${TERMINAL_URLS[key].substring(8, 25)}...`;
+                select.appendChild(opt);
+            }
+        } else {
+            select.innerHTML = '<option value="">ERROR: terminal_router.js tidak terdeteksi</option>';
+        }
+    };
+
+    // === 2. FUNGSI LOAD DATA ===
+    async function loadData() {
+        const term = document.getElementById('terminalSelect').value;
+        const path = document.getElementById('pathInput').value.trim() || '/';
+        const viewer = document.getElementById('dataViewer');
+
+        if (!term) return alert("Pilih terminal terlebih dahulu!");
+
+        viewer.innerHTML = `<span style="color: #00ffff; animation: blink 1s infinite;">Memindai data dari ${term} pada path ${path} ...</span>`;
+
+        try {
+            const db = getTerminal(term);
+            const snap = await db.ref(path).once('value');
+            
+            if (!snap.exists()) {
+                viewer.innerHTML = `<span style="color: #ffcc00;">Database kosong pada path ini atau path tidak ditemukan.</span>`;
+                return;
+            }
+
+            const data = snap.val();
+            
+            // Build UI Render
+            viewer.innerHTML = '';
+            const rootDetails = createJsonTree(path === '/' ? 'ROOT' : path, data, path);
+            rootDetails.open = true; // Otomatis buka root
+            viewer.appendChild(rootDetails);
+
+        } catch (e) {
+            viewer.innerHTML = `<span style="color: #ff4444;">ERROR: ${e.message}</span>`;
+            console.error(e);
+        }
+    }
+
+    // === 3. FUNGSI PEMBUAT TREE JSON (REKURSIF) ===
+    function createJsonTree(key, value, currentPath) {
+        const type = typeof value;
+
+        // Jika data adalah Object (Bisa Object {} atau Array [])
+        if (value !== null && type === 'object') {
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            
+            // Format tampilan key (Bisa diklik untuk set Path)
+            const spanKey = document.createElement('span');
+            spanKey.className = 'json-key';
+            spanKey.innerText = key;
+            spanKey.onclick = (e) => {
+                e.preventDefault(); // Mencegah details terbuka/tertutup
+                document.getElementById('pathInput').value = currentPath;
+            };
+
+            const isArray = Array.isArray(value);
+            const count = Object.keys(value).length;
+            const typeStr = isArray ? `[Array: ${count}]` : `{Object: ${count}}`;
+            
+            summary.appendChild(spanKey);
+            summary.innerHTML += ` <span style="color:#555; font-size: 11px;">${typeStr}</span>`;
+            details.appendChild(summary);
+
+            // Looping isi object
+            for (const childKey in value) {
+                // Susun path baru. Jika root, jangan gunakan //
+                let nextPath = currentPath === '/' || currentPath === 'ROOT' ? `/${childKey}` : `${currentPath}/${childKey}`;
+                nextPath = nextPath.replace('//', '/'); // Pencegahan double slash
+                
+                details.appendChild(createJsonTree(childKey, value[childKey], nextPath));
+            }
+            return details;
+        } 
+        
+        // Jika data adalah Primitif (String, Number, Boolean)
+        else {
+            const div = document.createElement('div');
+            div.style.marginLeft = "20px";
+            div.style.padding = "2px 0";
+            
+            const spanKey = document.createElement('span');
+            spanKey.className = 'json-key';
+            spanKey.innerText = key;
+            spanKey.onclick = () => {
+                document.getElementById('pathInput').value = currentPath;
+            };
+
+            let valClass = 'string';
+            let printVal = `"${value}"`;
+            
+            if (type === 'number') { valClass = 'number'; printVal = value; }
+            else if (type === 'boolean') { valClass = 'boolean'; printVal = value; }
+            else if (value === null) { valClass = 'null'; printVal = 'null'; }
+
+            div.appendChild(spanKey);
+            div.innerHTML += `: <span class="json-val ${valClass}">${printVal}</span>`;
+            return div;
+        }
+    }
+
+    // === 4. SISTEM HAPUS (SAFEGUARD) ===
+    function triggerDelete() {
+        const term = document.getElementById('terminalSelect').value;
+        const path = document.getElementById('pathInput').value.trim();
+
+        if (!term) return alert("Pilih terminal!");
+        if (path === '/' || path === '' || path === 'ROOT') {
+            return alert("AKSES DITOLAK: Menghapus ROOT (/) secara langsung diblokir demi keamanan sistem.");
+        }
+
+        document.getElementById('modalTerm').innerText = term;
+        document.getElementById('modalPath').innerText = path;
+        document.getElementById('confirmInput').value = '';
+        document.getElementById('deleteModal').style.display = 'flex';
+        document.getElementById('confirmInput').focus();
+    }
+
+    function closeModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+    }
+
+    async function executeDelete() {
+        const input = document.getElementById('confirmInput').value;
+        if (input !== 'HANCURKAN') {
+            alert("Teks konfirmasi salah!");
+            return;
+        }
+
+        const term = document.getElementById('terminalSelect').value;
+        const path = document.getElementById('pathInput').value.trim();
+
+        document.getElementById('statusIndicator').innerText = "MENGHAPUS DATA...";
+        document.getElementById('statusIndicator').style.color = "#ff4444";
+        closeModal();
+
+        try {
+            const db = getTerminal(term);
+            await db.ref(path).remove();
+            
+            alert(`Berhasil menghapus data di ${path}`);
+            
+            // Kembalikan status dan muat ulang data di parent path-nya
+            document.getElementById('statusIndicator').innerText = "SYSTEM READY";
+            document.getElementById('statusIndicator').style.color = "#4ade80";
+            
+            // Mundur 1 folder ke belakang untuk auto-refresh
+            const pathParts = path.split('/');
+            pathParts.pop();
+            document.getElementById('pathInput').value = pathParts.join('/') || '/';
+            loadData();
+
+        } catch (e) {
+            alert("Gagal menghapus: " + e.message);
+            document.getElementById('statusIndicator').innerText = "SYSTEM ERROR";
+        }
+    }
+
+    // CSS Animation Setup
+    const style = document.createElement('style');
+    style.innerHTML = `@keyframes blink { 0% {opacity: 0.3;} 50% {opacity: 1;} 100% {opacity: 0.3;} }`;
+    document.head.appendChild(style);
+</script>
+
+</body>
+</html>
