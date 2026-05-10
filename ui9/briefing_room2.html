@@ -207,34 +207,57 @@
 
 
     async function getAdventurerDetails(idAdv) {
+    // Debugging: Lihat apa yang masuk ke fungsi ini
+    console.log("--- DEBUG START ---");
+    console.log("ID Adventurer yang dicari:", idAdv);
+
     try {
-        // STEP 1: Cari Shard dan Area di FB1 (Database Utama/Indeks)
-        const db1 = getTerminal('FB1_MASTER'); // Pastikan terminal_router punya FB1_MASTER
+        const db1 = getTerminal('FB1_MASTER');
+        if (!db1) throw new Error("Terminal FB1_MASTER tidak ditemukan!");
+
+        // STEP 1: Cari di Index
         const indexSnap = await db1.ref(`adventurer_index/${idAdv}`).once('value');
         
-        if (!indexSnap.exists()) return null;
+        if (!indexSnap.exists()) {
+            console.error("FAILED: ID tidak ada di adventurer_index/", idAdv);
+            return { namaLengkap: "ID TIDAK VALID", desa: "-" };
+        }
         
-        const { shard_id, area_tugas } = indexSnap.val();
+        const indexData = indexSnap.val();
+        console.log("Data Index Ditemukan:", indexData);
 
-        // STEP 2: Gunakan Shard ID untuk mencari terminal DB yang tepat
-        // Misalnya shard_id bernilai 'FB2', maka kita panggil terminal tersebut
-        const dbTarget = getTerminal(shard_id); 
+        const shard = indexData.shard_id;
+        const area = indexData.area_tugas; // Pastikan isinya "KNG" sesuai gambar
 
-        // STEP 3: Ambil data di tabel adventurer-(area_tugas)
-        const profileSnap = await dbTarget.ref(`adventurer-${area_tugas}/umum/${idAdv}`).once('value');
+        // STEP 2: Koneksi ke Shard
+        const dbTarget = getTerminal(shard); 
+        if (!dbTarget) throw new Error(`Terminal ${shard} tidak ditemukan!`);
+
+        // STEP 3: Ambil Profil (Perhatikan Huruf Besar 'Umum')
+        // Kita gunakan idAdv langsung sebagai key
+        const pathProfile = `adventurer-${area}/Umum/${idAdv}`;
+        console.log("Mencoba tarik data dari path:", pathProfile);
+
+        const profileSnap = await dbTarget.ref(pathProfile).once('value');
         
         if (profileSnap.exists()) {
             const data = profileSnap.val();
+            console.log("DATA BERHASIL DITARIK:", data);
             return {
                 namaLengkap: data.nama_lengkap || "Tanpa Nama",
                 desa: (data.domisili_lengkap && data.domisili_lengkap.desa) ? data.domisili_lengkap.desa : "-"
             };
+        } else {
+            console.warn("FAILED: Data profil kosong di path tersebut.");
+            return { namaLengkap: "PROFIL KOSONG", desa: "-" };
         }
+
     } catch (e) {
-        console.error("Gagal mengambil detail adventurer:", e);
+        console.error("CRITICAL ERROR di getAdventurerDetails:", e);
+        return { namaLengkap: "ERROR KONEKSI", desa: "KONEKSI" };
     }
-    return null;
 }
+
 
     
 
