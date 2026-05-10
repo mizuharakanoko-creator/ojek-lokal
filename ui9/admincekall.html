@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Overlord Terminal</title>
+    
+    <!-- Firebase SDK Compat -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <!-- Import Router Utama Anda -->
+    <script src="terminal_router.js"></script>
+    
+    <style>
+        /* === TEMA SOVEREIGN ADMIN (DARK & NEON) === */
+        body { 
+            background: #050505; 
+            color: #e0e0e0; 
+            font-family: 'Courier New', Courier, monospace; 
+            margin: 0; 
+            padding: 15px; 
+        }
+        
+        .header { 
+            border-bottom: 2px solid #00ffff; 
+            padding-bottom: 10px; 
+            margin-bottom: 15px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-end; 
+        }
+        
+        h1 { 
+            margin: 0; 
+            color: #00ffff; 
+            font-size: 20px; 
+            text-transform: uppercase; 
+            letter-spacing: 2px; 
+            text-shadow: 0 0 10px rgba(0,255,255,0.3); 
+        }
+
+        /* === OPTIMASI MOBILE & LAYOUT === */
+        .control-panel { 
+            background: #0a0a0a; 
+            border: 1px solid #333; 
+            padding: 15px; 
+            margin-bottom: 15px; 
+            display: grid; 
+            grid-template-columns: 1fr 2fr auto auto; 
+            gap: 10px; 
+            align-items: center; 
+            border-radius: 4px; 
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8); 
+        }
+
+        @media (max-width: 768px) {
+            .control-panel { grid-template-columns: 1fr; }
+            h1 { font-size: 16px; }
+            body { padding: 10px; }
+            details { margin-left: 10px !important; }
+        }
+        
+        select, input { 
+            background: #000; 
+            border: 1px solid #444; 
+            color: #00ffff; 
+            padding: 10px; 
+            font-family: monospace; 
+            font-size: 14px; 
+            outline: none; 
+            width: 100%; 
+            box-sizing: border-box; 
+            border-radius: 4px;
+            transition: 0.3s;
+        }
+        
+        select:focus, input:focus { 
+            border-color: #00ffff; 
+            box-shadow: 0 0 8px rgba(0,255,255,0.2); 
+            background: #001111;
+        }
+        
+        button { 
+            background: #111; 
+            color: #fff; 
+            border: 1px solid #444; 
+            padding: 10px 15px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            text-transform: uppercase; 
+            transition: 0.3s; 
+            font-family: monospace; 
+            border-radius: 4px;
+        }
+        
+        button:hover { background: #222; border-color: #00ffff; color: #00ffff; }
+        button.btn-danger { color: #ff4444; border-color: #ff4444; background: #1a0505; }
+        button.btn-danger:hover { background: #ff4444; color: #fff; box-shadow: 0 0 15px rgba(255,68,68,0.5); }
+
+        .action-btn {
+            font-size: 10px;
+            padding: 3px 6px;
+            margin-left: 5px;
+            background: #222;
+            border: 1px solid #444;
+            color: #888;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .action-btn:hover { color: #00ffff; border-color: #00ffff; }
+        
+        /* === QUICK JUMP / BOOKMARKS === */
+        #quickJump {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            scrollbar-width: thin;
+            scrollbar-color: #00ffff #000;
+        }
+        .bookmark-btn {
+            background: #002222;
+            color: #00ffff;
+            border: 1px solid #005555;
+            white-space: nowrap;
+        }
+
+        /* === GLOBAL RADAR PANEL === */
+        #radarPanel {
+            background: #080808; 
+            border: 1px solid #00ffff; 
+            padding: 15px; 
+            margin-bottom: 20px; 
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,255,255,0.1);
+        }
+        .radar-table th, .radar-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #222;
+        }
+        
+        /* === BREADCRUMBS === */
+        #breadcrumb {
+            margin-bottom: 10px; 
+            font-size: 12px; 
+            color: #00ffff;
+            background: #111;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #222;
+            word-wrap: break-word;
+        }
+        .bc-link { cursor: pointer; color: #4ade80; }
+        .bc-link:hover { text-decoration: underline; color: #fff; }
+
+        /* === JSON TREE VIEWER === */
+        #dataViewer { 
+            background: #080808; 
+            border: 1px solid #222; 
+            padding: 15px; 
+            min-height: 300px; 
+            max-height: 65vh; 
+            overflow-y: auto; 
+            font-size: 13px; 
+            line-height: 1.6; 
+            border-radius: 4px; 
+        }
+        
+        details { margin-left: 20px; border-left: 1px dashed #333; padding-left: 10px; }
+        summary { cursor: pointer; color: #00ffff; list-style: none; display: flex; align-items: center; padding: 2px 0; }
+        summary::-webkit-details-marker { display: none; }
+        summary::before { content: "▶"; font-size: 10px; margin-right: 8px; color: #555; transition: 0.2s; }
+        details[open] > summary::before { transform: rotate(90deg); color: #00ffff; }
+        
+        .json-key { color: #aaa; cursor: pointer; transition: 0.2s; padding: 2px 5px; border-radius: 3px; }
+        .json-key:hover { background: #333; color: #fff; border: 1px solid #555; }
+        
+        .data-row { padding: 4px 0; border-bottom: 1px solid #111; display: flex; align-items: center; flex-wrap: wrap; }
+        .data-row:hover { background: #111; }
+
+        /* VISUAL LEGEND COLORS */
+        .legend-misi { color: #ff4444 !important; font-weight: bold; }
+        .legend-adv { color: #3b82f6 !important; font-weight: bold; }
+        .legend-req { color: #eab308 !important; font-weight: bold; }
+        
+        /* DATA TYPE COLORS */
+        .json-val.string { color: #4ade80; word-break: break-all; } /* Hijau */
+        .json-val.number { color: #facc15; } /* Kuning */
+        .json-val.boolean { color: #c084fc; font-weight: bold; } /* Ungu */
+        .json-val.null { color: #ff4444; font-style: italic; } /* Merah */
+
+        /* === MODAL === */
+        .modal-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.9); display: none; justify-content: center; 
+            align-items: center; z-index: 1000; backdrop-filter: blur(5px); 
+        }
+        .modal-box { 
+            background: #050505; border: 1px solid #ff4444; padding: 25px; 
+            width: 90%; max-width: 400px; text-align: center; 
+            box-shadow: 0 0 30px rgba(255,0,0,0.2); border-radius: 8px;
+        }
+        .modal-box h3 { color: #ff4444; margin-top: 0; }
+        .modal-box input { border-color: #ff4444; color: #ff4444; text-align: center; margin: 15px 0; font-size: 16px; }
+
+        @keyframes blink { 0% {opacity: 0.3;} 50% {opacity: 1;} 100% {opacity: 0.3;} }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <h1>OVERLORD TERMINAL</h1>
+            <span style="color: #888; font-size: 11px;">Supreme Aggregator & Global Purger</span>
+        </div>
+        <div id="statusIndicator" style="color: #4ade80; font-weight: bold; font-size: 12px; animation: blink 2s infinite;">SYSTEM READY</div>
+    </div>
+
+    <!-- GLOBAL RADAR & MULTI-PURGE -->
+    <div id="radarPanel">
+        <h3 style="color: #00ffff; margin-top: 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+            📡 GLOBAL RADAR & MULTI-PURGE
+        </h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="radarQuery" placeholder="Masukkan ID (Misal: ADV001, Misi-123)..." style="flex: 1; min-width: 200px;">
+            <button onclick="globalRadarScan()" style="background: #004444; border-color: #00ffff; flex-shrink: 0;">SCAN DIMENSI</button>
+        </div>
+        
+        <div id="radarResults" style="margin-top: 15px; display: none; overflow-x: auto;">
+            <table class="radar-table" style="width: 100%; border-collapse: collapse; background: #000; font-size: 12px;">
+                <thead>
+                    <tr style="color: #888; background: #111;">
+                        <th style="width: 50px;">PILIH</th>
+                        <th>SHARD / TERMINAL</th>
+                        <th>PATH DATA</th>
+                    </tr>
+                </thead>
+                <tbody id="radarTableBody"></tbody>
+            </table>
+            <div style="margin-top: 15px; text-align: right;">
+                <button class="btn-danger" onclick="executeMultiPurge()">HANCURKAN DATA TERPILIH</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUICK JUMP BOOKMARKS -->
+    <div id="quickJump">
+        <button onclick="jumpTo('FB1_MASTER', '/misi_index')" class="action-btn bookmark-btn">📁 Misi Index Global</button>
+        <button onclick="jumpTo('FB1_MASTER', '/adventurer_index')" class="action-btn bookmark-btn">📁 Adv Index Global</button>
+        <button onclick="jumpTo('FB1_MASTER', '/requester_index')" class="action-btn bookmark-btn">📁 Req Index Global</button>
+        <button onclick="jumpTo('FB4_BOARD', '/mission-shard')" class="action-btn bookmark-btn">⚔️ Shard Board Misi</button>
+        <button onclick="jumpTo('FB4_BOARD', '/bids')" class="action-btn bookmark-btn">📜 Misi Bids</button>
+        <button onclick="jumpTo('FB2_RUNNER', '/adventurer_profile')" class="action-btn bookmark-btn">👤 Adv Profile (FB2)</button>
+    </div>
+
+    <!-- CONTROL PANEL -->
+    <div class="control-panel">
+        <select id="terminalSelect">
+            <option value="">-- LOADING TERMINALS --</option>
+        </select>
+        
+        <input type="text" id="pathInput" placeholder="Path: / (Root) atau misal: adventurer_index/ID123" value="/">
+        
+        <button onclick="loadData()">SCAN DATA</button>
+        <button class="btn-danger" onclick="triggerDelete()">HAPUS PATH</button>
+    </div>
+
+    <!-- BREADCRUMBS -->
+    <div id="breadcrumb">
+        <span class="bc-link" onclick="loadFromBreadcrumb('/')">ROOT</span>
+    </div>
+
+    <!-- DATA VIEWER -->
+    <div id="dataViewer">
+        <span style="color: #555; font-style: italic;">Pilih Terminal dan klik "SCAN DATA" untuk mulai memindai database...</span>
+    </div>
+
+    <!-- MODAL KONFIRMASI HAPUS SINGLE PATH -->
+    <div id="deleteModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>PERINGATAN KRITIS</h3>
+            <p style="color: #ccc; font-size: 13px; line-height: 1.5;">Anda akan menghapus data di terminal <br><b id="modalTerm" style="color:#00ffff; font-size: 16px;"></b> <br>pada path:<br><b id="modalPath" style="color:#ffcc00; font-size: 14px; word-break: break-all;"></b></p>
+            <p style="color: #888; font-size: 11px;">Tindakan ini tidak bisa dibatalkan. Ketik <b style="color:#fff">HANCURKAN</b> untuk konfirmasi.</p>
+            
+            <input type="text" id="confirmInput" placeholder="Ketik HANCURKAN" autocomplete="off">
+            
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button onclick="closeModal()" style="flex: 1; background: #222; border:none; color: #888;">BATAL</button>
+                <button onclick="executeDelete()" class="btn-danger" style="flex: 1;">EKSEKUSI</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // ==========================================
+    // 1. INISIALISASI SYSTEM & ROUTER
+    // ==========================================
+    window.onload = () => {
+        const select = document.getElementById('terminalSelect');
+        select.innerHTML = '';
+        
+        if (typeof TERMINAL_URLS !== 'undefined') {
+            for (const key in TERMINAL_URLS) {
+                const opt = document.createElement('option');
+                opt.value = key;
+                // Mempersingkat nama URL untuk estetika
+                let shortUrl = TERMINAL_URLS[key].split('.')[0].replace('https://', '');
+                opt.innerText = `[${key}] - ${shortUrl}`;
+                select.appendChild(opt);
+            }
+        } else {
+            select.innerHTML = '<option value="">ERROR: terminal_router.js tidak terdeteksi</option>';
+        }
+    };
+
+    // ==========================================
+    // 2. NAVIGASI, BREADCRUMB & UI HELPERS
+    // ==========================================
+    function jumpTo(terminal, path) {
+        document.getElementById('terminalSelect').value = terminal;
+        updateActivePath(path);
+        loadData();
+    }
+
+    function updateActivePath(newPath) {
+        const input = document.getElementById('pathInput');
+        input.value = newPath;
+        
+        // Efek Flash
+        input.style.backgroundColor = "#004444";
+        setTimeout(() => { input.style.backgroundColor = "#000"; }, 300);
+
+        renderBreadcrumbs(newPath);
+    }
+
+    function renderBreadcrumbs(path) {
+        const bc = document.getElementById('breadcrumb');
+        const parts = path.split('/').filter(p => p !== "");
+        let html = '<span class="bc-link" onclick="loadFromBreadcrumb(\'/\')">ROOT</span>';
+        let current = "";
+        
+        parts.forEach(p => {
+            current += "/" + p;
+            html += ` > <span class="bc-link" onclick="loadFromBreadcrumb('${current}')">${p}</span>`;
+        });
+        bc.innerHTML = html;
+    }
+
+    function loadFromBreadcrumb(path) {
+        updateActivePath(path);
+        loadData();
+    }
+
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            document.getElementById('statusIndicator').innerText = "COPIED TO CLIPBOARD!";
+            setTimeout(() => { document.getElementById('statusIndicator').innerText = "SYSTEM READY"; }, 2000);
+        }).catch(err => {
+            alert("Gagal copy: " + err);
+        });
+    }
+
+    // ==========================================
+    // 3. CORE ENGINE: LOAD & RENDER JSON TREE
+    // ==========================================
+    async function loadData() {
+        const term = document.getElementById('terminalSelect').value;
+        let path = document.getElementById('pathInput').value.trim() || '/';
+        
+        // Membersihkan trailing slash
+        if(path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+        document.getElementById('pathInput').value = path;
+        renderBreadcrumbs(path);
+
+        const viewer = document.getElementById('dataViewer');
+
+        if (!term) return alert("Pilih terminal terlebih dahulu!");
+
+        viewer.innerHTML = `<span style="color: #00ffff; animation: blink 1s infinite;">Mengakses ${term} memindai path ${path} ...</span>`;
+
+        try {
+            const db = getTerminal(term);
+            const snap = await db.ref(path).once('value');
+            
+            if (!snap.exists()) {
+                viewer.innerHTML = `<span style="color: #ffcc00;">Database kosong pada path ini atau path tidak ditemukan.</span>`;
+                return;
+            }
+
+            const data = snap.val();
+            
+            viewer.innerHTML = '';
+            const rootDetails = createJsonTree(path === '/' ? 'ROOT' : path.split('/').pop(), data, path);
+            rootDetails.open = true; // Auto open root
+            viewer.appendChild(rootDetails);
+
+        } catch (e) {
+            viewer.innerHTML = `<span style="color: #ff4444;">ERROR: ${e.message}</span>`;
+            console.error(e);
+        }
+    }
+
+    function createJsonTree(key, value, currentPath) {
+        const type = typeof value;
+
+        // Visual Legend Check
+        let keyClass = 'json-key';
+        let keyStr = key.toLowerCase();
+        if(keyStr.includes('misi')) keyClass += ' legend-misi';
+        else if(keyStr.includes('adv')) keyClass += ' legend-adv';
+        else if(keyStr.includes('req')) keyClass += ' legend-req';
+
+        // JIKA OBJECT ATAU ARRAY
+        if (value !== null && type === 'object') {
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            
+            const spanKey = document.createElement('span');
+            spanKey.className = keyClass;
+            spanKey.innerText = key;
+            spanKey.onclick = (e) => {
+                e.preventDefault(); 
+                updateActivePath(currentPath);
+            };
+
+            const isArray = Array.isArray(value);
+            const count = Object.keys(value).length;
+            const typeStr = isArray ? `[Array] <span style="color:#ffcc00">Count: ${count}</span>` : `{Object} <span style="color:#ffcc00">Count: ${count}</span>`;
+            
+            summary.appendChild(spanKey);
+            summary.innerHTML += ` &nbsp;<span style="color:#555; font-size: 11px;">${typeStr}</span>`;
+            details.appendChild(summary);
+
+            for (const childKey in value) {
+                let nextPath = currentPath === '/' ? `/${childKey}` : `${currentPath}/${childKey}`;
+                details.appendChild(createJsonTree(childKey, value[childKey], nextPath));
+            }
+            return details;
+        } 
+        
+        // JIKA PRIMITIF (Teks, Angka, Boolean)
+        else {
+            const div = document.createElement('div');
+            div.className = 'data-row';
+            
+            const spanKey = document.createElement('span');
+            spanKey.className = keyClass;
+            spanKey.innerText = key;
+            spanKey.onclick = () => updateActivePath(currentPath);
+
+            const valId = `val-${Math.random().toString(36).substr(2, 9)}`;
+            const spanVal = document.createElement('span');
+            spanVal.id = valId;
+            
+            let valClass = 'string';
+            let printVal = `"${value}"`;
+            
+            if (type === 'number') { valClass = 'number'; printVal = value; }
+            else if (type === 'boolean') { valClass = 'boolean'; printVal = value; }
+            else if (value === null) { valClass = 'null'; printVal = 'null'; }
+
+            spanVal.className = `json-val ${valClass}`;
+            spanVal.innerText = printVal;
+            spanVal.style.marginLeft = "5px";
+            spanVal.style.marginRight = "10px";
+
+            // Tombol Copy
+            const copyBtn = document.createElement('button');
+            copyBtn.innerText = "C";
+            copyBtn.title = "Copy Value";
+            copyBtn.className = "action-btn";
+            copyBtn.onclick = () => copyToClipboard(value);
+
+            // Tombol Edit
+            const editBtn = document.createElement('button');
+            editBtn.innerText = "📝";
+            editBtn.title = "Edit Value";
+            editBtn.className = "action-btn";
+            editBtn.onclick = () => startEdit(currentPath, value, valId, div, copyBtn, editBtn);
+
+            div.appendChild(spanKey);
+            div.innerHTML += ":";
+            div.appendChild(spanVal);
+            div.appendChild(copyBtn);
+            div.appendChild(editBtn);
+            
+            return div;
+        }
+    }
+
+    // ==========================================
+    // 4. FITUR LIVE EDITOR
+    // ==========================================
+    function startEdit(path, oldVal, elementId, parentRow, copyBtn, editBtn) {
+        const el = document.getElementById(elementId);
+        
+        // Sembunyikan tombol lama
+        copyBtn.style.display = 'none';
+        editBtn.style.display = 'none';
+
+        const input = document.createElement('input');
+        input.value = oldVal;
+        input.style.width = "auto";
+        input.style.display = "inline";
+        input.style.padding = "2px 5px";
+        input.style.margin = "0 10px";
+        input.style.border = "1px solid #00ffff";
+        
+        const saveBtn = document.createElement('button');
+        saveBtn.innerText = "✅ SAVE";
+        saveBtn.className = "action-btn";
+        saveBtn.style.color = "#4ade80";
+        
+        const cancelBtn = document.createElement('button');
+        cancelBtn.innerText = "❌";
+        cancelBtn.className = "action-btn";
+
+        saveBtn.onclick = async () => {
+            let newVal = input.value;
+            // Konversi Tipe Data
+            if (!isNaN(newVal) && newVal.trim() !== "") newVal = Number(newVal);
+            if (newVal === "true") newVal = true;
+            if (newVal === "false") newVal = false;
+
+            await saveChange(path, newVal);
+        };
+
+        cancelBtn.onclick = () => {
+            // Refresh row dengan cara me-reload data parent
+            loadData(); 
+        };
+
+        el.innerHTML = "";
+        el.appendChild(input);
+        el.appendChild(saveBtn);
+        el.appendChild(cancelBtn);
+        input.focus();
+    }
+
+    async function saveChange(path, newVal) {
+        const term = document.getElementById('terminalSelect').value;
+        document.getElementById('statusIndicator').innerText = "SAVING...";
+        try {
+            await getTerminal(term).ref(path).set(newVal);
+            document.getElementById('statusIndicator').innerText = "DATA SAVED!";
+            setTimeout(() => { document.getElementById('statusIndicator').innerText = "SYSTEM READY"; loadData(); }, 1000);
+        } catch (e) {
+            alert("Gagal Save: " + e.message);
+            document.getElementById('statusIndicator').innerText = "ERROR SAVING";
+        }
+    }
+
+    // ==========================================
+    // 5. FITUR HAPUS SINGLE PATH (SAFEGUARD)
+    // ==========================================
+    function triggerDelete() {
+        const term = document.getElementById('terminalSelect').value;
+        const path = document.getElementById('pathInput').value.trim();
+
+        if (!term) return alert("Pilih terminal!");
+        if (path === '/' || path === '' || path === 'ROOT') {
+            return alert("AKSES DITOLAK: Menghapus ROOT (/) secara langsung diblokir demi keamanan.");
+        }
+
+        document.getElementById('modalTerm').innerText = term;
+        document.getElementById('modalPath').innerText = path;
+        document.getElementById('confirmInput').value = '';
+        document.getElementById('deleteModal').style.display = 'flex';
+        document.getElementById('confirmInput').focus();
+    }
+
+    function closeModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+    }
+
+    async function executeDelete() {
+        const input = document.getElementById('confirmInput').value;
+        if (input !== 'HANCURKAN') {
+            alert("Teks konfirmasi salah!");
+            return;
+        }
+
+        const term = document.getElementById('terminalSelect').value;
+        const path = document.getElementById('pathInput').value.trim();
+
+        document.getElementById('statusIndicator').innerText = "MENGHAPUS DATA...";
+        document.getElementById('statusIndicator').style.color = "#ff4444";
+        closeModal();
+
+        try {
+            const db = getTerminal(term);
+            await db.ref(path).remove();
+            
+            alert(`Berhasil menghapus data di ${path}`);
+            
+            document.getElementById('statusIndicator').innerText = "SYSTEM READY";
+            document.getElementById('statusIndicator').style.color = "#4ade80";
+            
+            // Mundur 1 folder ke belakang
+            const pathParts = path.split('/');
+            pathParts.pop();
+            const parentPath = pathParts.join('/') || '/';
+            loadFromBreadcrumb(parentPath);
+
+        } catch (e) {
+            alert("Gagal menghapus: " + e.message);
+            document.getElementById('statusIndicator').innerText = "SYSTEM ERROR";
+        }
+    }
+
+    // ==========================================
+    // 6. GLOBAL RADAR & MULTI-PURGE ENGINE
+    // ==========================================
+    async function globalRadarScan() {
+        const query = document.getElementById('radarQuery').value.trim();
+        if(!query) return alert("Masukkan ID untuk dipindai!");
+        
+        const body = document.getElementById('radarTableBody');
+        const panel = document.getElementById('radarResults');
+        body.innerHTML = "<tr><td colspan='3' style='text-align:center; padding:15px; color:#00ffff;'>Mengerahkan Probe Pencari ke seluruh dimensi...</td></tr>";
+        panel.style.display = "block";
+
+        let results = [];
+        const masterDB = getTerminal('FB1_MASTER');
+
+        try {
+            // A. Cek di Buku Induk Misi (ID Spesifik)
+            const snapMisi = await masterDB.ref(`misi_index/${query}`).once('value');
+            if(snapMisi.exists()) {
+                const data = snapMisi.val();
+                results.push({ db: 'FB1_MASTER', path: `misi_index/${query}` });
+                
+                // Cari di Shard Misi
+                if(data.shard_id) {
+                    results.push({ db: data.shard_id, path: `mission-shard/${data.area || 'unknown'}/${query}` });
+                } else {
+                    // Fallback cari di FB4 jika shard tidak tercatat jelas
+                    results.push({ db: 'FB4_BOARD', path: `mission-shard/unknown_area/${query}` });
+                }
+                // Cari di Bids FB4
+                results.push({ db: 'FB4_BOARD', path: `bids/${query}` });
+            }
+
+            // B. Cek di Adventurer Index (Berdasarkan ID key)
+            const snapAdvKey = await masterDB.ref(`adventurer_index/${query}`).once('value');
+            let advMeta = null;
+            let advId = query;
+
+            if(snapAdvKey.exists()) {
+                advMeta = snapAdvKey.val();
+            } else {
+                // Fallback cari berdasarkan Nickname
+                const snapAdvNick = await masterDB.ref(`adventurer_index`).orderByChild('nickname').equalTo(query).once('value');
+                if(snapAdvNick.exists()){
+                    advId = Object.keys(snapAdvNick.val())[0];
+                    advMeta = snapAdvNick.val()[advId];
+                }
+            }
+
+            if (advMeta) {
+                results.push({ db: 'FB1_MASTER', path: `adventurer_index/${advId}` });
+                const shard = advMeta.shard_id || 'FB2_RUNNER'; // Fallback shard
+                const tables = ['profile', 'inventory', 'reputation', 'experience', 'diagram', 'contracts', 'judge', 'coxin'];
+                tables.forEach(t => {
+                    results.push({ db: shard, path: `adventurer_${t}/${advId}` });
+                });
+            }
+
+            // C. Cek di Requester Index (Berdasarkan ID key)
+            const snapReqKey = await masterDB.ref(`requester_index/${query}`).once('value');
+            let reqMeta = null;
+            let reqId = query;
+
+            if(snapReqKey.exists()) {
+                reqMeta = snapReqKey.val();
+            } else {
+                // Fallback cari berdasarkan Nickname
+                const snapReqNick = await masterDB.ref(`requester_index`).orderByChild('nickname').equalTo(query).once('value');
+                if(snapReqNick.exists()){
+                    reqId = Object.keys(snapReqNick.val())[0];
+                    reqMeta = snapReqNick.val()[reqId];
+                }
+            }
+
+            if (reqMeta) {
+                results.push({ db: 'FB1_MASTER', path: `requester_index/${reqId}` });
+                const rShard = reqMeta.shard_id || 'REQKUNINGAN'; // Fallback shard
+                const rTables = ['profile', 'inventory', 'reputation', 'diagram', 'coxin'];
+                rTables.forEach(t => {
+                    results.push({ db: rShard, path: `requester_${t}/${reqId}` });
+                });
+            }
+
+            // D. Render Hasil
+            body.innerHTML = "";
+            if(results.length === 0) {
+                body.innerHTML = "<tr><td colspan='3' style='text-align:center; padding:15px; color:#ffcc00;'>Tidak ada jejak data ditemukan.</td></tr>";
+            } else {
+                results.forEach((res) => {
+                    body.innerHTML += `
+                        <tr>
+                            <td style="text-align:center;"><input type="checkbox" class="purge-check" data-db="${res.db}" data-path="${res.path}" checked style="width:auto; transform:scale(1.5);"></td>
+                            <td style="color: #4ade80; font-weight:bold;">${res.db}</td>
+                            <td style="color: #aaa;">${res.path}</td>
+                        </tr>
+                    `;
+                });
+            }
+        } catch (e) {
+            alert("Radar Error: " + e.message);
+            body.innerHTML = `<tr><td colspan='3' style='color:#ff4444;'>ERROR: ${e.message}</td></tr>`;
+        }
+    }
+
+    async function executeMultiPurge() {
+        const checks = document.querySelectorAll('.purge-check:checked');
+        if(checks.length === 0) return alert("Pilih minimal satu data di Radar!");
+        
+        if(!confirm(`PERINGATAN LEVEL OMEGA:\nAnda akan menghancurkan ${checks.length} tabel secara permanen. Lanjutkan?`)) return;
+        if(prompt("Ketik HANCURKAN untuk otorisasi pemusnahan massal") !== "HANCURKAN") return;
+
+        document.getElementById('statusIndicator').innerText = "MASS DESTRUCTION IN PROGRESS...";
+        document.getElementById('statusIndicator').style.color = "#ff4444";
+        
+        let successCount = 0;
+        let failCount = 0;
+
+        for(let check of checks) {
+            const dbName = check.getAttribute('data-db');
+            const path = check.getAttribute('data-path');
+            try {
+                // Skip jika nama db tidak valid (fallback yang gagal)
+                if(dbName && getTerminal(dbName)) {
+                    await getTerminal(dbName).ref(path).remove();
+                    check.parentElement.parentElement.style.opacity = "0.2";
+                    check.disabled = true;
+                    successCount++;
+                }
+            } catch (e) {
+                console.error(`Gagal hapus ${path} di ${dbName}:`, e);
+                check.parentElement.parentElement.style.borderLeft = "3px solid #ff4444";
+                failCount++;
+            }
+        }
+        
+        alert(`Pembersihan Selesai.\nBerhasil dihapus: ${successCount}\nGagal dihapus: ${failCount}`);
+        document.getElementById('statusIndicator').innerText = "SYSTEM READY";
+        document.getElementById('statusIndicator').style.color = "#4ade80";
+    }
+
+</script>
+</body>
+</html>
