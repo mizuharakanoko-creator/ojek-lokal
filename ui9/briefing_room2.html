@@ -270,23 +270,25 @@
     async function getRequesterDetails(idReq) {
     try {
         const db1 = getTerminal('FB1_MASTER');
-        // STEP 1: Cari Shard di requester_index
         const indexSnap = await db1.ref(`requester_index/${idReq}`).once('value');
         
         if (!indexSnap.exists()) return null;
         const { shard_id } = indexSnap.val();
 
-        // STEP 2: Koneksi ke Shard tujuan
         const dbTarget = getTerminal(shard_id);
 
-        // STEP 3: Ambil data di requester_data/[id_requester]/metadata
-        const profileSnap = await dbTarget.ref(`requester_data/${idReq}/metadata`).once('value');
+        // Kita ambil data satu level di atas metadata (yaitu root ID Requester-nya)
+        const profileSnap = await dbTarget.ref(`requester_data/${idReq}`).once('value');
         
         if (profileSnap.exists()) {
             const data = profileSnap.val();
+            
+            // Perhatikan pengambilannya di sini:
             return {
-                namaAsli: data.nama_asli || "Tanpa Nama",
-                kecamatan: data.kecamatan_asal || "-"
+                // nama_asli ada di level atas
+                namaAsli: data.nama_asli || "Tanpa Nama", 
+                // kecamatan_asal ada di dalam folder metadata
+                kecamatan: (data.metadata && data.metadata.kecamatan_asal) ? data.metadata.kecamatan_asal : "-"
             };
         }
     } catch (e) {
@@ -294,6 +296,7 @@
     }
     return null;
 }
+
 
 
     
