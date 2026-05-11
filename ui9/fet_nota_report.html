@@ -1,0 +1,218 @@
+<style>
+    .nota-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(5, 5, 8, 0.95);
+        z-index: 2000;
+        display: none; /* Dikawal oleh fungsi JS */
+        flex-direction: column;
+        backdrop-filter: blur(15px);
+        padding: 25px;
+        overflow-y: auto;
+    }
+
+    .nota-overlay.open { display: flex; animation: fadeIn 0.3s ease; }
+
+    .nota-paper {
+        background: #fff;
+        color: #1a1a1a;
+        width: 100%;
+        max-width: 400px;
+        margin: 0 auto;
+        border-radius: 4px;
+        padding: 30px 20px;
+        position: relative;
+        font-family: 'JetBrains Mono', monospace;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+
+    /* Kesan Potongan Kertas (Zigzag) */
+    .nota-paper::after {
+        content: "";
+        position: absolute;
+        bottom: -15px; left: 0; width: 100%; height: 15px;
+        background: linear-gradient(-45deg, transparent 10px, #fff 0), linear-gradient(45deg, transparent 10px, #fff 0);
+        background-size: 15px 30px;
+    }
+
+    .nota-header {
+        text-align: center;
+        border-bottom: 2px dashed #ccc;
+        padding-bottom: 15px;
+        margin-bottom: 20px;
+    }
+
+    .nota-brand { font-weight: 900; font-size: 18px; letter-spacing: -1px; }
+    .nota-title { font-size: 10px; color: #666; text-transform: uppercase; margin-top: 5px; }
+
+    .nota-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 12px;
+    }
+
+    .nota-item-list {
+        margin: 15px 0;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+
+    .total-section {
+        margin-top: 15px;
+        padding-top: 10px;
+        border-top: 2px solid #1a1a1a;
+    }
+
+    .nota-footer {
+        margin-top: 30px;
+        text-align: center;
+        font-size: 9px;
+        color: #888;
+        line-height: 1.4;
+    }
+
+    .btn-close-nota {
+        margin-top: 40px;
+        background: transparent;
+        border: 1px solid var(--neon-blue);
+        color: var(--neon-blue);
+        padding: 12px;
+        border-radius: 8px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        cursor: pointer;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+
+<div id="nota-ui-overlay" class="nota-overlay">
+    <div class="nota-paper">
+        <div class="nota-header">
+            <div class="nota-brand">SOVEREIGN GUILD</div>
+            <div class="nota-title">Official Mission Invoice</div>
+            <div id="nota-date" style="font-size: 9px; margin-top: 10px; color: #999;">--/--/-- --:--</div>
+        </div>
+
+        <div class="nota-row">
+            <span>ID KONTRAK:</span>
+            <span id="nota-id" style="font-weight: bold;">#-----</span>
+        </div>
+        <div class="nota-row">
+            <span>ADVENTURER:</span>
+            <span id="nota-adv">--</span>
+        </div>
+        <div class="nota-row">
+            <span>CLIENT:</span>
+            <span id="nota-client">--</span>
+        </div>
+
+        <div class="nota-item-list" id="nota-items-container">
+            <div class="nota-row" style="color: #999; font-style: italic;">Memuatkan butiran item...</div>
+        </div>
+
+        <div class="total-section">
+            <div class="nota-row" style="font-weight: bold; font-size: 14px;">
+                <span>TOTAL AKHIR</span>
+                <span id="nota-total-all">Rp 0</span>
+            </div>
+        </div>
+
+        <div id="nota-payment-status" style="margin-top: 15px; padding: 5px; background: #00ff88; color: #000; text-align: center; font-size: 10px; font-weight: bold; border-radius: 2px;">
+            PAID VIA SYSTEM SHARD
+        </div>
+
+        <div class="nota-footer">
+            * Segala transaksi telah direkodkan dalam lejar Guild.<br>
+            * Simpan resit digital ini sebagai bukti sah.<br>
+            TERIMA KASIH ATAS KEPERCAYAAN ANDA.
+        </div>
+    </div>
+
+    <button class="btn-close-nota" onclick="closeNota()">KEMBALI KE HUB</button>
+</div>
+
+<script>
+    window.nota_activeId = sessionStorage.getItem('active_contract_id');
+
+    async function openNota() {
+        const overlay = document.getElementById('nota-ui-overlay');
+        overlay.classList.add('open');
+        
+        // Vibrate sikit untuk kesan "tactile"
+        if(navigator.vibrate) navigator.vibrate(20);
+
+        await refreshNotaData();
+    }
+
+    function closeNota() {
+        document.getElementById('nota-ui-overlay').classList.remove('open');
+    }
+
+    async function refreshNotaData() {
+        if(!window.nota_activeId) return;
+
+        try {
+            // Gunakan getSupremeData yang sama seperti di HQ
+            if(typeof getSupremeData === 'undefined') throw new Error("Data Router Offline");
+            const DATA = await getSupremeData(window.nota_activeId);
+            
+            const m = DATA.mission;
+            const detail = m.full_mission_data || {};
+
+            // Isi Data Asas
+            document.getElementById('nota-id').innerText = `#${window.nota_activeId.substring(0, 8)}`;
+            document.getElementById('nota-date').innerText = new Date().toLocaleString();
+            document.getElementById('nota-adv').innerText = m.adventurer_nick || "N/A";
+            document.getElementById('nota-client').innerText = detail.client_name || "N/A";
+
+            // Proses Item List
+            const container = document.getElementById('nota-items-container');
+            container.innerHTML = ""; // Kosongkan loader
+
+            let subtotal = 0;
+
+            // 1. Kos Misi/Item Asal
+            const hargaItem = parseInt(m.reward) || 0;
+            addItemToNota("Mission Base Reward", hargaItem);
+            subtotal += hargaItem;
+
+            // 2. Caj Perkhidmatan (Contoh 5% atau dari data)
+            const serviceFee = detail.service_fee || 0;
+            if(serviceFee > 0) {
+                addItemToNota("Guild Service Fee", serviceFee);
+                subtotal += serviceFee;
+            }
+
+            // 3. Tambahan Lain (Jika ada)
+            if(detail.extra_charge) {
+                addItemToNota("Additional Logistics", detail.extra_charge);
+                subtotal += detail.extra_charge;
+            }
+
+            // Update Total
+            document.getElementById('nota-total-all').innerText = "Rp " + subtotal.toLocaleString();
+
+        } catch (e) {
+            console.error("Nota Error:", e);
+            document.getElementById('nota-items-container').innerHTML = `<div style="color:red">Gagal menarik rekod transaksi.</div>`;
+        }
+    }
+
+    function addItemToNota(label, price) {
+        const container = document.getElementById('nota-items-container');
+        const row = document.createElement('div');
+        row.className = 'nota-row';
+        row.innerHTML = `
+            <span>${label}</span>
+            <span>Rp ${price.toLocaleString()}</span>
+        `;
+        container.appendChild(row);
+    }
+
+    // Daftarkan fungsi ke global supaya boleh dipanggil dari tab lain (contoh: dari HQ)
+    window.showGlobalNota = openNota;
+
+</script>
