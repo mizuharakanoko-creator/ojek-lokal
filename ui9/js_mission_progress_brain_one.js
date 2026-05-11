@@ -126,6 +126,41 @@ window.Router = {
 };
 
 
+
+
+window.toggleDebugPanel = function() {
+    const panel = document.getElementById('debug-panel');
+    const content = document.getElementById('debug-content');
+    
+    if (panel.style.display === 'none') {
+        // AMBIL SEMUA DATA
+        let html = "";
+        
+        // A. Cek Session Storage
+        html += `<b style="color:cyan;">[ SESSION STORAGE ]</b><br>`;
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            const val = sessionStorage.getItem(key);
+            html += `<span style="color:#aaa;">${key}:</span> ${val}<br>`;
+        }
+        
+        html += `<br><b style="color:cyan;">[ GLOBAL STATE (SovereignState) ]</b><br>`;
+        html += `<pre style="white-space:pre-wrap;">${JSON.stringify(window.SovereignState, null, 2)}</pre>`;
+        
+        html += `<br><b style="color:cyan;">[ FIREBASE STATUS ]</b><br>`;
+        html += `Firestore: ${window.SovereignState.db ? "CONNECTED" : "DISCONNECTED"}<br>`;
+        html += `RTDB: ${window.SovereignState.rtdb ? "CONNECTED" : "DISCONNECTED"}<br>`;
+        
+        content.innerHTML = html;
+        panel.style.display = 'block';
+    } else {
+        panel.style.display = 'none';
+    }
+};
+
+
+
+
 // 5. TERMINAL GATEWAY (Untuk Deep Mining Lintas Database)
 window.getTerminal = (type) => {
     // Sesuaikan mapping terminal dengan kebutuhan aplikasi Anda
