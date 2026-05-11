@@ -15,7 +15,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
     <style>
-        /* CSS GLOBAL & VARIABEL */
         :root {
             --neon-blue: #00f2ff;
             --neon-purple: #bc13fe;
@@ -38,77 +37,108 @@
             color: var(--text-main);
             height: 100vh;
             display: flex;
-            flex-direction: column;
+            flex-direction: row; /* Flex row agar konten utama dan menu bisa berdampingan jika perlu */
             overflow: hidden;
         }
 
-        /* Navigasi Tab */
-        .nav-tabs {
-            display: flex;
-            background: rgba(15, 15, 20, 0.95);
-            border-bottom: 1px solid var(--border-glow);
-            padding: 10px;
-            gap: 10px;
-            overflow-x: auto;
-            z-index: 100;
-        }
-
-        .tab-link {
-            padding: 10px 20px;
-            color: var(--text-dim);
-            font-size: 0.75rem;
-            font-weight: 900;
-            border: 1px solid transparent;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            transition: 0.3s;
-            white-space: nowrap;
-        }
-
-        .tab-link.active {
-            color: var(--neon-blue);
-            border: 1px solid var(--neon-blue);
-            background: rgba(0, 242, 255, 0.1);
-            box-shadow: 0 0 15px var(--border-glow);
-        }
-
-        /* Container Komponen */
+        /* Container Utama */
         .main-content {
             flex: 1;
             position: relative;
-            overflow-y: auto;
+            height: 100vh;
+            overflow: hidden;
         }
 
         .tab-pane {
             display: none;
-            min-height: 100%;
+            height: 100%;
+            width: 100%;
+            overflow-y: auto;
         }
 
         .tab-pane.active {
             display: block;
+            animation: fadeIn 0.4s ease;
         }
 
-        /* Loading Screen UI */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Floating Bubble Navigation (Kanan Layar) */
+        .bubble-nav {
+            position: fixed;
+            right: 15px;
+            bottom: 30px; /* Posisi dekat jempol */
+            display: flex;
+            flex-direction: column-reverse; /* Urutan dari bawah ke atas */
+            gap: 15px;
+            z-index: 5000;
+        }
+
+        .bubble-link {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            background: rgba(15, 15, 20, 0.8);
+            border: 1px solid var(--border-glow);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            font-size: 18px;
+            cursor: pointer;
+            transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        /* Tooltip Nama Menu */
+        .bubble-link::before {
+            content: attr(data-label);
+            position: absolute;
+            right: 70px;
+            background: var(--neon-blue);
+            color: #000;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 900;
+            white-space: nowrap;
+            opacity: 0;
+            transform: translateX(10px);
+            transition: 0.3s;
+            pointer-events: none;
+            text-transform: uppercase;
+        }
+
+        .bubble-link:hover::before {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .bubble-link.active {
+            color: var(--neon-blue);
+            border-color: var(--neon-blue);
+            background: rgba(0, 242, 255, 0.15);
+            box-shadow: 0 0 20px var(--border-glow);
+            transform: scale(1.1);
+        }
+
+        .bubble-link i { transition: 0.3s; }
+        .bubble-link.active i { transform: scale(1.2); }
+
+        /* Khusus Warna Berbeda untuk Tiap Role/Fungsi */
+        .bubble-link[data-label="NOTA"] { border-color: rgba(0, 255, 136, 0.3); }
+        .bubble-link[data-label="NOTA"].active { color: #00ff88; border-color: #00ff88; box-shadow: 0 0 20px rgba(0, 255, 136, 0.4); }
+
+        /* Loader */
         #master-loader {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
             background: var(--dark-bg);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999;
         }
-        
-        .loader-circle {
-            width: 50px; height: 50px;
-            border: 2px solid var(--border-glow);
-            border-top: 2px solid var(--neon-blue);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        
+        .loader-circle { width: 50px; height: 50px; border: 2px solid var(--border-glow); border-top: 2px solid var(--neon-blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -116,27 +146,40 @@
 
     <div id="master-loader">
         <div class="loader-circle"></div>
-        <p style="margin-top: 15px; font-size: 10px; letter-spacing: 2px; color: var(--neon-blue);">INITIALIZING SYSTEM...</p>
+        <p style="margin-top: 15px; font-size: 10px; letter-spacing: 2px; color: var(--neon-blue);">RECALIBRATING INTERFACE...</p>
     </div>
-
-    <nav class="nav-tabs">
-        <div class="tab-link active" onclick="switchTab('tab-hq', 'fet_missioncardhq.html', this)">HQ</div>
-        <div class="tab-link" onclick="switchTab('tab-maps', 'fet_maps_view_location.html', this)">MAPS</div>
-        <div class="tab-link" onclick="switchTab('tab-comms', 'fet_comms_peer.html', this)">COMMS</div>
-    </nav>
 
     <main class="main-content">
         <div id="tab-hq" class="tab-pane active"></div>
         <div id="tab-maps" class="tab-pane"></div>
         <div id="tab-comms" class="tab-pane"></div>
-    </main>
+        <div id="tab-profile" class="tab-pane"></div>
+        </main>
+
+    <nav class="bubble-nav">
+        <div class="bubble-link active" data-label="HQ" onclick="switchTab('tab-hq', 'fet_missioncardhq.html', this)">
+            <i class="fa-solid fa-house-chimney"></i>
+        </div>
+        <div class="bubble-link" data-label="MAPS" onclick="switchTab('tab-maps', 'fet_maps_view_location.html', this)">
+            <i class="fa-solid fa-map-location-dot"></i>
+        </div>
+        <div class="bubble-link" data-label="COMMS" onclick="switchTab('tab-comms', 'fet_comms_peer.html', this)">
+            <i class="fa-solid fa-comment-dots"></i>
+        </div>
+        <div class="bubble-link" data-label="NOTA" onclick="window.showGlobalNota()">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+        </div>
+        <div class="bubble-link" data-label="PROFILE" onclick="window.showPartnerProfile()">
+            <i class="fa-solid fa-user-shield"></i>
+        </div>
+    </nav>
 
     <div id="modal-rating-container"></div>
     <div id="modal-profile-container"></div>
     <div id="nota-report-container"></div>
 
     <script>
-        // 1. FIREBASE INITIALIZATION
+        // 1. FIREBASE CONFIG
         const firebaseConfig = {
             apiKey: "MASUKKAN_API_KEY_ANDA",
             authDomain: "PROJECT_ID.firebaseapp.com",
@@ -146,64 +189,58 @@
             appId: "APP_ID"
         };
         
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // 2. MODULAR COMPONENT LOADER
+        // 2. COMPONENT LOADER
         async function fetchComponent(containerId, filePath) {
             const container = document.getElementById(containerId);
-            
-            // Hindari fetch ulang jika sudah ada isinya
             if (container.innerHTML.trim() !== "") return;
 
             try {
                 const response = await fetch(filePath);
                 if (!response.ok) throw new Error(`Gagal memuat ${filePath}`);
                 const html = await response.text();
-                
-                // Masukkan HTML
                 container.innerHTML = html;
 
-                // Jalankan Script yang ada di dalam file tersebut
                 const scripts = container.querySelectorAll("script");
                 scripts.forEach(oldScript => {
                     const newScript = document.createElement("script");
-                    Array.from(oldScript.attributes).forEach(attr => {
-                        newScript.setAttribute(attr.name, attr.value);
-                    });
+                    Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
                     newScript.appendChild(document.createTextNode(oldScript.innerHTML));
                     oldScript.parentNode.replaceChild(newScript, oldScript);
                 });
             } catch (err) {
                 console.error("Error:", err);
-                container.innerHTML = `<div style="padding:20px; color:red;">[SYSTEM ERROR]: Gagal memuat modul ${filePath}</div>`;
             }
         }
 
-        // 3. TAB SWITCHING LOGIC
+        // 3. TAB LOGIC
         function switchTab(tabId, fileName, element) {
-            document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
+            // Animasi Haptic sederhana
+            if(navigator.vibrate) navigator.vibrate(10);
+
+            document.querySelectorAll('.bubble-link').forEach(l => l.classList.remove('active'));
             document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
             
             element.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
+            const targetPane = document.getElementById(tabId);
+            if(targetPane) targetPane.classList.add('active');
 
             fetchComponent(tabId, fileName);
         }
 
-        // 4. BOOTSTRAP SYSTEM
+        // 4. INITIAL BOOTSTRAP
         window.onload = async () => {
-            // Load Tab HQ secara otomatis di awal
+            // Load Default Tab
             await fetchComponent('tab-hq', 'fet_missioncardhq.html');
             
-            // Load Modal secara background agar siap saat dipanggil
+            // Background Loading untuk Modals & Nota
             fetchComponent('modal-rating-container', 'fet_modalrating.html');
             fetchComponent('modal-profile-container', 'fet_modalshowprofile.html');
             fetchComponent('nota-report-container', 'fet_nota_report.html');
 
-            // Matikan Loader
+            // Fade out loader
             setTimeout(() => {
                 const loader = document.getElementById('master-loader');
                 loader.style.opacity = '0';
