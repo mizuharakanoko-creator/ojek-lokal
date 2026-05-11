@@ -32,64 +32,36 @@ window.initHQModule = async function() {
 // 2. DEEP MINING ENGINE
 async function performDeepMiningHQ(contractId) {
     try {
-        const db = window.SovereignState.db;
-        window.debugLog("📡 MENGHUBUNGI SHARD FIRESTORE...");
-
-        // 1. Coba ambil dari Firestore
-        const snap = await db.collection('contracts').doc(contractId).get();
+        window.debugLog("📡 MEMULAI SUPREME AGGREGATOR...");
         
-        let missionData = null;
-
-        if (snap.exists) {
-            missionData = snap.data();
-            window.debugLog("✅ DATA FIRESTORE DITEMUKAN");
+        // 1. Panggil fungsi sakti dari terminal_router.js
+        const supremePacket = await getSupremeData(contractId);
+        
+        if (supremePacket) {
+            window.debugLog("✅ SUPREME DATA TERKUMPUL!");
+            
+            // Simpan ke Global State agar bisa diakses seluruh aplikasi
+            window.SovereignState.currentMissionData = supremePacket;
+            
+            // Kirim ke UI
+            // SupremePacket.mission berisi data reward, zona, dll
+            // SupremePacket.adventurer berisi data partner (jika ada)
+            renderHQ(supremePacket.mission, supremePacket.adventurer);
+            
         } else {
-            // BACKUP: Jika Firestore kosong, ambil dari Session Storage (Data Debug kamu tadi)
-            window.debugLog("⚠️ FIRESTORE KOSONG, PAKAI BACKUP...");
+            // BACKUP: Jika Supreme gagal, pakai Session Storage
+            window.debugLog("⚠️ SUPREME GAGAL, PAKAI SESSION STORAGE");
             const backup = sessionStorage.getItem('current_mission_full');
             if (backup) {
-                missionData = JSON.parse(backup);
+                const bData = JSON.parse(backup);
+                renderHQ(bData, null);
             }
         }
-
-        if (!missionData) {
-            window.debugLog("❌ SEMUA SUMBER DATA KOSONG", "error");
-            return;
-        }
-
-        // 2. Kirim ke UI (Agar layar tidak Rp 0 lagi)
-        // Kita render misi dulu, baru cari partner kemudian agar tidak lambat
-        renderHQ(missionData, null);
-
-        // 3. Cari Data Partner (Deep Mining RTDB)
-        const masterDB = window.getTerminal('FB1_MASTER');
-        if (masterDB && missionData.adventurer_nick) {
-            window.debugLog("🗂️ MENCARI DATA PARTNER...");
-            const snapIdx = await masterDB.ref('adventurer_index')
-                                       .orderByChild('nickname')
-                                       .equalTo(missionData.adventurer_nick)
-                                       .once('value');
-            
-            if (snapIdx.exists()) {
-                const meta = Object.values(snapIdx.val())[0];
-                // Simpan ke memori global
-                window.SovereignState.currentMissionData = {
-                    mission: missionData,
-                    partner: { meta: meta }
-                };
-                renderHQ(missionData, { meta: meta });
-            }
-        }
-
-        window.debugLog("🚀 OPERASIONAL SELESAI");
-
     } catch (err) {
-        window.debugLog(`💥 CRASH: ${err.message.substring(0, 20)}`, "error");
-        // Usahakan tetap render apa yang ada
-        const backup = sessionStorage.getItem('current_mission_full');
-        if (backup) renderHQ(JSON.parse(backup), null);
+        window.debugLog("💥 ERROR SUPREME: " + err.message, "error");
     }
 }
+
 
 
 // 3. UI RENDERER (Sinkron dengan ID di fet_missioncardhq.html)
