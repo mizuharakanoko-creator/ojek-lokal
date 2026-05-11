@@ -240,28 +240,44 @@
     window.hq_isAdv = window.hq_user.role === 'adventurer';
 
     // Koneksi Database Firebase
-    window.hq_dbDeal = (typeof getTerminal !== 'undefined') ? getTerminal('FB5_DEAL') : null;
+    window.hq_dbDeal = (window.getTerminal) ? window.getTerminal('FB5_DEAL') : firebase.database();
 
     function initHQModule() {
-        document.getElementById('m-exp').innerText = (window.hq_mission.rpg_reward?.exp || 0) + " EXP";
-        document.getElementById('m-stone').innerText = (window.hq_mission.rpg_reward?.greenStone || 0) + " STONES";
-        document.getElementById('m-id-display').innerText = "ID: " + window.hq_contractId;
-
-        if (window.hq_isAdv) {
-            document.getElementById('adv-status-hub').classList.remove('hide');
-            startEmergencyProtocol();
-        } else {
-            document.getElementById('action-slider-box').classList.remove('hide');
-            document.getElementById('rpg-exp-wrap').classList.add('hide');
-            document.getElementById('rpg-stone-wrap').classList.add('hide');
-            startRequesterEducation();
-        }
-
-        // Jalankan fetch data dalam dan sinkronisasi
-        performDeepMiningHQ();
-        syncStatusHQ();
-        initSliderActionHQ();
+    // Ambil data terbaru dari session
+    const rawMission = sessionStorage.getItem('current_mission_full');
+    if(!rawMission) {
+        console.error("Data misi tidak ditemukan di session!");
+        updateAI("ERROR: Shard data hilang. Silakan refresh.", "alert");
+        return;
     }
+
+    window.hq_mission = JSON.parse(rawMission);
+    window.hq_contractId = sessionStorage.getItem('active_contract_id') || window.hq_mission.id_misi;
+    
+    // Pastikan Clearchance sudah didefinisikan di file utama
+    window.hq_user = (window.Clearchance) ? window.Clearchance.enforceIdentity() : {role: 'adventurer'};
+    window.hq_isAdv = window.hq_user.role === 'adventurer';
+
+    // Inisialisasi Tampilan Dasar
+    document.getElementById('m-id-display').innerText = "ID: " + (window.hq_contractId || "---");
+    
+    if (window.hq_isAdv) {
+        document.getElementById('adv-status-hub').classList.remove('hide');
+        startEmergencyProtocol();
+    } else {
+        document.getElementById('action-slider-box').classList.remove('hide');
+        if(document.getElementById('rpg-exp-wrap')) document.getElementById('rpg-exp-wrap').classList.add('hide');
+        startRequesterEducation();
+    }
+
+    // Jalankan mesin utama
+    performDeepMiningHQ();
+    syncStatusHQ();
+    initSliderActionHQ();
+}
+
+
+    
 
     function toggleProfile() {
         document.getElementById('profile-drawer').classList.toggle('open');
@@ -289,50 +305,80 @@
     }
 
     async function performDeepMiningHQ() {
-        const dossier = document.querySelector('.dossier-body');
-        const uName = document.getElementById('u-name');
+    const dossier = document.querySelector('.dossier-body');
+    const uName = document.getElementById('u-name');
+    
+    // Mulai animasi loading
+    if (dossier) dossier.classList.add('data-syncing');
+    if (uName) uName.classList.add('loading-shimmer');
+
+    try {
+        // 1. Cek apakah fungsi pengambil data (mesin utama) sudah tersedia di file utama
+        const miningTool = window.getSupremeData || (typeof getSupremeData !== 'undefined' ? getSupremeData : null);
         
-        dossier.classList.add('data-syncing');
-        uName.classList.add('loading-shimmer');
+        if (!miningTool) throw new Error("Sistem Mining belum siap");
+        if (!window.hq_contractId) throw new Error("ID Kontrak tidak ditemukan");
 
-        try {
-            // Memanggil getSupremeData yang ada di terminal_router.js
-            if(typeof getSupremeData === 'undefined') throw new Error("Router tidak ditemukan");
-            const DATA = await getSupremeData(window.hq_contractId);
-            if (!DATA) throw new Error("Data Shard tidak terjangkau");
+        // 2. Ambil data asli dari Firebase/Router
+        const DATA = await miningTool(window.hq_contractId);
+        
+        if (!DATA) throw new Error("Data Shard tidak terjangkau");
 
-            const partner = window.hq_isAdv ? DATA.requester : DATA.adventurer;
-            
-            setTimeout(() => {
+        // 3. Tentukan siapa Partner kita (Jika kita Adventurer, partner adalah Requester, dan sebaliknya)
+        const partner = window.hq_isAdv ? DATA.requester : DATA.adventurer;
+        
+        // Timer kecil untuk memberikan kesan 'scanning'
+        setTimeout(() => {
+            if (uName) {
                 uName.classList.remove('loading-shimmer');
                 uName.innerText = partner?.profile?.nama || "Unknown Entity";
+            }
+            
+            // 4. Update UI Berdasarkan Role
+            if (window.hq_isAdv) {
+                // Tampilan untuk Adventurer (Melihat Profil Pemesan/Requester)
+                const uRank = document.getElementById('u-rank');
+                const uRole = document.getElementById('u-role');
+                const vStat1 = document.getElementById('v-stat-1');
                 
-                if (window.hq_isAdv) {
-                    document.getElementById('u-rank').innerText = partner?.profile?.tier ? `T${partner.profile.tier}` : "T1";
-                    document.getElementById('u-role').innerText = "REQUESTER";
-                    const repPoints = partner?.reputation?.poin || 0;
-                    document.getElementById('v-stat-1').innerText = `${repPoints} REP`;
-                    updateProgressBar('b-stat-1', (repPoints / 1000) * 100); 
-                } else {
-                    document.getElementById('u-rank').innerText = partner?.profile?.rank || "F";
-                    document.getElementById('u-role').innerText = "ADVENTURER";
-                    const trustScore = partner?.diagram?.nilai_kepercayaan || 0;
-                    document.getElementById('v-stat-1').innerText = `${trustScore}% TRUST`;
-                    updateProgressBar('b-stat-1', trustScore);
-                    document.getElementById('v-stat-2').innerText = "Lv." + (partner?.experience?.level || 1);
-                }
+                if (uRank) uRank.innerText = partner?.profile?.tier ? `T${partner.profile.tier}` : "T1";
+                if (uRole) uRole.innerText = "REQUESTER";
                 
-                dossier.classList.remove('data-syncing');
-                updateAI("Koneksi stabil. Segera jalin komunikasi dan konfirmasikan misi dikerjakan dengan baik.", "success");
-            }, 600);
+                const repPoints = partner?.reputation?.poin || 0;
+                if (vStat1) vStat1.innerText = `${repPoints} REP`;
+                updateProgressBar('b-stat-1', (repPoints / 1000) * 100); 
+            } else {
+                // Tampilan untuk Requester (Melihat Profil Pelaksana/Adventurer)
+                const uRank = document.getElementById('u-rank');
+                const uRole = document.getElementById('u-role');
+                const vStat1 = document.getElementById('v-stat-1');
+                const vStat2 = document.getElementById('v-stat-2');
+                
+                if (uRank) uRank.innerText = partner?.profile?.rank || "F";
+                if (uRole) uRole.innerText = "ADVENTURER";
+                
+                const trustScore = partner?.diagram?.nilai_kepercayaan || 0;
+                if (vStat1) vStat1.innerText = `${trustScore}% TRUST`;
+                updateProgressBar('b-stat-1', trustScore);
+                
+                if (vStat2) vStat2.innerText = "Lv." + (partner?.experience?.level || 1);
+            }
+            
+            if (dossier) dossier.classList.remove('data-syncing');
+            updateAI("Koneksi stabil. Shard data berhasil disinkronkan.", "success");
+        }, 600);
 
-            injectDetailsHQ(DATA);
-        } catch (e) {
-            updateAI(`ERROR: ${e.message}`, "alert");
-            dossier.classList.remove('data-syncing');
-            uName.classList.remove('loading-shimmer');
-        }
+        // 5. Masukkan detail misi (Judul, Alamat, Cargo, dll)
+        injectDetailsHQ(DATA);
+
+    } catch (e) {
+        console.error("Deep Mining Failure:", e);
+        updateAI(`ERROR: ${e.message}`, "alert");
+        if (dossier) dossier.classList.remove('data-syncing');
+        if (uName) uName.classList.remove('loading-shimmer');
     }
+}
+
 
     function parseCoordsString(coordStr) {
         if(!coordStr || coordStr === "NEGO") return null;
