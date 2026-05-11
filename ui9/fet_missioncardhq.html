@@ -1,0 +1,561 @@
+<style>
+    .hq-container { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+    
+    /* Expandable Profile (Dari Header) */
+    .profile-drawer { 
+        max-height: 0; overflow: hidden; transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1); 
+        background: rgba(0,0,0,0.6); border-bottom: 0px solid var(--border-glow); backdrop-filter: blur(10px); 
+    }
+    .profile-drawer.open { max-height: 400px; padding: 20px; border-bottom-width: 1px; }
+    .stat-line { margin-bottom: 12px; }
+    .stat-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px; color: #888; letter-spacing: 1px; }
+    .stat-bar { height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+    .stat-fill { height: 100%; width: 0%; background: var(--neon-blue); transition: width 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+    /* AI Assistant Terminal */
+    .ai-terminal { 
+        background: rgba(188, 19, 254, 0.05); border: 1px solid rgba(188, 19, 254, 0.3); 
+        border-radius: 15px; padding: 15px; display: flex; gap: 15px; align-items: center;
+        box-shadow: 0 0 20px rgba(188, 19, 254, 0.05) inset; backdrop-filter: blur(5px);
+        transition: all 0.5s ease;
+    }
+    .ai-terminal.alert { border-color: #ff3366; background: rgba(255, 51, 102, 0.05); }
+    .ai-terminal.success { border-color: #00ff88; background: rgba(0, 255, 136, 0.05); }
+    .ai-terminal.pulse { animation: terminalPulse 1.5s infinite; border-color: #00ff88; }
+    @keyframes terminalPulse { 
+        0% { box-shadow: 0 0 0 0 rgba(0,255,136,0.4); } 
+        70% { box-shadow: 0 0 0 10px rgba(0,255,136,0); } 
+        100% { box-shadow: 0 0 0 0 rgba(0,255,136,0); } 
+    }
+    #ai-text { font-size: 13px; font-style: italic; color: #d8b4fe; line-height: 1.5; transition: 0.3s; }
+
+    /* Live Status Panel */
+    .status-panel {
+        background: rgba(0,0,0,0.7); border-left: 4px solid var(--neon-blue); padding: 15px;
+        border-radius: 8px; font-family: 'JetBrains Mono', monospace; border: 1px solid rgba(255,255,255,0.08);
+        border-left-width: 4px; display: flex; align-items: center; gap: 15px;
+    }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); animation: blink 1.5s infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    #live-status-text { font-size: 12px; color: #fff; font-weight: bold; letter-spacing: 1px; flex: 1; }
+    #live-status-time { font-size: 10px; color: #888; }
+
+    /* Mission Dossier Card */
+    .dossier { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); backdrop-filter: blur(10px); }
+    .dossier-head { background: rgba(255,255,255,0.03); padding: 12px 15px; font-size: 11px; color: #aaa; display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid rgba(255,255,255,0.08); letter-spacing: 1px; }
+    .dossier-body { padding: 20px; position: relative; transition: all 0.5s ease; }
+    .data-syncing { opacity: 0.6; filter: blur(3px); }
+    .m-title { font-size: 24px; font-weight: 900; color: #00ff88; margin: 0 0 15px 0; letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0,255,136,0.3); }
+    
+    /* Narrative Progress Bar */
+    #mission-progress-container { margin-bottom: 25px; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); }
+    .prog-label { font-size: 11px; color: #bbb; display: flex; justify-content: space-between; margin-bottom: 8px; font-style: italic; }
+    .prog-track { height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+    .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple)); transition: width 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; }
+    .prog-fill::after { content:''; position:absolute; top:0; right:0; bottom:0; left:0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent); animation: shimmer 2s infinite; }
+
+    /* Shimmer Loading */
+    .loading-shimmer { background: linear-gradient(90deg, #0d0d14 25%, #1a1a24 50%, #0d0d14 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; color: transparent !important; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* Buttons */
+    .btn-main { background: linear-gradient(135deg, rgba(0,243,255,0.1), rgba(0,243,255,0.02)); border: 1px solid var(--neon-blue); color: var(--neon-blue); padding: 14px; border-radius: 12px; text-transform: uppercase; font-weight: 900; letter-spacing: 1px; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; width: 100%; font-size: 13px; }
+    .btn-main:hover, .btn-main:active { background: var(--neon-blue); color: #000; box-shadow: 0 0 20px rgba(0,243,255,0.4); transform: translateY(-2px); }
+    .hide { display: none !important; }
+
+    /* Slide-to-Confirm System */
+    .slider-wrapper { position: relative; width: 100%; height: 56px; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 28px; overflow: hidden; margin-top: 15px; box-shadow: inset 0 5px 15px rgba(0,0,0,0.5); }
+    .slider-text { position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #888; letter-spacing: 2px; pointer-events: none; z-index: 1; text-transform: uppercase; }
+    .slider-fill { position: absolute; top: 0; left: 0; height: 100%; width: 0; background: linear-gradient(90deg, rgba(0,255,136,0.1), rgba(0,255,136,0.4)); z-index: 2; transition: width 0.1s; }
+    .slider-thumb { position: absolute; top: 3px; left: 3px; width: 50px; height: 50px; background: #00ff88; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #000; font-size: 20px; cursor: pointer; z-index: 3; box-shadow: 0 0 15px rgba(0,255,136,0.5); transition: background 0.3s; }
+
+    /* Emergency Zone */
+    #em-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 70px; height: 45px; background: #ff3366; cursor: pointer; border-radius: 4px; box-shadow: -100vw 0 0 100vw rgba(255, 51, 102, 0.4), 0 0 15px #ff3366; border: 1px solid #fff; }
+    #em-slider::-moz-range-thumb { width: 70px; height: 45px; background: #ff3366; cursor: pointer; border: 1px solid #fff; }
+    
+    /* Header Bawaan (Agar badge rank tetap ada di atas HQ) */
+    #global-header { background: rgba(5, 5, 8, 0.85); border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 12px 15px; backdrop-filter: blur(20px); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); }
+    .identity-badge { display: flex; align-items: center; gap: 12px; cursor: pointer; transition: transform 0.2s; }
+    .rank-frame { width: 45px; height: 45px; border: 2px solid var(--neon-blue); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; background: rgba(0, 243, 255, 0.05); color: var(--neon-blue); }
+</style>
+
+<header id="global-header">
+    <div class="identity-badge" onclick="toggleProfile()">
+        <div id="u-rank" class="rank-frame">?</div>
+        <div>
+            <div id="u-role" style="font-size: 10px; color: #888; letter-spacing: 1.5px; text-transform: uppercase;">SINKRONISASI...</div>
+            <div id="u-name" style="font-weight: 700; font-size: 16px; transition: opacity 0.3s;">Memuat Data</div>
+        </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <button class="btn-refresh" onclick="forceRefreshData()" style="background: rgba(0,243,255,0.1); border: 1px solid var(--neon-blue); color: var(--neon-blue); width: 38px; height: 38px; border-radius: 50%;"><i class="fa-solid fa-rotate"></i></button>
+    </div>
+</header>
+
+<div id="profile-drawer" class="profile-drawer">
+    <div class="stat-line">
+        <div class="stat-label"><span>KEANDALAN SISTEM</span> <span id="v-stat-1">0%</span></div>
+        <div class="stat-bar"><div id="b-stat-1" class="stat-fill"></div></div>
+    </div>
+    <div class="stat-line">
+        <div class="stat-label"><span>REPUTASI KONTRAK</span> <span id="v-stat-2">0 PTS</span></div>
+        <div class="stat-bar"><div id="b-stat-2" class="stat-fill" style="background: #00ff88;"></div></div>
+    </div>
+    <div id="v-extra-info" style="font-size: 11px; color: #777; text-align: center; margin-top: 15px;">Secure Channel Established.</div>
+</div>
+
+<div class="hq-container">
+    
+    <div id="edu-bilah" class="hide" style="background: linear-gradient(90deg, rgba(0,243,255,0.08), transparent); border-left: 3px solid var(--neon-blue); padding: 12px 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+        <div style="font-size: 9px; color: var(--neon-blue); font-weight: bold; margin-bottom: 5px; letter-spacing: 1px;">GUILD GUIDE <i class="fa-solid fa-circle-info"></i></div>
+        <div id="edu-text" style="font-size: 12px; color: #ccc; font-style: italic; line-height: 1.4;">--</div>
+    </div>
+
+    <div id="ai-terminal-box" class="ai-terminal">
+        <i class="fa-solid fa-microchip" style="color: var(--neon-purple); font-size: 28px; text-shadow: 0 0 10px rgba(188,19,254,0.3);"></i>
+        <div id="ai-text">Menganalisis parameter misi...</div>
+    </div>
+
+    <div class="status-panel">
+        <div class="status-dot" id="status-indicator"></div>
+        <div id="live-status-text">[SYS] STANDBY - MENUNGGU DATA</div>
+        <div id="live-status-time">--:--</div>
+    </div>
+
+    <div class="dossier">
+        <div class="dossier-head">
+            <span>MISSION_FILE_ACTIVE</span>
+            <span id="m-id-display">ID: ---</span>
+        </div>
+
+        <div class="dossier-body">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                <div>
+                    <div id="m-category-badge" style="background: var(--neon-purple); color: #000; font-size: 9px; font-weight: bold; padding: 3px 8px; border-radius: 5px; display: inline-block; margin-bottom: 6px;">CATEGORY</div>
+                    <h1 id="m-title" class="m-title">MENGAMBIL DATA...</h1>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 9px; color: #666; letter-spacing: 1px;">NAMA PEMESAN</div>
+                    <div id="m-client-name" style="font-size: 12px; color: var(--neon-blue); font-weight: bold;">--</div>
+                </div>
+            </div>
+
+            <div id="mission-progress-container">
+                <div class="prog-label">
+                    <span id="m-status-text">Menganalisis matriks logistik...</span>
+                    <span id="m-progress-pct" style="color: var(--neon-blue); font-weight: bold;">0%</span>
+                </div>
+                <div class="prog-track">
+                    <div id="m-progress-bar" class="prog-fill"></div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div id="mission-timer-hub" style="font-family: 'JetBrains Mono', monospace; color: var(--neon-purple); font-size: 11px; border: 1px solid rgba(188,19,254,0.3); background: rgba(188,19,254,0.05); padding: 6px 10px; border-radius: 8px;">
+                    <i class="fa-solid fa-clock"></i> <span id="timer-val">00:00:00</span>
+                </div>
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #00ff88; background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.3); padding: 5px 10px; border-radius: 8px;">
+                    <i class="fa-solid fa-route"></i> Estimasi Rute <span id="m-distance">0</span> KM
+                </div>
+            </div>
+
+            <div id="location-hub" style="margin-top: 20px;">
+                <div style="background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); margin-bottom: 12px;">
+                    <div style="font-size: 9px; color: #ffcc00; letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-store"></i> TITIK JEMPUT (A)</div>
+                    <div id="m-origin-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                    <button id="btn-maps-origin" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px;">
+                        <i class="fa-solid fa-location-arrow"></i> Buka Rute A
+                    </button>
+                </div>
+
+                <div id="dest-hub" class="hide" style="background: rgba(0,255,136,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(0,255,136,0.2); margin-bottom: 12px;">
+                    <div style="font-size: 9px; color: #00ff88; letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-flag-checkered"></i> TITIK TUJUAN (B)</div>
+                    <div id="m-dest-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                    <button id="btn-maps-dest" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px; border-color: #00ff88; color: #00ff88;">
+                        <i class="fa-solid fa-map-pin"></i> Buka Rute B
+                    </button>
+                </div>
+            </div>
+
+            <div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                <div style="font-size: 11px; color: var(--neon-purple); font-weight: bold; margin-bottom: 10px;"><i class="fa-solid fa-layer-group"></i> DAFTAR PESANAN</div>
+                <div id="m-cargo-detail" style="font-size: 14px; color: #eee; white-space: pre-line; line-height: 1.6; font-family: 'JetBrains Mono', monospace;">--</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 15px;">
+                <div>
+                    <div style="font-size: 9px; color: #777; letter-spacing: 1px;">REWARD TUNAI</div>
+                    <div id="m-reward-cash" style="color: #00ff88; font-weight: bold; font-size: 16px;">Rp 0</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 9px; color: #777; letter-spacing: 1px;">PELAKSANA</div>
+                    <div id="m-adv-nick" style="font-size: 13px; color: #fff; font-weight: bold;">--</div>
+                </div>
+                <div id="rpg-exp-wrap">
+                    <div style="font-size: 9px; color: #777; letter-spacing: 1px;">REWARD EXP</div>
+                    <div id="m-exp" style="color: var(--neon-blue); font-weight: bold; font-family: 'JetBrains Mono', monospace; font-size: 14px;">--</div>
+                </div>
+                <div id="rpg-stone-wrap" style="text-align: right;">
+                    <div style="font-size: 9px; color: #777; letter-spacing: 1px;">GREEN STONES</div>
+                    <div id="m-stone" style="color: #00ff88; font-weight: bold; font-family: 'JetBrains Mono', monospace; font-size: 14px;">--</div>
+                </div>
+            </div>
+
+            <div id="action-slider-box" class="hide">
+                <div style="font-size: 10px; color: #00ff88; text-align: center; margin-top: 20px; font-weight: bold; letter-spacing: 1px;">KONFIRMASI SELESAI</div>
+                <div class="slider-wrapper" id="slider-wrapper">
+                    <div class="slider-text" id="slider-text">GESER UNTUK SELESAI</div>
+                    <div class="slider-fill" id="slider-fill"></div>
+                    <div class="slider-thumb" id="slider-thumb"><i class="fa-solid fa-angles-right"></i></div>
+                </div>
+            </div>
+
+            <div id="emergency-zone" class="hide" style="margin-top: 20px; padding: 15px; border: 2px solid #ff3366; border-radius: 12px; background: rgba(20,0,0,0.9); box-shadow: inset 0 0 10px rgba(255, 51, 102, 0.1);">
+                <p id="em-timer" style="color: #ff3366; font-size: 12px; text-align: center; font-weight: bold;">MENGINISIALISASI PROTOKOL DARURAT...</p>
+                <div id="slider-container-em" style="display: none; position: relative; height: 45px; background: rgba(255,51,102,0.1); border-radius: 6px; border: 1px solid #ff3366; overflow: hidden;">
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 10px; color: #fff; font-weight: bold; z-index: 1;">GESER MENTOK : SELESAI PAKSA</div>
+                    <input type="range" id="em-slider" min="0" max="100" value="0" style="-webkit-appearance: none; width: 100%; height: 100%; background: transparent; position: relative; z-index: 2; outline: none;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="adv-status-hub" class="hide" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.08);">
+        <div style="font-size: 11px; color: #888; margin-bottom: 12px; font-weight: bold; text-align: center;">UPDATE PROGRES LAPANGAN</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <button class="btn-main" style="font-size: 11px;" onclick="sendLiveStatus('OTW Lokasi Asal')"><i class="fa-solid fa-motorcycle"></i> OTW TITIK</button>
+            <button class="btn-main" style="font-size: 11px;" onclick="sendLiveStatus('OTW Lokasi Tujuan')"><i class="fa-solid fa-truck-fast"></i> OTW TUJUAN</button>
+            <button class="btn-main" style="border-color:#00ff88; color:#00ff88; font-size: 11px;" onclick="sendLiveStatus('Tiba di Lokasi')"><i class="fa-solid fa-check-double"></i> TIBA</button>
+            <button class="btn-main" style="border-color:#ff3366; color:#ff3366; font-size: 11px;" onclick="sendLiveStatus('Kendala Lapangan')"><i class="fa-solid fa-triangle-exclamation"></i> KENDALA</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Inisialisasi Variabel Modul
+    // Mengambil data dari session storage sesuai logika aplikasi Anda
+    window.hq_mission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
+    window.hq_contractId = sessionStorage.getItem('active_contract_id') || window.hq_mission.id_misi || "TEST-ID";
+    window.hq_user = (typeof Clearchance !== 'undefined') ? Clearchance.enforceIdentity() : {role: 'adventurer', uid: 'test-uid'};
+    window.hq_isAdv = window.hq_user.role === 'adventurer';
+
+    // Koneksi Database Firebase
+    window.hq_dbDeal = (typeof getTerminal !== 'undefined') ? getTerminal('FB5_DEAL') : null;
+
+    function initHQModule() {
+        document.getElementById('m-exp').innerText = (window.hq_mission.rpg_reward?.exp || 0) + " EXP";
+        document.getElementById('m-stone').innerText = (window.hq_mission.rpg_reward?.greenStone || 0) + " STONES";
+        document.getElementById('m-id-display').innerText = "ID: " + window.hq_contractId;
+
+        if (window.hq_isAdv) {
+            document.getElementById('adv-status-hub').classList.remove('hide');
+            startEmergencyProtocol();
+        } else {
+            document.getElementById('action-slider-box').classList.remove('hide');
+            document.getElementById('rpg-exp-wrap').classList.add('hide');
+            document.getElementById('rpg-stone-wrap').classList.add('hide');
+            startRequesterEducation();
+        }
+
+        // Jalankan fetch data dalam dan sinkronisasi
+        performDeepMiningHQ();
+        syncStatusHQ();
+        initSliderActionHQ();
+    }
+
+    function toggleProfile() {
+        document.getElementById('profile-drawer').classList.toggle('open');
+    }
+
+    function forceRefreshData() {
+        updateAI("Memaksa re-sinkronisasi data dari Shard...", "normal");
+        performDeepMiningHQ();
+    }
+
+    function updateAI(text, type) {
+        const box = document.getElementById('ai-terminal-box');
+        const txt = document.getElementById('ai-text');
+        box.className = 'ai-terminal ' + (type === 'normal' ? '' : type);
+        txt.innerText = text;
+        
+        if (type === 'alert' || type === 'success') {
+            setTimeout(() => { box.className = 'ai-terminal'; }, 5000);
+        }
+    }
+
+    function updateProgressBar(id, percent) {
+        const el = document.getElementById(id);
+        if(el) el.style.width = Math.min(percent, 100) + "%";
+    }
+
+    async function performDeepMiningHQ() {
+        const dossier = document.querySelector('.dossier-body');
+        const uName = document.getElementById('u-name');
+        
+        dossier.classList.add('data-syncing');
+        uName.classList.add('loading-shimmer');
+
+        try {
+            // Memanggil getSupremeData yang ada di terminal_router.js
+            if(typeof getSupremeData === 'undefined') throw new Error("Router tidak ditemukan");
+            const DATA = await getSupremeData(window.hq_contractId);
+            if (!DATA) throw new Error("Data Shard tidak terjangkau");
+
+            const partner = window.hq_isAdv ? DATA.requester : DATA.adventurer;
+            
+            setTimeout(() => {
+                uName.classList.remove('loading-shimmer');
+                uName.innerText = partner?.profile?.nama || "Unknown Entity";
+                
+                if (window.hq_isAdv) {
+                    document.getElementById('u-rank').innerText = partner?.profile?.tier ? `T${partner.profile.tier}` : "T1";
+                    document.getElementById('u-role').innerText = "REQUESTER";
+                    const repPoints = partner?.reputation?.poin || 0;
+                    document.getElementById('v-stat-1').innerText = `${repPoints} REP`;
+                    updateProgressBar('b-stat-1', (repPoints / 1000) * 100); 
+                } else {
+                    document.getElementById('u-rank').innerText = partner?.profile?.rank || "F";
+                    document.getElementById('u-role').innerText = "ADVENTURER";
+                    const trustScore = partner?.diagram?.nilai_kepercayaan || 0;
+                    document.getElementById('v-stat-1').innerText = `${trustScore}% TRUST`;
+                    updateProgressBar('b-stat-1', trustScore);
+                    document.getElementById('v-stat-2').innerText = "Lv." + (partner?.experience?.level || 1);
+                }
+                
+                dossier.classList.remove('data-syncing');
+                updateAI("Koneksi stabil. Segera jalin komunikasi dan konfirmasikan misi dikerjakan dengan baik.", "success");
+            }, 600);
+
+            injectDetailsHQ(DATA);
+        } catch (e) {
+            updateAI(`ERROR: ${e.message}`, "alert");
+            dossier.classList.remove('data-syncing');
+            uName.classList.remove('loading-shimmer');
+        }
+    }
+
+    function parseCoordsString(coordStr) {
+        if(!coordStr || coordStr === "NEGO") return null;
+        const parts = coordStr.split(',');
+        if(parts.length === 2) return [parseFloat(parts[0]), parseFloat(parts[1])];
+        return null;
+    }
+
+    function injectDetailsHQ(DATA) {
+        if (!DATA || !DATA.mission) return;
+        const m = DATA.mission;
+        const detail = m.full_mission_data || {};
+
+        document.getElementById('m-title').innerText = (detail.category || m.category || "CLASSIFIED").toUpperCase();
+        document.getElementById('m-client-name').innerText = detail.client_name || "STRANGER";
+        document.getElementById('m-distance').innerText = detail.distance_est || "0";
+        
+        document.getElementById('m-status-text').innerText = window.hq_isAdv ? "Mission Secured. Menunggu pergerakan." : `Partner Engaged: ${m.adventurer_nick || 'Unknown'}`;
+        document.getElementById('m-progress-pct').innerText = "15%";
+        document.getElementById('m-progress-bar').style.width = "15%";
+        document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+        document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Unknown";
+
+        const oCoords = parseCoordsString(detail.origin_coords);
+        if (oCoords) {
+            document.getElementById('m-origin-name').innerText = detail.origin_name || "Koordinat Terenkripsi";
+            if (window.hq_isAdv) {
+                const btnO = document.getElementById('btn-maps-origin');
+                btnO.classList.remove('hide');
+                btnO.onclick = () => window.open(`https://www.google.com/maps?q=$${detail.origin_coords}`);
+            }
+        }
+
+        if (detail.dest_name || detail.dest_desa) {
+            document.getElementById('dest-hub').classList.remove('hide');
+            document.getElementById('m-dest-name').innerText = detail.dest_desa || detail.dest_name;
+            const dCoords = parseCoordsString(detail.dest_coords);
+            if(dCoords && window.hq_isAdv) {
+                const btnD = document.getElementById('btn-maps-dest');
+                btnD.classList.remove('hide');
+                btnD.onclick = () => window.open(`https://www.google.com/maps?q=$${detail.dest_coords}`);
+            }
+        }
+
+        if (detail.multi_points && Array.isArray(detail.multi_points)) {
+            document.getElementById('cargo-hub').classList.remove('hide');
+            document.getElementById('m-cargo-detail').innerText = detail.multi_points.map((t, i) => `${i + 1}. ${t}`).join('\n');
+        }
+
+        startMissionTimerHQ(m.start_time || Date.now());
+    }
+
+    function startMissionTimerHQ(startTime) {
+        if(window.hq_timerInterval) clearInterval(window.hq_timerInterval);
+        window.hq_timerInterval = setInterval(() => {
+            const diff = Date.now() - startTime;
+            const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+            const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+            const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+            document.getElementById('timer-val').innerText = `${h}:${m}:${s}`;
+        }, 1000);
+    }
+
+    function sendLiveStatus(str) {
+        if(window.hq_dbDeal) window.hq_dbDeal.ref(`kontrak_detail/${window.hq_contractId}/latest_status`).set({ text: str, ts: Date.now() });
+    }
+
+    function syncStatusHQ() {
+        if(!window.hq_dbDeal) return;
+        window.hq_dbDeal.ref(`kontrak_detail/${window.hq_contractId}/latest_status`).on('value', snap => {
+            if(snap.exists()) {
+                const d = snap.val();
+                document.getElementById('live-status-text').innerText = d.text.toUpperCase();
+                document.getElementById('live-status-time').innerText = new Date(d.ts).toLocaleTimeString();
+                
+                const sInd = document.getElementById('status-indicator');
+                const progBar = document.getElementById('m-progress-bar');
+                const statText = document.getElementById('m-status-text');
+
+                if(d.text.includes('Kendala')) {
+                    updateAI("Mendeteksi gangguan di lapangan...", "alert");
+                    sInd.style.background = "#ff3366"; sInd.style.boxShadow = "0 0 10px #ff3366";
+                    statText.innerText = "Warning: ada kendala."; statText.style.color = "#ff3366";
+                    progBar.style.background = "#ff3366";
+                } else if(d.text.includes('Tiba')) {
+                    updateAI("Partner telah mencapai titik koordinat.", "success");
+                    sInd.style.background = "#00ff88"; sInd.style.boxShadow = "0 0 10px #00ff88";
+                    statText.innerText = "Objective Reached."; statText.style.color = "#00ff88";
+                    document.getElementById('m-progress-pct').innerText = "100%";
+                    progBar.style.width = "100%"; progBar.style.background = "#00ff88";
+                    
+                    if(!window.hq_isAdv) { 
+                        if(navigator.vibrate) navigator.vibrate([50,100,50]); 
+                        document.getElementById('action-slider-box').classList.add('pulse'); 
+                    }
+                } else if(d.text.includes('OTW')) {
+                    updateAI("Kendaraan sedang bergerak melintasi sektor.", "normal");
+                    sInd.style.background = "var(--neon-blue)"; sInd.style.boxShadow = "0 0 10px var(--neon-blue)";
+                    statText.innerText = "In Transit..."; statText.style.color = "var(--text-dim)";
+                    document.getElementById('m-progress-pct').innerText = "55%";
+                    progBar.style.width = "55%"; progBar.style.background = "linear-gradient(90deg, var(--neon-blue), var(--neon-purple))";
+                }
+            }
+        });
+
+        // Trigger buka modal jika status komplit (Untuk dipanggil ke fet_modalrating)
+        window.hq_dbDeal.ref(`kontrak_detail/${window.hq_contractId}/status`).on('value', snap => {
+            if(snap.val() === 'completed_req' && window.hq_isAdv && typeof openEvalReq === 'function') {
+                openEvalReq();
+            }
+        });
+    }
+
+    function initSliderActionHQ() {
+        const wrapper = document.getElementById('slider-wrapper');
+        const thumb = document.getElementById('slider-thumb');
+        const fill = document.getElementById('slider-fill');
+        const text = document.getElementById('slider-text');
+        if(!thumb) return;
+
+        let isDragging = false, startX = 0, maxW = 0;
+
+        const startDrag = (e) => {
+            isDragging = true;
+            startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            maxW = wrapper.clientWidth - thumb.clientWidth - 6; 
+            thumb.style.transition = "none"; fill.style.transition = "none";
+        };
+
+        const moveDrag = (e) => {
+            if(!isDragging) return;
+            let curX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            let move = curX - startX;
+            if(move < 0) move = 0; if(move > maxW) move = maxW;
+            
+            thumb.style.transform = `translateX(${move}px)`;
+            fill.style.width = `${move + 25}px`;
+            text.style.opacity = 1 - (move / maxW);
+        };
+
+        const endDrag = (e) => {
+            if(!isDragging) return;
+            isDragging = false;
+            let curX = e.type.includes('mouse') ? e.clientX : e.changedTouches[0].clientX;
+            let move = curX - startX;
+            
+            thumb.style.transition = "transform 0.3s"; fill.style.transition = "width 0.3s"; text.style.transition = "opacity 0.3s";
+
+            if(move > maxW * 0.9) {
+                thumb.style.transform = `translateX(${maxW}px)`; fill.style.width = `100%`;
+                if(navigator.vibrate) navigator.vibrate([50,100,50]);
+                setTimeout(() => {
+                    // Panggil fungsi modal rating dari file eksternal (fet_modalrating.html)
+                    if(typeof openEvalAdv === 'function') openEvalAdv();
+                }, 400); 
+            } else {
+                thumb.style.transform = `translateX(0px)`; fill.style.width = `0px`; text.style.opacity = 1;
+            }
+        };
+
+        thumb.addEventListener('mousedown', startDrag); document.addEventListener('mousemove', moveDrag); document.addEventListener('mouseup', endDrag);
+        thumb.addEventListener('touchstart', startDrag, {passive: true}); document.addEventListener('touchmove', moveDrag, {passive: true}); document.addEventListener('touchend', endDrag);
+    }
+
+    function startRequesterEducation() {
+        const tips = [
+            "Gunakan fitur NOTA untuk melihat rincian biaya tagihan secara real-time.",
+            "Status 'OTW' memberitahu Anda bahwa Adventurer sudah bergerak ke lokasi.",
+            "Klik tab MAP untuk melacak posisi Adventurer di peta koordinat.",
+            "Geser Slider KONTRAK di bawah jika misi sudah selesai dan berikan penilaian."
+        ];
+        const bilah = document.getElementById('edu-bilah');
+        const text = document.getElementById('edu-text');
+        
+        if(bilah && text) {
+            bilah.classList.remove('hide');
+            setInterval(() => {
+                text.style.opacity = 0;
+                setTimeout(() => { text.innerText = tips[Math.floor(Math.random() * tips.length)]; text.style.opacity = 1; }, 300);
+            }, 8000);
+            text.innerText = tips[0]; text.style.transition = "opacity 0.3s";
+        }
+    }
+
+    function startEmergencyProtocol() {
+        if (!window.hq_isAdv) return; 
+        const emZone = document.getElementById('emergency-zone');
+        const emTimer = document.getElementById('em-timer');
+        const sliderCont = document.getElementById('slider-container-em');
+        const emSlider = document.getElementById('em-slider');
+
+        if (!emZone) return;
+        emZone.classList.remove('hide'); 
+
+        let countdown = 10; 
+        let emInterval = setInterval(() => {
+            countdown--;
+            if (countdown > 0) {
+                emTimer.innerText = `TOMBOL SELESAI DARURAT AKAN MUNCUL DALAM ${countdown}S...`;
+            } else {
+                clearInterval(emInterval);
+                emTimer.style.display = 'none';
+                sliderCont.style.display = 'block';
+                updateAI("Protokol Selesai Paksa (AFK) telah diaktifkan.", "alert");
+            }
+        }, 1000);
+
+        emSlider.oninput = async function() {
+            if (this.value >= 98) {
+                this.value = 100;
+                if(navigator.vibrate) navigator.vibrate([50,100,50]);
+                // Asumsi fungsi sysConfirm ada di master logic atau buat alert sederhana
+                const yakin = confirm("AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK.");
+                if (yakin && typeof openEvalReq === 'function') {
+                    openEvalReq(); 
+                } else {
+                    this.value = 0;
+                }
+            }
+        };
+    }
+
+    // Eksekusi Inisialisasi saat file ini selesai di-load oleh fetch
+    initHQModule();
+
+</script>
