@@ -192,28 +192,84 @@
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
+
+
+
+
+        // --- TAMBAHKAN LOGIC PENDUKUNG DI SINI ---
+
+// 1. Fungsi Identitas (Agar sistem tahu siapa yang login)
+window.Clearchance = {
+    enforceIdentity: () => {
+        // Mengambil data user dari sessionStorage yang biasanya diisi saat login
+        const saved = sessionStorage.getItem('user_data');
+        if (saved) return JSON.parse(saved);
+        // Fallback jika tidak ada (untuk testing)
+        return { role: 'adventurer', uid: 'USER_ID_ASLI', name: 'User' };
+    }
+};
+
+// 2. Fungsi Ambil Data Asli (Mining Data)
+window.getSupremeData = async (contractId) => {
+    try {
+        // Ambil data misi dari Firestore secara real-time
+        const doc = await db.collection('contracts').doc(contractId).get();
+        if (!doc.exists) throw new Error("Kontrak tidak ditemukan di database");
+        
+        const data = doc.data();
+        // Return struktur yang diharapkan oleh komponen HQ
+        return {
+            mission: data,
+            adventurer: data.adventurer_data || {},
+            requester: data.requester_data || {}
+        };
+    } catch (err) {
+        console.error("Mining Error:", err);
+        // Jika gagal ke firestore, coba ambil dari session storage
+        return JSON.parse(sessionStorage.getItem('current_mission_full'));
+    }
+};
+
+// 3. Fungsi Get Terminal (Jika Anda menggunakan Realtime Database untuk status OTW)
+window.getTerminal = (type) => {
+    if (type === 'FB5_DEAL') {
+        // Pastikan Anda sudah mengaktifkan Firebase Realtime Database di Firebase Console
+        return firebase.database(); 
+    }
+    return null;
+};
+
+// 4. Perbaikan Typo Maps (PENTING)
+// Pastikan di file fet_missioncardhq.html, baris window.open menggunakan `${...}` bukan `{...}`
+
+
+
+        
         // 2. COMPONENT LOADER
         async function fetchComponent(containerId, filePath) {
-            const container = document.getElementById(containerId);
-            if (container.innerHTML.trim() !== "") return;
+    const container = document.getElementById(containerId);
+    if (container.innerHTML.trim() !== "") return;
 
-            try {
-                const response = await fetch(filePath);
-                if (!response.ok) throw new Error(`Gagal memuat ${filePath}`);
-                const html = await response.text();
-                container.innerHTML = html;
+    try {
+        const response = await fetch(filePath);
+        const html = await response.text();
+        container.innerHTML = html;
 
-                const scripts = container.querySelectorAll("script");
-                scripts.forEach(oldScript => {
-                    const newScript = document.createElement("script");
-                    Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                    newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-                    oldScript.parentNode.replaceChild(newScript, oldScript);
-                });
-            } catch (err) {
-                console.error("Error:", err);
-            }
+        const scripts = container.querySelectorAll("script");
+        for (const oldScript of scripts) {
+            const newScript = document.createElement("script");
+            Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+            newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+            container.appendChild(newScript); // Masukkan ke container agar tereksitasi
         }
+        
+        // PASTI KAN FUNGSI INIT DIPANGGIL SETELAH SCRIPT TERMUAT
+        if (containerId === 'tab-hq' && typeof initHQModule === 'function') {
+            setTimeout(initHQModule, 100); 
+        }
+    } catch (err) { console.error(err); }
+}
+
 
         // 3. TAB LOGIC
         function switchTab(tabId, fileName, element) {
