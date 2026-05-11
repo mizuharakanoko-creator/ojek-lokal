@@ -1,9 +1,10 @@
 /**
  * js_mission_progress_brain_one.js
- * PONDASI UTAMA & ROUTER DATA
+ * CORE ENGINE & COMPONENT ROUTER
+ * Fokus: Firebase Auth, Global State, & Dynamic Loading
  */
 
-// 1. GLOBAL STATE (Penyimpanan memori terpusat)
+// 1. GLOBAL STATE - Satu-satunya sumber kebenaran untuk semua file JS
 window.SovereignState = {
     db: null,
     rtdb: null,
@@ -14,16 +15,17 @@ window.SovereignState = {
 
 // 2. CORE ENGINE
 window.Core = {
-    // Inisialisasi Firebase
+    // Inisialisasi Koneksi Firebase
     initFirebase: () => {
+        // Ganti dengan konfigurasi Firebase Console Anda
         const firebaseConfig = {
-            apiKey: "MASUKKAN_API_KEY_ANDA",
-            authDomain: "PROJECT_ID.firebaseapp.com",
-            projectId: "PROJECT_ID",
-            storageBucket: "PROJECT_ID.appspot.com",
-            messagingSenderId: "SENDER_ID",
-            appId: "APP_ID",
-            databaseURL: "https://PROJECT_ID-default-rtdb.firebaseio.com" // Penting untuk Status Live
+            apiKey: "AIzaSy...",
+            authDomain: "project-id.firebaseapp.com",
+            projectId: "project-id",
+            storageBucket: "project-id.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef",
+            databaseURL: "https://project-id-default-rtdb.firebaseio.com"
         };
 
         if (!firebase.apps.length) {
@@ -32,31 +34,37 @@ window.Core = {
         
         window.SovereignState.db = firebase.firestore();
         window.SovereignState.rtdb = firebase.database();
-        console.log("🔥 Firebase Neural Link: Connected");
+        console.log("🔥 [SYSTEM] Firebase Neural Link: Connected");
     },
 
-    // Verifikasi Identitas User
+    // Verifikasi Identitas & Sesi Kontrak
     checkAuth: () => {
-        const saved = sessionStorage.getItem('user_data');
-        if (saved) {
-            window.SovereignState.currentUser = JSON.parse(saved);
+        // Mengambil data dari sessionStorage hasil dari login/pilihan misi sebelumnya
+        const savedUser = sessionStorage.getItem('user_data');
+        const savedContractId = sessionStorage.getItem('active_contract_id');
+
+        if (savedUser) {
+            window.SovereignState.currentUser = JSON.parse(savedUser);
         } else {
-            // Fallback Test (Hapus saat produksi)
+            // Mode Tamu/Debug jika session kosong
             window.SovereignState.currentUser = { 
+                uid: 'UNKNOWN_ENTITY', 
                 role: 'adventurer', 
-                uid: 'TEST_UID', 
-                name: 'Shadow Hunter' 
+                name: 'Guest Hunter' 
             };
         }
-        
-        // Ambil ID Kontrak Aktif
-        window.SovereignState.activeContractId = sessionStorage.getItem('active_contract_id');
-        console.log("👤 User Authenticated:", window.SovereignState.currentUser.role);
+
+        window.SovereignState.activeContractId = savedContractId;
+        console.log("👤 [AUTH] Identity Confirmed:", window.SovereignState.currentUser.name);
+        console.log("🆔 [SESSION] Active Contract:", window.SovereignState.activeContractId);
     },
 
-    // Fungsi Pengambil Data (Deep Mining)
+    // Pengambil Data Tunggal (Deep Data Mining)
     getSupremeData: async (contractId) => {
-        if (!contractId) return null;
+        if (!contractId) {
+            console.error("❌ [MINING] Contract ID is null");
+            return null;
+        }
         
         try {
             const doc = await window.SovereignState.db.collection('contracts').doc(contractId).get();
@@ -67,33 +75,31 @@ window.Core = {
                     adventurer: data.adventurer_data || {},
                     requester: data.requester_data || {}
                 };
+                // Simpan ke memori global agar tab lain tidak perlu fetch ulang
                 window.SovereignState.currentMissionData = structured;
                 return structured;
+            } else {
+                console.warn("⚠️ [MINING] Document not found in Firestore");
+                return null;
             }
         } catch (err) {
-            console.warn("⚠️ Firestore mining failed, falling back to local storage.");
+            console.error("❌ [MINING] Error fetching Firestore:", err);
+            // Fallback: Gunakan data session jika koneksi gagal
+            const local = sessionStorage.getItem('current_mission_full');
+            return local ? JSON.parse(local) : null;
         }
-
-        // Fallback ke Local Shard (Session)
-        const local = sessionStorage.getItem('current_mission_full');
-        return local ? JSON.parse(local) : null;
     }
 };
 
 // 3. COMPONENT ROUTER (Pemuat Tampilan)
 window.Router = {
-    loadedFiles: new Set(),
-
+    // Fungsi memuat HTML ke dalam kontainer tab
     loadComponent: async (containerId, filePath) => {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        // Jangan load ulang jika konten sudah ada (Kecuali paksa refresh)
-        if (container.innerHTML.trim() !== "") {
-            console.log(`♻️ Tab ${containerId} already exists. Re-syncing...`);
-            window.Router.reinit(containerId);
-            return;
-        }
+        // Visual Feedback: Berikan efek loading tipis saat pindah tab
+        container.style.opacity = '0.5';
 
         try {
             const response = await fetch(filePath);
@@ -101,8 +107,9 @@ window.Router = {
             
             const html = await response.text();
             container.innerHTML = html;
+            container.style.opacity = '1';
 
-            // EKSEKUSI SCRIPT DI DALAM HTML YANG DI-FETCH
+            // EKSEKUSI SCRIPT: Re-inject script tags agar berfungsi di global scope
             const scripts = container.querySelectorAll("script");
             for (const oldScript of scripts) {
                 const newScript = document.createElement("script");
@@ -111,46 +118,48 @@ window.Router = {
                 } else {
                     newScript.text = oldScript.text;
                 }
-                // Paksa append ke body agar script berjalan di global scope
                 document.body.appendChild(newScript);
+                // Hapus script lama agar tidak duplikat di DOM
+                newScript.parentNode.removeChild(newScript);
             }
 
-            // Inisialisasi logika spesifik tab
-            window.Router.reinit(containerId);
+            // Jalankan Re-inisialisasi Logika (Memberi waktu DOM untuk stabil)
+            setTimeout(() => {
+                window.Router.reinit(containerId);
+            }, 150);
             
         } catch (err) {
-            console.error(`❌ Failed to link component [${filePath}]:`, err);
-            container.innerHTML = `<div style="padding:20px; color:red;">System Error: Failed to load module ${filePath}</div>`;
+            console.error(`❌ [ROUTER] Gagal memuat ${filePath}:`, err);
+            container.innerHTML = `<div style="padding:20px; color:#ff0055; font-family:monospace;">[SYSTEM_ERROR] Module ${filePath} not found.</div>`;
         }
     },
 
-    // Jembatan untuk memanggil fungsi init di Brain lain
+    // Re-inisialisasi Fungsi Brain sesuai Tab yang aktif
     reinit: (tabId) => {
-        setTimeout(() => {
-            switch(tabId) {
-                case 'tab-hq':
-                    if (typeof window.initHQModule === 'function') window.initHQModule();
-                    break;
-                case 'tab-comms':
-                    if (typeof window.initCommsModule === 'function') window.initCommsModule();
-                    break;
-                case 'tab-maps':
-                    if (typeof window.initMapsModule === 'function') window.initMapsModule();
-                    break;
-                case 'tab-profile':
-                    if (typeof window.initProfileModule === 'function') window.initProfileModule();
-                    break;
-                case 'tab-nota':
-                    if (typeof window.initNotaModule === 'function') window.initNotaModule();
-                    break;
-            }
-        }, 100);
+        console.log(`🛠️ [RE-INIT] Refreshing logic for: ${tabId}`);
+        
+        switch(tabId) {
+            case 'tab-hq':
+                if (typeof window.initHQModule === 'function') window.initHQModule();
+                break;
+            case 'tab-comms':
+                if (typeof window.initCommsModule === 'function') window.initCommsModule();
+                break;
+            case 'tab-maps':
+                if (typeof window.initMapsModule === 'function') window.initMapsModule();
+                break;
+            case 'tab-profile':
+                if (typeof window.initProfileModule === 'function') window.initProfileModule();
+                break;
+            case 'tab-nota':
+                if (typeof window.initNotaModule === 'function') window.initNotaModule();
+                break;
+        }
     }
 };
 
-// Alias untuk kemudahan akses (Legacy Support)
+// 4. UTILITY HELPER
 window.getSupremeData = window.Core.getSupremeData;
-window.Clearchance = { enforceIdentity: () => window.SovereignState.currentUser };
 window.getTerminal = (type) => (type === 'FB5_DEAL' ? window.SovereignState.rtdb : null);
 
-console.log("🧠 Brain One: Operational");
+console.log("🧠 [BRAIN ONE] Neural Foundation: FULLY OPERATIONAL");
