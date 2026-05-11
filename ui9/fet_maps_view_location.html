@@ -1,0 +1,241 @@
+<style>
+    .maps-container {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+
+    #map-frame {
+        flex: 1;
+        width: 100%;
+        background: #0d0d14;
+        z-index: 1;
+    }
+
+    /* Overlay Info Peta */
+    .map-overlay-info {
+        position: absolute;
+        bottom: 20px;
+        left: 15px;
+        right: 15px;
+        z-index: 1000;
+        pointer-events: none;
+    }
+
+    .tracker-card {
+        background: rgba(10, 10, 15, 0.9);
+        backdrop-filter: blur(15px);
+        border: 1px solid var(--border-glow);
+        border-radius: 15px;
+        padding: 15px;
+        pointer-events: auto;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .tracker-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        padding-bottom: 8px;
+    }
+
+    .tracker-label {
+        font-size: 9px;
+        color: var(--neon-blue);
+        text-transform: uppercase;
+        font-weight: 900;
+        letter-spacing: 1.5px;
+    }
+
+    .dist-badge {
+        background: rgba(0, 242, 255, 0.1);
+        color: var(--neon-blue);
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-family: 'JetBrains Mono', monospace;
+        border: 1px solid var(--border-glow);
+    }
+
+    /* Marker Custom Style */
+    .custom-marker {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .marker-pulse {
+        width: 15px;
+        height: 15px;
+        background: var(--neon-blue);
+        border: 3px solid #fff;
+        border-radius: 50%;
+        box-shadow: 0 0 15px var(--neon-blue);
+        animation: markerPulse 1.5s infinite;
+    }
+
+    @keyframes markerPulse {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 242, 255, 0.7); }
+        70% { transform: scale(1.2); box-shadow: 0 0 0 15px rgba(0, 242, 255, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 242, 255, 0); }
+    }
+
+    .btn-recenter {
+        position: absolute;
+        top: 20px;
+        right: 15px;
+        z-index: 1000;
+        background: rgba(10, 10, 15, 0.8);
+        border: 1px solid var(--border-glow);
+        color: var(--neon-blue);
+        width: 45px;
+        height: 45px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        backdrop-filter: blur(5px);
+    }
+</style>
+
+<div class="maps-container">
+    <div id="map-frame"></div>
+
+    <div class="btn-recenter" onclick="recenterMap()">
+        <i class="fa-solid fa-crosshairs"></i>
+    </div>
+
+    <div class="map-overlay-info">
+        <div class="tracker-card">
+            <div class="tracker-header">
+                <span class="tracker-label"><i class="fa-solid fa-satellite-dish"></i> Live Tracking</span>
+                <span id="tracker-status" style="font-size: 10px; color: #00ff88;">SINKRON...</span>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <div style="font-size: 9px; color: #666; margin-bottom: 2px;">JARAK KE TARGET</div>
+                    <div id="map-dist-val" class="dist-badge">0.0 KM</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 9px; color: #666; margin-bottom: 2px;">SPEED ESTIMASI</div>
+                    <div id="map-speed-val" style="font-size: 14px; font-weight: bold; color: #fff;">-- KM/H</div>
+                </div>
+            </div>
+
+            <div id="map-address-box" style="margin-top: 12px; font-size: 11px; color: #aaa; line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+                <i class="fa-solid fa-location-dot" style="color: #ff3366;"></i> <span id="map-location-text">Mendeteksi koordinat terakhir...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Inisialisasi Variabel Map Global untuk modul ini
+    window.map_instance = null;
+    window.map_marker_adv = null;
+    window.map_marker_target = null;
+    window.map_routing_line = null;
+    
+    // Ambil data dari sistem utama
+    window.map_contractId = sessionStorage.getItem('active_contract_id');
+    window.map_isAdv = (typeof Clearchance !== 'undefined' && Clearchance.enforceIdentity().role === 'adventurer');
+
+    function initMapModule() {
+        if (window.map_instance) return; // Cegah inisialisasi ganda
+
+        console.log("Inisialisasi Peta Tactical...");
+
+        // Buat Peta
+        window.map_instance = L.map('map-frame', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView([-6.2000, 106.8166], 13); // Default Jakarta
+
+        // Tile Layer Dark Mode (CartoDB DarkMatter)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19
+        }).addTo(window.map_instance);
+
+        // Icon Custom untuk Adventurer
+        const advIcon = L.divIcon({
+            className: 'custom-marker',
+            html: '<div class="marker-pulse"></div>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+
+        window.map_marker_adv = L.marker([0,0], {icon: advIcon}).addTo(window.map_instance);
+
+        // Mulai Sinkronisasi dari Firebase
+        startLiveTracking();
+    }
+
+    function startLiveTracking() {
+        if (!window.map_contractId || typeof db === 'undefined') return;
+
+        const trackRef = db.collection('live_tracking').doc(window.map_contractId);
+
+        // Real-time Listener
+        trackRef.onSnapshot(doc => {
+            if (doc.exists) {
+                const data = doc.data();
+                const pos = data.current_pos; // {lat, lng}
+
+                if (pos && pos.lat && pos.lng) {
+                    const newPos = [pos.lat, pos.lng];
+                    
+                    // Update Marker Adventurer
+                    window.map_marker_adv.setLatLng(newPos);
+                    
+                    // Update UI Info
+                    document.getElementById('map-dist-val').innerText = (data.dist_to_target || "0.0") + " KM";
+                    document.getElementById('map-speed-val').innerText = (data.speed || "0") + " KM/H";
+                    document.getElementById('map-location-text').innerText = data.last_address || "Lokasi terdeteksi";
+                    document.getElementById('tracker-status').innerText = "ONLINE";
+
+                    // Recenter otomatis jika pertama kali dimuat
+                    if (!window.map_first_load) {
+                        window.map_instance.setView(newPos, 16);
+                        window.map_first_load = true;
+                    }
+                }
+            }
+        }, err => {
+            console.error("Tracking Error:", err);
+            document.getElementById('tracker-status').innerText = "OFFLINE";
+            document.getElementById('tracker-status').style.color = "#ff3366";
+        });
+    }
+
+    function recenterMap() {
+        if (window.map_instance && window.map_marker_adv) {
+            window.map_instance.flyTo(window.map_marker_adv.getLatLng(), 17, {
+                animate: true,
+                duration: 1.5
+            });
+        }
+    }
+
+    // Fungsi Kalkulasi Jarak (Helper)
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Radius bumi KM
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return (R * c).toFixed(2);
+    }
+
+    // Jalankan Inisialisasi setelah DOM dimuat (lewat fetch)
+    // Berikan sedikit delay agar kontainer div benar-benar ter-render oleh browser
+    setTimeout(initMapModule, 300);
+
+</script>
