@@ -630,26 +630,43 @@ const pPenampilan = hitungPersen(d.nilai_penampilan || 0);
             document.getElementById('statusPulsing').innerText = `${currentBidCount} ADVENTURER MENGIRIM LAMARAN!`;
             document.getElementById('statusPulsing').style.color = "var(--neon-blue)";
 
-            snap.forEach(child => {
-                const b = child.val();
-                const rank = b.rank || 'F'; 
-                const formattedRank = rank.replace('+', '-plus');
+snap.forEach(async child => { // Tambahkan async di sini
+    const b = child.val();
+    const rank = b.rank || 'F';
+    const formattedRank = rank.replace('+', '-plus');
 
-                const div = document.createElement('div');
-                div.className = 'bid-item';
-                div.innerHTML = `
-                    <div class="bid-info-container">
-                        <div style="margin-bottom: 5px;">
-                            <span class="rank-badge rank-${formattedRank}">${rank}</span>
-                            <b style="color:#e0e0e0; font-size: 14px;">${b.adventurer_nick}</b>
-                            <button class="btn-profile" onclick="showProfile('${b.adventurer_nick}', '${rank}')">🔍 PROFIL</button>
-                        </div>
-                        <div style="color:#aaa; font-size: 12px;">Penawaran: <b style="color:var(--neon-blue); font-size: 14px;">Rp ${b.offer_price.toLocaleString()}</b></div>
-                    </div>
-                    <button class="btn-acc" onclick="reqTerimaPenawaran('${child.key}', '${b.adventurer_id}', '${b.adventurer_nick}', ${b.offer_price})">TERIMA</button>
-                `;
-                list.appendChild(div);
-            });
+    // 1. Ambil data tambahan dari Shard
+    const detail = await getBidderDetail(b.adventurer_nick);
+    
+    // 2. Siapkan variabel data
+    const namaReal = detail?.p?.nama_lengkap || "---";
+    const merk = detail?.p?.arsenal?.merk || "-";
+    const plat = detail?.p?.arsenal?.plat || "-";
+    const desa = detail?.r?.domisili_lengkap?.desa || "-";
+
+    const div = document.createElement('div');
+    div.className = 'bid-item';
+    div.innerHTML = `
+        <div class="bid-info-container">
+            <div style="margin-bottom: 5px;">
+                <span class="rank-badge rank-${formattedRank}">${rank}</span>
+                <b style="color:#e0e0e0; font-size: 14px;">${b.adventurer_nick}</b>
+                <span style="font-size: 11px; color: #888; margin-left: 5px;">(${namaReal})</span>
+                <button class="btn-profile" onclick="showProfile('${b.adventurer_nick}', '${rank}')">🔍</button>
+            </div>
+            
+            <div style="font-size: 10px; color: #aaa; margin-bottom: 5px; line-height: 1.4;">
+                <div style="color: #4ade80;">🛵 ${merk} <span style="color:#777;">[${plat}]</span></div>
+                <div style="color: #fb923c;">📍 DESA ${desa}</div>
+            </div>
+
+            <div style="color:#aaa; font-size: 11px;">Penawaran: <b style="color:var(--neon-blue); font-size: 13px;">Rp ${b.offer_price.toLocaleString()}</b></div>
+        </div>
+        <button class="btn-acc" onclick="reqTerimaPenawaran('${child.key}', '${b.adventurer_id}', '${b.adventurer_nick}', ${b.offer_price})">TERIMA</button>
+    `;
+    list.appendChild(div);
+});
+
         });
 
         // C. Pantau Intel Reports
@@ -889,6 +906,34 @@ const pPenampilan = hitungPersen(d.nilai_penampilan || 0);
             }
         });
     }
+
+
+
+
+    async function getBidderDetail(nick) {
+    try {
+        const masterDB = getTerminal('FB1_MASTER');
+        const snapIdx = await masterDB.ref('adventurer_index').orderByChild('nickname').equalTo(nick).once('value');
+        if (!snapIdx.exists()) return null;
+
+        const meta = Object.values(snapIdx.val())[0];
+        const shard = getTerminal(meta.shard_id || "FB2_RUNNER");
+        const id = meta.id_adv;
+        const area = meta.area_tugas;
+
+        // Ambil data Profil (Nama & Arsenal) dan data Umum (Domisili)
+        const [snapProfile, snapRole] = await Promise.all([
+            shard.ref(`adventurer_profile/${id}`).once('value'),
+            shard.ref(`adventurer-${area}/Umum/${id}`).once('value')
+        ]);
+
+        return {
+            p: snapProfile.val() || {},
+            r: snapRole.val() || {}
+        };
+    } catch (e) { return null; }
+}
+
 
     // === INIT SAAT WINDOW SIAP ===
     window.addEventListener('load', () => {
