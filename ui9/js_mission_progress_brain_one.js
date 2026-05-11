@@ -74,23 +74,22 @@ window.Core = {
 };
 
 // 4. COMPONENT ROUTER
+// REVISI BAGIAN ROUTER DI BRAIN ONE
 window.Router = {
     loadComponent: async (containerId, filePath) => {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        window.debugLog(`📥 Loading Module: ${filePath}...`);
-        container.style.opacity = '0.5';
-
+        window.debugLog(`📥 LOADING MODULE: ${filePath.toUpperCase()}...`);
+        
         try {
             const response = await fetch(filePath);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             
             const html = await response.text();
             container.innerHTML = html;
-            container.style.opacity = '1';
 
-            // Eksekusi Script di dalam HTML yang di-fetch
+            // Memaksa Script di dalam file yang di-fetch untuk jalan
             const scripts = container.querySelectorAll("script");
             for (const oldScript of scripts) {
                 const newScript = document.createElement("script");
@@ -103,31 +102,29 @@ window.Router = {
                 newScript.parentNode.removeChild(newScript);
             }
 
-            // Tunggu sebentar agar DOM stabil sebelum reinit
-            setTimeout(() => {
-                window.Router.reinit(containerId);
-            }, 200);
+            // LANGSUNG PANGGIL DATA TANPA TUNGGU LAMA
+            console.log("⚡ Triggering Logic for:", containerId);
+            window.Router.reinit(containerId);
             
         } catch (err) {
-            window.debugLog(`❌ Gagal Muat: ${filePath}`, "error");
-            container.innerHTML = `<div style="padding:20px; color:#ff0055;">[ERROR] Fail to load module.</div>`;
+            window.debugLog(`❌ GAGAL MUAT MODULE`, "error");
         }
     },
 
     reinit: (tabId) => {
-        window.debugLog(`⚙️ Re-init Tab: ${tabId}`);
-        
-        // Pemicu Fungsi di Brain Two
-        if (tabId === 'tab-hq') {
+        // Logika Paksa: Jika Tab HQ terbuka, jalankan fungsi Brain Two
+        if (tabId === 'tab-hq' || document.getElementById('m-title')) {
             if (typeof window.initHQModule === 'function') {
+                window.debugLog("🛰️ MENYAMBUNGKAN KE DATABASE...");
                 window.initHQModule();
             } else {
-                window.debugLog("⚠️ initHQModule belum siap", "error");
+                // Jika ini muncul, berarti Brain Two belum terbaca oleh Browser
+                window.debugLog("⚠️ ENGINE BRAIN TWO TIDAK TERDETEKSI", "error");
             }
         }
-        // Tambahkan case lain jika ada (comms, maps, dll)
     }
 };
+
 
 // 5. TERMINAL GATEWAY (Untuk Deep Mining Lintas Database)
 window.getTerminal = (type) => {
