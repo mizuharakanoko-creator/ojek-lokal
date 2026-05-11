@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MISSION PROGRESS | SOVEREIGN GUILD</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+    <style>
+        /* CSS GLOBAL & VARIABEL */
+        :root {
+            --neon-blue: #00f2ff;
+            --neon-purple: #bc13fe;
+            --neon-pink: #ff00ff;
+            --dark-bg: #050508;
+            --card-bg: rgba(10, 10, 15, 0.95);
+            --border-glow: rgba(0, 242, 255, 0.3);
+            --text-main: #e0e0e0;
+            --text-dim: #94a3b8;
+        }
+
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Navigasi Tab */
+        .nav-tabs {
+            display: flex;
+            background: rgba(15, 15, 20, 0.95);
+            border-bottom: 1px solid var(--border-glow);
+            padding: 10px;
+            gap: 10px;
+            overflow-x: auto;
+            z-index: 100;
+        }
+
+        .tab-link {
+            padding: 10px 20px;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            font-weight: 900;
+            border: 1px solid transparent;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: 0.3s;
+            white-space: nowrap;
+        }
+
+        .tab-link.active {
+            color: var(--neon-blue);
+            border: 1px solid var(--neon-blue);
+            background: rgba(0, 242, 255, 0.1);
+            box-shadow: 0 0 15px var(--border-glow);
+        }
+
+        /* Container Komponen */
+        .main-content {
+            flex: 1;
+            position: relative;
+            overflow-y: auto;
+        }
+
+        .tab-pane {
+            display: none;
+            min-height: 100%;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        /* Loading Screen UI */
+        #master-loader {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--dark-bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .loader-circle {
+            width: 50px; height: 50px;
+            border: 2px solid var(--border-glow);
+            border-top: 2px solid var(--neon-blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="master-loader">
+        <div class="loader-circle"></div>
+        <p style="margin-top: 15px; font-size: 10px; letter-spacing: 2px; color: var(--neon-blue);">INITIALIZING SYSTEM...</p>
+    </div>
+
+    <nav class="nav-tabs">
+        <div class="tab-link active" onclick="switchTab('tab-hq', 'fet_missioncardhq.html', this)">HQ</div>
+        <div class="tab-link" onclick="switchTab('tab-maps', 'fet_maps_view_location.html', this)">MAPS</div>
+        <div class="tab-link" onclick="switchTab('tab-comms', 'fet_comms_peer.html', this)">COMMS</div>
+    </nav>
+
+    <main class="main-content">
+        <div id="tab-hq" class="tab-pane active"></div>
+        <div id="tab-maps" class="tab-pane"></div>
+        <div id="tab-comms" class="tab-pane"></div>
+    </main>
+
+    <div id="modal-rating-container"></div>
+    <div id="modal-profile-container"></div>
+    <div id="nota-report-container"></div>
+
+    <script>
+        // 1. FIREBASE INITIALIZATION
+        const firebaseConfig = {
+            apiKey: "MASUKKAN_API_KEY_ANDA",
+            authDomain: "PROJECT_ID.firebaseapp.com",
+            projectId: "PROJECT_ID",
+            storageBucket: "PROJECT_ID.appspot.com",
+            messagingSenderId: "SENDER_ID",
+            appId: "APP_ID"
+        };
+        
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        // 2. MODULAR COMPONENT LOADER
+        async function fetchComponent(containerId, filePath) {
+            const container = document.getElementById(containerId);
+            
+            // Hindari fetch ulang jika sudah ada isinya
+            if (container.innerHTML.trim() !== "") return;
+
+            try {
+                const response = await fetch(filePath);
+                if (!response.ok) throw new Error(`Gagal memuat ${filePath}`);
+                const html = await response.text();
+                
+                // Masukkan HTML
+                container.innerHTML = html;
+
+                // Jalankan Script yang ada di dalam file tersebut
+                const scripts = container.querySelectorAll("script");
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement("script");
+                    Array.from(oldScript.attributes).forEach(attr => {
+                        newScript.setAttribute(attr.name, attr.value);
+                    });
+                    newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+            } catch (err) {
+                console.error("Error:", err);
+                container.innerHTML = `<div style="padding:20px; color:red;">[SYSTEM ERROR]: Gagal memuat modul ${filePath}</div>`;
+            }
+        }
+
+        // 3. TAB SWITCHING LOGIC
+        function switchTab(tabId, fileName, element) {
+            document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            
+            element.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+
+            fetchComponent(tabId, fileName);
+        }
+
+        // 4. BOOTSTRAP SYSTEM
+        window.onload = async () => {
+            // Load Tab HQ secara otomatis di awal
+            await fetchComponent('tab-hq', 'fet_missioncardhq.html');
+            
+            // Load Modal secara background agar siap saat dipanggil
+            fetchComponent('modal-rating-container', 'fet_modalrating.html');
+            fetchComponent('modal-profile-container', 'fet_modalshowprofile.html');
+            fetchComponent('nota-report-container', 'fet_nota_report.html');
+
+            // Matikan Loader
+            setTimeout(() => {
+                const loader = document.getElementById('master-loader');
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 500);
+            }, 800);
+        };
+    </script>
+</body>
+</html>
