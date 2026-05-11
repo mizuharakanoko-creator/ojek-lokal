@@ -33,77 +33,64 @@ window.initHQModule = async function() {
 async function performDeepMiningHQ(contractId) {
     try {
         const db = window.SovereignState.db;
-        
-        // Step A: Ambil Kontrak dari Firestore
-        window.debugLog("📡 FIRESTORE: MENGAMBIL KONTRAK...");
+        window.debugLog("📡 MENGHUBUNGI SHARD FIRESTORE...");
+
+        // 1. Coba ambil dari Firestore
         const snap = await db.collection('contracts').doc(contractId).get();
         
-        if (!snap.exists) {
-            window.debugLog("❌ FIRESTORE: KONTRAK TIDAK ADA!", "error");
-            return;
-        }
+        let missionData = null;
 
-        const m = snap.data();
-        const advNick = m.adventurer_nick;
-        window.debugLog(`✅ DATA DIDAPAT: ${advNick}`);
-
-        // Step B: Akses Buku Induk (RTDB) untuk mencari Partner
-        const masterDB = window.getTerminal('FB1_MASTER');
-        if (!masterDB) {
-            window.debugLog("❌ RTDB: TERMINAL MASTER DISCONNECT!", "error");
-            return;
-        }
-
-        window.debugLog("🗂️ RTDB: MENCARI INDEX PARTNER...");
-        const snapIdx = await masterDB.ref('adventurer_index')
-                                   .orderByChild('nickname')
-                                   .equalTo(advNick)
-                                   .once('value');
-        
-        let partnerData = null;
-
-        if (snapIdx.exists()) {
-            window.debugLog("💎 RTDB: PARTNER DITEMUKAN!");
-            const meta = Object.values(snapIdx.val())[0];
-            const shard = window.getTerminal(meta.shard_id || "FB2_RUNNER");
-            const idAdv = meta.id_adv;
-            const area = meta.area_tugas;
-
-            // Deep Mining Detail Shard
-            const [snapRole, snapRep] = await Promise.all([
-                shard.ref(`adventurer-${area}/Umum/${idAdv}`).once('value'),
-                shard.ref(`adventurer_reputation/${idAdv}`).once('value')
-            ]);
-
-            partnerData = {
-                umum: snapRole.val() || {},
-                reputasi: snapRep.val() || {},
-                meta: meta
-            };
+        if (snap.exists) {
+            missionData = snap.data();
+            window.debugLog("✅ DATA FIRESTORE DITEMUKAN");
         } else {
-            window.debugLog("⚠️ PARTNER TIDAK TERDAFTAR", "warn");
+            // BACKUP: Jika Firestore kosong, ambil dari Session Storage (Data Debug kamu tadi)
+            window.debugLog("⚠️ FIRESTORE KOSONG, PAKAI BACKUP...");
+            const backup = sessionStorage.getItem('current_mission_full');
+            if (backup) {
+                missionData = JSON.parse(backup);
+            }
         }
 
-        // Simpan ke Global State
-        window.SovereignState.currentMissionData = {
-            mission: m,
-            partner: partnerData
-        };
+        if (!missionData) {
+            window.debugLog("❌ SEMUA SUMBER DATA KOSONG", "error");
+            return;
+        }
 
-        // Step C: Render ke UI
-        window.debugLog("🎨 UI: MENYUSUN TAMPILAN...");
-        renderHQ(m, partnerData);
-        
-        // Jalankan Timer
-        if (m.created_at) setupTimer(m.created_at);
+        // 2. Kirim ke UI (Agar layar tidak Rp 0 lagi)
+        // Kita render misi dulu, baru cari partner kemudian agar tidak lambat
+        renderHQ(missionData, null);
 
-        window.debugLog("🚀 HQ: SISTEM OPERASIONAL!");
+        // 3. Cari Data Partner (Deep Mining RTDB)
+        const masterDB = window.getTerminal('FB1_MASTER');
+        if (masterDB && missionData.adventurer_nick) {
+            window.debugLog("🗂️ MENCARI DATA PARTNER...");
+            const snapIdx = await masterDB.ref('adventurer_index')
+                                       .orderByChild('nickname')
+                                       .equalTo(missionData.adventurer_nick)
+                                       .once('value');
+            
+            if (snapIdx.exists()) {
+                const meta = Object.values(snapIdx.val())[0];
+                // Simpan ke memori global
+                window.SovereignState.currentMissionData = {
+                    mission: missionData,
+                    partner: { meta: meta }
+                };
+                renderHQ(missionData, { meta: meta });
+            }
+        }
+
+        window.debugLog("🚀 OPERASIONAL SELESAI");
 
     } catch (err) {
         window.debugLog(`💥 CRASH: ${err.message.substring(0, 20)}`, "error");
-        console.error(err);
+        // Usahakan tetap render apa yang ada
+        const backup = sessionStorage.getItem('current_mission_full');
+        if (backup) renderHQ(JSON.parse(backup), null);
     }
 }
+
 
 // 3. UI RENDERER (Sinkron dengan ID di fet_missioncardhq.html)
 // Bagian Render di Brain Two diperkuat agar tidak kosong jika data telat
