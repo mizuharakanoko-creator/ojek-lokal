@@ -163,12 +163,15 @@ window.toggleDebugPanel = function() {
 
 // 5. TERMINAL GATEWAY (Untuk Deep Mining Lintas Database)
 window.getTerminal = (type) => {
-    // Sesuaikan mapping terminal dengan kebutuhan aplikasi Anda
-    if (type === 'FB1_MASTER') return firebase.database(); // Default RTDB
-    if (type === 'FB4_BOARD') return firebase.database(); 
-    if (type === 'FB2_RUNNER') return firebase.database();
-    return window.SovereignState.rtdb;
+    // Karena kita menggunakan satu Firebase Config utama, 
+    // arahkan semua permintaan terminal ke RTDB yang terkoneksi
+    if (window.SovereignState && window.SovereignState.rtdb) {
+        return window.SovereignState.rtdb;
+    }
+    console.error("❌ Terminal Offline: RTDB not initialized");
+    return null;
 };
+
 
 // 6. AUTO-START
 window.Core.initFirebase();
