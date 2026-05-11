@@ -198,49 +198,61 @@
 
         // --- TAMBAHKAN LOGIC PENDUKUNG DI SINI ---
 
-// 1. Fungsi Identitas (Agar sistem tahu siapa yang login)
+// --- MESIN UTAMA (OTAK) ---
+
 window.Clearchance = {
     enforceIdentity: () => {
-        // Mengambil data user dari sessionStorage yang biasanya diisi saat login
         const saved = sessionStorage.getItem('user_data');
-        if (saved) return JSON.parse(saved);
-        // Fallback jika tidak ada (untuk testing)
-        return { role: 'adventurer', uid: 'USER_ID_ASLI', name: 'User' };
+        return saved ? JSON.parse(saved) : { role: 'adventurer', uid: 'USER_TEST' };
     }
 };
 
-// 2. Fungsi Ambil Data Asli (Mining Data)
 window.getSupremeData = async (contractId) => {
+    console.log("Memulai Mining Data untuk ID:", contractId);
     try {
-        // Ambil data misi dari Firestore secara real-time
+        // Ambil dari Firestore (Ganti 'contracts' dengan nama collection Anda)
         const doc = await db.collection('contracts').doc(contractId).get();
-        if (!doc.exists) throw new Error("Kontrak tidak ditemukan di database");
-        
-        const data = doc.data();
-        // Return struktur yang diharapkan oleh komponen HQ
-        return {
-            mission: data,
-            adventurer: data.adventurer_data || {},
-            requester: data.requester_data || {}
-        };
+        if (doc.exists) {
+            const data = doc.data();
+            return {
+                mission: data,
+                adventurer: data.adventurer_data || {},
+                requester: data.requester_data || {}
+            };
+        }
     } catch (err) {
-        console.error("Mining Error:", err);
-        // Jika gagal ke firestore, coba ambil dari session storage
-        return JSON.parse(sessionStorage.getItem('current_mission_full'));
+        console.error("Firestore Error, mencoba Session Storage...");
     }
+    // Fallback ke session storage jika firestore gagal/belum siap
+    const local = sessionStorage.getItem('current_mission_full');
+    return local ? JSON.parse(local) : null;
 };
 
-// 3. Fungsi Get Terminal (Jika Anda menggunakan Realtime Database untuk status OTW)
-window.getTerminal = (type) => {
-    if (type === 'FB5_DEAL') {
-        // Pastikan Anda sudah mengaktifkan Firebase Realtime Database di Firebase Console
-        return firebase.database(); 
-    }
-    return null;
-};
+// Modifikasi fungsi fetch agar lebih kuat memanggil init
+async function fetchComponent(containerId, filePath) {
+    const container = document.getElementById(containerId);
+    try {
+        const response = await fetch(filePath);
+        const html = await response.text();
+        container.innerHTML = html;
 
-// 4. Perbaikan Typo Maps (PENTING)
-// Pastikan di file fet_missioncardhq.html, baris window.open menggunakan `${...}` bukan `{...}`
+        const scripts = container.querySelectorAll("script");
+        for (const oldScript of scripts) {
+            const newScript = document.createElement("script");
+            Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+            newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+            document.body.appendChild(newScript); // Paksa eksekusi script ke body
+        }
+
+        // Trigger manual setelah script dimuat
+        setTimeout(() => {
+            if (containerId === 'tab-hq' && typeof initHQModule === 'function') {
+                console.log("Triggering HQ Module...");
+                initHQModule();
+            }
+        }, 300);
+    } catch (err) { console.error("Gagal load komponen:", err); }
+}
 
 
 
