@@ -106,38 +106,31 @@ async function performDeepMiningHQ(contractId) {
 }
 
 // 3. UI RENDERER (Sinkron dengan ID di fet_missioncardhq.html)
+// Bagian Render di Brain Two diperkuat agar tidak kosong jika data telat
 function renderHQ(m, p) {
     const safeUpdate = (id, html) => {
         const el = document.getElementById(id);
-        if (el) {
-            el.innerHTML = html;
-        } else {
-            // Jika elemen tidak ditemukan, log agar kita tahu ID mana yang salah
-            console.warn(`Elemen ${id} tidak ditemukan di DOM`);
-        }
+        if (el) el.innerHTML = html;
     };
 
-    // Data Misi
-    safeUpdate('m-title', `ID: ${m.id_kontrak || '---'}`);
+    // Gunakan fallback || jika data spesifik tidak ditemukan
+    safeUpdate('m-title', m.id_kontrak || m.id_misi || 'NO ID');
     safeUpdate('m-reward', `Rp ${Number(m.reward || 0).toLocaleString()}`);
     
-    const category = m.full_mission_data?.category || 'GENERAL';
-    safeUpdate('m-category', category.toUpperCase());
+    // Ambil kategori dari data penuh jika ada
+    const cat = m.category || (m.full_mission_data ? m.full_mission_data.category : "GENERAL");
+    safeUpdate('m-category', cat.toUpperCase());
     
-    // Data Partner
-    if (p) {
-        safeUpdate('m-partner-name', m.adventurer_nick || 'UNKNOWN');
-        safeUpdate('m-partner-rank', `RANK ${p.meta?.rank || 'F'}`);
-        
-        if (p.umum && p.umum.arsenal) {
-            safeUpdate('m-unit-info', `${p.umum.arsenal.merk} [${p.umum.arsenal.plat}]`);
-        }
-    }
+    // Ambil Alamat
+    safeUpdate('m-origin', m.origin_name || (m.full_mission_data ? m.full_mission_data.origin_name : "---"));
+    safeUpdate('m-destination', m.dest_name || (m.full_mission_data ? m.full_mission_data.dest_name : "---"));
 
-    // Detail Alamat
-    safeUpdate('m-origin', m.full_mission_data?.origin_name || "---");
-    safeUpdate('m-destination', m.full_mission_data?.dest_name || "---");
+    if (p) {
+        safeUpdate('m-partner-name', p.meta?.nickname || m.adventurer_nick || "PARTNER");
+        safeUpdate('m-partner-rank', `RANK ${p.meta?.rank || 'F'}`);
+    }
 }
+
 
 // 4. TIMER LOGIC
 function setupTimer(startTime) {
