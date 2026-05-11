@@ -1,6 +1,6 @@
 /**
  * js_mission_progress_brain_two.js
- * OPERATIONAL HQ & DEEP MINING ENGINE
+ * OPERATIONAL HQ & DEEP MINING ENGINE (MOBILE DEBUG READY)
  */
 
 window.HQState = {
@@ -8,51 +8,53 @@ window.HQState = {
     isInitialLoad: false
 };
 
-// 1. FUNGSI UTAMA YANG DIPANGGIL OLEH ROUTER
+// 1. FUNGSI UTAMA (DIPANGGIL OLEH ROUTER DI BRAIN ONE)
 window.initHQModule = async function() {
-    console.log("🛰️ [HQ] Starting Operational Module...");
+    window.debugLog("🛰️ HQ: MEMULAI OPERASI...");
     
     // Pastikan Firebase di Brain One sudah siap
     if (!window.SovereignState || !window.SovereignState.db) {
-        console.warn("⏳ [HQ] Waiting for Firebase Connection...");
-        setTimeout(window.initHQModule, 500); // Coba lagi dalam 0.5 detik
+        window.debugLog("⏳ HQ: MENUNGGU DATABASE...", "warn");
+        setTimeout(window.initHQModule, 500); 
         return;
     }
 
     const contractId = sessionStorage.getItem('active_contract_id');
     if (!contractId) {
-        console.error("❌ [HQ] Missing Contract ID in Session Storage");
+        window.debugLog("❌ HQ: ID KONTRAK KOSONG!", "error");
         return;
     }
 
-    // Eksekusi Deep Mining
+    window.debugLog("🔎 HQ: MENAMBANG DATA...");
     await performDeepMiningHQ(contractId);
 };
 
-// 2. DEEP MINING ENGINE (LOGIKA REFERENSI ANDA)
+// 2. DEEP MINING ENGINE
 async function performDeepMiningHQ(contractId) {
     try {
         const db = window.SovereignState.db;
         
         // Step A: Ambil Kontrak dari Firestore
+        window.debugLog("📡 FIRESTORE: MENGAMBIL KONTRAK...");
         const snap = await db.collection('contracts').doc(contractId).get();
         
         if (!snap.exists) {
-            console.error("❌ [MINING] Contract not found in Shard Firestore");
+            window.debugLog("❌ FIRESTORE: KONTRAK TIDAK ADA!", "error");
             return;
         }
 
         const m = snap.data();
         const advNick = m.adventurer_nick;
+        window.debugLog(`✅ DATA DIDAPAT: ${advNick}`);
 
         // Step B: Akses Buku Induk (RTDB) untuk mencari Partner
-        // window.getTerminal adalah jembatan ke Brain One
         const masterDB = window.getTerminal('FB1_MASTER');
         if (!masterDB) {
-            console.error("❌ [MINING] Master Terminal FB1 not reachable");
+            window.debugLog("❌ RTDB: TERMINAL MASTER DISCONNECT!", "error");
             return;
         }
 
+        window.debugLog("🗂️ RTDB: MENCARI INDEX PARTNER...");
         const snapIdx = await masterDB.ref('adventurer_index')
                                    .orderByChild('nickname')
                                    .equalTo(advNick)
@@ -61,6 +63,7 @@ async function performDeepMiningHQ(contractId) {
         let partnerData = null;
 
         if (snapIdx.exists()) {
+            window.debugLog("💎 RTDB: PARTNER DITEMUKAN!");
             const meta = Object.values(snapIdx.val())[0];
             const shard = window.getTerminal(meta.shard_id || "FB2_RUNNER");
             const idAdv = meta.id_adv;
@@ -77,20 +80,28 @@ async function performDeepMiningHQ(contractId) {
                 reputasi: snapRep.val() || {},
                 meta: meta
             };
+        } else {
+            window.debugLog("⚠️ PARTNER TIDAK TERDAFTAR", "warn");
         }
 
-        // Simpan ke Global State agar Tab lain bisa pakai tanpa Load ulang
+        // Simpan ke Global State
         window.SovereignState.currentMissionData = {
             mission: m,
             partner: partnerData
         };
 
         // Step C: Render ke UI
+        window.debugLog("🎨 UI: MENYUSUN TAMPILAN...");
         renderHQ(m, partnerData);
-        setupTimer(m.created_at);
+        
+        // Jalankan Timer
+        if (m.created_at) setupTimer(m.created_at);
+
+        window.debugLog("🚀 HQ: SISTEM OPERASIONAL!");
 
     } catch (err) {
-        console.error("❌ [DEEP MINING CRASH]", err);
+        window.debugLog(`💥 CRASH: ${err.message.substring(0, 20)}`, "error");
+        console.error(err);
     }
 }
 
@@ -98,20 +109,26 @@ async function performDeepMiningHQ(contractId) {
 function renderHQ(m, p) {
     const safeUpdate = (id, html) => {
         const el = document.getElementById(id);
-        if (el) el.innerHTML = html;
+        if (el) {
+            el.innerHTML = html;
+        } else {
+            // Jika elemen tidak ditemukan, log agar kita tahu ID mana yang salah
+            console.warn(`Elemen ${id} tidak ditemukan di DOM`);
+        }
     };
 
     // Data Misi
     safeUpdate('m-title', `ID: ${m.id_kontrak || '---'}`);
-    safeUpdate('m-reward', `Rp ${Number(m.reward).toLocaleString()}`);
-    safeUpdate('m-category', (m.full_mission_data?.category || 'GENERAL').toUpperCase());
+    safeUpdate('m-reward', `Rp ${Number(m.reward || 0).toLocaleString()}`);
     
-    // Data Partner (Hasil Deep Mining)
+    const category = m.full_mission_data?.category || 'GENERAL';
+    safeUpdate('m-category', category.toUpperCase());
+    
+    // Data Partner
     if (p) {
-        safeUpdate('m-partner-name', m.adventurer_nick);
-        safeUpdate('m-partner-rank', `RANK ${p.meta.rank || 'F'}`);
+        safeUpdate('m-partner-name', m.adventurer_nick || 'UNKNOWN');
+        safeUpdate('m-partner-rank', `RANK ${p.meta?.rank || 'F'}`);
         
-        // Jika ada elemen detail unit motor/mobil
         if (p.umum && p.umum.arsenal) {
             safeUpdate('m-unit-info', `${p.umum.arsenal.merk} [${p.umum.arsenal.plat}]`);
         }
@@ -126,17 +143,23 @@ function renderHQ(m, p) {
 function setupTimer(startTime) {
     if (window.HQState.timerInterval) clearInterval(window.HQState.timerInterval);
     
-    const start = startTime || Date.now();
-    const duration = 2 * 60 * 60 * 1000; // 2 Jam default
+    const start = typeof startTime === 'number' ? startTime : Date.now();
+    const duration = 2 * 60 * 60 * 1000; // 2 Jam
     const end = start + duration;
 
     window.HQState.timerInterval = setInterval(() => {
         const now = Date.now();
         const diff = end - now;
 
+        const el = document.getElementById('m-timer');
+        if (!el) {
+            clearInterval(window.HQState.timerInterval);
+            return;
+        }
+
         if (diff <= 0) {
             clearInterval(window.HQState.timerInterval);
-            safeUpdate('m-timer', "EXPIRED");
+            el.innerText = "EXPIRED";
             return;
         }
 
@@ -144,8 +167,7 @@ function setupTimer(startTime) {
         const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
         const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
         
-        const el = document.getElementById('m-timer');
-        if (el) el.innerText = `${h}:${m}:${s}`;
+        el.innerText = `${h}:${m}:${s}`;
     }, 1000);
 }
 
@@ -155,8 +177,8 @@ window.handleMissionSlider = function(val) {
     if (val >= 98) {
         if (typeof window.showRatingScreen === 'function') window.showRatingScreen();
     } else {
-        if (label) label.innerText = val > 10 ? "RELEASE TO CONFIRM" : "SLIDE TO COMPLETE";
+        if (label) label.innerText = val > 10 ? "LEPASKAN UNTUK SELESAI" : "GESER UNTUK SELESAI";
     }
 };
 
-console.log("⚙️ [BRAIN TWO] Operational HQ: READY");
+console.log("⚙️ [BRAIN TWO] OPERATIONAL HQ: LOADED");
