@@ -1,10 +1,9 @@
 /**
  * js_mission_progress_brain_one.js
- * CORE ENGINE & COMPONENT ROUTER
- * Fokus: Firebase Auth, Global State, & Dynamic Loading
+ * CORE ENGINE & COMPONENT ROUTER (MOBILE DEBUG READY)
  */
 
-// 1. GLOBAL STATE - Satu-satunya sumber kebenaran untuk semua file JS
+// 1. GLOBAL STATE
 window.SovereignState = {
     db: null,
     rtdb: null,
@@ -13,11 +12,26 @@ window.SovereignState = {
     currentMissionData: null
 };
 
-// 2. CORE ENGINE
+// 2. VISUAL DEBUGGER FOR MOBILE (Ganti teks status di layar)
+window.debugLog = (msg, type = "info") => {
+    console.log(`[DEBUG] ${msg}`);
+    // Mencari elemen status yang ada di header jjk.html
+    const statusEl = document.getElementById('status-pulsing') || 
+                     document.getElementById('statusPulsing') || 
+                     document.getElementById('intelText');
+    
+    if (statusEl) {
+        statusEl.innerText = msg.toUpperCase();
+        statusEl.style.color = type === "error" ? "#ff0055" : "#00ffff";
+    }
+};
+
+// 3. CORE ENGINE
 window.Core = {
-    // Inisialisasi Koneksi Firebase
     initFirebase: () => {
-        // Ganti dengan konfigurasi Firebase Console Anda
+        window.debugLog("🔗 Menginisialisasi Neural Link...");
+        
+        // Sesuaikan dengan Config Anda
         const firebaseConfig = {
             apiKey: "AIzaSy...",
             authDomain: "project-id.firebaseapp.com",
@@ -34,82 +48,49 @@ window.Core = {
         
         window.SovereignState.db = firebase.firestore();
         window.SovereignState.rtdb = firebase.database();
-        console.log("🔥 [SYSTEM] Firebase Neural Link: Connected");
+        
+        window.debugLog("🔥 Firebase Connected!");
     },
 
-    // Verifikasi Identitas & Sesi Kontrak
     checkAuth: () => {
-        // Mengambil data dari sessionStorage hasil dari login/pilihan misi sebelumnya
+        window.debugLog("👤 Memeriksa Otoritas...");
         const savedUser = sessionStorage.getItem('user_data');
         const savedContractId = sessionStorage.getItem('active_contract_id');
 
         if (savedUser) {
             window.SovereignState.currentUser = JSON.parse(savedUser);
         } else {
-            // Mode Tamu/Debug jika session kosong
-            window.SovereignState.currentUser = { 
-                uid: 'UNKNOWN_ENTITY', 
-                role: 'adventurer', 
-                name: 'Guest Hunter' 
-            };
+            window.SovereignState.currentUser = { uid: 'GUEST', role: 'adventurer', name: 'Unknown' };
         }
 
         window.SovereignState.activeContractId = savedContractId;
-        console.log("👤 [AUTH] Identity Confirmed:", window.SovereignState.currentUser.name);
-        console.log("🆔 [SESSION] Active Contract:", window.SovereignState.activeContractId);
-    },
-
-    // Pengambil Data Tunggal (Deep Data Mining)
-    getSupremeData: async (contractId) => {
-        if (!contractId) {
-            console.error("❌ [MINING] Contract ID is null");
-            return null;
-        }
         
-        try {
-            const doc = await window.SovereignState.db.collection('contracts').doc(contractId).get();
-            if (doc.exists) {
-                const data = doc.data();
-                const structured = {
-                    mission: data,
-                    adventurer: data.adventurer_data || {},
-                    requester: data.requester_data || {}
-                };
-                // Simpan ke memori global agar tab lain tidak perlu fetch ulang
-                window.SovereignState.currentMissionData = structured;
-                return structured;
-            } else {
-                console.warn("⚠️ [MINING] Document not found in Firestore");
-                return null;
-            }
-        } catch (err) {
-            console.error("❌ [MINING] Error fetching Firestore:", err);
-            // Fallback: Gunakan data session jika koneksi gagal
-            const local = sessionStorage.getItem('current_mission_full');
-            return local ? JSON.parse(local) : null;
+        if (!savedContractId) {
+            window.debugLog("⚠️ ID Kontrak Tidak Ditemukan!", "error");
+        } else {
+            window.debugLog(`✅ Sesi: ${savedContractId.substring(0,8)}...`);
         }
     }
 };
 
-// 3. COMPONENT ROUTER (Pemuat Tampilan)
+// 4. COMPONENT ROUTER
 window.Router = {
-    // Fungsi memuat HTML ke dalam kontainer tab
     loadComponent: async (containerId, filePath) => {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        // Visual Feedback: Berikan efek loading tipis saat pindah tab
+        window.debugLog(`📥 Loading Module: ${filePath}...`);
         container.style.opacity = '0.5';
 
         try {
             const response = await fetch(filePath);
-            if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             
             const html = await response.text();
             container.innerHTML = html;
             container.style.opacity = '1';
 
-            // EKSEKUSI SCRIPT: Re-inject script tags agar berfungsi di global scope
+            // Eksekusi Script di dalam HTML yang di-fetch
             const scripts = container.querySelectorAll("script");
             for (const oldScript of scripts) {
                 const newScript = document.createElement("script");
@@ -119,47 +100,46 @@ window.Router = {
                     newScript.text = oldScript.text;
                 }
                 document.body.appendChild(newScript);
-                // Hapus script lama agar tidak duplikat di DOM
                 newScript.parentNode.removeChild(newScript);
             }
 
-            // Jalankan Re-inisialisasi Logika (Memberi waktu DOM untuk stabil)
+            // Tunggu sebentar agar DOM stabil sebelum reinit
             setTimeout(() => {
                 window.Router.reinit(containerId);
-            }, 150);
+            }, 200);
             
         } catch (err) {
-            console.error(`❌ [ROUTER] Gagal memuat ${filePath}:`, err);
-            container.innerHTML = `<div style="padding:20px; color:#ff0055; font-family:monospace;">[SYSTEM_ERROR] Module ${filePath} not found.</div>`;
+            window.debugLog(`❌ Gagal Muat: ${filePath}`, "error");
+            container.innerHTML = `<div style="padding:20px; color:#ff0055;">[ERROR] Fail to load module.</div>`;
         }
     },
 
-    // Re-inisialisasi Fungsi Brain sesuai Tab yang aktif
     reinit: (tabId) => {
-        console.log(`🛠️ [RE-INIT] Refreshing logic for: ${tabId}`);
+        window.debugLog(`⚙️ Re-init Tab: ${tabId}`);
         
-        switch(tabId) {
-            case 'tab-hq':
-                if (typeof window.initHQModule === 'function') window.initHQModule();
-                break;
-            case 'tab-comms':
-                if (typeof window.initCommsModule === 'function') window.initCommsModule();
-                break;
-            case 'tab-maps':
-                if (typeof window.initMapsModule === 'function') window.initMapsModule();
-                break;
-            case 'tab-profile':
-                if (typeof window.initProfileModule === 'function') window.initProfileModule();
-                break;
-            case 'tab-nota':
-                if (typeof window.initNotaModule === 'function') window.initNotaModule();
-                break;
+        // Pemicu Fungsi di Brain Two
+        if (tabId === 'tab-hq') {
+            if (typeof window.initHQModule === 'function') {
+                window.initHQModule();
+            } else {
+                window.debugLog("⚠️ initHQModule belum siap", "error");
+            }
         }
+        // Tambahkan case lain jika ada (comms, maps, dll)
     }
 };
 
-// 4. UTILITY HELPER
-window.getSupremeData = window.Core.getSupremeData;
-window.getTerminal = (type) => (type === 'FB5_DEAL' ? window.SovereignState.rtdb : null);
+// 5. TERMINAL GATEWAY (Untuk Deep Mining Lintas Database)
+window.getTerminal = (type) => {
+    // Sesuaikan mapping terminal dengan kebutuhan aplikasi Anda
+    if (type === 'FB1_MASTER') return firebase.database(); // Default RTDB
+    if (type === 'FB4_BOARD') return firebase.database(); 
+    if (type === 'FB2_RUNNER') return firebase.database();
+    return window.SovereignState.rtdb;
+};
 
-console.log("🧠 [BRAIN ONE] Neural Foundation: FULLY OPERATIONAL");
+// 6. AUTO-START
+window.Core.initFirebase();
+window.Core.checkAuth();
+
+console.log("🧠 [BRAIN ONE] Loaded & Debug Ready");
