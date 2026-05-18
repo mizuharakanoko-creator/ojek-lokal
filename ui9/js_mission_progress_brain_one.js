@@ -1,21 +1,20 @@
 /**
  * js_mission_progress_brain_one.js
- * CORE ENGINE & COMPONENT ROUTER (MOBILE DEBUG READY)
+ * CORE ENGINE & COMPONENT ROUTER (INTEGRATED WITH TERMINAL ROUTER)
  */
 
-// 1. GLOBAL STATE
+// 1. GLOBAL STATE (Tetap dipertahankan sebagai pusat penyimpanan data di UI)
 window.SovereignState = {
-    db: null,
-    rtdb: null,
+    db: null,       // Firestore (Untuk data global jika perlu)
+    rtdb: null,     // RTDB (Default/Master)
     currentUser: null,
     activeContractId: null,
-    currentMissionData: null
+    currentMissionData: null // Akan diisi oleh getSupremeData dari Brain Two
 };
 
-// 2. VISUAL DEBUGGER FOR MOBILE (Ganti teks status di layar)
+// 2. VISUAL DEBUGGER FOR MOBILE
 window.debugLog = (msg, type = "info") => {
     console.log(`[DEBUG] ${msg}`);
-    // Mencari elemen status yang ada di header jjk.html
     const statusEl = document.getElementById('status-pulsing') || 
                      document.getElementById('statusPulsing') || 
                      document.getElementById('intelText');
@@ -23,38 +22,36 @@ window.debugLog = (msg, type = "info") => {
     if (statusEl) {
         statusEl.innerText = msg.toUpperCase();
         statusEl.style.color = type === "error" ? "#ff0055" : "#00ffff";
+        // Efek kedip saat ada update
+        statusEl.style.animation = 'none';
+        setTimeout(() => statusEl.style.animation = 'pulse 1.5s infinite', 10);
     }
 };
 
-// 3. CORE ENGINE
+// 3. CORE ENGINE (Sinkronisasi dengan Terminal Router)
 window.Core = {
     initFirebase: () => {
-        window.debugLog("🔗 Menginisialisasi Neural Link...");
+        window.debugLog("🔗 MENGHUBUNGKAN NEURAL LINK...");
         
-        // Sesuaikan dengan Config Anda
-        const firebaseConfig = {
-            apiKey: "AIzaSy...",
-            authDomain: "project-id.firebaseapp.com",
-            projectId: "project-id",
-            storageBucket: "project-id.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:abcdef",
-            databaseURL: "https://project-id-default-rtdb.firebaseio.com"
-        };
-
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
+        try {
+            // Kita tidak lagi menginisialisasi Firebase secara hardcoded di sini.
+            // Kita gunakan Master Terminal dari terminal_router.js
+            const masterDB = getTerminal('FB1_MASTER');
+            
+            if (masterDB) {
+                window.SovereignState.rtdb = masterDB;
+                window.debugLog("🔥 MASTER DATABASE CONNECTED!");
+            } else {
+                throw new Error("Master Terminal FB1 Gagal Dimuat");
+            }
+        } catch (err) {
+            window.debugLog("❌ KONEKSI GAGAL: " + err.message, "error");
         }
-        
-        window.SovereignState.db = firebase.firestore();
-        window.SovereignState.rtdb = firebase.database();
-        
-        window.debugLog("🔥 Firebase Connected!");
     },
 
     checkAuth: () => {
-        window.debugLog("👤 Memeriksa Otoritas...");
-        const savedUser = sessionStorage.getItem('user_data');
+        window.debugLog("👤 MEMERIKSA OTORITAS...");
+        const savedUser = sessionStorage.getItem('user_identity'); // Sesuaikan dengan key di debug anda
         const savedContractId = sessionStorage.getItem('active_contract_id');
 
         if (savedUser) {
@@ -66,15 +63,14 @@ window.Core = {
         window.SovereignState.activeContractId = savedContractId;
         
         if (!savedContractId) {
-            window.debugLog("⚠️ ID Kontrak Tidak Ditemukan!", "error");
+            window.debugLog("⚠️ ID KONTRAK TIDAK DITEMUKAN!", "error");
         } else {
-            window.debugLog(`✅ Sesi: ${savedContractId.substring(0,8)}...`);
+            window.debugLog(`✅ SESI AKTIF: ${savedContractId.substring(0,12)}...`);
         }
     }
 };
 
-// 4. COMPONENT ROUTER
-// REVISI BAGIAN ROUTER DI BRAIN ONE
+// 4. COMPONENT ROUTER (Pemuat Modul UI)
 window.Router = {
     loadComponent: async (containerId, filePath) => {
         const container = document.getElementById(containerId);
@@ -89,7 +85,7 @@ window.Router = {
             const html = await response.text();
             container.innerHTML = html;
 
-            // Memaksa Script di dalam file yang di-fetch untuk jalan
+            // Eksekusi Script di dalam file yang di-fetch
             const scripts = container.querySelectorAll("script");
             for (const oldScript of scripts) {
                 const newScript = document.createElement("script");
@@ -102,54 +98,53 @@ window.Router = {
                 newScript.parentNode.removeChild(newScript);
             }
 
-            // LANGSUNG PANGGIL DATA TANPA TUNGGU LAMA
-            console.log("⚡ Triggering Logic for:", containerId);
+            // Jalankan Re-inisialisasi Tab
             window.Router.reinit(containerId);
             
         } catch (err) {
             window.debugLog(`❌ GAGAL MUAT MODULE`, "error");
+            console.error(err);
         }
     },
 
     reinit: (tabId) => {
-        // Logika Paksa: Jika Tab HQ terbuka, jalankan fungsi Brain Two
+        // Jika Tab HQ terbuka (Tempat melihat progres misi)
         if (tabId === 'tab-hq' || document.getElementById('m-title')) {
-            if (typeof window.initHQModule === 'function') {
-                window.debugLog("🛰️ MENYAMBUNGKAN KE DATABASE...");
-                window.initHQModule();
+            if (typeof window.performDeepMiningHQ === 'function') {
+                window.debugLog("🛰️ MENYEDOT DATA SUPREME...");
+                const contractId = window.SovereignState.activeContractId;
+                window.performDeepMiningHQ(contractId);
             } else {
-                // Jika ini muncul, berarti Brain Two belum terbaca oleh Browser
                 window.debugLog("⚠️ ENGINE BRAIN TWO TIDAK TERDETEKSI", "error");
             }
         }
     }
 };
 
-
-
-
+// 5. DEBUG PANEL (Pusat Inspeksi saat terjadi error di lapangan)
 window.toggleDebugPanel = function() {
     const panel = document.getElementById('debug-panel');
     const content = document.getElementById('debug-content');
+    if (!panel || !content) return;
     
-    if (panel.style.display === 'none') {
-        // AMBIL SEMUA DATA
+    if (panel.style.display === 'none' || panel.style.display === '') {
         let html = "";
         
-        // A. Cek Session Storage
-        html += `<b style="color:cyan;">[ SESSION STORAGE ]</b><br>`;
+        html += `<b style="color:#00ffff;">[ SESSION STORAGE ]</b><br>`;
         for (let i = 0; i < sessionStorage.length; i++) {
             const key = sessionStorage.key(i);
             const val = sessionStorage.getItem(key);
-            html += `<span style="color:#aaa;">${key}:</span> ${val}<br>`;
+            html += `<span style="color:#aaa; font-size:10px;">${key}:</span> <span style="font-size:10px;">${val}</span><br>`;
         }
         
-        html += `<br><b style="color:cyan;">[ GLOBAL STATE (SovereignState) ]</b><br>`;
-        html += `<pre style="white-space:pre-wrap;">${JSON.stringify(window.SovereignState, null, 2)}</pre>`;
+        html += `<br><b style="color:#00ffff;">[ GLOBAL STATE ]</b><br>`;
+        // Sembunyikan API key saat display
+        const cleanState = JSON.parse(JSON.stringify(window.SovereignState));
+        html += `<pre style="white-space:pre-wrap; font-size:10px; background:#111; padding:5px;">${JSON.stringify(cleanState, null, 2)}</pre>`;
         
-        html += `<br><b style="color:cyan;">[ FIREBASE STATUS ]</b><br>`;
-        html += `Firestore: ${window.SovereignState.db ? "CONNECTED" : "DISCONNECTED"}<br>`;
-        html += `RTDB: ${window.SovereignState.rtdb ? "CONNECTED" : "DISCONNECTED"}<br>`;
+        html += `<br><b style="color:#00ffff;">[ TERMINAL STATUS ]</b><br>`;
+        html += `FB1_MASTER: ${window.FirebaseInstances['FB1_MASTER'] ? "CONNECTED" : "OFFLINE"}<br>`;
+        html += `ACTIVE SHARD: ${window.SovereignState.currentUser?.zone || "NONE"}<br>`;
         
         content.innerHTML = html;
         panel.style.display = 'block';
@@ -158,23 +153,15 @@ window.toggleDebugPanel = function() {
     }
 };
 
-
-
-
-// 5. TERMINAL GATEWAY (Untuk Deep Mining Lintas Database)
-window.getTerminal = (type) => {
-    // Karena kita menggunakan satu Firebase Config utama, 
-    // arahkan semua permintaan terminal ke RTDB yang terkoneksi
-    if (window.SovereignState && window.SovereignState.rtdb) {
-        return window.SovereignState.rtdb;
-    }
-    console.error("❌ Terminal Offline: RTDB not initialized");
-    return null;
-};
-
-
-// 6. AUTO-START
-window.Core.initFirebase();
-window.Core.checkAuth();
-
-console.log("🧠 [BRAIN ONE] Loaded & Debug Ready");
+// 6. AUTO-START SEQUENCE
+(function() {
+    // Tunggu terminal_router.js siap
+    const checkRouter = setInterval(() => {
+        if (typeof getTerminal === 'function') {
+            clearInterval(checkRouter);
+            window.Core.initFirebase();
+            window.Core.checkAuth();
+            console.log("🧠 [BRAIN ONE] OPERATIONAL WITH SUPREME ROUTER");
+        }
+    }, 100);
+})();
