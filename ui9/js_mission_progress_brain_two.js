@@ -1,7 +1,7 @@
 /**
  * js_mission_progress_brain_two.js
  * TACTICAL COMMAND CENTER ENGINE - SINKRONISASI FLOATING INDUK & RADAR HQ
- * [UPDATED]: Arsitektur Kontrol Melayang Global, Telemetri GPS & Live Logging
+ * [UPDATED]: Sinkronisasi Inter-Shard Brain One & Fail-Safe State Kontrak
  */
 
 window.HQState = {
@@ -11,25 +11,39 @@ window.HQState = {
 };
 
 // ==========================================================================
-// 1. BOOTSTRAPPING ENGINE SYNC
+// 1. BOOTSTRAPPING ENGINE SYNC (UPDATED)
 // ==========================================================================
 window.initHQModule = async function() {
     console.log("📡 [BRAIN TWO]: INITIALIZING COMMAND ENGINE SYNC...");
     
-    // Validasi ketersediaan State Global Firebase RTDB
+    // Validasi ketersediaan State Global Firebase RTDB dari Brain One
     if (!window.SovereignState || !window.SovereignState.rtdb) {
         setTimeout(window.initHQModule, 200);
         return;
     }
 
-    const contractId = sessionStorage.getItem('active_contract_id');
+    // Fail-safe pembacaan ID Kontrak: Cek global state baru cek session storage
+    const contractId = window.SovereignState.activeContractId || sessionStorage.getItem('active_contract_id');
     if (!contractId) {
         console.error("❌ [BRAIN TWO]: ABSENCE OF ACTIVE CONTRACT ID SHARD!");
+        if (typeof window.debugLog === 'function') window.debugLog("BRAIN TWO: MISSING CONTRACT SHARD ID", "error");
         return;
     }
 
+    // Daftarkan ke global state jika belum tersinkronisasi
+    window.SovereignState.activeContractId = contractId;
+
     // Tarik dan pantau data dari server secara realtime
     listenContractRealtime(contractId);
+};
+
+// Jembatan cadangan jika Router Brain One masih memanggil fungsi nama lama
+window.performDeepMiningHQ = function(contractId) {
+    if (contractId) {
+        if (!window.SovereignState) window.SovereignState = {};
+        window.SovereignState.activeContractId = contractId;
+    }
+    window.initHQModule();
 };
 
 // ==========================================================================
@@ -37,13 +51,22 @@ window.initHQModule = async function() {
 // ==========================================================================
 function listenContractRealtime(contractId) {
     const db4 = window.SovereignState.rtdb;
+    
+    // Matikan listener lama jika ada untuk mencegah tumpukan proses render
+    db4.ref(`kontrak_mission/${contractId}`).off('value');
+    
     db4.ref(`kontrak_mission/${contractId}`).on('value', async snap => {
         if (!snap.exists()) {
             console.warn("⚠️ Contract destroyed or unlinked from server.");
+            if (typeof window.debugLog === 'function') window.debugLog("CONTRACT UNLINKED FROM RTDB", "error");
             return;
         }
 
         const contractData = snap.val();
+        
+        if (typeof window.debugLog === 'function') {
+            window.debugLog(`HQ RECV: STATUS [${contractData.status}]`);
+        }
         
         // Fail-safe Interseptor: Cek ketersediaan data eksternal paket
         if (typeof window.getSupremeData === 'function') {
@@ -59,7 +82,7 @@ function listenContractRealtime(contractId) {
             }
         }
 
-        // Jalur Utama / Fallback Cache Render langsung dari Snapshot
+        // Jalur Utama / Fallback Cache Render langsung dari Snapshot RTDB
         executeRenderHQ(contractData, null, null);
     });
 }
@@ -73,7 +96,7 @@ function executeRenderHQ(m, advData, reqData) {
     const currentUser = window.SovereignState.currentUser || JSON.parse(sessionStorage.getItem('user_identity')) || {};
     const myRole = (currentUser.role || 'requester').toLowerCase();
     const currentStatus = (m.status || "briefing").toLowerCase();
-    const contractId = m.id_kontrak || sessionStorage.getItem('active_contract_id');
+    const contractId = m.id_kontrak || window.SovereignState.activeContractId || sessionStorage.getItem('active_contract_id');
 
     // --- BROADCAST DATA KE VIEW HQ (SIARAN RADAR SATELIT) ---
     const idDisplay = document.getElementById('m-id-display');
@@ -109,13 +132,13 @@ function executeRenderHQ(m, advData, reqData) {
     const cargoHub = document.getElementById('cargo-hub');
     if (cargoHub) cargoHub.classList.remove('hide');
 
-    // Suntikkan Koordinat ke Tombol Quick Maps Shard di HQ (Jika Elemen Tersedia)
+    // Suntikkan Koordinat ke Tombol Quick Maps Shard di HQ 
     const quickNavBtn = document.getElementById('btn-quick-nav');
     if (quickNavBtn) {
         const targetCoords = m.full_mission_data?.dest_coords || m.dest_coords;
         if (targetCoords) {
             quickNavBtn.classList.remove('hide');
-            quickNavBtn.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${targetCoords}`, '_blank');
+            quickNavBtn.onclick = () => window.open(`https://maps.google.com/?q=${targetCoords}`, '_blank');
         } else {
             quickNavBtn.classList.add('hide');
         }
@@ -216,6 +239,8 @@ async function triggerMutationAction(contractId, nextStatus, modalTitle, warnMes
             status: nextStatus,
             ...(nextStatus === 'otw' ? { start_time: Date.now() } : {})
         });
+        
+        console.log(`🎯 [BRAIN TWO]: BERHASIL MUTASI DATA KE -> ${nextStatus}`);
 
         // Trigger layar rating jika status selesai dan fungsinya terintegrasi
         if (nextStatus === 'completed' && typeof window.showRatingScreen === 'function') {
@@ -297,7 +322,10 @@ function rotateShiftAssistant(role, status, advData, m) {
 function setupPartnerLinkText(name, isReq) {
     const pLink = document.getElementById('partner-link-trigger');
     if (!pLink) return;
-    pLink.innerText = `// PARTNER: ${name.toUpperCase()} [LINK]`;
+    // Sinkronisasi dengan komponen card baru di HTML
+    const nameText = document.getElementById('partner-brief-name');
+    if (nameText) nameText.innerText = name.toUpperCase();
+    
     pLink.onclick = function() {
         if (navigator.vibrate) navigator.vibrate(15);
         if (window.Router && typeof window.Router.loadComponent === 'function') {
@@ -318,7 +346,7 @@ function calculateHaversineDistance(origin, dest) {
     try {
         const [lat1, lon1] = origin.split(',').map(Number);
         const [lat2, lon2] = dest.split(',').map(Number);
-        const R = 6371; // Radius bumi dalam KM
+        const R = 6371; 
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
@@ -392,18 +420,15 @@ function pushTelemetryLiveLog(status, role) {
         logMessage = `CORE ENCRYPTION SOLVED. REWARD CREDITED. TERM LINK TERMINATED CLEANLY.`;
     }
 
-    // Hindari duplikasi baris status yang sama secara berulang-ulang
     const hashId = `tele-log-${status}`;
     if (document.getElementById(hashId)) return;
 
     const row = document.createElement('div');
     row.id = hashId;
     row.className = 'telemetry-row';
-    row.innerHTML = `<span class="telemetry-time">[${timeStr}]</span>${logMessage}`;
+    row.innerHTML = `<span class="telemetry-time">[${timeStr}]</span> ${logMessage}`;
     
     container.appendChild(row);
-    
-    // Auto-scroll log box ke bagian paling bawah
     const logBox = container.parentElement;
     if (logBox) logBox.scrollTop = logBox.scrollHeight;
 }
