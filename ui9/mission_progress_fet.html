@@ -1,237 +1,107 @@
-<!DOCTYPE html>
-<html lang="id" data-theme="dark" class="notranslate" translate="no">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>MISSION CONTROL | SOVEREIGN GUILD</title>
-    
-    <meta name="theme-color" content="#050508">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-    
-    <style>
-        :root {
-            --neon-blue: #00f2ff;
-            --neon-purple: #bc13fe;
-            --dark-bg: #050508;
-            --border-glow: rgba(0, 242, 255, 0.3);
-            --text-main: #e0e0e0;
-            --text-dim: #94a3b8;
-        }
-
-        * {
-            margin: 0; padding: 0; box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-            font-family: 'Inter', sans-serif;
-        }
-
-        body {
-            background-color: var(--dark-bg);
-            color: var(--text-main);
-            height: 100vh;
-            width: 100vw;
-            overflow: hidden;
-            position: relative;
-        }
-
-        /* Container Utama untuk Tab */
-        .main-content {
-            width: 100%;
-            height: 100%;
-            position: relative;
-        }
-
-        .tab-pane {
-            display: none;
-            height: 100%;
-            width: 100%;
-            overflow-y: auto;
-            position: absolute;
-            top: 0; left: 0;
-        }
-
-        .tab-pane.active {
-            display: block;
-            animation: paneEntry 0.3s ease-out forwards;
-        }
-
-        @keyframes paneEntry {
-            from { opacity: 0; transform: scale(0.98); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        /* Floating Bubble Navigation */
-        .bubble-nav {
+<style>
+    /* FLOATING ACTION OVERLAY SYSTEM */
+    .floating-action-zone {
         position: fixed;
+        bottom: 75px; /* Sesuaikan agar melayang tepat di atas Bottom Navigation Bar Anda */
         left: 50%;
-        bottom: 25px;
-        transform: translateX(-50%); /* Center secara horizontal */
+        transform: translateX(-50%);
+        width: calc(100% - 24px);
+        max-width: 400px;
+        z-index: 9999;
         display: flex;
-        flex-direction: row; /* Berjejer menyamping, bukan ke atas */
-        gap: 12px;
-        background: rgba(10, 12, 18, 0.85);
-        border: 1px solid rgba(0, 242, 255, 0.15);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        padding: 8px 15px;
-        border-radius: 40px; /* Membuat bentuk kapsul pod */
-        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8), 
-                    0 0 15px rgba(0, 242, 255, 0.05);
-        z-index: 9000;
-        width: calc(100% - 40px); /* Responsif, beri margin kiri-kanan 20px */
-        max-width: 420px; /* Batas maksimal selebar layar hp */
-        justify-content: space-around; /* Jarak antar tombol rata */
+        flex-direction: column;
+        gap: 6px;
+        pointer-events: none; /* Biarkan tembus klik jika kosong */
     }
-
-    .bubble-link {
-        width: 48px;  /* Sedikit diperkecil agar pas berjejer lima */
-        height: 48px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+    .floating-btn-terminal {
+        pointer-events: auto; /* Aktifkan klik hanya untuk tombol */
+        width: 100%;
+        padding: 14px;
+        border-radius: 10px;
+        font-weight: 900;
+        font-size: 12px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        border: none;
+        cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: var(--text-dim);
-        font-size: 16px;
-        cursor: pointer;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        gap: 8px;
+        box-shadow: 0 4px 25px rgba(0,0,0,0.75);
+        animation: floatPulseEntry 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes floatPulseEntry {
+        from { opacity: 0; transform: translateY(15px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .floating-btn-terminal.blue { background: linear-gradient(135deg, #00d2ff 0%, #00a2ff 100%); color: #000; }
+    .floating-btn-terminal.purple { background: linear-gradient(135deg, #bc13fe 0%, #8b00ff 100%); color: #fff; }
+    .floating-btn-terminal.green { background: linear-gradient(135deg, #00ff88 0%, #00c866 100%); color: #000; }
+    .floating-btn-terminal:disabled { background: #141822 !important; color: #4b5563 !important; cursor: not-allowed; box-shadow: none; border: 1px solid rgba(255,255,255,0.03); }
+
+    .btn-float-emergency {
+        pointer-events: auto; width: 100%; padding: 10px; border-radius: 8px;
+        background: rgba(255, 0, 85, 0.15); border: 1px dashed rgba(255, 0, 85, 0.5);
+        color: #ff0055; font-size: 9px; font-weight: 700; text-transform: uppercase; cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
 
-    .bubble-link.active {
-        color: var(--neon-blue);
-        border-color: var(--neon-blue);
-        background: rgba(0, 242, 255, 0.12);
-        box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
-        transform: translateY(-5px); /* Efek pop-up sedikit ke atas saat aktif */
+    /* TELEMETRY SPEED OSD */
+    .speed-osd {
+        pointer-events: auto; align-self: flex-end; background: rgba(5, 7, 12, 0.85);
+        border: 1px solid rgba(0, 242, 255, 0.2); padding: 4px 8px; border-radius: 6px;
+        font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #00f2ff;
+        backdrop-filter: blur(4px); margin-bottom: 2px; box-shadow: 0 2px 10px rgba(0,0,0,0.5);
     }
+</style>
 
-        /* Loader System */
-        #master-loader {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--dark-bg);
-            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000;
-        }
-        .loader-spin { width: 40px; height: 40px; border: 2px solid #111; border-top: 2px solid var(--neon-blue); border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-    </style>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
-    <script src="terminal_router.js"></script>
-    <script src="router_lokal.js"></script>
-    
-    <script src="js_mission_progress_brain_one.js"></script>
-    <script src="js_mission_progress_brain_two.js"></script>
-    <script src="js_mission_progress_comms_profile.js"></script>
-    <script src="js_mission_progress_rating.js"></script>
-</head>
-<body>
-
-    <div id="master-loader">
-        <div class="loader-spin"></div>
-        <p style="margin-top: 20px; font-size: 10px; letter-spacing: 3px; color: var(--neon-blue);">INITIALIZING NEURAL LINK...</p>
+<div class="floating-action-zone">
+    <div id="osd-speedometer" class="speed-osd hide">
+        <i class="fa-solid fa-satellite-dish"></i> GPS: <span id="osd-speed-val">0</span> KM/H
     </div>
 
-    <main class="main-content">
-        <div id="tab-hq" class="tab-pane active"></div>
-        <div id="tab-maps" class="tab-pane"></div>
-        <div id="tab-comms" class="tab-pane"></div>
-        <div id="tab-profile" class="tab-pane"></div>
-        <div id="tab-nota" class="tab-pane"></div>
-        
-        <div id="modal-rating-container" style="pointer-events: none;"></div>
-    </main>
+    <button id="float-btn-otw" class="floating-btn-terminal blue hide">
+        <i class="fa-solid fa-jet-fighter"></i> MULAI BERANGKAT (OTW)
+    </button>
+    <button id="float-btn-arrival" class="floating-btn-terminal purple hide">
+        <i class="fa-solid fa-location-crosshairs"></i> SAYA SUDAH TIBA DI LOKASI
+    </button>
+    <button id="float-btn-waiting" class="floating-btn-terminal green hide" disabled>
+        <i class="fa-solid fa-hourglass-half"></i> MENUNGGU KONFIRMASI KLIEN
+    </button>
+    <button id="float-btn-complete" class="floating-btn-terminal green hide">
+        <i class="fa-solid fa-box-open"></i> KONFIRMASI KARGO: SELESAI
+    </button>
 
-    <nav class="bubble-nav">
-        <div class="bubble-link active" data-tab="tab-hq" onclick="switchNav('tab-hq', 'fet_missioncardhq.html', this)">
-            <i class="fa-solid fa-house-chimney"></i>
-        </div>
-        <div class="bubble-link" data-tab="tab-maps" onclick="switchNav('tab-maps', 'fet_maps_view_location.html', this)">
-            <i class="fa-solid fa-map-location-dot"></i>
-        </div>
-        <div class="bubble-link" data-tab="tab-comms" onclick="switchNav('tab-comms', 'fet_comms_peer.html', this)">
-            <i class="fa-solid fa-comment-dots"></i>
-        </div>
-        <div class="bubble-link" data-tab="tab-nota" onclick="switchNav('tab-nota', 'fet_nota_report.html', this)">
-            <i class="fa-solid fa-file-invoice-dollar"></i>
-        </div>
-        <div class="bubble-link" data-tab="tab-profile" onclick="switchNav('tab-profile', 'fet_showprofile.html', this)">
-            <i class="fa-solid fa-user-shield"></i>
-        </div>
-    </nav>
-
-
-
-<div id="debug-trigger" onclick="toggleDebugPanel()" style="position:fixed; top:10px; right:10px; width:30px; height:30px; background:rgba(255,0,0,0.3); border-radius:50%; z-index:10001; display:flex; align-items:center; justify-content:center; font-size:10px; color:white; border:1px solid rgba(255,255,255,0.2);">DBUG</div>
-<div id="debug-panel" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:10002; padding:20px; overflow-y:auto; font-family:'JetBrains Mono', monospace; font-size:11px; color:#00ff00;">
-    <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-        <h3 style="color:#fff;">SYSTEM INSPECTOR</h3>
-        <button onclick="toggleDebugPanel()" style="background:#ff0055; color:white; border:none; padding:5px 10px;">CLOSE</button>
-    </div>
-    <div id="debug-content"></div>
+    <button id="float-btn-emergency" class="btn-float-emergency hide"></button>
 </div>
 
+<script>
+    // Tambahkan variabel pengawas kecepatan global di file induk
+    window.GPSWatchId = null;
 
+    function startLocalSpeedometer() {
+        if (!navigator.geolocation || window.GPSWatchId) return;
+        const speedOsd = document.getElementById('osd-speedometer');
+        const speedVal = document.getElementById('osd-speed-val');
+        if (speedOsd) speedOsd.classList.remove('hide');
 
-
-    
-
-    <script>
-        // Fungsi Navigasi Utama
-        async function switchNav(tabId, filePath, element) {
-            // Haptic Feedback
-            if(navigator.vibrate) navigator.vibrate(15);
-
-            // UI Update
-            document.querySelectorAll('.bubble-link').forEach(l => l.classList.remove('active'));
-            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-            
-            element.classList.add('active');
-            const target = document.getElementById(tabId);
-            target.classList.add('active');
-
-            // Load Content via Router di Brain One
-            if (window.Router) {
-                await window.Router.loadComponent(tabId, filePath);
+        window.GPSWatchId = navigator.geolocation.watchPosition(position => {
+            if (position.coords.speed !== null && position.coords.speed !== undefined) {
+                // Konversi m/s ke km/h
+                const kmh = Math.round(position.coords.speed * 3.6);
+                if (speedVal) speedVal.innerText = kmh;
             }
+        }, err => console.warn("GPS Speed Error:", err), { enableHighAccuracy: true });
+    }
+
+    function stopLocalSpeedometer() {
+        if (window.GPSWatchId) {
+            navigator.geolocation.clearWatch(window.GPSWatchId);
+            window.GPSWatchId = null;
         }
-
-        // Bootstrapping Awal
-        window.onload = async () => {
-            console.log("System Online.");
-            
-            // 1. Inisialisasi Firebase & User via Brain One
-            if (window.Core) {
-                window.Core.initFirebase();
-                window.Core.checkAuth();
-            }
-
-            // 2. Load Dashboard Utama (HQ)
-            await switchNav('tab-hq', 'fet_missioncardhq.html', document.querySelector('[data-tab="tab-hq"]'));
-
-            // 3. Pre-load Modal Rating (Hidden)
-            if (window.Router) {
-                window.Router.loadComponent('modal-rating-container', 'fet_modalrating.html');
-            }
-
-            // 4. Tutup Loader
-            setTimeout(() => {
-                const loader = document.getElementById('master-loader');
-                if(loader) {
-                    loader.style.opacity = '0';
-                    setTimeout(() => loader.remove(), 500);
-                }
-            }, 1000);
-        };
-    </script>
-</body>
-</html>
+        const speedOsd = document.getElementById('osd-speedometer');
+        if (speedOsd) speedOsd.classList.add('hide');
+    }
+</script>
