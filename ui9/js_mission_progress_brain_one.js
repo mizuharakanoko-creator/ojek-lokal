@@ -1,15 +1,16 @@
 /**
  * js_mission_progress_brain_one.js
  * CORE ENGINE & COMPONENT ROUTER (INTEGRATED WITH TERMINAL ROUTER)
+ * [UPDATED]: Sinkronisasi Fungsi Trigger Jembatan Brain Two
  */
 
-// 1. GLOBAL STATE (Tetap dipertahankan sebagai pusat penyimpanan data di UI)
+// 1. GLOBAL STATE (Pusat penyimpanan data di UI)
 window.SovereignState = {
-    db: null,       // Firestore (Untuk data global jika perlu)
-    rtdb: null,     // RTDB (Default/Master)
+    db: null,       
+    rtdb: null,     
     currentUser: null,
     activeContractId: null,
-    currentMissionData: null // Akan diisi oleh getSupremeData dari Brain Two
+    currentMissionData: null 
 };
 
 // 2. VISUAL DEBUGGER FOR MOBILE
@@ -22,7 +23,6 @@ window.debugLog = (msg, type = "info") => {
     if (statusEl) {
         statusEl.innerText = msg.toUpperCase();
         statusEl.style.color = type === "error" ? "#ff0055" : "#00ffff";
-        // Efek kedip saat ada update
         statusEl.style.animation = 'none';
         setTimeout(() => statusEl.style.animation = 'pulse 1.5s infinite', 10);
     }
@@ -34,10 +34,7 @@ window.Core = {
         window.debugLog("🔗 MENGHUBUNGKAN NEURAL LINK...");
         
         try {
-            // Kita tidak lagi menginisialisasi Firebase secara hardcoded di sini.
-            // Kita gunakan Master Terminal dari terminal_router.js
             const masterDB = getTerminal('FB1_MASTER');
-            
             if (masterDB) {
                 window.SovereignState.rtdb = masterDB;
                 window.debugLog("🔥 MASTER DATABASE CONNECTED!");
@@ -51,7 +48,7 @@ window.Core = {
 
     checkAuth: () => {
         window.debugLog("👤 MEMERIKSA OTORITAS...");
-        const savedUser = sessionStorage.getItem('user_identity'); // Sesuaikan dengan key di debug anda
+        const savedUser = sessionStorage.getItem('user_identity'); 
         const savedContractId = sessionStorage.getItem('active_contract_id');
 
         if (savedUser) {
@@ -108,10 +105,13 @@ window.Router = {
     },
 
     reinit: (tabId) => {
-        // Jika Tab HQ terbuka (Tempat melihat progres misi)
+        // PERBAIKAN UTAMA: Jalankan jembatan inisialisasi modul Brain Two
         if (tabId === 'tab-hq' || document.getElementById('m-title')) {
-            if (typeof window.performDeepMiningHQ === 'function') {
-                window.debugLog("🛰️ MENYEDOT DATA SUPREME...");
+            if (typeof window.initHQModule === 'function') {
+                window.debugLog("🛰️ INITIATING HQ REALTIME SYNC...");
+                window.initHQModule();
+            } else if (typeof window.performDeepMiningHQ === 'function') {
+                window.debugLog("🛰️ FALLBACK DEEP MINING...");
                 const contractId = window.SovereignState.activeContractId;
                 window.performDeepMiningHQ(contractId);
             } else {
@@ -138,12 +138,11 @@ window.toggleDebugPanel = function() {
         }
         
         html += `<br><b style="color:#00ffff;">[ GLOBAL STATE ]</b><br>`;
-        // Sembunyikan API key saat display
         const cleanState = JSON.parse(JSON.stringify(window.SovereignState));
         html += `<pre style="white-space:pre-wrap; font-size:10px; background:#111; padding:5px;">${JSON.stringify(cleanState, null, 2)}</pre>`;
         
         html += `<br><b style="color:#00ffff;">[ TERMINAL STATUS ]</b><br>`;
-        html += `FB1_MASTER: ${window.FirebaseInstances['FB1_MASTER'] ? "CONNECTED" : "OFFLINE"}<br>`;
+        html += `FB1_MASTER: ${window.FirebaseInstances && window.FirebaseInstances['FB1_MASTER'] ? "CONNECTED" : "OFFLINE"}<br>`;
         html += `ACTIVE SHARD: ${window.SovereignState.currentUser?.zone || "NONE"}<br>`;
         
         content.innerHTML = html;
@@ -154,8 +153,8 @@ window.toggleDebugPanel = function() {
 };
 
 // 6. AUTO-START SEQUENCE
-(function() {
-    // Tunggu terminal_router.js siap
+// Dipindahkan dari anonymous self-exec ke penanganan window load aman
+window.addEventListener('DOMContentLoaded', () => {
     const checkRouter = setInterval(() => {
         if (typeof getTerminal === 'function') {
             clearInterval(checkRouter);
@@ -164,4 +163,4 @@ window.toggleDebugPanel = function() {
             console.log("🧠 [BRAIN ONE] OPERATIONAL WITH SUPREME ROUTER");
         }
     }, 100);
-})();
+});
