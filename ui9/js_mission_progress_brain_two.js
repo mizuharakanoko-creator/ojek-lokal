@@ -1,7 +1,7 @@
 /**
  * js_mission_progress_brain_two.js
- * TACTICAL COMMAND CENTER ENGINE - VERSI SINKRONISASI TOTAL TANPA SLIDER
- * [UPDATED]: Mandiri, Bebas Crash, Berorientasi Data Fail-safe
+ * TACTICAL COMMAND CENTER ENGINE - SINKRONISASI FLOATING INDUK & RADAR HQ
+ * [UPDATED]: Arsitektur Kontrol Melayang Global, Telemetri GPS & Live Logging
  */
 
 window.HQState = {
@@ -10,7 +10,9 @@ window.HQState = {
     afkCountdown: null
 };
 
+// ==========================================================================
 // 1. BOOTSTRAPPING ENGINE SYNC
+// ==========================================================================
 window.initHQModule = async function() {
     console.log("📡 [BRAIN TWO]: INITIALIZING COMMAND ENGINE SYNC...");
     
@@ -30,7 +32,9 @@ window.initHQModule = async function() {
     listenContractRealtime(contractId);
 };
 
+// ==========================================================================
 // 2. REALTIME SERVER SYNCHRONIZER
+// ==========================================================================
 function listenContractRealtime(contractId) {
     const db4 = window.SovereignState.rtdb;
     db4.ref(`kontrak_mission/${contractId}`).on('value', async snap => {
@@ -60,7 +64,9 @@ function listenContractRealtime(contractId) {
     });
 }
 
-// 3. CORE LOGIC GRAPHICS RENDERING
+// ==========================================================================
+// 3. CORE LOGIC GRAPHICS & FLOATING INTERFACE RENDERING
+// ==========================================================================
 function executeRenderHQ(m, advData, reqData) {
     if (!m) return;
 
@@ -69,7 +75,7 @@ function executeRenderHQ(m, advData, reqData) {
     const currentStatus = (m.status || "briefing").toLowerCase();
     const contractId = m.id_kontrak || sessionStorage.getItem('active_contract_id');
 
-    // A. PEMBARUAN INFORMASI IDENTITAS & STATUS BADGE
+    // --- BROADCAST DATA KE VIEW HQ (SIARAN RADAR SATELIT) ---
     const idDisplay = document.getElementById('m-id-display');
     if (idDisplay) idDisplay.innerText = `ID: ${contractId}`;
     
@@ -85,14 +91,12 @@ function executeRenderHQ(m, advData, reqData) {
         rewardEl.innerText = `Rp ${Number(rawReward).toLocaleString('id-ID')}`;
     }
 
-    // Lencana Status Pusat
     const badge = document.getElementById('m-status-badge');
     if (badge) {
         badge.innerText = currentStatus.toUpperCase();
         badge.className = `status-badge-neon ${currentStatus}`;
     }
 
-    // B. MANIFEST DUA TITIK (ORIGIN & DEST)
     const origDesa = document.getElementById('m-origin-desa');
     if (origDesa) origDesa.innerText = m.full_mission_data?.origin_desa || m.full_mission_data?.origin_name || m.origin_name || "-";
     
@@ -105,26 +109,39 @@ function executeRenderHQ(m, advData, reqData) {
     const cargoHub = document.getElementById('cargo-hub');
     if (cargoHub) cargoHub.classList.remove('hide');
 
-    // Jarak Haversine
+    // Suntikkan Koordinat ke Tombol Quick Maps Shard di HQ (Jika Elemen Tersedia)
+    const quickNavBtn = document.getElementById('btn-quick-nav');
+    if (quickNavBtn) {
+        const targetCoords = m.full_mission_data?.dest_coords || m.dest_coords;
+        if (targetCoords) {
+            quickNavBtn.classList.remove('hide');
+            quickNavBtn.onclick = () => window.open(`https://www.google.com/maps/search/?api=1&query=${targetCoords}`, '_blank');
+        } else {
+            quickNavBtn.classList.add('hide');
+        }
+    }
+
     calculateHaversineDistance(
         m.full_mission_data?.origin_coords || m.origin_coords, 
         m.full_mission_data?.dest_coords || m.dest_coords
     );
 
-    // C. TIMING CHRONO SINKRONISASI
     const baseTime = m.start_time || m.created_at || m.full_mission_data?.created_at || Date.now();
     runChronoClock(baseTime);
-
-    // D. SYSTEM ADVISOR INTEL (ROTASI 8 SHIFT ASISTEN)
     rotateShiftAssistant(myRole, currentStatus, advData, m);
-
-    // E. ROTASI FEED TEXT SIMULASI TERMINAL (ANTI-BOSAN)
     startLiveTerminalFeed();
 
     // ==========================================================================
-    // SISTEM MANAGEMENT PANEL DUA ARAH (KONTROL AKSES TOMBOL)
+    // MANAGEMENT TOMBOL MELAYANG GLOBAL (INTERFACES INDUK)
     // ==========================================================================
     resetActionButtons();
+
+    // Mengaktifkan/Mematikan Speedometer GPS berdasarkan status OTW & Peran Pengguna
+    if (currentStatus === 'otw' && myRole !== 'requester') {
+        if (typeof window.startLocalSpeedometer === 'function') window.startLocalSpeedometer();
+    } else {
+        if (typeof window.stopLocalSpeedometer === 'function') window.stopLocalSpeedometer();
+    }
 
     if (myRole === 'requester') {
         // --- PERSPEKTIF REQUESTER (KLIEN) ---
@@ -132,14 +149,13 @@ function executeRenderHQ(m, advData, reqData) {
         setupPartnerLinkText(partnerName, true);
         
         if (currentStatus === 'arrival') {
-            const btnComplete = document.getElementById('btn-hq-client-complete');
+            const btnComplete = document.getElementById('float-btn-complete');
             if (btnComplete) {
                 btnComplete.classList.remove('hide');
                 btnComplete.onclick = () => triggerMutationAction(contractId, 'completed', 'Konfirmasi Selesai?', 'Apakah Anda yakin kargo/barang sudah Anda terima dengan lengkap? Tindakan ini bersifat absolut dan akan mendepositokan reward penuh ke dompet partner.');
             }
         } else {
-            // Beritahu klien status runner saat ini
-            const btnWaitClient = document.getElementById('btn-hq-waiting-client');
+            const btnWaitClient = document.getElementById('float-btn-waiting');
             if (btnWaitClient) {
                 btnWaitClient.classList.remove('hide');
                 btnWaitClient.innerText = currentStatus === 'briefing' ? "MENUNGGU RUNNER BERANGKAT" : "RUNNER SEDANG DI PERJALANAN (OTW)";
@@ -150,14 +166,14 @@ function executeRenderHQ(m, advData, reqData) {
         const reqName = reqData?.meta?.nickname || m.requester_nick || m.full_mission_data?.client_name || "Client Requester";
         setupPartnerLinkText(reqName, false);
 
-        const btnOtw = document.getElementById('btn-hq-otw');
-        const btnArrival = document.getElementById('btn-hq-arrival');
-        const btnWait = document.getElementById('btn-hq-waiting-client');
+        const btnOtw = document.getElementById('float-btn-otw');
+        const btnArrival = document.getElementById('float-btn-arrival');
+        const btnWait = document.getElementById('float-btn-waiting');
 
         if (currentStatus === 'briefing') {
             if (btnOtw) {
                 btnOtw.classList.remove('hide');
-                btnOtw.onclick = () => triggerMutationAction(contractId, 'otw', 'MULAI BERANGKAT OTW?', 'Peringatan! Harap pastikan Anda sudah mengonfirmasi dan memberi kabar langsung kepada Requester melalui chat/telepon terlebih dahulu sebelum berjalan demi menghindari pembatalan sepihak!');
+                btnOtw.onclick = () => triggerMutationAction(contractId, 'otw', 'MULAI BERANGKAT OTW?', 'Peringatan! Harap pastikan Anda sudah mengonfirmasi dan memberi kabar langsung kepada Requester melalui chat/telepon terlebih dahulu sebelum berjalan.');
             }
         } else if (currentStatus === 'otw') {
             if (btnArrival) {
@@ -170,13 +186,18 @@ function executeRenderHQ(m, advData, reqData) {
                 btnWait.innerText = "MENUNGGU KONFIRMASI KLIEN...";
             }
             
-            // AKTIFKAN COUNTDOWN DARURAT BILA KLIEN AFK
+            // AKTIFKAN COUNTDOWN DARURAT BILA KLIEN AFK (TOMBOL MELAYANG)
             handleEmergencyWatcher(contractId);
         }
     }
+
+    // Suntikkan update baris ke Telemetry Tracker Log di HQ
+    pushTelemetryLiveLog(currentStatus, myRole);
 }
 
+// ==========================================================================
 // 4. PERSPECTIVE MUTATOR WITH STANDALONE CONFIRMATION SYSTEM
+// ==========================================================================
 async function triggerMutationAction(contractId, nextStatus, modalTitle, warnMessage) {
     if (navigator.vibrate) navigator.vibrate(15);
     
@@ -184,7 +205,6 @@ async function triggerMutationAction(contractId, nextStatus, modalTitle, warnMes
     if (typeof window.sysConfirm === 'function') {
         confirmResult = await window.sysConfirm(modalTitle, warnMessage);
     } else {
-        // Standalone fallback jika sysConfirm dari core lama mati
         confirmResult = confirm(`${modalTitle}\n\n${warnMessage}`);
     }
 
@@ -206,27 +226,29 @@ async function triggerMutationAction(contractId, nextStatus, modalTitle, warnMes
     }
 }
 
-// 5. ANTI-AFK COUNTDOWN CONTROLLER FOR RUNNER
+// ==========================================================================
+// 5. ANTI-AFK FLOATING COUNTDOWN CONTROLLER FOR RUNNER
+// ==========================================================================
 function handleEmergencyWatcher(contractId) {
     if (window.HQState.afkCountdown) clearInterval(window.HQState.afkCountdown);
     
-    const emBtn = document.getElementById('btn-hq-emergency');
+    const emBtn = document.getElementById('float-btn-emergency');
     if (!emBtn) return;
 
     let timeLeft = 10;
     emBtn.classList.remove('hide');
     emBtn.disabled = true;
-    emBtn.innerText = `PROTOKOL DARURAT AKTIF DALAM ${timeLeft}S...`;
+    emBtn.innerText = `PROTOKOL DARURAT AKTIF [${timeLeft}S]...`;
 
     window.HQState.afkCountdown = setInterval(() => {
         timeLeft--;
         if (timeLeft > 0) {
-            emBtn.innerText = `PROTOKOL DARURAT AKTIF DALAM ${timeLeft}S...`;
+            emBtn.innerText = `PROTOKOL DARURAT AKTIF [${timeLeft}S]...`;
         } else {
             clearInterval(window.HQState.afkCountdown);
             emBtn.disabled = false;
-            emBtn.innerText = "⚠️ EMERGENCY FINISH (REQUESTER AFK)";
-            emBtn.onclick = () => triggerMutationAction(contractId, 'completed', 'OVERRIDE DARURAT SEPIHAK?', 'Gunakan opsi ini jika pihak pemesan menghilang / AFK tanpa memberi respon setelah Anda tiba. Anda akan diarahkan langsung menuju arsitektur penutupan misi.');
+            emBtn.innerText = "⚠️ EMERGENCY FINISH (FORCE OVERRIDE)";
+            emBtn.onclick = () => triggerMutationAction(contractId, 'completed', 'OVERRIDE DARURAT SEPIHAK?', 'Gunakan opsi ini jika pihak pemesan menghilang / AFK tanpa memberi respon setelah Anda tiba.');
             
             const txt = document.getElementById('ai-text');
             if (txt) {
@@ -237,7 +259,9 @@ function handleEmergencyWatcher(contractId) {
     }, 1000);
 }
 
+// ==========================================================================
 // 6. TIME-BASED INTEL ASSISTANT ROTATION (8 SHIFTS FROM BRIEFING_ROOM)
+// ==========================================================================
 function rotateShiftAssistant(role, status, advData, m) {
     const hour = new Date().getHours();
     const shifts = ["irene", "amy", "aldis", "ruby", "tessia", "aria", "asia", "sissy"];
@@ -267,7 +291,9 @@ function rotateShiftAssistant(role, status, advData, m) {
     }
 }
 
+// ==========================================================================
 // 7. COMPACT INTEGRATED PARTNER FOOTPRINT LINK
+// ==========================================================================
 function setupPartnerLinkText(name, isReq) {
     const pLink = document.getElementById('partner-link-trigger');
     if (!pLink) return;
@@ -282,7 +308,9 @@ function setupPartnerLinkText(name, isReq) {
     };
 }
 
+// ==========================================================================
 // 8. HAVERSINE MATHEMATICS
+// ==========================================================================
 function calculateHaversineDistance(origin, dest) {
     const distEl = document.getElementById('m-distance');
     if (!distEl) return;
@@ -298,7 +326,9 @@ function calculateHaversineDistance(origin, dest) {
     } catch(e) { distEl.innerText = "0.0"; }
 }
 
+// ==========================================================================
 // 9. REFRESHING REALTIME SIMULATED LOG FEED (ANTI-BOREDOM)
+// ==========================================================================
 function startLiveTerminalFeed() {
     if (window.HQState.logRotationInterval) clearInterval(window.HQState.logRotationInterval);
     const subLog = document.getElementById('ai-sub-log');
@@ -319,7 +349,9 @@ function startLiveTerminalFeed() {
     }, 20000);
 }
 
+// ==========================================================================
 // 10. TIMEOUT CLOCK 2 JAM
+// ==========================================================================
 function runChronoClock(startTime) {
     if (window.HQState.timerInterval) clearInterval(window.HQState.timerInterval);
     const end = startTime + (2 * 60 * 60 * 1000);
@@ -339,9 +371,49 @@ function runChronoClock(startTime) {
     }, 1000);
 }
 
+// ==========================================================================
+// 11. SINKRONISASI TELEMETRI LIVE TRACKER LOG BOX (HQ SPECIAL)
+// ==========================================================================
+function pushTelemetryLiveLog(status, role) {
+    const container = document.getElementById('telemetry-container');
+    if (!container) return;
+
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+    
+    let logMessage = "SYSTEM DATA SHARD IS WORKING IN STEADY STATE.";
+    if (status === 'briefing') {
+        logMessage = `INITIAL MATRIX SYNCHRONIZED. WAITING FOR DEPLOYMENT TRIGGER.`;
+    } else if (status === 'otw') {
+        logMessage = `TELEMETRY ACTIVE: ${role === 'requester' ? 'RUNNER' : 'YOU ARE'} DEPLOYED ON ROUTE. GPS TRACKING LINK LIVE.`;
+    } else if (status === 'arrival') {
+        logMessage = `TARGET COORDINATE MATCHED. DETECTING CARGO UNBOXING UNTIL REWARD RELEASED.`;
+    } else if (status === 'completed') {
+        logMessage = `CORE ENCRYPTION SOLVED. REWARD CREDITED. TERM LINK TERMINATED CLEANLY.`;
+    }
+
+    // Hindari duplikasi baris status yang sama secara berulang-ulang
+    const hashId = `tele-log-${status}`;
+    if (document.getElementById(hashId)) return;
+
+    const row = document.createElement('div');
+    row.id = hashId;
+    row.className = 'telemetry-row';
+    row.innerHTML = `<span class="telemetry-time">[${timeStr}]</span>${logMessage}`;
+    
+    container.appendChild(row);
+    
+    // Auto-scroll log box ke bagian paling bawah
+    const logBox = container.parentElement;
+    if (logBox) logBox.scrollTop = logBox.scrollHeight;
+}
+
+// ==========================================================================
+// PEMBERSIH UTAMA TOMBOL-TOMBOL INDUK MELAYANG
+// ==========================================================================
 function resetActionButtons() {
-    const elIds = ['btn-hq-otw', 'btn-hq-arrival', 'btn-hq-waiting-client', 'btn-hq-client-complete', 'btn-hq-emergency'];
-    elIds.forEach(id => {
+    const floatIds = ['float-btn-otw', 'float-btn-arrival', 'float-btn-waiting', 'float-btn-complete', 'float-btn-emergency'];
+    floatIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hide');
     });
