@@ -1,258 +1,405 @@
 /**
  * js_mission_progress_brain_two.js
- * OPERATIONAL HQ & DUAL-PERSPECTIVE RENDERING ENGINE
+ * OPERATIONAL HQ & DUAL-PERSPECTIVE RENDERING ENGINE (REVISED TACTICAL OS)
  */
 
 window.HQState = {
     timerInterval: null,
-    isInitialLoad: false
+    isInitialLoad: false,
+    afkCountdownInterval: null
 };
 
-// 1. ANCHOR UTAMA: INISIALISASI MODUL HQ
+// 1. BOOTSTRAPPING ENGINE
 window.initHQModule = async function() {
-    window.debugLog("🛰️ HQ: MEMULAI SYNCHRONIZATION...");
+    console.log("🛰️ HQ: STARTING CORE SYNCHRONIZATION...");
     
     if (!window.SovereignState || !window.SovereignState.rtdb) {
-        window.debugLog("⏳ HQ: MENUNGGU RTDB FIREBASE MASTER...", "warn");
-        setTimeout(window.initHQModule, 500); 
+        setTimeout(window.initHQModule, 300); 
         return;
     }
 
     const contractId = sessionStorage.getItem('active_contract_id');
     if (!contractId) {
-        window.debugLog("❌ HQ: CRITICAL! ACTIVE CONTRACT ID ABSENT", "error");
+        console.error("❌ HQ: CRITICAL FAILURE! CONTRACT ID NOT IN MEMORY SHARD");
         return;
     }
 
+    // Sambungkan fungsi interaktif DOM lokal yang baru dimasukkan
+    bindLocalUIActions();
+    
+    // Tarik data
     await performDeepMiningHQ(contractId);
 };
 
-// 2. SUPREME AGGREGATOR ENGINE
+// 2. DATA MINING INTERPRETER
 async function performDeepMiningHQ(contractId) {
     try {
-        // Memanggil fungsi router data utama di terminal_router.js
-        const supremePacket = await getSupremeData(contractId);
+        if (typeof window.getSupremeData !== 'function') {
+            console.warn("⏳ Waiting for terminal_router.js supreme functions...");
+            setTimeout(() => performDeepMiningHQ(contractId), 500);
+            return;
+        }
+
+        const dataPacket = await window.getSupremeData(contractId);
         
-        if (supremePacket) {
-            window.debugLog("✅ DATA SHARD BERHASIL DIASIMILASI");
-            window.SovereignState.currentMissionData = supremePacket;
-            
-            // Eksekusi render dengan mempassing data misi, data adventurer, dan data requester
-            renderHQ(supremePacket.mission, supremePacket.adventurer, supremePacket.requester);
+        if (dataPacket) {
+            window.SovereignState.currentMissionData = dataPacket;
+            renderHQ(dataPacket.mission, dataPacket.adventurer, dataPacket.requester);
         } else {
-            window.debugLog("⚠️ SHARD STRATEGY GAGAL, FALLBACK KE STORAGE LOCAL");
-            const backup = sessionStorage.getItem('current_mission_full');
-            if (backup) {
-                const bData = JSON.parse(backup);
-                renderHQ({ id_kontrak: contractId, full_mission_data: bData, reward: bData.reward, status: bData.status }, null, null);
+            const cache = sessionStorage.getItem('current_mission_full');
+            if (cache) {
+                const cData = JSON.parse(cache);
+                renderHQ({ id_kontrak: contractId, full_mission_data: cData, reward: cData.reward, status: cData.status }, null, null);
             }
         }
     } catch (err) {
-        window.debugLog("💥 SYSTEM CRASH PADA MINING HQ: " + err.message, "error");
+        console.error("💥 HQ CRASH DURING DEEP MINING: " + err.message);
     }
 }
 
-// 3. CORE RENDERING ENGINE (INTEGRATED ROLE PERSPECTIVE FROM JJK.HTML)
+// 3. MAIN CORE RENDERING ENGINE (SINKRONISASI 100% UTAMA)
 function renderHQ(m, advData, reqData) {
     if (!m) return;
 
-    const safeUpdate = (id, html) => {
+    const fillText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = val;
+    };
+    const fillHTML = (id, html) => {
         const el = document.getElementById(id);
         if (el) el.innerHTML = html;
     };
 
-    // Ambil identitas user saat ini yang tersemat di Global State
     const currentUser = window.SovereignState.currentUser || JSON.parse(sessionStorage.getItem('user_identity')) || {};
     const myRole = (currentUser.role || 'requester').toLowerCase();
+    const currentStatus = (m.status || "briefing").toUpperCase();
 
-    // A. ISI DATA KONTRAK DASAR
-    safeUpdate('m-id-display', `ID: ${m.id_kontrak || 'SCANNING...'}`);
+    // A. IDENTITAS & WAKTU KONTRAK
+    fillText('m-id-display', `ID: ${m.id_kontrak || 'UNKNOWN SHARD'}`);
+    fillText('m-adv-nick', m.adventurer_nick || "UNASSIGNED");
     
-    const categoryName = m.category || m.full_mission_data?.category || "GENERAL MISSION";
-    safeUpdate('m-title', categoryName.toUpperCase());
-    safeUpdate('m-adv-nick', m.adventurer_nick || "---");
+    const categoryTitle = m.category || m.full_mission_data?.category || "REGULAR CONTRACT";
+    fillText('m-title', categoryTitle.toUpperCase());
 
-    // B. FORMAT REWARD CASH
     const rawReward = m.reward || m.full_mission_data?.reward || 0;
-    safeUpdate('m-reward-cash', `Rp ${Number(rawReward).toLocaleString('id-ID')}`);
+    fillText('m-reward-cash', `Rp ${Number(rawReward).toLocaleString('id-ID')}`);
 
-    // C. PENGHITUNGAN JARAK VIA HAVERSINE LOKAL
+    // B. MANIFEST DUA TITIK (ORIGIN & DESTINATION)
+    fillText('m-origin-desa', m.full_mission_data?.origin_desa || m.full_mission_data?.origin_name || "-");
+    fillText('m-dest-desa', m.full_mission_data?.dest_desa || m.full_mission_data?.dest_name || "-");
+    
+    const specDetails = m.full_mission_data?.dest_details || "Tidak ada rincian manifes kargo tambahan.";
+    fillHTML('m-cargo-detail', specDetails);
+    
+    const cargoHub = document.getElementById('cargo-hub');
+    if (cargoHub) cargoHub.classList.remove('hide');
+
+    // C. HAVERSINE DISTANCE MATHS
     const oCoords = m.full_mission_data?.origin_coords;
     const dCoords = m.full_mission_data?.dest_coords;
     if (oCoords && dCoords) {
-        const jarakHitung = kalkulasiJarakMisi(oCoords, dCoords);
-        safeUpdate('m-distance', jarakHitung.toFixed(1));
-    } else {
-        safeUpdate('m-distance', "0");
-    }
+        try {
+            const [lat1, lon1] = oCoords.split(',').map(Number);
+            const [lat2, lon2] = dCoords.split(',').map(Number);
+            const R = 6371; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            fillText('m-distance', (R * c).toFixed(1));
+        } catch(e) { fillText('m-distance', "0.0"); }
+    } else { fillText('m-distance', "0.0"); }
 
-    // D. KETERANGAN TITIK / CARGO HUB
-    const cargoDetails = m.full_mission_data?.dest_details || "Tidak ada rincian kargo khusus.";
-    safeUpdate('m-cargo-detail', cargoDetails);
-    
-    const cargoHubEl = document.getElementById('cargo-hub');
-    if (cargoHubEl) cargoHubEl.classList.remove('hide');
-
-    // E. WAKTU AKSI & TIMER ENGINE
+    // D. LIVE CHRONO TIMER
     if (m.start_time) {
-        const dateObj = new Date(m.start_time);
-        safeUpdate('live-status-time', dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + " WIB");
-        setupTimer(m.start_time);
+        const dObj = new Date(m.start_time);
+        fillText('live-status-time', dObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + " WIB");
+        runChronoCount(m.start_time);
     } else {
-        setupTimer(m.created_at || m.full_mission_data?.created_at || Date.now());
+        runChronoCount(m.created_at || m.full_mission_data?.created_at || Date.now());
     }
 
-    // ==========================================================================
-    // LOGIKA PERAN JUAL PERSPEKTIF (REQUESTER VS ADVENTURER)
-    // ==========================================================================
-    const currentStatus = (m.status || "briefing").toUpperCase();
-    safeUpdate('live-status-text', currentStatus);
+    fillText('live-status-text', currentStatus);
 
-    const aiTerminalBox = document.getElementById('ai-terminal-box');
+    // E. ROTASI ASISTEN SHIFT BERBASIS JAM & PERAN
+    triggerShiftAssistant(myRole, currentStatus);
+
+    // ==========================================================================
+    // SELEKSI PERSPEKTIF PERAN (REQUESTER VS ADVENTURER CONTROL ACCESS)
+    // ==========================================================================
     const actionSliderBox = document.getElementById('action-slider-box');
     const btnMapsOrigin = document.getElementById('btn-maps-origin');
+    const pNameEl = document.getElementById('u-name');
+    const pRankEl = document.getElementById('u-rank');
+    const pRoleEl = document.getElementById('u-role');
 
     if (myRole === 'requester') {
-        // --- PERSPEKTIF USER ADALAH PEMBUAT MISI (KLIEN) ---
-        window.debugLog("👤 VIEW MODE: REQUESTER PERSPECTIVE ACTIVE");
-
-        // 1. Partner yang harus ditampilkan di profil kecil adalah ADVENTURER
-        const partnerNameEl = document.getElementById('u-name');
-        if (partnerNameEl) {
-            partnerNameEl.classList.remove('loading-shimmer');
-            partnerNameEl.innerText = advData?.meta?.nickname || m.adventurer_nick || "Mencari Runner...";
+        // --- JALUR DATA REQUESTER (PEMILIK KONTRAK) ---
+        if (pNameEl) {
+            pNameEl.classList.remove('loading-shimmer');
+            pNameEl.innerText = advData?.meta?.nickname || m.adventurer_nick || "MENCARI RUNNER...";
         }
-        safeUpdate('u-rank', advData?.profile?.rank || "TRAINER");
-        safeUpdate('u-role', "RUNNER ASSIGNED");
+        if (pRankEl) pRankEl.innerText = advData?.profile?.rank || "TRAINER";
+        if (pRoleEl) pRoleEl.innerText = "RUNNER ASSIGNED (CLICK TO INSPECT)";
 
-        // 2. Update Info Terminal Pintar untuk Klien
-        if (currentStatus === "BRIEFING") {
-            safeUpdate('ai-text', "Koneksi Shard Terbuka. Menunggu Adventurer melakukan verifikasi persiapan berkas kargo.");
-            if (aiTerminalBox) aiTerminalBox.className = "ai-terminal";
-        } else if (currentStatus === "OTW") {
-            safeUpdate('ai-text', "Sistem Terhubung. Adventurer (" + (m.adventurer_nick || 'Runner') + ") sedang bergerak menuju lokasi penjemputan Anda.");
-            if (aiTerminalBox) aiTerminalBox.className = "ai-terminal success";
-        }
-
-        // 3. Kunci Otoritas (Sembunyikan Slider & Maps Navigasi)
+        // Hilangkan Slider Operasi & Tombol Peta dari Klien
         if (actionSliderBox) actionSliderBox.classList.add('hide');
         if (btnMapsOrigin) btnMapsOrigin.classList.add('hide');
+        document.getElementById('emergency-zone').classList.add('hide');
 
     } else {
-        // --- PERSPEKTIF USER ADALAH PELAKSANA MISI (ADVENTURER) ---
-        window.debugLog("⚔️ VIEW MODE: ADVENTURER PERSPECTIVE ACTIVE");
-
-        // 1. Partner yang harus ditampilkan di profil kecil adalah REQUESTER (Klien Pemilik Kargo)
-        const partnerNameEl = document.getElementById('u-name');
-        if (partnerNameEl) {
-            partnerNameEl.classList.remove('loading-shimmer');
-            partnerNameEl.innerText = m.requester_nick || m.full_mission_data?.client_name || "STRANGER";
+        // --- JALUR DATA ADVENTURER (RUNNER PELAKSANA) ---
+        if (pNameEl) {
+            pNameEl.classList.remove('loading-shimmer');
+            pNameEl.innerText = m.requester_nick || m.full_mission_data?.client_name || "CLIENT SYSTEM";
         }
-        safeUpdate('u-rank', "CLIENT");
-        safeUpdate('u-role', "TARGET MISSION CLIENT");
+        if (pRankEl) pRankEl.innerText = "CLIENT";
+        if (pRoleEl) pRoleEl.innerText = "TARGET MISSION CLIENT (CLICK TO INSPECT)";
 
-        // 2. Update Info Terminal Pintar untuk Adventurer
-        if (currentStatus === "BRIEFING") {
-            safeUpdate('ai-text', "Persiapan Dokumen Selesai. Silakan geser indikator di bawah untuk merubah status menjadi OTW menuju titik koordinat.");
-            if (aiTerminalBox) aiTerminalBox.className = "ai-terminal";
-        } else if (currentStatus === "OTW") {
-            safeUpdate('ai-text', "Navigasi Diaktifkan. Segera menuju lokasi penjemputan, dilarang memutuskan neural link.");
-            if (aiTerminalBox) aiTerminalBox.className = "ai-terminal success";
-        }
-
-        // 3. Buka Akses Kontrol Penuh
+        // Buka Akses Kontrol Slider & Navigasi Peta Satelit
         if (actionSliderBox) actionSliderBox.classList.remove('hide');
         if (btnMapsOrigin) btnMapsOrigin.classList.remove('hide');
 
-        // Atur Teks Slider Sesuai Status Berjalan
+        // Pengkondisian Warna & Label Slider Berdasarkan Status Berjalan
         const sliderLabel = document.getElementById('slider-label');
-        if (sliderLabel) {
-            sliderLabel.innerText = currentStatus === "BRIEFING" ? "GESER UNTUK OTW" : "GESER UNTUK SELESAI";
+        const sliderWrapper = document.getElementById('slider-wrapper-bg');
+        const mainSliderInput = document.getElementById('slider-thumb');
+
+        if (mainSliderInput) mainSliderInput.value = 0; // Kembalikan ke titik awal
+
+        if (currentStatus === "BRIEFING") {
+            if (sliderLabel) sliderLabel.innerText = "GESER UNTUK OTW";
+            if (sliderWrapper) sliderWrapper.style.background = "rgba(0, 242, 255, 0.02)";
+        } else if (currentStatus === "OTW") {
+            if (sliderLabel) sliderLabel.innerText = "GESER UNTUK ARRIVAL (TIBA)";
+            if (sliderWrapper) sliderWrapper.style.background = "rgba(188, 19, 254, 0.04)";
+        } else if (currentStatus === "ARRIVAL") {
+            if (sliderLabel) sliderLabel.innerText = "GESER UNTUK SELESAI KONTRAK";
+            if (sliderWrapper) sliderWrapper.style.background = "rgba(0, 255, 136, 0.04)";
         }
 
-        // Jalankan Event Listener untuk Menggeser Slider
-        const sliderInput = document.getElementById('slider-thumb');
-        if (sliderInput) {
-            sliderInput.value = 0; // Reset thumb ke kiri
-            sliderInput.oninput = function() {
+        // Tembakkan Handler Geser Slider Riil
+        if (mainSliderInput) {
+            mainSliderInput.oninput = function() {
                 window.handleMissionSlider(this.value, m.id_kontrak, currentStatus);
             };
         }
+
+        // Jalankan Pemicu Hitung Mundur Darurat (Anti-AFK) jika Status Telah "ARRIVAL"
+        executeAFKWatcher(currentStatus);
     }
 }
 
-// 4. LOGIKA TIMER HITUNG MUNDUR (2 JAM KONTRAK)
-function setupTimer(startTime) {
-    if (window.HQState.timerInterval) clearInterval(window.HQState.timerInterval);
-    
-    const start = typeof startTime === 'number' ? startTime : Date.now();
-    const duration = 2 * 60 * 60 * 1000; 
-    const end = start + duration;
-
-    window.HQState.timerInterval = setInterval(() => {
-        const now = Date.now();
-        const diff = end - now;
-
-        const el = document.getElementById('timer-val');
-        if (!el) {
-            clearInterval(window.HQState.timerInterval);
-            return;
-        }
-
-        if (diff <= 0) {
-            clearInterval(window.HQState.timerInterval);
-            el.innerText = "EXPIRED";
-            return;
-        }
-
-        const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
-        const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
-        const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
-        
-        el.innerText = `${h}:${m}:${s}`;
-    }, 1000);
-}
-
-// 5. HELPER KALKULASI JARAK LOKAL (HAVERSINE STRATEGY)
-function kalkulasiJarakMisi(coords1, coords2) {
-    try {
-        const [lat1, lon1] = coords1.split(',').map(Number);
-        const [lat2, lon2] = coords2.split(',').map(Number);
-        const R = 6371; 
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    } catch (e) {
-        return 0;
-    }
-}
-
-// 6. ACTION CONTROLLER: EVENT SAAT SLIDER DI-INPUT (KHUSUS ADVENTURER)
-window.handleMissionSlider = function(val, contractId, currentStatus) {
+// 4. INTERACTIVE SLIDER CONTROLLER (MUTASI FIREBASE REALTIME)
+window.handleMissionSlider = async function(val, contractId, currentStatus) {
     const label = document.getElementById('slider-label');
     if (!label) return;
 
     if (val >= 98) {
-        label.innerText = "UPDATING SHARD SERVER...";
+        document.getElementById('slider-thumb').value = 100;
+        label.innerText = "SYNCHRONIZING SYSTEM SHARD...";
         
-        // Logika Mutasi Status Firebase RTDB (Dipindah dari jjk.html lama)
-        if (currentStatus === "BRIEFING") {
-            window.debugLog("🛰️ MUTASI STATUS: BRIEFING -> OTW");
-            // Eksekusi fungsi update Firebase Anda di sini ke status 'otw'
-        } else if (currentStatus === "OTW") {
-            window.debugLog("🛰️ MUTASI STATUS: OTW -> COMPLETED");
-            if (typeof window.showRatingScreen === 'function') window.showRatingScreen();
+        if (navigator.vibrate) navigator.vibrate([30, 15, 30]); // Master Pulse Vibration
+
+        try {
+            const db4 = window.SovereignState.rtdb;
+            let nextStatus = "";
+
+            if (currentStatus === "BRIEFING") nextStatus = "otw";
+            else if (currentStatus === "OTW") nextStatus = "arrival";
+            else if (currentStatus === "ARRIVAL") nextStatus = "completed";
+
+            if (nextStatus) {
+                // Mutasi Status Kontrak secara Realtime di FB4_BOARD
+                await db4.ref(`kontrak_mission/${contractId}`).update({ status: nextStatus });
+                
+                // Jika status selesai, otomatis buka lembar evaluasi rating
+                if (nextStatus === "completed") {
+                    if (typeof window.showRatingScreen === 'function') {
+                        window.showRatingScreen();
+                    }
+                } else {
+                    // Tarik data ulang untuk memperbarui UI ke fase berikutnya
+                    performDeepMiningHQ(contractId);
+                }
+            }
+        } catch (e) {
+            label.innerText = "SYNCHRONIZATION ERROR!";
+            console.error("Firebase Contract Update Failed: ", e);
+            setTimeout(() => { label.innerText = "GESER ULANG"; document.getElementById('slider-thumb').value = 0; }, 1500);
         }
     } else {
+        // Efek Getaran Mikro saat menggeser
+        if (navigator.vibrate && val % 10 === 0) navigator.vibrate(4);
+
         if (currentStatus === "BRIEFING") {
-            label.innerText = val > 30 ? "LEPASKAN UNTUK BERANGKAT" : "GESER UNTUK OTW";
+            label.innerText = val > 40 ? "LEPASKAN UNTUK BERANGKAT" : "GESER UNTUK OTW";
+        } else if (currentStatus === "OTW") {
+            label.innerText = val > 40 ? "LEPASKAN UNTUK TIBA" : "GESER UNTUK ARRIVAL (TIBA)";
         } else {
-            label.innerText = val > 30 ? "LEPASKAN UNTUK SELESAI" : "GESER UNTUK SELESAI";
+            label.innerText = val > 40 ? "LEPASKAN UNTUK MENYELESAIKAN" : "GESER UNTUK SELESAI KONTRAK";
         }
     }
 };
 
-console.log("⚙️ [BRAIN TWO] OPERATIONAL HQ ENGINE DUAL-ROLE DEPLOYED SUCCESFULLY.");
+// 5. INTEL ADVISOR: ALGORITMA 8 SHIFT ASISTEN BERBASIS JAM
+function triggerShiftAssistant(role, status) {
+    const hour = new Date().getHours();
+    const shiftLength = 3; 
+    const shifts = ["irene", "amy", "aldis", "ruby", "tessia", "aria", "asia", "sissy"];
+    const activeAsis = shifts[Math.floor(hour / shiftLength)] || "irene";
+
+    const nameEl = document.getElementById('asisName');
+    const imgEl = document.getElementById('asisImg');
+    const textEl = document.getElementById('ai-text');
+
+    if (nameEl) nameEl.innerText = activeAsis.toUpperCase();
+    if (imgEl) imgEl.src = `${activeAsis}.png`;
+
+    if (textEl) {
+        textEl.classList.remove('loading-shimmer');
+        
+        // Generator Sapaan Dialog Taktis Berdasarkan Peran & Status Misi
+        if (role === 'requester') {
+            if (status === "BRIEFING") textEl.innerText = "Koneksi terjalin. Menunggu Runner melakukan verifikasi persiapan dokumen kargo.";
+            else if (status === "OTW") textEl.innerText = "Runner terdeteksi bergerak di jalur satelit menuju titik jemput Anda.";
+            else if (status === "ARRIVAL") textEl.innerText = "Runner telah berada di titik kargo Anda. Mohon segera lakukan transaksi.";
+            else textEl.innerText = "Misi selesai. Terima kasih telah mempercayakan kargo pada Sovereign Guild.";
+        } else {
+            if (status === "BRIEFING") textEl.innerText = "Persiapan berkas kargo selesai. Geser indikator bawah untuk mulai bergerak OTW.";
+            else if (status === "OTW") textEl.innerText = "Navigasi diaktifkan. Segera menuju lokasi penjemputan klien, dilarang memutus link.";
+            else if (status === "ARRIVAL") textEl.innerText = "Satelit membaca Anda telah sampai. Lakukan bongkar muat lalu geser Selesai.";
+            else textEl.innerText = "Protokol selesai. Shard Reward didepositokan penuh ke dalam dompet stamina Anda.";
+        }
+    }
+}
+
+// 6. TIMER OPERASIONAL 2 JAM
+function runChronoCount(startTime) {
+    if (window.HQState.timerInterval) clearInterval(window.HQState.timerInterval);
+    const start = typeof startTime === 'number' ? startTime : Date.now();
+    const limit = 2 * 60 * 60 * 1000; 
+    const end = start + limit;
+
+    window.HQState.timerInterval = setInterval(() => {
+        const diff = end - Date.now();
+        const el = document.getElementById('timer-val');
+        
+        if (!el || diff <= 0) {
+            clearInterval(window.HQState.timerInterval);
+            if (el) el.innerText = "EXPIRED";
+            return;
+        }
+        const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+        const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+        const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+        el.innerText = `${h}:${m}:${s}`;
+    }, 1000);
+}
+
+// 7. EMERGENCY ENGINE: AFK TIMEOUT PROTOCOL
+function executeAFKWatcher(status) {
+    if (window.HQState.afkCountdownInterval) clearInterval(window.HQState.afkCountdownInterval);
+    
+    const emZone = document.getElementById('emergency-zone');
+    const emTimer = document.getElementById('em-timer-text');
+    const emSliderCont = document.getElementById('slider-container-em');
+    const emSliderInput = document.getElementById('em-slider');
+
+    if (!emZone) return;
+
+    if (status !== "ARRIVAL") {
+        emZone.classList.add('hide');
+        return;
+    }
+
+    emZone.classList.remove('hide');
+    let secondsLeft = 10;
+    emSliderCont.style.display = 'none';
+    emTimer.style.display = 'block';
+    emTimer.innerText = `PROTOKOL DARURAT AKTIF DALAM ${secondsLeft}S... (GUNAKAN BILA REQUESTER AFK / GAGAL MERESPON)`;
+
+    window.HQState.afkCountdownInterval = setInterval(() => {
+        secondsLeft--;
+        if (secondsLeft > 0) {
+            emTimer.innerText = `PROTOKOL DARURAT AKTIF DALAM ${secondsLeft}S... (GUNAKAN BILA REQUESTER AFK / GAGAL MERESPON)`;
+        } else {
+            clearInterval(window.HQState.afkCountdownInterval);
+            emTimer.style.display = 'none';
+            emSliderCont.style.display = 'block';
+            
+            const textEl = document.getElementById('ai-text');
+            if (textEl) textEl.innerText = "Sistem Mendeteksi Potensi Delay Klien. Emergency Override Slider Diaktifkan.";
+        }
+    }, 1000);
+
+    if (emSliderInput) {
+        emSliderInput.value = 0;
+        emSliderInput.oninput = async function() {
+            if (this.value >= 98) {
+                this.value = 100;
+                if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+                
+                // Menuju form rating / laporan penyelesaian darurat sepihak
+                if (typeof window.showRatingScreen === 'function') {
+                    window.showRatingScreen();
+                }
+            }
+        };
+    }
+}
+
+// 8. ACCORDION & NAVIGATION COUPLING ACTION BINDERS
+function bindLocalUIActions() {
+    // A. Fungsi klik mengalihkan Tab aktif ke Profil Partner
+    const partnerBox = document.getElementById('partner-box-link');
+    if (partnerBox) {
+        partnerBox.removeAttribute('onclick'); // Bersihkan sisa instruksi inline lama
+        partnerBox.onclick = function() {
+            if (navigator.vibrate) navigator.vibrate(15);
+            
+            // Mencari bubble link berlabel profil di file induk navigation
+            const targetNavLink = document.querySelector('[data-tab="tab-profile"]');
+            if (targetNavLink && typeof window.switchNav === 'function') {
+                window.switchNav('tab-profile', 'fet_showprofile.html', targetNavLink);
+            } else if (window.Router) {
+                window.Router.loadComponent('tab-profile', 'fet_showprofile.html');
+            }
+        };
+    }
+
+    // B. Peta Satelit Navigasi Terbuka
+    const mapBtn = document.getElementById('btn-maps-origin');
+    if (mapBtn) {
+        mapBtn.onclick = function() {
+            if (navigator.vibrate) navigator.vibrate(15);
+            const activeMission = window.SovereignState.currentMissionData?.mission?.full_mission_data;
+            if (activeMission && activeMission.origin_coords) {
+                window.open(`https://www.google.com/maps/search/?api=1&query=${activeMission.origin_coords}`, '_blank');
+            }
+        };
+    }
+}
+
+// INTERACTIVE ACCORDION TOGGLES
+window.toggleCargoAccordion = function() {
+    const body = document.getElementById('cargo-accordion-content');
+    const arrow = document.getElementById('accordion-arrow');
+    if (!body) return;
+
+    if (body.classList.contains('open')) {
+        body.classList.remove('open');
+        if (arrow) arrow.style.transform = 'rotate(0deg)';
+    } else {
+        body.classList.add('open');
+        if (arrow) arrow.style.transform = 'rotate(180deg)';
+    }
+};
+
+window.toggleSafetyDisclaimer = function() {
+    const spoiler = document.getElementById('safety-spoiler-box');
+    if (!spoiler) return;
+    spoiler.style.display = spoiler.style.display === 'block' ? 'none' : 'block';
+};
+
+console.log("⚙️ [BRAIN TWO] OPERATIONAL HQ ENGINE SYNCED SUCCESSFULLY.");
