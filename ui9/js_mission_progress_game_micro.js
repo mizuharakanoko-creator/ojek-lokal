@@ -1,16 +1,22 @@
 /**
  * js_mission_progress_game_micro.js
  * PUSAT MINI GAME MIKRO: "MATRIX DECRYPTION TERMINAL"
+ * [UPDATED]: Input Optimization & Shard-Safe UI Injection
  */
 
 window.initMicroGameEngine = function() {
     const gameBtn = document.getElementById('btn-decrypt-game');
-    if (!gameBtn) return;
+    if (!gameBtn) {
+        console.warn("⚠️ [GAME MICRO]: Target button 'btn-decrypt-game' not found in DOM.");
+        return;
+    }
 
+    // Hindari duplikasi listener dengan menimpa fungsi onclick secara bersih
     gameBtn.onclick = function() {
         if (navigator.vibrate) navigator.vibrate(20);
         openMatrixDecryptionModal();
     };
+    console.log("💾 [GAME MICRO]: MICRO GAME ENGINE READY TO INJECT.");
 };
 
 function openMatrixDecryptionModal() {
@@ -34,7 +40,7 @@ function openMatrixDecryptionModal() {
             </div>
 
             <div style="display:flex; justify-content:center; gap:10px; margin-bottom:20px;">
-                <input type="text" id="decrypt-input" maxlength="3" placeholder="***" style="width:100px; height:40px; background:#000; border:1.5px solid #334155; color:#00f2ff; font-size:20px; text-align:center; font-family:inherit; outline:none; border-radius:6px; font-weight:700;">
+                <input type="tel" id="decrypt-input" maxlength="3" placeholder="***" autocomplete="off" style="width:100px; height:40px; background:#000; border:1.5px solid #334155; color:#00f2ff; font-size:20px; text-align:center; font-family:inherit; outline:none; border-radius:6px; font-weight:700; letter-spacing:4px;">
             </div>
 
             <div style="display:flex; gap:8px;">
@@ -47,7 +53,14 @@ function openMatrixDecryptionModal() {
     document.body.appendChild(gameOverlay);
     
     const inputField = document.getElementById('decrypt-input');
-    inputField.focus();
+    if (inputField) {
+        inputField.focus();
+        
+        // Proteksi Input: Blokir karakter non-angka secara real-time saat mengetik
+        inputField.oninput = function() {
+            this.value = this.value.replace(/[^1-6]/g, '');
+        };
+    }
 
     // Event Handler Batal/Keluar Game
     document.getElementById('btn-game-abort').onclick = function() {
@@ -71,7 +84,7 @@ function openMatrixDecryptionModal() {
         attemptsLeft--;
 
         if (guess === secretCode) {
-            // MENANG
+            // --- KONDISI MENANG ---
             if (navigator.vibrate) navigator.vibrate([20, 50, 80]);
             monitor.innerHTML = "<span style='color:#00ff88; font-weight:700;'>ACCESS GRANTED!</span><br>Dekripsi Shard Berhasil Menembus Firewall.";
             attDisplay.style.color = "#00ff88";
@@ -84,22 +97,23 @@ function openMatrixDecryptionModal() {
 
             // Modifikasi teks asisten utama di HQ secara lokal sebagai reward pujian imersif
             const aiText = document.getElementById('ai-text');
-            const asisName = document.getElementById('asisName').innerText;
-            if (aiText) aiText.innerText = `Luar biasa! Kemampuan peretasan gelombang Anda terkonfirmasi berhasil menembus node pengamanan bypass regional.`;
+            if (aiText) {
+                aiText.innerText = `Luar biasa! Kemampuan peretasan gelombang Anda terkonfirmasi berhasil menembus node pengamanan bypass regional.`;
+            }
             
             const gameTxt = document.getElementById('game-btn-txt');
             if (gameTxt) gameTxt.innerText = "CHIP ENCRYPTION DECRYPTED ✓";
         } else {
-            // TEBAKAN SALAH - HITUNG FEEDBACK CLUES (Bulls & Cows style)
+            // --- TEBAKAN SALAH (Bulls & Cows style) ---
             if (attemptsLeft <= 0) {
-                // KALAH
+                // KONDISI KALAH
                 if (navigator.vibrate) navigator.vibrate([100, 100]);
                 monitor.innerHTML = `<span style='color:#ff0055; font-weight:700;'>LOCKOUT EFFECTED!</span><br>Kombinasi Asli: <b style='color:#00f2ff'>${secretCode}</b>`;
                 attDisplay.innerText = "SECURITY BLOCK OUT: MALWARE LOCKED";
                 document.getElementById('btn-game-submit').style.display = 'none';
                 document.getElementById('btn-game-abort').innerText = "EXIT COMPONENT";
             } else {
-                // Sisa Nyawa - Berikan Hint Petunjuk
+                // Sisa Nyawa - Berikan Hint Petunjuk Posisi Positif Berhasil
                 let correctPos = 0;
                 for (let x = 0; x < 3; x++) {
                     if (guess[x] === secretCode[x]) correctPos++;
