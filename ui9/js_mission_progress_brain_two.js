@@ -1,6 +1,7 @@
 /**
  * js_mission_progress_brain_two.js
  * TACTICAL COMMAND CENTER ENGINE - VERSI SINKRONISASI TOTAL TANPA SLIDER
+ * [UPDATED]: Mandiri, Bebas Crash, Berorientasi Data Fail-safe
  */
 
 window.HQState = {
@@ -13,6 +14,7 @@ window.HQState = {
 window.initHQModule = async function() {
     console.log("📡 [BRAIN TWO]: INITIALIZING COMMAND ENGINE SYNC...");
     
+    // Validasi ketersediaan State Global Firebase RTDB
     if (!window.SovereignState || !window.SovereignState.rtdb) {
         setTimeout(window.initHQModule, 200);
         return;
@@ -22,11 +24,6 @@ window.initHQModule = async function() {
     if (!contractId) {
         console.error("❌ [BRAIN TWO]: ABSENCE OF ACTIVE CONTRACT ID SHARD!");
         return;
-    }
-
-    // Sambungkan Micro-game link file eksternal jika sudah dimuat
-    if (typeof window.initMicroGameEngine === 'function') {
-        window.initMicroGameEngine();
     }
 
     // Tarik dan pantau data dari server secara realtime
@@ -44,17 +41,21 @@ function listenContractRealtime(contractId) {
 
         const contractData = snap.val();
         
-        // Tarik data detail jika fungsi router tersedia
+        // Fail-safe Interseptor: Cek ketersediaan data eksternal paket
         if (typeof window.getSupremeData === 'function') {
-            const dataPacket = await window.getSupremeData(contractId);
-            if (dataPacket) {
-                window.SovereignState.currentMissionData = dataPacket;
-                executeRenderHQ(dataPacket.mission, dataPacket.adventurer, dataPacket.requester);
-                return;
+            try {
+                const dataPacket = await window.getSupremeData(contractId);
+                if (dataPacket) {
+                    window.SovereignState.currentMissionData = dataPacket;
+                    executeRenderHQ(dataPacket.mission, dataPacket.adventurer, dataPacket.requester);
+                    return;
+                }
+            } catch (err) {
+                console.warn("⚠️ Fallback to snap data due to routing fetch error:", err);
             }
         }
 
-        // Fallback Cache Render
+        // Jalur Utama / Fallback Cache Render langsung dari Snapshot
         executeRenderHQ(contractData, null, null);
     });
 }
@@ -69,13 +70,20 @@ function executeRenderHQ(m, advData, reqData) {
     const contractId = m.id_kontrak || sessionStorage.getItem('active_contract_id');
 
     // A. PEMBARUAN INFORMASI IDENTITAS & STATUS BADGE
-    document.getElementById('m-id-display').innerText = `ID: ${contractId}`;
+    const idDisplay = document.getElementById('m-id-display');
+    if (idDisplay) idDisplay.innerText = `ID: ${contractId}`;
     
-    const categoryTitle = m.category || m.full_mission_data?.category || "REGULAR MISSION";
-    document.getElementById('m-title').innerText = categoryTitle.toUpperCase();
+    const titleEl = document.getElementById('m-title');
+    if (titleEl) {
+        const categoryTitle = m.category || m.full_mission_data?.category || "REGULAR MISSION";
+        titleEl.innerText = categoryTitle.toUpperCase();
+    }
 
-    const rawReward = m.reward || m.full_mission_data?.reward || 0;
-    document.getElementById('m-reward-cash').innerText = `Rp ${Number(rawReward).toLocaleString('id-ID')}`;
+    const rewardEl = document.getElementById('m-reward-cash');
+    if (rewardEl) {
+        const rawReward = m.reward || m.full_mission_data?.reward || 0;
+        rewardEl.innerText = `Rp ${Number(rawReward).toLocaleString('id-ID')}`;
+    }
 
     // Lencana Status Pusat
     const badge = document.getElementById('m-status-badge');
@@ -85,13 +93,23 @@ function executeRenderHQ(m, advData, reqData) {
     }
 
     // B. MANIFEST DUA TITIK (ORIGIN & DEST)
-    document.getElementById('m-origin-desa').innerText = m.full_mission_data?.origin_desa || m.full_mission_data?.origin_name || "-";
-    document.getElementById('m-dest-desa').innerText = m.full_mission_data?.dest_desa || m.full_mission_data?.dest_name || "-";
-    document.getElementById('m-cargo-detail').innerHTML = m.full_mission_data?.dest_details || "Tidak ada instruksi khusus.";
-    document.getElementById('cargo-hub').classList.remove('hide');
+    const origDesa = document.getElementById('m-origin-desa');
+    if (origDesa) origDesa.innerText = m.full_mission_data?.origin_desa || m.full_mission_data?.origin_name || m.origin_name || "-";
+    
+    const destDesa = document.getElementById('m-dest-desa');
+    if (destDesa) destDesa.innerText = m.full_mission_data?.dest_desa || m.full_mission_data?.dest_name || m.dest_name || "-";
+    
+    const cargoDetail = document.getElementById('m-cargo-detail');
+    if (cargoDetail) cargoDetail.innerHTML = m.full_mission_data?.dest_details || m.dest_details || "Tidak ada instruksi khusus.";
+    
+    const cargoHub = document.getElementById('cargo-hub');
+    if (cargoHub) cargoHub.classList.remove('hide');
 
     // Jarak Haversine
-    calculateHaversineDistance(m.full_mission_data?.origin_coords, m.full_mission_data?.dest_coords);
+    calculateHaversineDistance(
+        m.full_mission_data?.origin_coords || m.origin_coords, 
+        m.full_mission_data?.dest_coords || m.dest_coords
+    );
 
     // C. TIMING CHRONO SINKRONISASI
     const baseTime = m.start_time || m.created_at || m.full_mission_data?.created_at || Date.now();
@@ -110,34 +128,47 @@ function executeRenderHQ(m, advData, reqData) {
 
     if (myRole === 'requester') {
         // --- PERSPEKTIF REQUESTER (KLIEN) ---
-        setupPartnerLinkText(advData?.meta?.nickname || m.adventurer_nick || "Mencari Runner...", true);
+        const partnerName = advData?.meta?.nickname || m.adventurer_nick || "Runner Terpilih";
+        setupPartnerLinkText(partnerName, true);
         
         if (currentStatus === 'arrival') {
             const btnComplete = document.getElementById('btn-hq-client-complete');
-            btnComplete.classList.remove('hide');
-            btnComplete.onclick = () => triggerMutationAction(contractId, 'completed', 'Konfirmasi Selesai?', 'Apakah Anda yakin barang/kargo sudah diterima dengan lengkap? Transaksi ini akan mendepositokan kargo reward penuh.');
+            if (btnComplete) {
+                btnComplete.classList.remove('hide');
+                btnComplete.onclick = () => triggerMutationAction(contractId, 'completed', 'Konfirmasi Selesai?', 'Apakah Anda yakin kargo/barang sudah Anda terima dengan lengkap? Tindakan ini bersifat absolut dan akan mendepositokan reward penuh ke dompet partner.');
+            }
         } else {
             // Beritahu klien status runner saat ini
-            document.getElementById('btn-hq-waiting-client').classList.remove('hide');
-            document.getElementById('btn-hq-waiting-client').innerText = currentStatus === 'briefing' ? "MENUNGGU RUNNER BERANGKAT" : "RUNNER SEDANG DI PERJALANAN (OTW)";
+            const btnWaitClient = document.getElementById('btn-hq-waiting-client');
+            if (btnWaitClient) {
+                btnWaitClient.classList.remove('hide');
+                btnWaitClient.innerText = currentStatus === 'briefing' ? "MENUNGGU RUNNER BERANGKAT" : "RUNNER SEDANG DI PERJALANAN (OTW)";
+            }
         }
     } else {
         // --- PERSPEKTIF ADVENTURER (RUNNER) ---
-        setupPartnerLinkText(m.requester_nick || m.full_mission_data?.client_name || "Client System", false);
+        const reqName = reqData?.meta?.nickname || m.requester_nick || m.full_mission_data?.client_name || "Client Requester";
+        setupPartnerLinkText(reqName, false);
 
         const btnOtw = document.getElementById('btn-hq-otw');
         const btnArrival = document.getElementById('btn-hq-arrival');
         const btnWait = document.getElementById('btn-hq-waiting-client');
 
         if (currentStatus === 'briefing') {
-            btnOtw.classList.remove('hide');
-            btnOtw.onclick = () => triggerMutationAction(contractId, 'otw', 'MULAI BERANGKAT OTW?', 'Peringatan! Harap konfirmasi dan beri kabar langsung kepada Requester melalui chat/telepon terlebih dahulu sebelum berjalan demi menghindari pembatalan sepihak!');
+            if (btnOtw) {
+                btnOtw.classList.remove('hide');
+                btnOtw.onclick = () => triggerMutationAction(contractId, 'otw', 'MULAI BERANGKAT OTW?', 'Peringatan! Harap pastikan Anda sudah mengonfirmasi dan memberi kabar langsung kepada Requester melalui chat/telepon terlebih dahulu sebelum berjalan demi menghindari pembatalan sepihak!');
+            }
         } else if (currentStatus === 'otw') {
-            btnArrival.classList.remove('hide');
-            btnArrival.onclick = () => triggerMutationAction(contractId, 'arrival', 'KONFIRMASI TIBA?', 'Apakah Anda sudah benar-benar sampai di titik lokasi tujuan pembongkaran kargo?');
+            if (btnArrival) {
+                btnArrival.classList.remove('hide');
+                btnArrival.onclick = () => triggerMutationAction(contractId, 'arrival', 'KONFIRMASI TIBA?', 'Apakah Anda sudah benar-benar sampai di titik lokasi koordinat tujuan pembongkaran kargo?');
+            }
         } else if (currentStatus === 'arrival') {
-            btnWait.classList.remove('hide');
-            btnWait.innerText = "MENUNGGU KONFIRMASI KLIEN...";
+            if (btnWait) {
+                btnWait.classList.remove('hide');
+                btnWait.innerText = "MENUNGGU KONFIRMASI KLIEN...";
+            }
             
             // AKTIFKAN COUNTDOWN DARURAT BILA KLIEN AFK
             handleEmergencyWatcher(contractId);
@@ -145,16 +176,19 @@ function executeRenderHQ(m, advData, reqData) {
     }
 }
 
-// 4. PERSPECTIVE MUTATOR WITH INTEGRATED MANDATORY MODAL ALERT
+// 4. PERSPECTIVE MUTATOR WITH STANDALONE CONFIRMATION SYSTEM
 async function triggerMutationAction(contractId, nextStatus, modalTitle, warnMessage) {
     if (navigator.vibrate) navigator.vibrate(15);
     
+    let confirmResult = false;
     if (typeof window.sysConfirm === 'function') {
-        const confirmResult = await window.sysConfirm(modalTitle, warnMessage);
-        if (!confirmResult) return;
+        confirmResult = await window.sysConfirm(modalTitle, warnMessage);
     } else {
-        if (!confirm(`${modalTitle}\n\n${warnMessage}`)) return;
+        // Standalone fallback jika sysConfirm dari core lama mati
+        confirmResult = confirm(`${modalTitle}\n\n${warnMessage}`);
     }
+
+    if (!confirmResult) return;
 
     try {
         const db4 = window.SovereignState.rtdb;
@@ -163,11 +197,12 @@ async function triggerMutationAction(contractId, nextStatus, modalTitle, warnMes
             ...(nextStatus === 'otw' ? { start_time: Date.now() } : {})
         });
 
+        // Trigger layar rating jika status selesai dan fungsinya terintegrasi
         if (nextStatus === 'completed' && typeof window.showRatingScreen === 'function') {
             window.showRatingScreen();
         }
     } catch (err) {
-        console.error("Mutation failed: ", err);
+        console.error("❌ [BRAIN TWO]: Status Mutation failed: ", err);
     }
 }
 
@@ -191,10 +226,13 @@ function handleEmergencyWatcher(contractId) {
             clearInterval(window.HQState.afkCountdown);
             emBtn.disabled = false;
             emBtn.innerText = "⚠️ EMERGENCY FINISH (REQUESTER AFK)";
-            emBtn.onclick = () => triggerMutationAction(contractId, 'completed', 'OVERRIDE DARURAT SEPIHAK?', 'Gunakan opsi ini jika pihak pemesan menghilang / AFK tanpa memberi respon. Anda akan diarahkan langsung menuju layar laporan evaluasi.');
+            emBtn.onclick = () => triggerMutationAction(contractId, 'completed', 'OVERRIDE DARURAT SEPIHAK?', 'Gunakan opsi ini jika pihak pemesan menghilang / AFK tanpa memberi respon setelah Anda tiba. Anda akan diarahkan langsung menuju arsitektur penutupan misi.');
             
             const txt = document.getElementById('ai-text');
-            if (txt) txt.innerText = "Deteksi kegagalan respon dari enkripsi klien. Protokol Emergency Override sepihak disetujui.";
+            if (txt) {
+                txt.classList.remove('loading-shimmer');
+                txt.innerText = "Deteksi kegagalan respon dari terminal enkripsi klien. Protokol Emergency Override sepihak disetujui untuk dieksekusi.";
+            }
         }
     }, 1000);
 }
@@ -236,8 +274,10 @@ function setupPartnerLinkText(name, isReq) {
     pLink.innerText = `// PARTNER: ${name.toUpperCase()} [LINK]`;
     pLink.onclick = function() {
         if (navigator.vibrate) navigator.vibrate(15);
-        if (window.Router) {
+        if (window.Router && typeof window.Router.loadComponent === 'function') {
             window.Router.loadComponent('tab-profile', 'fet_showprofile.html');
+        } else {
+            console.log(`Navigating to profile of: ${name}`);
         }
     };
 }
@@ -250,7 +290,7 @@ function calculateHaversineDistance(origin, dest) {
     try {
         const [lat1, lon1] = origin.split(',').map(Number);
         const [lat2, lon2] = dest.split(',').map(Number);
-        const R = 6371;
+        const R = 6371; // Radius bumi dalam KM
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
@@ -276,7 +316,7 @@ function startLiveTerminalFeed() {
     window.HQState.logRotationInterval = setInterval(() => {
         i = (i + 1) % feeds.length;
         subLog.innerText = feeds[i];
-    }, 20000); // Berganti secara otomatis setiap 20 detik
+    }, 20000);
 }
 
 // 10. TIMEOUT CLOCK 2 JAM
@@ -300,31 +340,9 @@ function runChronoClock(startTime) {
 }
 
 function resetActionButtons() {
-    document.getElementById('btn-hq-otw').classList.add('hide');
-    document.getElementById('btn-hq-arrival').classList.add('hide');
-    document.getElementById('btn-hq-waiting-client').classList.add('hide');
-    document.getElementById('btn-hq-client-complete').classList.add('hide');
-    document.getElementById('btn-hq-emergency').classList.add('hide');
+    const elIds = ['btn-hq-otw', 'btn-hq-arrival', 'btn-hq-waiting-client', 'btn-hq-client-complete', 'btn-hq-emergency'];
+    elIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hide');
+    });
 }
-
-// UTILITIES OPEN/CLOSE
-window.toggleCargoAccordion = function() {
-    const b = document.getElementById('cargo-accordion-content');
-    const a = document.getElementById('accordion-arrow');
-    if (b.classList.contains('open')) {
-        b.classList.remove('open'); if(a) a.style.transform = 'rotate(0deg)';
-    } else {
-        b.classList.add('open'); if(a) a.style.transform = 'rotate(180deg)';
-    }
-};
-
-window.toggleSafetyDisclaimer = function() {
-    const s = document.getElementById('safety-spoiler-box');
-    s.style.display = s.style.display === 'block' ? 'none' : 'block';
-};
-
-window.toggleAmbientPulse = function() {
-    const b = document.getElementById('btn-ambient-toggle');
-    b.classList.toggle('active');
-    if (navigator.vibrate && b.classList.contains('active')) navigator.vibrate([10, 30, 10]);
-};
