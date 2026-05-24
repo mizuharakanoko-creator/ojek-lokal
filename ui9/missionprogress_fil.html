@@ -1,41 +1,335 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BATTLEFIELD HUB</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SOVEREIGN GUILD | MISSION CONTROL</title>
+    
+    <meta name="theme-color" content="#050508">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css"> 
-</head>
-<body>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="stylesmissionprogress.css">
 
-    <div id="app-view-container"></div>
-
-    <div id="global-controls" class="bottom-bar">
-        <button id="btn-otw" onclick="actionOtw()">OTW</button>
-        <button id="btn-sampai" onclick="actionSampai()">SAMPAI</button>
-        <button id="btn-selesai" onclick="actionSelesai()">SELESAI</button>
-    </div>
-
-    <nav class="nav-menu">
-        <button onclick="loadView('hq')">HQ</button>
-        <button onclick="loadView('maps')">Maps</button>
-        <button onclick="loadView('chat')">Chat</button>
-    </nav>
-
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     
     <script src="terminal_router.js"></script>
-    <script src="router_lokal.js"></script>
-    
-    <script src="jsmissionprogressbrain1.js"></script>
-    
-    <script>
-        window.addEventListener('DOMContentLoaded', () => {
-            initApp(); // Menjalankan logika utama dari Brain 1
-        });
-    </script>
-</body>
-</html>
+    <script src="clearchance.js"></script>
+</head>
+<body>
+
+    <audio id="click-sfx" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"></audio>
+    <audio id="notif-sfx" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+
+    <div id="master-loader">
+        <div class="loader-spin"></div>
+        <p style="margin-top: 22px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 4px; color: var(--neon-blue);">INITIALIZING MATRIX LINK...</p>
+    </div>
+
+    <header id="global-header">
+        <div class="identity-badge" onclick="toggleProfile()">
+            <div id="u-rank" class="rank-frame">?</div>
+            <div>
+                <div id="u-role" style="font-size: 10px; color: #888; letter-spacing: 1.5px; text-transform: uppercase;">SINKRONISASI...</div>
+                <div id="u-name" style="font-weight: 700; font-size: 16px; transition: opacity 0.3s;">Memuat Data</div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="btn-refresh" onclick="forceRefreshData()" title="Re-Fetch Shard Data"><i class="fa-solid fa-rotate"></i></button>
+            <img src="ai_irene_face.png" style="width:38px; height:38px; border-radius:50%; border:2px solid var(--neon-purple); box-shadow: 0 0 10px rgba(188,19,254,0.4);" alt="AI" onerror="this.src='https://via.placeholder.com/38'">
+        </div>
+    </header>
+
+    <main class="viewport">
+        <div id="tab-hq" class="tab-pane active">
+            <div id="profile-drawer" class="profile-drawer">
+                <div class="stat-line">
+                    <div class="stat-label"><span>KEANDALAN SISTEM</span> <span id="v-stat-1">0%</span></div>
+                    <div class="stat-bar"><div id="b-stat-1" class="stat-fill"></div></div>
+                </div>
+                <div class="stat-line">
+                    <div class="stat-label"><span>REPUTASI KONTRAK</span> <span id="v-stat-2">0 PTS</span></div>
+                    <div class="stat-bar"><div id="b-stat-2" class="stat-fill" style="background: var(--neon-green);"></div></div>
+                </div>
+                <div id="v-extra-info" style="font-size: 11px; color: #777; text-align: center; margin-top: 15px;">Secure Channel Established.</div>
+            </div>
+
+            <div class="hq-container">
+                <div id="edu-bilah" class="hide" style="background: linear-gradient(90deg, rgba(0,243,255,0.08), transparent); border-left: 3px solid var(--neon-blue); padding: 12px 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                    <div style="font-size: 9px; color: var(--neon-blue); font-weight: bold; margin-bottom: 5px; letter-spacing: 1px;">GUILD GUIDE <i class="fa-solid fa-circle-info"></i></div>
+                    <div id="edu-text" style="font-size: 12px; color: #ccc; font-style: italic; line-height: 1.4;">--</div>
+                </div>
+
+                <div id="ai-terminal-box" class="ai-terminal">
+                    <i class="fa-solid fa-microchip" style="color: var(--neon-purple); font-size: 28px; text-shadow: 0 0 10px rgba(188,19,254,0.3);"></i>
+                    <div id="ai-text">Menganalisis parameter misi...</div>
+                </div>
+
+                <div class="status-panel">
+                    <div class="status-dot" id="status-indicator"></div>
+                    <div id="live-status-text">[SYS] STANDBY - MENUNGGU DATA</div>
+                    <div id="live-status-time">--:--</div>
+                </div>
+
+                <div class="dossier">
+                    <div class="dossier-head">
+                        <span>MISSION_FILE_ACTIVE</span>
+                        <span id="m-id-display">ID: ---</span>
+                    </div>
+
+                    <div class="dossier-body">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                            <div>
+                                <div id="m-category-badge" style="background: var(--neon-purple); color: #000; font-size: 9px; font-weight: bold; padding: 3px 8px; border-radius: 5px; display: inline-block; margin-bottom: 6px; text-transform: uppercase;">CATEGORY</div>
+                                <h1 id="m-title" class="m-title">MENGAMBIL KATEGORI...</h1>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 9px; color: #666; letter-spacing: 1px;">NAMA PEMESAN</div>
+                                <div id="m-client-name" style="font-size: 12px; color: var(--neon-blue); font-weight: bold;">--</div>
+                            </div>
+                        </div>
+
+                        <div id="mission-progress-container">
+                            <div class="prog-label">
+                                <span id="m-status-text">Menganalisis matriks logistik...</span>
+                                <span id="m-progress-pct" style="color: var(--neon-blue); font-weight: bold;">0%</span>
+                            </div>
+                            <div class="prog-track">
+                                <div id="m-progress-bar" class="prog-fill"></div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <div id="mission-timer-hub" style="font-family: var(--font-mono); color: var(--neon-purple); font-size: 11px; border: 1px solid rgba(188,19,254,0.3); background: rgba(188,19,254,0.05); padding: 6px 10px; border-radius: 8px;">
+                                <i class="fa-solid fa-clock"></i> <span id="timer-val">00:00:00</span>
+                            </div>
+                            <div style="font-family: var(--font-mono); font-size: 12px; color: var(--neon-green); background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.3); padding: 5px 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,255,136,0.1);">
+                                <i class="fa-solid fa-route"></i> Estimasi <span id="m-distance">0</span> KM
+                            </div>
+                        </div>
+
+                        <div id="location-hub" style="margin-top: 20px;">
+                            <div style="background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 12px;">
+                                <div style="font-size: 9px; color: var(--neon-yellow); letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-store"></i> TITIK ASAL (A)</div>
+                                <div id="m-origin-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                                <button id="btn-maps-origin" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px; background: rgba(0,243,255,0.05);">
+                                    <i class="fa-solid fa-location-arrow"></i> Buka Rute Peta
+                                </button>
+                            </div>
+
+                            <div id="dest-hub" class="hide" style="background: rgba(0,255,136,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(0,255,136,0.2); margin-bottom: 12px;">
+                                <div style="font-size: 9px; color: var(--neon-green); letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-flag-checkered"></i> TITIK TUJUAN (B)</div>
+                                <div id="m-dest-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                                <button id="btn-maps-dest" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px; border-color: var(--neon-green); color: var(--neon-green); background: rgba(0,255,136,0.05);">
+                                    <i class="fa-solid fa-map-pin"></i> Buka Rute Peta
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                            <div style="font-size: 11px; color: var(--neon-purple); font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;">
+                                <i class="fa-solid fa-layer-group"></i> DAFTAR PESANAN
+                            </div>
+                            <div id="m-cargo-detail" style="font-size: 14px; color: #eee; white-space: pre-line; line-height: 1.6; font-family: var(--font-mono);">--</div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border-top: 1px solid var(--glass-border); padding-top: 15px;">
+                            <div>
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">REWARD TUNAI</div>
+                                <div id="m-reward-cash" style="color: var(--neon-green); font-weight: bold; font-size: 16px;">Rp 0</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">PELAKSANA</div>
+                                <div id="m-adv-nick" style="font-size: 13px; color: #fff; font-weight: bold;">--</div>
+                            </div>
+                            <div id="rpg-exp-wrap">
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">REWARD EXP</div>
+                                <div id="m-exp" style="color: var(--neon-blue); font-weight: bold; font-family: var(--font-mono); font-size: 14px;">--</div>
+                            </div>
+                            <div id="rpg-stone-wrap" style="text-align: right;">
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">GREEN STONES</div>
+                                <div id="m-stone" style="color: var(--neon-green); font-weight: bold; font-family: var(--font-mono); font-size: 14px;">--</div>
+                            </div>
+                        </div>
+
+                        <div id="action-slider-box" class="hide">
+                            <div style="font-size: 10px; color: var(--neon-green); text-align: center; margin-top: 20px; font-weight: bold; letter-spacing: 1px;">KONFIRMASI SELESAI & NILAI</div>
+                            <div class="slider-wrapper" id="slider-wrapper">
+                                <div class="slider-text" id="slider-text">GESER UNTUK SELESAI</div>
+                                <div class="slider-fill" id="slider-fill"></div>
+                                <div class="slider-thumb" id="slider-thumb"><i class="fa-solid fa-angles-right"></i></div>
+                            </div>
+                        </div>
+
+                        <div id="emergency-zone" class="hide" style="margin-top: 20px; padding: 15px; border: 2px solid #ff3366; border-radius: 12px; background: linear-gradient(180deg, rgba(20, 0, 0, 0.95) 0%, rgba(0, 0, 0, 1) 100%); box-shadow: 0 0 20px rgba(255, 51, 102, 0.2), inset 0 0 10px rgba(255, 51, 102, 0.1); position: relative; overflow: hidden;">
+                            <p id="em-timer" style="color: #ff3366; font-size: 12px; text-align: center; font-family: var(--font-mono); margin: 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 10px rgba(255, 51, 102, 0.7);">
+                                MENGINISIALISASI PROTOKOL DARURAT...
+                            </p>
+                            
+                            <div id="slider-container-em" style="display: none; margin-top: 15px; width: 100%; position: relative; height: 45px; background: rgba(255, 51, 102, 0.1); border-radius: 6px; border: 1px solid #ff3366; overflow: hidden;">
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; font-size: 10px; color: #fff; font-weight: bold; width: 100%; text-align: center; letter-spacing: 2px; z-index: 1;">
+                                    GESER MENTOK : SELESAI PAKSA (AFK)
+                                </div>
+                                <input type="range" id="em-slider" min="0" max="100" value="0" style="-webkit-appearance: none; width: 100%; height: 100%; cursor: pointer; background: transparent; position: relative; z-index: 2; margin: 0; outline: none;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-map" class="tab-pane">
+            <div id="map"></div>
+        </div>
+
+        <div id="tab-nota" class="tab-pane">
+            <div class="ledger-container">
+                <div id="nota-input-hub" class="input-panel hide">
+                    <div style="font-size: 11px; color: var(--neon-blue); margin-bottom: 10px; font-weight: bold; letter-spacing: 1px;">MASUKKAN DATA TAGIHAN</div>
+                    <input type="text" id="in-name" class="q-input" placeholder="Nama Barang / Biaya">
+                    
+                    <label class="snapshot-btn" for="in-snap">
+                        <i class="fa-solid fa-camera"></i> UNGGAH BUKTI FOTO (OPSIONAL)
+                    </label>
+                    <input type="file" id="in-snap" accept="image/*" class="hide" onchange="previewSnapshot(event)">
+                    <img id="snap-preview" src="" alt="Preview">
+
+                    <div style="display: flex; gap: 12px; margin-top: 10px;">
+                        <input type="number" id="in-price" class="q-input" placeholder="Harga (Rp)" style="margin-bottom: 0;">
+                        <button id="btn-nota-save" onclick="notaSave()" class="btn-main" style="width: 120px; font-size: 12px;">SIMPAN</button>
+                    </div>
+                </div>
+
+                <div class="receipt-ui">
+                    <div style="text-align: center; border-bottom: 2px dashed #999; padding-bottom: 20px; margin-bottom: 25px;">
+                        <div style="font-size: 20px; font-weight: 900; letter-spacing: 3px;">GUILD LOGISTICS</div>
+                        <div style="font-size: 11px; color: #555; margin-top: 5px; font-weight: bold;">RINCIAN BIAYA OPERASIONAL</div>
+                    </div>
+                    
+                    <div id="nota-list-ui"></div>
+
+                    <div style="border-top: 2px dashed #999; margin-top: 25px; padding-top: 20px; display: flex; justify-content: space-between; font-weight: 900; font-size: 18px;">
+                        <span>TOTAL</span>
+                        <span id="nota-total-val">Rp 0</span>
+                    </div>
+
+                    <div style="font-size: 9px; text-align: center; margin-top: 40px; color: #888; line-height: 1.6; font-weight: bold;">
+                        DATA INI SINKRON SECARA REAL TIME. KLIK IKON KAMERA UNTUK BUKTI.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-comms" class="tab-pane">
+            <div class="comms-engine">
+                <div id="comms-wall" class="chat-wall"></div>
+                <div class="comms-bar">
+                    <button id="stt-mic" onclick="runVoiceToText()" style="background: rgba(188,19,254,0.1); border: 1px solid var(--neon-purple); color: var(--neon-purple); width: 48px; height: 48px; border-radius: 50%; font-size: 18px; transition: 0.3s; cursor: pointer; flex-shrink: 0;"><i class="fa-solid fa-microphone"></i></button>
+                    <input type="text" id="comms-input" placeholder="Ketik pesan..." style="flex: 1; min-width:0; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #fff; padding: 14px 20px; border-radius: 25px; font-size: 14px; transition: 0.3s;">
+                    <button onclick="commsSend()" style="color: var(--neon-blue); border: none; background: none; font-size: 24px; cursor: pointer; padding: 10px; transition: 0.2s; flex-shrink: 0;"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="floating-action-zone hide" id="adv-status-hub">
+        <button class="floating-btn-terminal blue" onclick="sendLiveStatus('OTW Lokasi Asal')">
+            <i class="fa-solid fa-motorcycle"></i> OTW TITIK JEMPUT
+        </button>
+        <button class="floating-btn-terminal purple" onclick="sendLiveStatus('OTW Lokasi Tujuan')">
+            <i class="fa-solid fa-truck-fast"></i> OTW TITIK TUJUAN
+        </button>
+        <button class="floating-btn-terminal green" onclick="sendLiveStatus('Tiba di Lokasi')">
+            <i class="fa-solid fa-location-crosshairs"></i> TIBA DI LOKASI
+        </button>
+        <button class="btn-float-emergency" onclick="sendLiveStatus('Kendala Lapangan')">
+            <i class="fa-solid fa-triangle-exclamation"></i> LAPORKAN KENDALA
+        </button>
+    </div>
+
+    <nav class="bubble-nav">
+        <div class="bubble-link active" onclick="switchTab('tab-hq', this)">
+            <i class="fa-solid fa-atom"></i>
+        </div>
+        <div class="bubble-link" onclick="switchTab('tab-map', this)">
+            <i class="fa-solid fa-map-location-dot"></i>
+        </div>
+        <div class="bubble-link" style="position: relative;" onclick="switchTab('tab-nota', this)">
+            <i class="fa-solid fa-receipt"></i>
+            <span id="badge-nota" class="nav-badge">!</span>
+        </div>
+        <div class="bubble-link" style="position: relative;" onclick="switchTab('tab-comms', this)">
+            <i class="fa-solid fa-comments"></i>
+            <span id="badge-comms" class="nav-badge">!</span>
+        </div>
+    </nav>
+
+    <div id="debug-trigger" onclick="toggleDebugPanel()" style="position:fixed; top:12px; right:12px; width:34px; height:34px; background:rgba(255,0,85,0.25); border-radius:50%; z-index:10001; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono', monospace; font-size:9px; font-weight:700; color:white; border:1px solid rgba(255,255,255,0.15); box-shadow: 0 0 10px rgba(255,0,85,0.3); cursor:pointer;">DBG</div>
+
+    <div id="debug-panel" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(3,5,10,0.98); z-index:10002; padding:20px; overflow-y:auto; font-family:'JetBrains Mono', monospace; font-size:11px; color:#00ff88; border:1px solid rgba(0,252,255,0.1);">
+        <div style="display:flex; justify-content:space-between; margin-bottom:20px; border-bottom:1px dashed #1e293b; padding-bottom:10px;">
+            <h3 style="color:#fff; letter-spacing:1px;">🛡️ SYSTEM KERNEL INSPECTOR</h3>
+            <button onclick="toggleDebugPanel()" style="background:#ff0055; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer;">CLOSE</button>
+        </div>
+        <div id="debug-content"></div>
+    </div>
+
+    <button id="requester-toggle-btn" class="drawer-toggle-btn hide" onclick="toggleActionDrawer()">
+        <i class="fa-brands fa-whatsapp"></i>
+    </button>
+
+    <div id="action-drawer" class="action-drawer">
+        <div class="drawer-handle" onclick="toggleActionDrawer()"></div>
+        <div style="padding: 0 20px;">
+            <div style="text-align: center; font-size: 10px; color: #888; letter-spacing: 2px; margin-bottom: 15px; font-weight: bold;">HUBUNGI VIA WHATSAPP</div>
+            <div id="role-action-area"></div>
+        </div>
+    </div>
+
+    <div id="modalImgViewer" class="modal-overlay" onclick="closeModal('modalImgViewer')">
+        <div class="modal-box" style="background: transparent; border: none; box-shadow: none;" onclick="event.stopPropagation();">
+            <img id="img-viewer-src" src="" alt="Bukti Struk" style="max-width: 100%; max-height: 80vh; border-radius: 12px; border: 2px solid var(--neon-blue); box-shadow: 0 0 30px rgba(0,243,255,0.5);">
+        </div>
+    </div>
+
+    <div id="modalArcade" class="modal-overlay" onclick="closeModal('modalArcade')">
+        <div class="modal-box" style="border-color: var(--neon-blue);" onclick="event.stopPropagation();">
+            <i class="fa-solid fa-xmark" style="position: absolute; top: 20px; right: 20px; cursor: pointer; color: #777; font-size: 20px; transition: 0.2s;" onclick="closeModal('modalArcade')"></i>
+            <h3 style="color: var(--neon-blue); margin-top: 0; letter-spacing: 2px; font-weight: 900;">PERMAINAN</h3>
+            <div class="arcade-grid" style="width: 100%;">
+                <div class="slot-btn active" onclick="sysAlert('ARCADE', 'Starting Mana Refiner...')">
+                    <i class="fa-solid fa-gem" style="color: var(--neon-blue); text-shadow: 0 0 15px rgba(0,243,255,0.5);"></i>
+                    <div style="font-size: 11px; font-weight: bold; letter-spacing: 1px;">MANA REFINER</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalEvalAdv" class="modal-overlay">
+        <div class="modal-box" style="border-color: var(--neon-green);">
+            <h3 style="color: var(--neon-green); margin-top: 0; font-weight: 900; letter-spacing: 1px;">EVALUASI PARTNER</h3>
+            <p style="font-size: 12px; color: #aaa; margin-bottom: 25px;">Berikan penilaian performa kerja untuk reputasi individu.</p>
+            <div id="eval-star-group" style="width: 100%;"></div>
+            <button class="btn-main" style="background: var(--neon-green); color: #000; border: none; margin-top: 30px; font-size: 14px;" onclick="executeAdvFinal()">KIRIM & TUTUP KONTRAK</button>
+        </div>
+    </div>
+
+    <div id="modalEvalReq" class="modal-overlay">
+        <div class="modal-box" style="border-color: var(--neon-blue);">
+            <h3 style="color: var(--neon-blue); margin-top: 0; font-weight: 900; letter-spacing: 1px;">LAPORAN KLIEN</h3>
+            <p style="font-size: 12px; color: #aaa; margin-bottom: 25px;">Bantu komunitas menilai kualitas requester.</p>
+            <div id="eval-bool-group" style="width: 100%;"></div>
+            <button class="btn-main" style="background: var(--neon-blue); color: #000; border: none; margin-top: 30px; font-size: 14px;" onclick="executeReqFinal()">KIRIM LAPORAN</button>
+        </div>
+    </div>
+
+    <div id="sysModal" class="modal-overlay" style="z-index: 15000;">
+        <div id="modalBox" class="modal-box">
+            <div id="modalTitle" class="modalTitle
