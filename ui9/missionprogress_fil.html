@@ -11,7 +11,7 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -27,18 +27,21 @@
     <style>
         /* === QUANTUM DESIGN SYSTEM SYSTEM-WIDE === */
         :root {
-            --bg-main: #050508;
-            --bg-panel: rgba(13, 13, 20, 0.8);
+            --bg-main: #030306;
+            --bg-panel: rgba(9, 9, 15, 0.75);
             --neon-blue: #00f3ff;
             --neon-green: #00ff88;
             --neon-red: #ff3366;
             --neon-purple: #bc13fe;
             --neon-yellow: #ffcc00;
-            --text-main: #e0e0e0;
-            --glass: rgba(5, 5, 8, 0.85);
-            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f0f2f5;
+            --text-muted: #7e8b9b;
+            --glass: rgba(6, 6, 10, 0.82);
+            --glass-border: rgba(255, 255, 255, 0.05);
+            --glass-border-glow: rgba(0, 243, 255, 0.15);
             --font-mono: 'JetBrains Mono', 'Courier New', monospace;
             --font-sans: 'Inter', -apple-system, sans-serif;
+            --panel-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
         }
 
         /* NATIVE APP FEEL FIXES */
@@ -54,7 +57,7 @@
 
         body, html { 
             margin: 0; padding: 0; 
-            background: radial-gradient(circle at top right, #111, var(--bg-main)); 
+            background: radial-gradient(circle at top right, #0d1117, var(--bg-main)); 
             color: var(--text-main); 
             font-family: var(--font-sans); 
             overflow: hidden; 
@@ -70,113 +73,166 @@
         .cyber-skeleton {
             position: relative;
             overflow: hidden;
-            background: rgba(255, 255, 255, 0.05) !important;
-            border-color: rgba(255, 255, 255, 0.1) !important;
+            background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.03) 63%) !important;
+            background-size: 400% 100% !important;
+            border-color: rgba(255, 255, 255, 0.05) !important;
             color: transparent !important;
             pointer-events: none;
+            animation: cyber-skeleton-scan 1.4s ease infinite;
         }
-        .cyber-skeleton::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            transform: translateX(-100%);
-            background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.15), transparent);
-            animation: cyber-scan-pulse 1.5s infinite;
-        }
-        @keyframes cyber-scan-pulse {
-            100% { transform: translateX(100%); }
+        @keyframes cyber-skeleton-scan {
+            0% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
         /* GLOBAL HEADER */
         #global-header { 
             position: absolute; top: 0; width: 100%; z-index: 2000; 
-            background: var(--glass); border-bottom: 1px solid var(--glass-border); 
-            padding: 12px 15px; backdrop-filter: blur(20px);
+            background: var(--glass); 
+            border-bottom: 1px solid var(--glass-border); 
+            padding: 14px 18px; 
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
             display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6), inset 0 -1px 0 rgba(255,255,255,0.02);
         }
-        .identity-badge { display: flex; align-items: center; gap: 12px; cursor: pointer; transition: transform 0.2s; }
-        .identity-badge:active { transform: scale(0.95); }
+        .identity-badge { display: flex; align-items: center; gap: 14px; cursor: pointer; transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+        .identity-badge:active { transform: scale(0.96); }
         .rank-frame { 
-            width: 45px; height: 45px; border: 2px solid var(--neon-blue); border-radius: 12px;
-            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;
-            background: rgba(0, 243, 255, 0.05); color: var(--neon-blue); 
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+            width: 44px; height: 44px; 
+            border: 1px solid rgba(0, 243, 255, 0.4); 
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center; 
+            font-weight: 900; font-size: 18px; font-family: var(--font-mono);
+            background: linear-gradient(135deg, rgba(0, 243, 255, 0.1), transparent); 
+            color: var(--neon-blue); 
+            box-shadow: 0 0 14px rgba(0, 243, 255, 0.15);
+            text-shadow: 0 0 8px rgba(0, 243, 255, 0.5);
+            transition: all 0.3s;
         }
         .btn-refresh {
-            background: rgba(0,243,255,0.1); border: 1px solid var(--neon-blue); color: var(--neon-blue);
-            width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: 0.3s; box-shadow: 0 0 10px rgba(0,243,255,0.2);
+            background: rgba(0, 243, 255, 0.06); 
+            border: 1px solid rgba(0, 243, 255, 0.25); 
+            color: var(--neon-blue);
+            width: 38px; height: 38px; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.05);
         }
-        .btn-refresh:active { transform: rotate(180deg) scale(0.9); }
+        .btn-refresh:hover { background: rgba(0, 243, 255, 0.15); border-color: var(--neon-blue); box-shadow: 0 0 12px rgba(0, 243, 255, 0.2); }
+        .btn-refresh:active { transform: rotate(180deg) scale(0.88); }
 
         /* VIEWPORT CONTAINERS */
-        .viewport { position: absolute; top: 65px; bottom: 65px; width: 100%; overflow: hidden; }
+        .viewport { position: absolute; top: 72px; bottom: 65px; width: 100%; overflow: hidden; }
         .tab-pane { 
             position: absolute; inset: 0; 
-            opacity: 0; pointer-events: none; transform: translateY(15px); 
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0; pointer-events: none; transform: translateY(12px) scale(0.99); 
+            transition: opacity 0.35s cubic-bezier(0.215, 0.61, 0.355, 1), transform 0.35s cubic-bezier(0.215, 0.61, 0.355, 1);
             overflow-y: auto; overflow-x: hidden;
             padding-bottom: 30px;
         }
-        .tab-pane.active { opacity: 1; pointer-events: all; transform: translateY(0); }
+        .tab-pane.active { opacity: 1; pointer-events: all; transform: translateY(0) scale(1); }
 
         /* GLOBAL BUTTON STYLE PRESET */
         .btn-main {
-            background: linear-gradient(135deg, rgba(0,243,255,0.1), rgba(0,243,255,0.02));
-            border: 1px solid var(--neon-blue); color: var(--neon-blue);
+            background: linear-gradient(135deg, rgba(0,243,255,0.12), rgba(0,243,255,0.02));
+            border: 1px solid rgba(0, 243, 255, 0.3); color: var(--neon-blue);
             padding: 14px; border-radius: 12px; text-transform: uppercase; font-weight: 900;
-            letter-spacing: 1px; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; width: 100%; font-size: 13px;
+            letter-spacing: 1.5px; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; width: 100%; font-size: 13px;
+            text-shadow: 0 0 4px rgba(0, 243, 255, 0.3);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
         }
-        .btn-main:hover, .btn-main:active { background: var(--neon-blue); color: #000; box-shadow: 0 0 20px rgba(0,243,255,0.4); transform: translateY(-2px); }
+        .btn-main:hover, .btn-main:active { 
+            background: var(--neon-blue); color: #030306; 
+            box-shadow: 0 0 24px rgba(0, 243, 255, 0.45); 
+            border-color: var(--neon-blue);
+            transform: translateY(-1px);
+            text-shadow: none;
+        }
 
         /* GLOBAL FOOTER NAV */
-        #global-footer { position: absolute; bottom: 0; width: 100%; height: 65px; z-index: 3000; background: var(--glass); border-top: 1px solid var(--glass-border); backdrop-filter: blur(20px); }
+        #global-footer { 
+            position: absolute; bottom: 0; width: 100%; height: 65px; z-index: 3000; 
+            background: var(--glass); border-top: 1px solid var(--glass-border); 
+            backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+            box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
+        }
         .nav-grid { display: flex; height: 100%; }
-        .nav-item { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #666; cursor: pointer; transition: 0.3s; font-weight: 500; letter-spacing: 1px; }
-        .nav-item.active { color: var(--neon-blue); background: linear-gradient(0deg, rgba(0,243,255,0.05), transparent); }
-        .nav-item i { font-size: 20px; margin-bottom: 5px; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .nav-item.active i { transform: translateY(-3px) scale(1.1); text-shadow: 0 0 10px rgba(0,243,255,0.5); }
-        .nav-badge { position: absolute; top: 8px; right: 25%; background: var(--neon-red); color: #fff; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 10px; box-shadow: 0 0 10px var(--neon-red); display: none; }
-        .nav-badge.show { display: inline-block; animation: pulseBadge 1s infinite alternate; }
-        @keyframes pulseBadge { 0% { transform: scale(1); } 100% { transform: scale(1.2); } }
+        .nav-item { 
+            position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            font-size: 9px; color: var(--text-muted); cursor: pointer; 
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); font-weight: 700; letter-spacing: 0.8px; 
+        }
+        .nav-item.active { color: var(--neon-blue); background: linear-gradient(0deg, rgba(0, 243, 255, 0.04), transparent); }
+        .nav-item i { font-size: 19px; margin-bottom: 5px; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); color: inherit; }
+        .nav-item.active i { transform: translateY(-2px) scale(1.08); filter: drop-shadow(0 0 8px rgba(0, 243, 255, 0.6)); }
+        
+        /* Nav Item Active Indicator Line */
+        .nav-item::after {
+            content: ''; position: absolute; top: 0; left: 50%; width: 0; height: 2px;
+            background: var(--neon-blue); box-shadow: 0 0 8px var(--neon-blue);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); transform: translateX(-50%);
+        }
+        .nav-item.active::after { width: 40%; }
+
+        .nav-badge { 
+            position: absolute; top: 6px; right: 22%; background: var(--neon-red); color: #fff; 
+            font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 10px; 
+            box-shadow: 0 0 10px var(--neon-red); display: none; border: 1px solid rgba(255,255,255,0.2);
+        }
+        .nav-badge.show { display: inline-block; animation: pulseBadge 0.8s infinite alternate cubic-bezier(0.455, 0.03, 0.515, 0.955); }
+        @keyframes pulseBadge { 0% { transform: scale(1); filter: brightness(1); } 100% { transform: scale(1.15); filter: brightness(1.2); } }
 
         /* FLOATING CYBER-DEBUG HUB OVERLAY */
         #floating-debug-trigger {
             position: fixed; bottom: 80px; right: 20px; z-index: 9999;
-            width: 48px; height: 48px; border-radius: 50%;
-            background: rgba(5, 5, 8, 0.9); border: 2px dashed var(--neon-yellow); color: var(--neon-yellow);
-            display: flex; align-items: center; justify-content: center; font-size: 18px;
-            cursor: pointer; box-shadow: 0 0 15px rgba(255, 204, 0, 0.3); transition: all 0.3s;
+            width: 46px; height: 46px; border-radius: 50%;
+            background: rgba(10, 10, 15, 0.9); border: 1.5px dashed var(--neon-yellow); color: var(--neon-yellow);
+            display: flex; align-items: center; justify-content: center; font-size: 16px;
+            cursor: pointer; box-shadow: 0 0 14px rgba(255, 204, 0, 0.2); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        #floating-debug-trigger:active { transform: scale(0.9) rotate(90deg); }
+        #floating-debug-trigger:hover { background: rgba(255, 204, 0, 0.1); box-shadow: 0 0 20px rgba(255, 204, 0, 0.4); }
+        #floating-debug-trigger:active { transform: scale(0.9) rotate(45deg); }
         
         #cyber-debug-console-panel {
-            position: fixed; inset: 0; background: rgba(3, 3, 5, 0.95); backdrop-filter: blur(10px);
+            position: fixed; inset: 0; background: rgba(4, 4, 7, 0.96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             z-index: 10005; padding: 25px 20px; display: none; flex-direction: column;
             font-family: var(--font-mono); font-size: 11px; color: #a4b3c6;
         }
         #cyber-debug-console-panel.show { display: flex; }
-        .debug-row-container { flex: 1; overflow-y: auto; margin: 15px 0; background: #000; border: 1px solid #222; padding: 12px; border-radius: 6px; }
-        .debug-section-title { font-weight: 700; color: var(--neon-blue); margin-top: 10px; margin-bottom: 4px; border-bottom: 1px dashed #333; padding-bottom: 3px; }
-        .debug-kv-data { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #111; }
+        .debug-row-container { flex: 1; overflow-y: auto; margin: 18px 0; background: #020204; border: 1px solid rgba(255,255,255,0.04); padding: 14px; border-radius: 8px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.8); }
+        .debug-section-title { font-weight: 700; color: var(--neon-blue); margin-top: 12px; margin-bottom: 6px; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 4px; letter-spacing: 0.5px; }
+        .debug-kv-data { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.02); align-items: center; }
         .debug-kv-data span:first-child { color: var(--neon-yellow); }
-        .debug-kv-data span:last-child { color: #fff; word-break: break-all; text-align: right; max-width: 60%; }
+        .debug-kv-data span:last-child { color: #ffffff; word-break: break-all; text-align: right; max-width: 60%; font-size: 10px; background: rgba(255,255,255,0.02); padding: 2px 6px; border-radius: 4px; }
 
         /* MODALS LAYOUT GLOBAL */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); z-index: 10000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(2, 2, 4, 0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 10000; display: none; align-items: center; justify-content: center; padding: 20px; opacity: 0; transition: opacity 0.3s ease; }
         .modal-overlay.show { display: flex; opacity: 1; }
-        .modal-box { background: rgba(10, 10, 15, 0.98); width: 95%; max-width: 400px; max-height: 85vh; padding: 2rem 1.5rem; overflow-y: auto; position: relative; border: 1px solid var(--neon-blue); border-radius: 4px; display: flex; flex-direction: column; align-items: center; text-align: center; transform: scale(0.95); animation: modalSlideIn 0.3s forwards; }
-        .modal-box::before { content: ""; position: absolute; top: -2px; left: -2px; width: 20px; height: 20px; border-top: 2px solid var(--neon-blue); border-left: 2px solid var(--neon-blue); }
-        @keyframes modalSlideIn { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .modal-box.danger { border-color: #ff4444; box-shadow: 0 0 30px rgba(255, 68, 68, 0.1); }
-        .modal-box.danger::before { border-color: #ff4444; }
-        .modalTitle { width: 100%; margin: 0 0 1rem 0; padding-bottom: 10px; border-bottom: 1px solid #222; color: var(--neon-blue); font-size: 14px; letter-spacing: 3px; font-family: var(--font-mono); font-weight: 900; text-align: center; }
-        .modal-box.danger .modalTitle { color: #ff4444; }
-        .modalMsg { width: 100%; margin-bottom: 1.5rem; font-size: 13px; color: #bbb; line-height: 1.6; font-family: var(--font-mono); text-align: center; }
-        .modal-input { width: 100%; max-width: 100%; background: rgba(0,0,0,0.3); border: 1px solid #444; color: white; padding: 10px; margin-bottom: 1.5rem; text-align: center; }
-        .modal-btn-group { display: flex; gap: 10px; width: 100%; margin-top: 20px; }
-        .modal-btn-group .btn-main { flex: 1; padding: 12px; font-size: 12px; }
+        .modal-box { 
+            background: rgba(11, 11, 18, 0.98); width: 95%; max-width: 390px; max-height: 82vh; padding: 2.2rem 1.8rem; overflow-y: auto; 
+            position: relative; border: 1px solid rgba(0, 243, 255, 0.35); border-radius: 16px; 
+            display: flex; flex-direction: column; align-items: center; text-align: center; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 30px rgba(0, 243, 255, 0.1);
+            transform: scale(0.92); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); 
+        }
+        .modal-overlay.show .modal-box { transform: scale(1); }
+        
+        /* Modern Tech Corner Indicator Tech Lines */
+        .modal-box::before { content: ""; position: absolute; top: -1px; left: -1px; width: 16px; height: 16px; border-top: 2px solid var(--neon-blue); border-left: 2px solid var(--neon-blue); border-top-left-radius: 16px; }
+        .modal-box::after { content: ""; position: absolute; bottom: -1px; right: -1px; width: 16px; height: 16px; border-bottom: 2px solid var(--neon-blue); border-right: 2px solid var(--neon-blue); border-bottom-right-radius: 16px; }
+        
+        .modal-box.danger { border-color: rgba(255, 51, 102, 0.4); box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 30px rgba(255, 51, 102, 0.15); }
+        .modal-box.danger::before { border-color: var(--neon-red); }
+        .modal-box.danger::after { border-color: var(--neon-red); }
+        
+        .modalTitle { width: 100%; margin: 0 0 1.2rem 0; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06); color: var(--neon-blue); font-size: 13px; letter-spacing: 2.5px; font-family: var(--font-mono); font-weight: 900; text-align: center; }
+        .modal-box.danger .modalTitle { color: var(--neon-red); }
+        .modalMsg { width: 100%; margin-bottom: 1.8rem; font-size: 13px; color: #cbd5e1; line-height: 1.6; font-family: var(--font-sans); text-align: center; }
+        .modal-input { width: 100%; max-width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: white; padding: 12px; margin-bottom: 1.5rem; text-align: center; font-size: 14px; transition: border-color 0.3s; }
+        .modal-input:focus { border-color: var(--neon-blue); }
+        .modal-btn-group { display: flex; gap: 12px; width: 100%; margin-top: 10px; }
+        .modal-btn-group .btn-main { flex: 1; padding: 12px; font-size: 12px; border-radius: 10px; }
     </style>
 </head>
 <body>
@@ -189,9 +245,9 @@
     </div>
 
     <div id="cyber-debug-console-panel">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px dashed #ffcc00; padding-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px dashed #ffcc00; padding-bottom: 10px;">
             <span style="color:var(--neon-yellow); font-weight:900; letter-spacing:1px; font-size:13px;"><i class="fa-solid fa-terminal"></i> CORE MATRIX ANALYZER</span>
-            <button class="btn-main" style="width:auto; padding:6px 12px; font-size:11px; border-color:var(--neon-red); color:var(--neon-red);" onclick="window.toggleTacticalDebugConsole()">CLOSE</button>
+            <button class="btn-main" style="width:auto; padding:6px 14px; font-size:11px; border-color:var(--neon-red); color:var(--neon-red);" onclick="window.toggleTacticalDebugConsole()">CLOSE</button>
         </div>
         
         <div class="debug-row-container">
@@ -205,9 +261,9 @@
             <div id="db-firebase-instances-node">-- NO INSTANCES OPENED --</div>
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-            <button class="btn-main" style="border-color:var(--neon-purple); color:var(--neon-purple); padding:10px;" onclick="window.forceSwapRoleTesting()">SWAP PERAN (TEST)</button>
-            <button class="btn-main" style="border-color:var(--neon-red); color:var(--neon-red); padding:10px;" onclick="localStorage.clear(); sessionStorage.clear(); location.reload();">CLEAR ENGINE STORAGE</button>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <button class="btn-main" style="border-color:var(--neon-purple); color:var(--neon-purple); padding:11px;" onclick="window.forceSwapRoleTesting()">SWAP PERAN (TEST)</button>
+            <button class="btn-main" style="border-color:var(--neon-red); color:var(--neon-red); padding:11px;" onclick="localStorage.clear(); sessionStorage.clear(); location.reload();">CLEAR ENGINE STORAGE</button>
         </div>
     </div>
 
@@ -215,13 +271,13 @@
         <div class="identity-badge" onclick="window.switchTab('tab-profile')">
             <div id="u-rank" class="rank-frame cyber-skeleton">?</div>
             <div>
-                <div id="u-role" class="cyber-skeleton" style="font-size: 10px; color: #888; letter-spacing: 1.5px; text-transform: uppercase; width: 80px; height: 12px;">SINKRONISASI...</div>
-                <div id="u-name" class="cyber-skeleton" style="font-weight: 700; font-size: 16px; width: 120px; height: 18px; margin-top: 4px;">Memuat Data</div>
+                <div id="u-role" class="cyber-skeleton" style="font-size: 9px; color: #888; letter-spacing: 1.5px; text-transform: uppercase; width: 80px; height: 12px; border-radius:3px;">SINKRONISASI...</div>
+                <div id="u-name" class="cyber-skeleton" style="font-weight: 700; font-size: 15px; width: 120px; height: 18px; margin-top: 5px; border-radius:3px;">Memuat Data</div>
             </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 15px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
             <button class="btn-refresh" onclick="window.forceRefreshData()" title="Re-Fetch Shard Data"><i class="fa-solid fa-rotate"></i></button>
-            <img src="ai_irene_face.png" style="width:38px; height:38px; border-radius:50%; border:2px solid var(--neon-purple); box-shadow: 0 0 10px rgba(188,19,254,0.4);" alt="AI">
+            <img src="ai_irene_face.png" style="width:38px; height:38px; border-radius:50%; border:2px solid var(--neon-purple); box-shadow: 0 0 12px rgba(188,19,254,0.35); object-fit: cover;" alt="AI">
         </div>
     </header>
 
