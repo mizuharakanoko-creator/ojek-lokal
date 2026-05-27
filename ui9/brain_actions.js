@@ -1,44 +1,25 @@
 // ==========================================================================
-// CORE OPERATIONAL & ACTION PROTOCOLS - BRAIN ACTIONS
+// CORE OPERATIONAL & SESSION ENGINE - BRAIN ACTIONS (PART 1)
 // ==========================================================================
 (function (window) {
     'use strict';
 
-    // State Internal Misi & Simulasi
-    let currentActiveQuest = null;
-    let currentContractId = null;
-    let currentShardId = null;
-    let emergencyCountdownInterval = null;
+    // State Internal Akun & Simulasi Mini-Game
     let idleGameTimer = null;
+    let accumulatedDataPoints = 0;
+    let dataYieldPerSecond = 2;
+    let isIdleEngineRunning = false;
 
-    // Cache DOM Elements (HQ, Bill, Profile, Settings)
-    let hqBubble = null, hqStatus = null, hqCash = null, hqLevel = null, hqCompleted = null;
-    let hqBoard = null, hqEmptyState = null, hqQuestTitle = null, hqQuestSubtype = null;
-    let hqQuestId = null, hqQuestReward = null, hqQuestDistance = null, hqBtnAction = null;
+    // Cache DOM Elements (Billing, Profile, Settings)
     let blGross = null, blPlayer = null, blGuild = null, blTotalNet = null;
     let prName = null, prLvl = null, prTitle = null, prExpText = null, prExpBar = null;
     let prWinrate = null, prSpeed = null, prIntegrity = null;
     let stGameState = null, stGameYield = null, stGamePool = null, stGameBtnToggle = null, stGameBtnClaim = null;
 
     /**
-     * Memetakan seluruh hook elemen DOM dari berbagai komponen tab
+     * Memetakan seluruh hook elemen DOM dari modul non-HQ
      */
-    function cacheAllActionDOM() {
-        // HQ Tab Hooks
-        hqBubble = document.getElementById('hq-ai-bubble-text');
-        hqStatus = document.getElementById('hq-status-text');
-        hqCash = document.getElementById('hq-cash-text');
-        hqLevel = document.getElementById('hq-level-text');
-        hqCompleted = document.getElementById('hq-completed-text');
-        hqBoard = document.getElementById('hq-active-quest-board');
-        hqEmptyState = document.getElementById('hq-empty-quest-state');
-        hqQuestTitle = document.getElementById('hq-quest-title');
-        hqQuestSubtype = document.getElementById('hq-quest-subtype');
-        hqQuestId = document.getElementById('hq-quest-id');
-        hqQuestReward = document.getElementById('hq-quest-reward');
-        hqQuestDistance = document.getElementById('hq-quest-distance');
-        hqBtnAction = document.getElementById('hq-btn-action-trigger');
-
+    function cacheCoreDOM() {
         // Billing Tab Hooks
         blTotalNet = document.getElementById('bl-total-revenue');
         blPlayer = document.getElementById('bl-fee-player');
@@ -68,16 +49,19 @@
      * @param {Object} operatorData - Sumber data dari Supreme Aggregator / Shard Profile
      */
     window.syncOperatorSessionProfile = function (operatorData) {
-        cacheAllActionDOM();
+        cacheCoreDOM();
         if (!operatorData) return;
 
         window.CurrentOperatorProfile = operatorData.profile || operatorData;
         const prof = window.CurrentOperatorProfile;
 
-        // Injeksi Teks Informasi Identitas Utama (Profile & HQ)
+        // Injeksi Teks Informasi Identitas Utama
         if (prName) prName.innerText = prof.nickname || "UNKNOWN_RUNNER";
-        if (hqLevel) hqLevel.innerText = `LV. ${prof.level || '01'}`;
         if (prLvl) prLvl.innerText = `LV ${prof.level || '01'}`;
+        
+        // Teruskan data level ke hq static level jika terpasang
+        const hqLevel = document.getElementById('hq-level-text');
+        if (hqLevel) hqLevel.innerText = `LV. ${prof.level || '01'}`;
         
         // Klasifikasi Gelar / Title RPG Dinamis Berdasarkan Tingkat Level
         let titleRank = "UNBOUND OPERATOR";
@@ -101,300 +85,40 @@
 
         // Memuat Nilai Finansial Dompet Shard Cash
         const currentWalletCash = prof.shard_cash || 0;
-        if (hqCash) hqCash.innerText = formatRupiahCurrency(currentWalletCash);
+        const hqCash = document.getElementById('hq-cash-text');
+        if (hqCash) hqCash.innerText = window.formatRupiahCurrency(currentWalletCash);
         
         // Sinkronisasi Sisi Modul Billing Node Rincian Bagi Hasil Murni
         calculateFinancialBreakdown(currentWalletCash);
 
-        updateAIBubbleSpeech("Koneksi Shard terenkripsi berhasil disinkronisasikan. Status operasi aman.", "info");
+        // Kirim log ke HQ jika modul terpasang
+        if (window.updateAIBubbleSpeech) {
+            window.updateAIBubbleSpeech("Koneksi Shard terenkripsi berhasil disinkronisasikan. Status operasi aman.", "info");
+        }
     };
 
     /**
      * Memproses Perhitungan Bagi Hasil Keuangan secara Akurat (80% Player / 20% Guild Tax)
      */
     function calculateFinancialBreakdown(totalNet) {
-        if (!blTotalNet) cacheAllActionDOM();
+        if (!blTotalNet) cacheCoreDOM();
         
         const grossAmount = Math.round(totalNet / 0.8);
         const guildTax = grossAmount - totalNet;
 
-        if (blTotalNet) blTotalNet.innerText = formatRupiahCurrency(totalNet);
-        if (blPlayer) blPlayer.innerText = formatRupiahCurrency(totalNet);
-        if (blGuild) blGuild.innerText = formatRupiahCurrency(guildTax);
-        if (blGross) blGross.innerText = formatRupiahCurrency(grossAmount);
-    }
-
-    /**
-     * Listener Real-time Mengunci Aliran Kontrak Aktif dari Firebase Board (FB4_BOARD)
-     * @param {string} contractId - ID Misi yang diambil oleh Driver/Adventurer
-     */
-    window.trackActiveOperationalQuest = function (contractId) {
-        if (!contractId) {
-            resetQuestDashboardToEmptyState();
-            return;
-        }
-        currentContractId = contractId;
-        cacheAllActionDOM();
-
-        const boardDB = window.getTerminal ? window.getTerminal('FB4_BOARD') : null;
-        if (!boardDB) return;
-
-        boardDB.ref(`kontrak_mission/${contractId}`).on('value', (snapshot) => {
-            const quest = snapshot.val();
-            if (!quest) {
-                resetQuestDashboardToEmptyState();
-                return;
-            }
-            currentActiveQuest = quest;
-            renderTacticalQuestBoardUI(quest);
-        });
-    };
-
-    /**
-     * Menyuntikkan Data Misi Aktif ke Lapisan UI HQ Board
-     */
-    function renderTacticalQuestBoardUI(quest) {
-        if (!hqBoard) cacheAllActionDOM();
-
-        // Alihkan kontainer tampilan state kosong ke state aktif
-        if (hqEmptyState) hqEmptyState.classList.add('hide');
-        if (hqBoard) hqBoard.classList.remove('hide');
-
-        if (hqQuestTitle) hqQuestTitle.innerText = quest.title || "MISI TANPA NAMA";
-        if (hqQuestSubtype) hqQuestSubtype.innerText = `SUB-TIER: ${quest.subtype || 'REGULER'}`;
-        if (hqQuestId) hqQuestId.innerText = currentContractId.substring(0, 8).toUpperCase();
-        if (hqQuestReward) hqQuestReward.innerText = formatRupiahCurrency(quest.reward || 0);
-
-        // Atur Status Operasi Global pada Teks Utama HQ
-        if (hqStatus) {
-            hqStatus.innerText = (quest.status || "STANDBY").toUpperCase();
-            hqStatus.style.color = quest.status === 'otw' ? 'var(--neon-blue)' : 
-                                   quest.status === 'kerja' ? 'var(--neon-purple)' : 'var(--neon-green)';
-        }
-
-        // Modifikasi teks tombol pemicu aksi utama secara kondisional (Siklus Alur Misi)
-        if (hqBtnAction) {
-            if (quest.status === 'accepted') {
-                hqBtnAction.innerText = "PROSES PROTOKOL (OTW)";
-                hqBtnAction.className = "btn-main";
-                hqBtnAction.style.borderColor = "var(--neon-blue)";
-                hqBtnAction.style.color = "var(--neon-blue)";
-            } else if (quest.status === 'otw') {
-                hqBtnAction.innerText = "MULAI EKSEKUSI (KERJA)";
-                hqBtnAction.className = "btn-main";
-                hqBtnAction.style.borderColor = "var(--neon-purple)";
-                hqBtnAction.style.color = "var(--neon-purple)";
-            } else if (quest.status === 'kerja') {
-                hqBtnAction.innerText = "MISI SELESAI (SUBMIT)";
-                hqBtnAction.className = "btn-main";
-                hqBtnAction.style.borderColor = "var(--neon-green)";
-                hqBtnAction.style.color = "var(--neon-green)";
-            }
-        }
-
-        // Plot Titik Lokasi Koordinat ke Peta Taktis Leaflet secara Otomatis
-        if (quest.target_lat && quest.target_lng && window.lockTacticalTargetRoute) {
-            window.lockTacticalTargetRoute(quest.target_lat, quest.target_lng, quest.title);
-        }
-
-        // Pemicu Protokol Pengaman Tombol Selesai Paksa (AFK Slider) jika status masuk fase "kerja"
-        if (quest.status === 'kerja') {
-            initiateEmergencyCountdownProtocol();
-        } else {
-            window.shutdownEmergencySliderUI();
-        }
-    }
-
-    /**
-     * Handler Pemicu Klik Tombol Utama Siklus Misi (HQ Action Trigger)
-     */
-    window.handleHqMainAction = async function () {
-        if (!currentActiveQuest || !currentContractId) return;
-        
-        const boardDB = window.getTerminal('FB4_BOARD');
-        const currentStatus = currentActiveQuest.status;
-        let nextStatus = "";
-        let confirmLabel = "";
-
-        if (currentStatus === 'accepted') {
-            nextStatus = "otw";
-            confirmLabel = "Aktifkan Protokol Perjalanan (OTW) menuju target koordinat?";
-        } else if (currentStatus === 'otw') {
-            nextStatus = "kerja";
-            confirmLabel = "Konfirmasi bahwa Anda telah tiba di lokasi dan mulai eksekusi misi?";
-        } else if (currentStatus === 'kerja') {
-            nextStatus = "done";
-            confirmLabel = "Nyatakan seluruh parameter misi selesai dan kirimkan laporan ke Guild?";
-        }
-
-        if (!nextStatus) return;
-
-        if (window.sysConfirm) {
-            const setuju = await window.sysConfirm("TRANSMISI SISTEM", confirmLabel, true);
-            if (!setuju) return;
-        }
-
-        // Mainkan getaran konfirmasi
-        if (window.vibratePulse) window.vibratePulse();
-
-        // Update status baru ke Firebase Board Shard Core
-        boardDB.ref(`kontrak_mission/${currentContractId}/status`).set(nextStatus)
-            .then(() => {
-                updateAIBubbleSpeech(`Status transmisi misi berhasil diperbarui ke kode: [${nextStatus.toUpperCase()}].`, "success");
-                
-                // Jika misi selesai total (done), arahkan ke form evaluasi umpan balik
-                if (nextStatus === 'done' && window.openEvalReq) {
-                    window.openEvalReq();
-                }
-            })
-            .catch(err => console.error("[HQ ACTION ERROR]", err));
-    };
-
-    /**
-     * Menghitung Jarak Koordinat GPS secara Live dari Pembaruan Peta Taktis
-     */
-    window.recalculateLiveDistance = function (lat1, lng1, lat2, lng2) {
-        if (!hqQuestDistance) cacheAllActionDOM();
-        if (!hqQuestDistance) return;
-
-        // Rumus Matematika Haversine mengukur presisi jarak lengkung bumi
-        const R = 6371; // Jari-jari bumi dalam satuan Kilometer
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLng = (lng2 - lng1) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distanceKm = R * c;
-
-        hqQuestDistance.innerText = `${distanceKm.toFixed(2)} KM`;
-    };
-
-    /**
-     * Memulai Prosedur Hitung Mundur Pengaktifan Slider Selesai Darurat (AFK Slider)
-     */
-    function initiateEmergencyCountdownProtocol() {
-        const emZone = document.getElementById('mp-emergency-afk-zone');
-        const emTimer = document.getElementById('mp-emergency-timer-msg');
-        const sliderCont = document.getElementById('mp-slider-container-em');
-        const emSlider = document.getElementById('em-slider');
-
-        if (!emZone || !emTimer) return;
-        
-        clearInterval(emergencyCountdownInterval);
-        emZone.classList.remove('hide');
-        emTimer.style.display = 'block';
-        if (sliderCont) sliderCont.style.display = 'none';
-
-        let sisaDetik = 10; // Hitung mundur 10 detik pengaman
-
-        emergencyCountdownInterval = setInterval(() => {
-            sisaDetik--;
-            if (sisaDetik > 0) {
-                emTimer.innerText = `TOMBOL SELESAI DARURAT AKAN MUNCUL DALAM ${sisaDetik}S... GUNAKAN INI APABILA PEMESAN AFK TANPA MENGKONFIRMASI SELESAI`;
-            } else {
-                clearInterval(emergencyCountdownInterval);
-                emTimer.style.display = 'none';
-                if (sliderCont) sliderCont.style.display = 'block';
-                if (emSlider) {
-                    emSlider.value = 0;
-                    emSlider.oninput = function () {
-                        if (this.value >= 95) {
-                            this.value = 100;
-                            triggerEmergencyActionExecution();
-                        }
-                    };
-                }
-                updateAIBubbleSpeech("Protokol Selesai Paksa (AFK Emergency) diaktifkan pada tab navigasi.", "alert");
-            }
-        }, 1000);
-    }
-
-    /**
-     * Eksekusi Selesai Paksa Akibat Klien Menghilang / AFK di Lapangan
-     */
-    async function triggerEmergencyActionExecution() {
-        if (window.vibratePulse) window.vibratePulse();
-        
-        if (window.sysConfirm) {
-            const valid = await window.sysConfirm("CRITICAL PROTOCOL", "AKTIFKAN FINISH PAKSA SELESAI DARURAT?\n\nGunakan hanya jika pemesan terbukti kabur/AFK. Pelanggaran palsu dapat menurunkan Trust Score.", true);
-            if (valid) {
-                // Alihkan paksa status ke done di board database
-                const boardDB = window.getTerminal('FB4_BOARD');
-                if (boardDB && currentContractId) {
-                    boardDB.ref(`kontrak_mission/${currentContractId}/status`).set('done');
-                }
-                if (window.openEvalReq) window.openEvalReq();
-            } else {
-                const emSlider = document.getElementById('em-slider');
-                if (emSlider) emSlider.value = 0;
-            }
-        }
-    }
-
-    /**
-     * Menyembunyikan dan Mereset Total Panel Slider Darurat
-     */
-    window.shutdownEmergencySliderUI = function () {
-        clearInterval(emergencyCountdownInterval);
-        const emZone = document.getElementById('mp-emergency-afk-zone');
-        if (emZone) emZone.classList.add('hide');
-    };
-
-    /**
-     * Mereset Seluruh Komponen HQ ke Tampilan Default (Kondisi Kosong / Siaga)
-     */
-    function resetQuestDashboardToEmptyState() {
-        if (!hqBoard) cacheAllActionDOM();
-        if (hqBoard) hqBoard.classList.add('hide');
-        if (hqEmptyState) hqEmptyState.classList.remove('hide');
-        if (hqStatus) {
-            hqStatus.innerText = "STANDBY";
-            hqStatus.style.color = "var(--neon-green)";
-        }
-        window.shutdownEmergencySliderUI();
-        if (window.clearTacticalTargetRoute) window.clearTacticalTargetRoute();
-        currentActiveQuest = null;
-    }
-
-    /**
-     * Update Teks Balon Ucapan Obrolan Asisten AI Irene Hub
-     */
-    function updateAIBubbleSpeech(text, mode) {
-        if (!hqBubble) cacheAllActionDOM();
-        if (!hqBubble) return;
-
-        hqBubble.innerText = text;
-        
-        // Pemicu log baris baru ke dalam terminal live feed hq
-        const logger = document.getElementById('hq-terminal-logger');
-        if (logger) {
-            const timeStr = new Date().toLocaleTimeString();
-            const tagStr = mode ? mode.toUpperCase() : "INTEL";
-            let colorClass = mode === 'success' ? 'success' : '';
-            
-            logger.innerHTML += `
-                <div class="hq-log-row">
-                    <span class="hq-log-time">[${timeStr}]</span>
-                    <span class="hq-log-tag">[${tagStr}]</span>
-                    <span class="hq-log-text ${colorClass}">${text}</span>
-                </div>`;
-            logger.scrollTop = logger.scrollHeight;
-        }
+        if (blTotalNet) blTotalNet.innerText = window.formatRupiahCurrency(totalNet);
+        if (blPlayer) blPlayer.innerText = window.formatRupiahCurrency(totalNet);
+        if (blGuild) blGuild.innerText = window.formatRupiahCurrency(guildTax);
+        if (blGross) blGross.innerText = window.formatRupiahCurrency(grossAmount);
     }
 
     // ==========================================================================
     // SUBSYSTEM INTERAKTIF: IDLE TRAINING SIMULATOR MINI-GAME
     // ==========================================================================
-    let accumulatedDataPoints = 0;
-    let dataYieldPerSecond = 2;
-    let isIdleEngineRunning = false;
-
     window.handleToggleIdleGameEngine = function () {
-        if (!stGameState) cacheAllActionDOM();
+        if (!stGameState) cacheCoreDOM();
 
         if (!isIdleEngineRunning) {
-            // Jalankan Mesin Komputasi Simulator
             isIdleEngineRunning = true;
             if (stGameState) {
                 stGameState.innerText = "RUNNING";
@@ -404,13 +128,11 @@
             if (stGameBtnToggle) stGameBtnToggle.innerText = "SHUTDOWN SIMULATOR CORE";
             if (stGameBtnClaim) stGameBtnClaim.style.display = "block";
 
-            // Loop Interval Komputasi Menggunakan Skema Akumulasi Delta Sekon
             idleGameTimer = setInterval(() => {
                 accumulatedDataPoints += dataYieldPerSecond;
                 if (stGamePool) stGamePool.innerText = `${accumulatedDataPoints} DATA`;
             }, 1000);
         } else {
-            // Matikan Mesin Simulator
             clearInterval(idleGameTimer);
             isIdleEngineRunning = false;
             if (stGameState) {
@@ -449,14 +171,14 @@
     /**
      * Konverter Angka Numerik Standar Menjadi String Rupiah Terformat (Rp xx.xxx)
      */
-    function formatRupiahCurrency(angka) {
+    window.formatRupiahCurrency = function (angka) {
         return 'Rp ' + Number(angka).toLocaleString('id-ID', { minimumFractionDigits: 0 });
-    }
-
-    // Eksekusi Pemetaan DOM saat file script selesai di-load penuh oleh core
-    window.initActionsHQ = function () {
-        cacheAllActionDOM();
-        console.log("[BRAIN ACTIONS] Seluruh alur fungsionalitas core taktis terikat sempurna.");
     };
+
+    // Auto Init Core DOM saat script termuat
+    document.addEventListener("DOMContentLoaded", () => {
+        cacheCoreDOM();
+        console.log("[CORE BRAIN] Operational core session engine ready.");
+    });
 
 })(window);
