@@ -406,6 +406,9 @@
                         // Fallback jika tidak ada data kontrak tertambat
                         fallbackLocalProfileFetch(operatorNick, userRole);
                     }
+                }).catch(err => {
+                    console.error("[REFRESH PACKET ERROR]", err);
+                    fallbackLocalProfileFetch(operatorNick, userRole);
                 });
             } else {
                 fallbackLocalProfileFetch(operatorNick, userRole);
@@ -436,14 +439,13 @@
             const roleBox = document.getElementById('u-role');
             const nameBox = document.getElementById('u-name');
 
-            rBox.className = "rank-frame";
-            roleBox.className = "";
-            nameBox.className = "";
-
-            rBox.innerText = String(prof.nickname || 'X').charAt(0).toUpperCase();
-            roleBox.innerText = role === 'adventurer' ? "🛡️ PETUALANG" : "🔮 PEMESAN (REQ)";
-            roleBox.style.color = role === 'adventurer' ? 'var(--neon-blue)' : 'var(--neon-purple)';
-            nameBox.innerText = prof.nickname || "GUEST_USER";
+            if (rBox) { rBox.className = "rank-frame"; rBox.innerText = String(prof.nickname || 'X').charAt(0).toUpperCase(); }
+            if (roleBox) {
+                roleBox.className = "";
+                roleBox.innerText = role === 'adventurer' ? "🛡️ PETUALANG" : "🔮 PEMESAN (REQ)";
+                roleBox.style.color = role === 'adventurer' ? 'var(--neon-blue)' : 'var(--neon-purple)';
+            }
+            if (nameBox) { roleBox.className = ""; nameBox.innerText = prof.nickname || "GUEST_USER"; }
         }
 
         /**
@@ -491,12 +493,14 @@
             localStorage.setItem('role', targetRole);
             console.log(`[DEBUG SWAP] Peran diputar paksa menjadi: ${targetRole}`);
             window.toggleTacticalDebugConsole();
-            window.forceRefreshData();
             
-            // Pemicu porsi update tampilan HQ internal menyesuaikan peran baru
-            if(window.trackActiveOperationalQuest) {
-                window.trackActiveOperationalQuest(localStorage.getItem('active_contract_id'));
-            }
+            // Eksekusi urutan pemuatan sinkronisasi ulang peran baru secara sekuensial
+            window.forceRefreshData();
+            setTimeout(() => {
+                if(window.trackActiveOperationalQuest) {
+                    window.trackActiveOperationalQuest(localStorage.getItem('active_contract_id'));
+                }
+            }, 100);
         };
 
         // Execution Gate: Paralel Asinkronus Loading Tab Setelah DOM Siap Seutuhnya
@@ -515,14 +519,18 @@
                 ]).then(() => {
                     console.log("[CORE COMPONENT GRID] Seluruh pecahan terminal shard terpasang.");
                     
-                    // Jalankan jembatan streaming pelacakan Firebase jika ID kontrak tersimpan murni
-                    if(activeContractId && window.trackActiveOperationalQuest) {
-                        window.trackActiveOperationalQuest(activeContractId);
-                        if(window.establishSecureCommsLink) window.establishSecureCommsLink(activeContractId);
-                    }
-                    
-                    // Ambil muatan session
+                    // PERBAIKAN URUTAN TIMING UTAMA (SEKUENSIAL): 
+                    // 1. Jalankan forceRefreshData untuk memproses profil & layout bodi dasar terlebih dahulu
                     window.forceRefreshData();
+                    
+                    // 2. Beri jeda 150ms agar pembersihan profile session selesai seutuhnya sebelum stream data taktis dibuka
+                    setTimeout(() => {
+                        if(activeContractId && window.trackActiveOperationalQuest) {
+                            console.log("[CORE ENGINE] Membuka jembatan satelit taktis Firebase Board...");
+                            window.trackActiveOperationalQuest(activeContractId);
+                            if(window.establishSecureCommsLink) window.establishSecureCommsLink(activeContractId);
+                        }
+                    }, 150);
                 });
             }, 150);
         });
