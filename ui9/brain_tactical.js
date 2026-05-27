@@ -1,5 +1,5 @@
 // ==========================================================================
-// CYBER-TACTICAL MAP HUD ENGINE - BRAIN TACTICAL
+// CYBER-TACTICAL MAP HUD ENGINE - BRAIN TACTICAL (REVISED)
 // ==========================================================================
 (function (window) {
     'use strict';
@@ -24,7 +24,7 @@
     let domRouteEta = null;
 
     /**
-     * Memetakan elemen DOM HUD peta taktis
+     * Memetakan elemen DOM HUD peta taktis secara aman
      */
     function cacheTacticalDOM() {
         domGpsCoords = document.getElementById('mp-gps-coords');
@@ -43,25 +43,49 @@
         cacheTacticalDOM();
         console.log("[TACTICAL] Mengaktifkan Grid Peta Satelit...");
 
-        // Bangun instansiasi peta pada div id="map"
-        mapInstance = L.map('map', {
-            center: [currentLat, currentLng],
-            zoom: 15,
-            zoomControl: false, // Sembunyikan kontrol bawaan agar UI bersih
-            attributionControl: false
-        });
+        // SAFETY CHECK: Pastikan div id="map" ada di dalam tab-maps, jika tidak ada, buat secara otomatis
+        let mapContainer = document.getElementById('map');
+        if (!mapContainer) {
+            const tabMaps = document.getElementById('tab-maps');
+            if (tabMaps) {
+                // Buat pembungkus peta jika tab_maps.html kosong atau lupa menyediakannya
+                mapContainer = document.createElement('div');
+                mapContainer.id = 'map';
+                mapContainer.style.width = '100%';
+                mapContainer.style.height = '100%';
+                mapContainer.style.position = 'absolute';
+                mapContainer.style.inset = '0';
+                mapContainer.style.zIndex = '1';
+                tabMaps.appendChild(mapContainer);
+            } else {
+                console.error("[TACTICAL ERROR] Target viewport #tab-maps tidak ditemukan di DOM mendasar.");
+                return;
+            }
+        }
 
-        // Menyuntikkan ubin peta gaya gelap (CartoDB Dark Matter)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 20,
-            minZoom: 3
-        }).addTo(mapInstance);
+        try {
+            // Bangun instansiasi peta pada div id="map"
+            mapInstance = L.map('map', {
+                center: [currentLat, currentLng],
+                zoom: 15,
+                zoomControl: false, // Sembunyikan kontrol bawaan agar UI bersih
+                attributionControl: false
+            });
 
-        // Daftarkan peta ke global window agar index.html bisa memicu invalidateSize()
-        window.tacticalMap = mapInstance;
+            // Menyuntikkan ubin peta gaya gelap (CartoDB Dark Matter)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 20,
+                minZoom: 3
+            }).addTo(mapInstance);
 
-        // Aktifkan Pelacakan Sensor GPS Geolokasi Perangkat
-        startLiveGpsTracking();
+            // Daftarkan peta ke global window agar index.html bisa memicu invalidateSize()
+            window.tacticalMap = mapInstance;
+
+            // Aktifkan Pelacakan Sensor GPS Geolokasi Perangkat
+            startLiveGpsTracking();
+        } catch (err) {
+            console.error("[TACTICAL CRITICAL INFRASTRUCTURE ERROR]", err);
+        }
     };
 
     /**
@@ -94,6 +118,8 @@
             },
             (error) => {
                 console.error("[GPS TRACKING ERROR]", error);
+                // Fallback: Tetap tampilkan marker meskipun GPS gagal mendapat akurasi tinggi
+                updateOperatorMarkerOnMap();
             },
             gpsOptions
         );
@@ -134,7 +160,7 @@
      * Memperbarui Data Telemetri Teks pada HUD Atas Peta
      */
     function updateOperatorTelemetryHUD() {
-        if (!domGpsCoords) cacheTacticalDOM();
+        cacheTacticalDOM();
 
         if (domGpsCoords) {
             domGpsCoords.innerText = `${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`;
@@ -162,12 +188,10 @@
 
     /**
      * Plot Lokasi Target Misi / Quest dan Gambar Jalur Polylines
-     * @param {number} tLat - Latitude Target
-     * @param {number} tLng - Longitude Target
-     * @param {string} targetName - Nama Lokasi / Judul Quest
      */
     window.lockTacticalTargetRoute = function (tLat, tLng, targetName) {
         if (!mapInstance) window.initTacticalMap();
+        if (!mapInstance) return; // Batalkan jika inisialisasi gagal
 
         // Bersihkan objek target lama jika ada
         window.clearTacticalTargetRoute();
@@ -198,7 +222,7 @@
             color: 'var(--neon-green)',
             weight: 3,
             opacity: 0.8,
-            dashArray: '8, 8', // Bergaris putus-putus gaya sirkuit militer digital
+            dashArray: '8, 8',
             lineCap: 'round'
         }).addTo(mapInstance);
 
@@ -210,13 +234,13 @@
         mapInstance.fitBounds(bounds, { padding: [50, 50] });
 
         // Tampilkan Floating HUD Rute Info
-        if (!domRouteBox) cacheTacticalDOM();
+        cacheTacticalDOM();
         if (domRouteBox) domRouteBox.classList.remove('hide');
         if (domRouteStatus) domRouteStatus.innerText = `Mengunci koordinat: ${targetName}`;
         
         // Hitung estimasi waktu kasar berdasarkan jarak (Kecepatan rata-rata motor 40 km/jam)
         const jarakKm = mapInstance.distance([currentLat, currentLng], [tLat, tLng]) / 1000;
-        const estimasiMenit = Math.ceil((jarakKm / 40) * 60) + 2; // Ditambah buffer 2 menit lampu merah
+        const estimasiMenit = Math.ceil((jarakKm / 40) * 60) + 2;
         if (domRouteEta) domRouteEta.innerText = `${estimasiMenit} MIN`;
     };
 
@@ -232,7 +256,7 @@
             mapInstance.removeLayer(routingPolyline);
             routingPolyline = null;
         }
-        if (!domRouteBox) cacheTacticalDOM();
+        cacheTacticalDOM();
         if (domRouteBox) domRouteBox.classList.add('hide');
     };
 
