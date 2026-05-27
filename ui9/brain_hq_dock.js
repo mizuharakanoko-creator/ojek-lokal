@@ -66,7 +66,8 @@
      * Menyuntikkan Data Kontrak Misi ke Layar Informasi HQ Tab
      */
     function renderTacticalQuestBoardUI(quest) {
-        if (!hqBoard) cacheHqMonitorDOM();
+        // PERBAIKAN SEKTOR TIMING: Paksa sistem memetakan ulang DOM yang diinjeksi index.html secara absolut
+        cacheHqMonitorDOM();
 
         if (hqEmptyState) hqEmptyState.classList.add('hide');
         if (hqBoard) hqBoard.classList.remove('hide');
@@ -76,7 +77,7 @@
         if (hqQuestId) hqQuestId.innerText = currentContractId.substring(0, 8).toUpperCase();
         if (hqQuestReward) hqQuestReward.innerText = window.formatRupiahCurrency ? window.formatRupiahCurrency(quest.reward || 0) : `Rp ${quest.reward}`;
 
-        // Sinkronisasi Manifes Deskripsi Rute Asal vs Tujuan
+        // Sinkronisasi Manifes Deskripsi Rute Asal vs Tujuan (Sektor Perbaikan Penulisan Teks Alamat)
         if (hqOrigName) hqOrigName.innerText = quest.pickup_location_name || "Kordinat Awal Titik Asal";
         if (hqOrigDesc) hqOrigDesc.innerText = quest.pickup_description || "Tidak ada catatan instruksi tambahan dari pemesan.";
         if (hqDestName) hqDestName.innerText = quest.destination_location_name || "Kordinat Target Operasi";
@@ -373,7 +374,7 @@
      * Mereset Seluruh Komponen HQ ke Tampilan Default (Siaga)
      */
     function resetQuestDashboardToEmptyState() {
-        if (!hqBoard) cacheHqMonitorDOM();
+        cacheHqMonitorDOM();
         if (hqBoard) hqBoard.classList.add('hide');
         if (hqEmptyState) hqEmptyState.classList.remove('hide');
         if (hqStatus) {
