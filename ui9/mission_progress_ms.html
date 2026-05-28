@@ -13,6 +13,15 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     
     <script src="terminal_router.js"></script>
+    
+    <script>
+        window.CoreState = window.CoreState || {
+            currentMissionId: null,
+            driverData: null,
+            activeMission: null
+        };
+    </script>
+
     <script src="core_gateway.js" defer></script>
     <script src="core_hq_viewer.js" defer></script>
     <script src="core_settlement.js" defer></script>
@@ -42,9 +51,10 @@
             max-width: 500px;
             margin: 0 auto;
             box-sizing: border-box;
+            padding-bottom: 80px; /* Jarak aman agar tidak tertutup tombol debug */
         }
 
-        /* Desain Slider Mekanis Utama Sesuai Gambar 1 */
+        /* Desain Slider Mekanis Utama Sesuai Gambar Berkas Anda */
         .slider-wrapper {
             position: relative;
             width: 100%;
@@ -110,6 +120,50 @@
             color: var(--neon-purple);
             text-shadow: 0 0 10px rgba(188, 19, 254, 0.5);
         }
+
+        /* STYLING CORES DEBUG OVERLAY INTERFACE */
+        .debug-fab {
+            position: fixed;
+            bottom: 15px;
+            right: 15px;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: #111;
+            border: 1px solid var(--neon-orange);
+            color: var(--neon-orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 85, 0, 0.3);
+            z-index: 9999;
+        }
+        .debug-console {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 5, 8, 0.96);
+            z-index: 9998;
+            display: none;
+            flex-direction: column;
+            box-sizing: border-box;
+            padding: 20px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .debug-console.show { display: flex; }
+        .debug-section {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid #222;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 11px;
+            color: #00ff88;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
@@ -127,13 +181,13 @@
                     <div id="u-name" style="font-weight: 700; font-size: 15px; color: #fff;">Connecting Shard...</div>
                 </div>
             </div>
-            <button onclick="forceRefreshGateway()" style="background:none; border:1px solid #222; color:#555; padding:8px 12px; border-radius:6px; cursor:pointer;">
+            <button onclick="if(typeof forceRefreshGateway === 'function') { forceRefreshGateway(); } else { location.reload(); }" style="background:none; border:1px solid #222; color:#555; padding:8px 12px; border-radius:6px; cursor:pointer;">
                 <i class="fa-solid fa-sync-alt"></i>
             </button>
         </header>
 
         <div class="panel status-panel" style="padding: 10px 15px; margin-bottom: 15px; border-radius: 10px; display: flex; align-items: center; gap: 10px; font-size: 12px; background: var(--b-panel); border: 1px solid rgba(255,255,255,0.03);">
-            <div class="status-dot" id="status-indicator" style="width: 8px; height: 8px; border-radius: 50%; background: var(--neon-orange); cubic-bezier(0.4, 0, 0.2, 1);"></div>
+            <div class="status-dot" id="status-indicator" style="width: 8px; height: 8px; border-radius: 50%; background: var(--neon-orange);"></div>
             <div id="live-status-text" style="font-family: 'JetBrains Mono', monospace; flex-grow: 1; color: #aaa;">[SYS] COMPILING MATRIX...</div>
             <div id="live-status-time" style="font-family: 'JetBrains Mono', monospace; color: var(--neon-orange); font-weight: bold;">00:00:00</div>
         </div>
@@ -201,7 +255,7 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0;">
                 <span style="font-size: 11px; color: #aaa; font-family: 'JetBrains Mono', monospace;">RATING PEMESAN</span>
                 <div class="star-rating-area" id="req-stars" style="display: flex; gap: 8px;">
-                    </div>
+                </div>
             </div>
             
             <input type="text" id="input-eval-catatan" class="modal-input" placeholder="Catatan Opsional (Maks 40 karakter)..." maxlength="40" style="width: 100%; box-sizing: border-box; margin-bottom: 15px; background:#000; border:1px solid #222; color:#fff; padding:10px; border-radius:6px; font-size:12px;">
@@ -222,6 +276,31 @@
         </div>
     </div>
 
+    <div class="debug-fab" onclick="toggleDebugConsole()"><i class="fa-solid fa-bug"></i></div>
+    
+    <div id="debugConsole" class="debug-console">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">
+            <span style="color: var(--neon-orange); font-weight: bold; font-size: 14px;"><i class="fa-solid fa-terminal"></i> CORE DIAGNOSTIC MONITOR</span>
+            <button onclick="toggleDebugConsole()" style="background:#ff3362; border:none; color:#fff; padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer;">CLOSE</button>
+        </div>
+        
+        <label style="font-size: 11px; color: #888;">FIREBASE CONNECTION STATUS:</label>
+        <div id="debug-fb-status" style="font-size: 12px; color: var(--neon-orange); margin-bottom: 10px; font-weight: bold;">CHECKING NETWORK...</div>
+
+        <label style="font-size: 11px; color: #888;">LOCAL STORAGE DUMP:</label>
+        <div id="debug-localstorage" class="debug-section">Loading...</div>
+
+        <label style="font-size: 11px; color: #888;">SESSION STORAGE DUMP:</label>
+        <div id="debug-sessionstorage" class="debug-section">Loading...</div>
+
+        <label style="font-size: 11px; color: #888;">CORE_STATE RAM MEMORY OBJECT:</label>
+        <div id="debug-corestate" class="debug-section">Loading...</div>
+
+        <button onclick="copyDebugData()" style="width:100%; margin-top: auto; padding: 12px; background: rgba(0,243,255,0.05); border: 1px solid var(--neon-blue); color: var(--neon-blue); border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px;">
+            <i class="fa-solid fa-copy"></i> COPY ALL DIAGNOSTIC DATA
+        </button>
+    </div>
+
     <script>
         function sysConfirm(title, msg) {
             return new Promise((resolve) => {
@@ -236,6 +315,71 @@
                 cancel.onclick = () => { modal.classList.remove('show'); resolve(false); };
                 exec.onclick = () => { modal.classList.remove('show'); resolve(true); };
             });
+        }
+
+        // CONTROL LOGIC UNTUK PANEL DEBUG
+        function toggleDebugConsole() {
+            const consoleEl = document.getElementById('debugConsole');
+            consoleEl.classList.toggle('show');
+            if(consoleEl.classList.contains('show')) {
+                runDiagnosticReport();
+            }
+        }
+
+        function runDiagnosticReport() {
+            // 1. Ambil Dump LocalStorage
+            let localData = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                let k = localStorage.key(i);
+                localData[k] = localStorage.getItem(k);
+            }
+            document.getElementById('debug-localstorage').innerText = JSON.stringify(localData, null, 2);
+
+            // 2. Ambil Dump SessionStorage
+            let sessionData = {};
+            for (let i = 0; i < sessionStorage.length; i++) {
+                let k = sessionStorage.key(i);
+                sessionData[k] = sessionStorage.getItem(k);
+            }
+            document.getElementById('debug-sessionstorage').innerText = JSON.stringify(sessionData, null, 2);
+
+            // 3. Ambil Objek Memori CoreState
+            if (window.CoreState) {
+                document.getElementById('debug-corestate').innerText = JSON.stringify(window.CoreState, null, 2);
+            } else {
+                document.getElementById('debug-corestate').innerText = "FATAL: Objek window.CoreState Tidak Ditemukan!";
+            }
+
+            // 4. Periksa Listener Jaringan Firebase Kontrak
+            try {
+                const fbApp = firebase.app();
+                firebase.database().ref(".info/connected").on("value", function(snap) {
+                    if (snap.val() === true) {
+                        document.getElementById('debug-fb-status').innerText = "ONLINE (Connected to Shard DB)";
+                        document.getElementById('debug-fb-status').style.color = "var(--neon-green)";
+                    } else {
+                        document.getElementById('debug-fb-status').innerText = "OFFLINE (Disconnected from Shard DB)";
+                        document.getElementById('debug-fb-status').style.color = "#ff3362";
+                    }
+                });
+            } catch(e) {
+                document.getElementById('debug-fb-status').innerText = "FATAL ERROR: " + e.message;
+                document.getElementById('debug-fb-status').style.color = "#ff3362";
+            }
+        }
+
+        function copyDebugData() {
+            const report = {
+                timestamp: new Date().toISOString(),
+                localStorage: JSON.parse(document.getElementById('debug-localstorage').innerText || "{}"),
+                sessionStorage: JSON.parse(document.getElementById('debug-sessionstorage').innerText || "{}"),
+                coreState: JSON.parse(document.getElementById('debug-corestate').innerText || "{}"),
+                fbStatus: document.getElementById('debug-fb-status').innerText
+            };
+
+            navigator.clipboard.writeText(JSON.stringify(report, null, 2))
+                .then(() => alert("Seluruh data diagnosik berhasil disalin! Tempelkan di notepad untuk dianalisis."))
+                .catch(() => alert("Gagal menyalin otomatis. Silakan salin manual data teks di layar."));
         }
     </script>
 </body>
