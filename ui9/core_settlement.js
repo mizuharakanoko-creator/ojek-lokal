@@ -1,37 +1,41 @@
 /* ===================================================================
-   CORE_SETTLEMENT.JS (BRAIN 3) - FULL UPDATE PARITAS 100%
-   Fungsi: Penghitungan Masa Proteksi AFK, Sistem Rating Bintang, 
-           & Eksekusi Penutupan Dokumen Misi (Selesai Absolut)
+   CORE_SETTLEMENT.JS (BRAIN 3) - PARITAS DARURAT & SETTLEMENT ENGINE
+   Fungsi: Proteksi Selesai Paksa (AFK), Evaluasi Rating Bintang, 
+           & Sinkronisasi Penutupan Arsip Finansial Misi
    =================================================================== */
 
 let emergencyIntervalEngine = null;
 let selectedRatingValue = 0;
 
-// 1. Sinkronisasi Kondisi Darurat Berdasarkan Data Mentah Brain 1
+// 1. Sinkronisasi Kondisi Darurat Berdasarkan Data Aliran Matriks Misi
 function syncEmergencyState(mission) {
     if (!mission) {
         resetEmergencyState();
         return;
     }
 
-    const statusOp = mission.status_operational;
+    const statusOp = mission.status_operational || mission.status || "open";
     const emZone = document.getElementById('emergency-zone');
+    
+    // VALIDASI PERAN: Protokol darurat AFK HANYA berlaku untuk Adventurer (Driver) saat status "kerja"
+    const currentRole = window.CoreState?.virtualRole || "adventurer";
 
-    // Protokol darurat otomatis aktif HANYA saat status operasional berada di tahap "kerja"
-    if (statusOp === "kerja") {
-        // Perbaikan logika: Deteksi jika elemen memang tidak terlihat di layar screen
-        if (emZone && (emZone.style.display === "none" || window.getComputedStyle(emZone).display === "none")) {
-            startEmergencyCountdown(mission.timestamp_operational_update || Date.now());
+    if (statusOp === "kerja" && currentRole === "adventurer") {
+        // Deteksi apakah zone darurat masih tersembunyi (belum diproses hitung mundur)
+        if (emZone && (emZone.style.display === "none" || window.getComputedStyle(emZone).display === "none" || emZone.classList.contains('hide'))) {
+            // Gunakan timestamp update operasional atau fallback ke waktu saat ini
+            const baseTimestamp = mission.timestamp_operational_update || Date.now();
+            startEmergencyCountdown(baseTimestamp);
         }
     } else {
         resetEmergencyState();
     }
 }
 
-// 2. Engine Hitung Mundur Munculnya Tombol Selesai Paksa Darurat
+// 2. Engine Hitung Mundur Runtuhnya Enkripsi Tombol Selesai Paksa (AFK)
 function startEmergencyCountdown(lastUpdateTimestamp) {
     const emZone = document.getElementById('emergency-zone');
-    const emTimer = document.getElementById('em-timer-msg');
+    const emTimer = document.getElementById('em-timer'); // Menargetkan elemen teks counter asli Anda
     const sliderCont = document.getElementById('slider-container-em');
     const emSlider = document.getElementById('em-slider');
 
@@ -39,13 +43,14 @@ function startEmergencyCountdown(lastUpdateTimestamp) {
 
     if (emergencyIntervalEngine) clearInterval(emergencyIntervalEngine);
 
-    // Tampilkan bungkus luar darurat
+    // Buka akses pengaman visual (Hapus class hide dan atur style display)
+    emZone.classList.remove('hide');
     emZone.style.display = "block";
     emTimer.style.display = "block";
     sliderCont.style.display = "none";
     if (emSlider) emSlider.value = 0;
 
-    // Hitung mundur durasi tunggu pelepasan enkripsi pengaman (10 Detik)
+    // Durasi tunggu pelepasan enkripsi pengaman (10 Detik)
     let countdown = 10;
     emTimer.innerText = `TOMBOL SELESAI DARURAT AKAN MUNCUL DALAM ${countdown}S... GUNAKAN INI APABILA PEMESAN AFK TANPA MENGKONFIRMASI SELESAI`;
 
@@ -57,21 +62,26 @@ function startEmergencyCountdown(lastUpdateTimestamp) {
             clearInterval(emergencyIntervalEngine);
             emergencyIntervalEngine = null;
 
-            // Transisi: Sembunyikan teks hitung mundur, munculkan range slider override em
+            // Transisi: Sembunyikan teks hitung mundur, ledakkan visual slider override em
             emTimer.style.display = "none";
             sliderCont.style.display = "block";
 
-            // Mainkan audio sfx alarm siber
+            // Mainkan audio sfx alert sistem hq
             if (typeof playCoreSFX === 'function') {
                 playCoreSFX('notif-sfx');
             } else {
                 const audio = document.getElementById('notif-sfx');
                 if (audio) { audio.currentTime = 0; audio.play().catch(() => {}); }
             }
+            
+            // Perbarui log AI teks pendukung jika fungsi terintegrasi
+            if (typeof updateAI === 'function') {
+                updateAI("Protokol Selesai Paksa (AFK) telah diaktifkan.", "alert");
+            }
         }
     }, 1000);
 
-    // Konfigurasi Input Slider Darurat
+    // Konfigurasi Input Mekanis Slider Darurat
     if (emSlider) {
         emSlider.oninput = function() {
             if (this.value >= 98) {
@@ -82,9 +92,8 @@ function startEmergencyCountdown(lastUpdateTimestamp) {
     }
 }
 
-// 3. Konfirmasi Aksi Selesai Paksa (AFK)
+// 3. Konfirmasi Eksekusi Override Darurat
 async function executeEmergencyAction() {
-    // Jalankan haptic pulse getar
     if (typeof vibratePulse === 'function') {
         vibratePulse();
     } else if (navigator.vibrate) {
@@ -93,111 +102,153 @@ async function executeEmergencyAction() {
 
     const yakin = await sysConfirm(
         "SELESAI PAKSA (AFK)", 
-        "AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan diarahkan ke form laporan evaluasi."
+        "AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan langsung diarahkan ke form laporan evaluasi."
     );
 
     if (yakin) {
         openEvaluationModal();
     } else {
-        // Reset slider darurat jika aksi dibatalkan oleh agen
+        // Kembalikan slider ke posisi pangkal kiri jika dibatalkan
         const emSlider = document.getElementById('em-slider');
         if (emSlider) emSlider.value = 0;
     }
 }
 
-// 4. Buka Form Evaluasi & Gambar Bintang Dinamis (Menyesuaikan Selector CSS Klasik Anda)
+// 4. Inisiasi Jendela Modal Evaluasi Rating Berdasarkan Komponen HTML
 function openEvaluationModal() {
     selectedRatingValue = 0;
-    const evalModal = document.getElementById('reqEvalModal');
+    
+    // Mendukung fungsi pemanggilan bawaan jendela evaluasi di html utama Anda
+    if (typeof openEvalReq === 'function') {
+        openEvalReq();
+        setupStarRatingEngine();
+    } else {
+        const evalModal = document.getElementById('reqEvalModal');
+        if (evalModal) {
+            evalModal.classList.add('show');
+            setupStarRatingEngine();
+        }
+    }
+}
+
+// Helper: Merakit interaksi 5 Bintang dinamis di dalam kontainer `#req-stars`
+function setupStarRatingEngine() {
     const starContainer = document.getElementById('req-stars');
+    if (!starContainer) return;
 
-    if (!evalModal || !starContainer) return;
-
-    // Bersihkan kontainer murni dan suntik 5 ikon fa-star baru
     starContainer.innerHTML = "";
     for (let i = 1; i <= 5; i++) {
         const starIcon = document.createElement('i');
         starIcon.className = "fa-solid fa-star";
         starIcon.style.cursor = "pointer";
+        starIcon.style.margin = "0 4px";
+        starIcon.style.transition = "transform 0.2s, color 0.2s";
         
-        // Tambah event klik seleksi bintang rating
         starIcon.addEventListener('click', () => highlightStars(i));
         starContainer.appendChild(starIcon);
     }
-
-    evalModal.classList.add('show');
 }
 
-// 5. Efek Visual Seleksi Bintang (Perbaikan Paritas: Memakai Class '.active')
+// 5. Efek Visual Detak & Penyalaan Kelas Aktif Bintang Rating
 function highlightStars(ratingValue) {
     if (typeof playCoreSFX === 'function') {
         playCoreSFX('click-sfx');
-    } else {
-        const audio = document.getElementById('click-sfx');
-        if (audio) { audio.currentTime = 0; audio.play().catch(() => {}); }
     }
     
     selectedRatingValue = ratingValue;
-
-    // Menggunakan query selector murni agar sinkron dengan .star-rating-area i.active di CSS
     const stars = document.querySelectorAll('#req-stars i');
+    
     stars.forEach((star, index) => {
         if (index < ratingValue) {
             star.classList.add('active');
-            star.style.transform = "scale(1.2)";
+            star.style.color = "var(--neon-orange, #ff5500)";
+            star.style.transform = "scale(1.25)";
         } else {
             star.classList.remove('active');
+            star.style.color = "#444";
             star.style.transform = "scale(1.0)";
         }
     });
 }
 
-// 6. Tembak Perintah Tutup Kontrak Ke Firebase Absolut
+// 6. Transmisi Pengarsipan Penutupan Kontrak Akhir ke Firebase
 function submitMissionSettlement() {
     if (typeof playCoreSFX === 'function') {
         playCoreSFX('click-sfx');
     }
 
-    if (!CoreState.currentMissionId) return;
-
-    if (selectedRatingValue === 0) {
-        alert("Evaluasi gagal dikirim. Silakan pilih salah satu rating bintang.");
+    const currentId = window.CoreState?.currentMissionId;
+    if (!currentId) {
+        alert("Gagal memproses arsip: ID Kontrak tidak terdeteksi di dalam RAM global!");
         return;
     }
 
-    const catatanInput = document.getElementById('input-eval-catatan');
+    if (selectedRatingValue === 0) {
+        alert("Aksi ditolak. Mohon berikan penilaian rating bintang terlebih dahulu.");
+        return;
+    }
+
+    const catatanInput = document.getElementById('input-eval-catatan') || document.getElementById('eval-catatan');
     const txtCatatan = catatanInput ? catatanInput.value.trim() : "";
 
-    // Sembunyikan Modal Segera untuk Mencegah Double Submit Data Jaringan
-    const evalModal = document.getElementById('reqEvalModal');
-    if (evalModal) evalModal.classList.remove('show');
+    // Sembunyikan Jendela Modal secepat mungkin guna mencegah duplikasi submit data pipa
+    closeEvaluationModalDOM();
 
-    console.log(`[BRAIN 3] Menutup dokumen misi ${CoreState.currentMissionId} dengan rating ${selectedRatingValue}`);
+    console.log(`[SETTLEMENT FINALIZE] Mengunci kontrak ${currentId} dengan akumulasi rating: ${selectedRatingValue}`);
 
-    const boardDB = getTerminal('FB4_BOARD');
+    // Dapatkan instans router real-time database
+    const boardDB = typeof getTerminal === 'function' ? (getTerminal('FB4_BOARD') || getTerminal('ojeklokal-42b84-default-rtdb')) : null;
+    
     if (!boardDB) {
-        alert("Gagal mengarsipkan: Koneksi Shard FB4_BOARD Terputus!");
+        // Jalur simulasi mandiri jika database terputus
+        console.warn("[BRAIN 3] Database offline. Mengeksekusi penutupan dokumen pada RAM simulasi lokal.");
+        if (typeof updateMissionStatusToDone === 'function') {
+            updateMissionStatusToDone(); // Memanfaatkan fungsi pemutus gateway
+        }
+        alert("KONTRAK SELESAI (OFFLINE VIRTUAL MODE)");
+        if (catatanInput) catatanInput.value = "";
+        resetEmergencyState();
         return;
     }
     
-    // Kirim Perintah Done & Simpan Laporan Rating ke Dalam Node Misi Berjalan
-    boardDB.ref(`kontrak_mission/${CoreState.currentMissionId}`).update({
+    // EKSEKUSI ONLINE: Update status utama menjadi done dan bersihkan node pipa sinyal paralel
+    boardDB.ref(`kontrak_mission/${currentId}`).update({
         status_operational: "done",
+        status: "done",
         rating_requester: selectedRatingValue,
         catatan_evaluasi: txtCatatan,
         timestamp_closed: firebase.database.ServerValue.TIMESTAMP
     })
     .then(() => {
-        alert("KONTRAK SELESAI: Dokumen berhasil diarsipkan ke dalam basis data Guild.");
+        // Bersihkan node sinyal P2P paralel agar steril
+        boardDB.ref(`kontrak_signals/${currentId}`).remove();
+        
+        alert("KONTRAK BERHASIL DISELESAIKAN: Berkas data diarsipkan ke basis data Shard.");
         if (catatanInput) catatanInput.value = "";
-        resetEmergencyState();
+        
+        // Panggil pembersihan state total di gateway
+        if (typeof clearCoreMissionState === 'function') {
+            clearCoreMissionState();
+        } else {
+            resetEmergencyState();
+        }
     })
     .catch((err) => {
-        alert("Gagal menutup berkas misi di server: " + err.message);
+        alert("Pipa database gagal mengarsipkan dokumen: " + err.message);
     });
 }
 
-// 7. Reset State Darurat ke Posisi Siaga
+// Helper penutupan elemen modal DOM
+function closeEvaluationModalDOM() {
+    if (typeof closeEvalReq === 'function') {
+        closeEvalReq();
+    } else {
+        const evalModal = document.getElementById('reqEvalModal');
+        if (evalModal) evalModal.classList.remove('show');
+    }
+}
+
+// 7. Reset Mutlak Komponen Darurat Ke State Siaga
 function resetEmergencyState() {
     if (emergencyIntervalEngine) {
         clearInterval(emergencyIntervalEngine);
@@ -206,21 +257,25 @@ function resetEmergencyState() {
     selectedRatingValue = 0;
 
     const emZone = document.getElementById('emergency-zone');
-    const emTimer = document.getElementById('em-timer-msg');
+    const emTimer = document.getElementById('em-timer');
     const sliderCont = document.getElementById('slider-container-em');
     const emSlider = document.getElementById('em-slider');
-    const evalModal = document.getElementById('reqEvalModal');
 
-    if (emZone) emZone.style.display = "none";
+    if (emZone) {
+        emZone.classList.add('hide');
+        emZone.style.display = "none";
+    }
     if (emTimer) emTimer.style.display = "none";
     if (sliderCont) sliderCont.style.display = "none";
     if (emSlider) emSlider.value = 0;
-    if (evalModal) evalModal.classList.remove('show');
+    
+    closeEvaluationModalDOM();
 }
 
-// Inisialisasi Event Click Tombol Submit di Modal saat Halaman Selesai Dimuat
+// Hubungkan Event Listener tombol kirim data saat sirkuit DOM siap
 window.addEventListener('DOMContentLoaded', () => {
-    const btnSubmitEval = document.getElementById('btn-submit-eval');
+    // Mendukung ID tombol bawaan kodeB.html atau penyesuaian fungsional modular
+    const btnSubmitEval = document.getElementById('btn-submit-eval') || document.getElementById('submit-eval-btn');
     if (btnSubmitEval) {
         btnSubmitEval.addEventListener('click', submitMissionSettlement);
     }
