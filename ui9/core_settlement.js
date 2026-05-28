@@ -1,5 +1,5 @@
 /* ===================================================================
-   CORE_SETTLEMENT.JS (BRAIN 3)
+   CORE_SETTLEMENT.JS (BRAIN 3) - FULL UPDATE PARITAS 100%
    Fungsi: Penghitungan Masa Proteksi AFK, Sistem Rating Bintang, 
            & Eksekusi Penutupan Dokumen Misi (Selesai Absolut)
    =================================================================== */
@@ -19,7 +19,8 @@ function syncEmergencyState(mission) {
 
     // Protokol darurat otomatis aktif HANYA saat status operasional berada di tahap "kerja"
     if (statusOp === "kerja") {
-        if (emZone && emZone.style.display === "none") {
+        // Perbaikan logika: Deteksi jika elemen memang tidak terlihat di layar screen
+        if (emZone && (emZone.style.display === "none" || window.getComputedStyle(emZone).display === "none")) {
             startEmergencyCountdown(mission.timestamp_operational_update || Date.now());
         }
     } else {
@@ -44,7 +45,7 @@ function startEmergencyCountdown(lastUpdateTimestamp) {
     sliderCont.style.display = "none";
     if (emSlider) emSlider.value = 0;
 
-    // Atur durasi tunggu pelepasan enkripsi pengaman (Contoh: 10 Detik)
+    // Hitung mundur durasi tunggu pelepasan enkripsi pengaman (10 Detik)
     let countdown = 10;
     emTimer.innerText = `TOMBOL SELESAI DARURAT AKAN MUNCUL DALAM ${countdown}S... GUNAKAN INI APABILA PEMESAN AFK TANPA MENGKONFIRMASI SELESAI`;
 
@@ -56,11 +57,17 @@ function startEmergencyCountdown(lastUpdateTimestamp) {
             clearInterval(emergencyIntervalEngine);
             emergencyIntervalEngine = null;
 
-            // Transisi: Sembunyikan teks hitung mundur, munculkan range slider override
+            // Transisi: Sembunyikan teks hitung mundur, munculkan range slider override em
             emTimer.style.display = "none";
             sliderCont.style.display = "block";
 
-            if (typeof playCoreSFX === 'function') playCoreSFX('notif-sfx');
+            // Mainkan audio sfx alarm siber
+            if (typeof playCoreSFX === 'function') {
+                playCoreSFX('notif-sfx');
+            } else {
+                const audio = document.getElementById('notif-sfx');
+                if (audio) { audio.currentTime = 0; audio.play().catch(() => {}); }
+            }
         }
     }, 1000);
 
@@ -77,24 +84,28 @@ function startEmergencyCountdown(lastUpdateTimestamp) {
 
 // 3. Konfirmasi Aksi Selesai Paksa (AFK)
 async function executeEmergencyAction() {
-    if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Getar Pulsa Keamanan
+    // Jalankan haptic pulse getar
+    if (typeof vibratePulse === 'function') {
+        vibratePulse();
+    } else if (navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+    }
 
     const yakin = await sysConfirm(
         "SELESAI PAKSA (AFK)", 
-        "AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan diarahkan ke form laporan evaluasi.", 
-        true
+        "AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan diarahkan ke form laporan evaluasi."
     );
 
     if (yakin) {
         openEvaluationModal();
     } else {
-        // Reset slider darurat jika batal
+        // Reset slider darurat jika aksi dibatalkan oleh agen
         const emSlider = document.getElementById('em-slider');
         if (emSlider) emSlider.value = 0;
     }
 }
 
-// 4. Buka Form Evaluasi & Gambar Bintang Dinamis
+// 4. Buka Form Evaluasi & Gambar Bintang Dinamis (Menyesuaikan Selector CSS Klasik Anda)
 function openEvaluationModal() {
     selectedRatingValue = 0;
     const evalModal = document.getElementById('reqEvalModal');
@@ -102,17 +113,14 @@ function openEvaluationModal() {
 
     if (!evalModal || !starContainer) return;
 
-    // Bersihkan kontainer dan buat 5 ikon bintang fa-star secara murni
+    // Bersihkan kontainer murni dan suntik 5 ikon fa-star baru
     starContainer.innerHTML = "";
     for (let i = 1; i <= 5; i++) {
         const starIcon = document.createElement('i');
         starIcon.className = "fa-solid fa-star";
         starIcon.style.cursor = "pointer";
-        starIcon.style.fontSize = "20px";
-        starIcon.style.color = "#333344"; // Warna mati awal
-        starIcon.style.transition = "color 0.2s, transform 0.1s";
-
-        // Tambah event klik ke masing-masing bintang
+        
+        // Tambah event klik seleksi bintang rating
         starIcon.addEventListener('click', () => highlightStars(i));
         starContainer.appendChild(starIcon);
     }
@@ -120,18 +128,25 @@ function openEvaluationModal() {
     evalModal.classList.add('show');
 }
 
-// 5. Efek Visual Seleksi Bintang
+// 5. Efek Visual Seleksi Bintang (Perbaikan Paritas: Memakai Class '.active')
 function highlightStars(ratingValue) {
-    if (typeof playCoreSFX === 'function') playCoreSFX('click-sfx');
+    if (typeof playCoreSFX === 'function') {
+        playCoreSFX('click-sfx');
+    } else {
+        const audio = document.getElementById('click-sfx');
+        if (audio) { audio.currentTime = 0; audio.play().catch(() => {}); }
+    }
+    
     selectedRatingValue = ratingValue;
 
+    // Menggunakan query selector murni agar sinkron dengan .star-rating-area i.active di CSS
     const stars = document.querySelectorAll('#req-stars i');
     stars.forEach((star, index) => {
         if (index < ratingValue) {
-            star.style.color = "var(--neon-purple, #bc13fe)"; // Menyala ungu neon
+            star.classList.add('active');
             star.style.transform = "scale(1.2)";
         } else {
-            star.style.color = "#333344"; // Padam
+            star.classList.remove('active');
             star.style.transform = "scale(1.0)";
         }
     });
@@ -139,8 +154,10 @@ function highlightStars(ratingValue) {
 
 // 6. Tembak Perintah Tutup Kontrak Ke Firebase Absolut
 function submitMissionSettlement() {
-    if (typeof playCoreSFX === 'function') playCoreSFX('click-sfx');
-    
+    if (typeof playCoreSFX === 'function') {
+        playCoreSFX('click-sfx');
+    }
+
     if (!CoreState.currentMissionId) return;
 
     if (selectedRatingValue === 0) {
@@ -151,15 +168,19 @@ function submitMissionSettlement() {
     const catatanInput = document.getElementById('input-eval-catatan');
     const txtCatatan = catatanInput ? catatanInput.value.trim() : "";
 
-    // Sembunyikan Modal Segera untuk Mencegah Double Submit
+    // Sembunyikan Modal Segera untuk Mencegah Double Submit Data Jaringan
     const evalModal = document.getElementById('reqEvalModal');
     if (evalModal) evalModal.classList.remove('show');
 
     console.log(`[BRAIN 3] Menutup dokumen misi ${CoreState.currentMissionId} dengan rating ${selectedRatingValue}`);
 
-    const boardDB = getTerminal('FB4_BOARD'); //
+    const boardDB = getTerminal('FB4_BOARD');
+    if (!boardDB) {
+        alert("Gagal mengarsipkan: Koneksi Shard FB4_BOARD Terputus!");
+        return;
+    }
     
-    // Kirim Perintah Done & Simpan Laporan Rating ke Dalam Shard Node Misi Tersebut
+    // Kirim Perintah Done & Simpan Laporan Rating ke Dalam Node Misi Berjalan
     boardDB.ref(`kontrak_mission/${CoreState.currentMissionId}`).update({
         status_operational: "done",
         rating_requester: selectedRatingValue,
@@ -169,6 +190,7 @@ function submitMissionSettlement() {
     .then(() => {
         alert("KONTRAK SELESAI: Dokumen berhasil diarsipkan ke dalam basis data Guild.");
         if (catatanInput) catatanInput.value = "";
+        resetEmergencyState();
     })
     .catch((err) => {
         alert("Gagal menutup berkas misi di server: " + err.message);
