@@ -1,6 +1,6 @@
 /* ===================================================================
-   CORE_HQ_VIEWER.JS (BRAIN 2) - PARITAS DATA & UI EXTENSION OPTIMIZED
-   Fungsi: Render DOM Detail Misi, Perhitungan Timer, & Logika Slider Respon
+   CORE_HQ_VIEWER.JS (BRAIN 2) - PARITAS DATA & P2P INTERACTION VIEW
+   Fungsi: Render DOM Detail Misi, Laci Drawer, P2P Deck & Logic Slider
    =================================================================== */
 
 let missionTimerInterval = null;
@@ -11,24 +11,22 @@ function renderDriverProfile(driverData) {
     const elName = document.getElementById('u-name');
     const elRank = document.getElementById('u-rank');
     
-    // Mendukung properti dari Firebase master ataupun user_identity session storage (.nick)
     if (elName) elName.innerText = driverData.nick || driverData.nickname || driverData.name || "Unknown Agent";
     if (elRank) elRank.innerText = (driverData.role || driverData.rank || "?").substring(0, 2).toUpperCase();
 }
 
-// Alias fungsi agar kompatibel dengan pemanggilan inter-modular di core_gateway.js
 function updateDriverProfileUI(driverData) {
     renderDriverProfile(driverData);
 }
 
-// 2. Render Dokumen Lengkap Misi Aktif (Telah disesuaikan dengan ID Elemen kodeB.html & Paritas Dump Data)
+// 2. Render Dokumen Lengkap Misi Aktif & Ekstraksi Seluruh Data Akar Komponen
 function updateHQViewer(mission) {
     if (!mission) {
         resetHQViewerToStandby();
         return;
     }
 
-    // Ambil elemen DOM berdasarkan struktur asli berkas Anda
+    // Ambil elemen DOM berdasarkan struktur ter-update dari HTML
     const mIdDisplay = document.getElementById('m-id-display');
     const mBadge = document.getElementById('m-kategori'); 
     const mTitle = document.getElementById('m-judul'); 
@@ -38,44 +36,56 @@ function updateHQViewer(mission) {
     const mDest = document.getElementById('m-titikb'); 
     const mCargo = document.getElementById('m-barang'); 
     
-    // Suntik Data ke HTML dengan jembatan fallback paritas (Bahasa Inggris <=> Bahasa Indonesia)
+    // ELEMEN TAMBAHAN INTEGRASI DATA AKAR BARU
+    const mReward = document.getElementById('m-reward-display');
+    const mShard = document.getElementById('m-zona-badge');
+    const drawerA = document.getElementById('drawer-a');
+    const drawerB = document.getElementById('drawer-b');
+
+    // Suntik Data Utama ke HTML dengan jembatan fallback paritas
     const activeId = window.CoreState?.currentMissionId || mission.id_misi || "CTR-ACTIVE";
     if (mIdDisplay) mIdDisplay.innerText = `ID: ${activeId}`;
-    
     if (mBadge) mBadge.innerText = (mission.kategori || mission.category || "MOTOR RIDE").toUpperCase();
-    
-    if (mTitle) {
-        mTitle.innerText = mission.judul || mission.judul_misi || `KONTRAK ${mission.category || 'OPERASIONAL'}`;
-    }
-    
+    if (mTitle) mTitle.innerText = mission.judul || mission.judul_misi || `KONTRAK ${mission.category || 'OPERASIONAL'}`;
     if (mClient) mClient.innerText = mission.nama_pemesan || mission.client_name || "Stranger";
     if (mDistance) mDistance.innerText = mission.jarak || mission.jarak_estimasi || (mission.reward ? "Calculated" : "0");
     
-    // Pemetaan detail alamat penjemputan (A)
-    if (mOrigin) {
-        mOrigin.innerText = mission.titik_jemput || mission.origin_name || mission.origin_desa || "Tidak Ada Alamat";
-    }
-    
-    // Pemetaan detail alamat destinasi (B)
-    if (mDest) {
-        mDest.innerText = mission.titik_tujuan || mission.dest_name || mission.dest_desa || "Tidak Ada Alamat";
-    }
-    
-    // Pemetaan spesifikasi kargo / catatan tambahan
-    if (mCargo) {
-        mCargo.innerText = mission.deskripsi_barang || mission.catatan || mission.dest_details || "Tidak Ada Deskripsi Kargo.";
-    }
+    // Pemetaan detail rincian alamat utama [A] & [B]
+    if (mOrigin) mOrigin.innerText = mission.titik_jemput || mission.origin_name || mission.origin_desa || "Tidak Ada Alamat";
+    if (mDest) mDest.innerText = mission.titik_tujuan || mission.dest_name || mission.dest_desa || "Tidak Ada Alamat";
+    if (mCargo) mCargo.innerText = mission.deskripsi_barang || mission.catatan || mission.dest_details || "Tidak Ada Deskripsi Kargo.";
 
-    // Kelola Timer Operasional Berdasarkan Waktu Dibuat (.created_at atau .timestamp_create)
+    // SUNTIK DATA AKAR TERAKHIR (Finansial, Shard Regional, dan Isi Laci Dokumen)
+    if (mReward) {
+        const rewardAmount = mission.reward || 0;
+        mReward.innerText = `Rp ${Number(rewardAmount).toLocaleString('id-ID')}`;
+    }
+    if (mShard) mShard.innerText = `SHARD: ${mission.shard_id || mission.zona || 'KNG'}`;
+    if (drawerA) drawerA.innerText = mission.origin_details || "Tidak ada rincian patokan penjemputan.";
+    if (drawerB) drawerB.innerText = mission.dest_details || "Tidak ada rincian patokan destinasi tujuan.";
+
+    // Kelola Timer Operasional Berdasarkan Waktu Dibuat
     const targetTimestamp = mission.timestamp_bidding_selesai || mission.timestamp_create || mission.created_at;
     manageMissionTimer(targetTimestamp);
 
-    // Atur Status Visibilitas Slider Aksi Utama (.status atau .status_operational)
+    // Atur Kontrol Visibilitas Lapisan Interaksi Operasional
     const currentStatus = mission.status_operational || mission.status || "open";
-    setupActionSlider(currentStatus);
+    
+    // Ambil keputusan kemudi apakah memakai slider (terima awal) atau panel P2P deck (saat kerja)
+    if (currentStatus === "kerja" || currentStatus === "taken") {
+        const sliderZone = document.getElementById('slider-zone');
+        if (sliderZone) sliderZone.style.display = "none";
+        
+        // Alihkan kendali penuh ke P2P Matrix Radar UI
+        renderP2POperationalDeck();
+    } else {
+        const p2pDeck = document.getElementById('p2p-deck');
+        if (p2pDeck) p2pDeck.style.display = "none";
+        
+        setupActionSlider(currentStatus);
+    }
 }
 
-// Alias fungsi pemanggilan agar sinkron dengan core_gateway.js
 function updateMissionUI(mission) {
     updateHQViewer(mission);
 }
@@ -104,7 +114,7 @@ function manageMissionTimer(startTimestamp) {
     }, 1000);
 }
 
-// 4. Konfigurasi Kontrol Geser (Slider Respon Misi)
+// 4. Konfigurasi Kontrol Geser (Slider Respon Misi Tahap Awal)
 function setupActionSlider(statusOp) {
     const sliderZone = document.getElementById('slider-zone');
     const sliderText = document.getElementById('slider-text');
@@ -112,28 +122,14 @@ function setupActionSlider(statusOp) {
     const fill = document.getElementById('slider-fill');
 
     if (!sliderZone) return;
-
-    // Jika status operasional sudah dalam mode berjalan ("kerja" atau "taken")
-    if (statusOp === "kerja" || statusOp === "taken") {
-        sliderZone.style.display = "none";
-        // Aliran penyelesaian darurat/afk diambil alih oleh core_settlement (Brain 3)
-        if (typeof syncEmergencyState === 'function' && window.CoreState?.activeMission) {
-            syncEmergencyState(window.CoreState.activeMission);
-        }
-        return;
-    }
-
-    // Tampilkan slider jika status masih "open" atau "terima"
     sliderZone.style.display = "block";
     
-    // Setel label teks instruksi sesuai tingkatan status operasional
     if (statusOp === "terima") {
         if (sliderText) sliderText.innerText = "GESER UNTUK BERANGKAT (KERJA)";
     } else {
         if (sliderText) sliderText.innerText = "GESER UNTUK RESPOND KONTRAK";
     }
 
-    // Reset posisi fisik slider mekanis kembali ke pangkal kiri
     if (thumb) {
         thumb.style.transition = "none";
         thumb.style.transform = "translateX(0px)";
@@ -143,11 +139,10 @@ function setupActionSlider(statusOp) {
         fill.style.width = "0px";
     }
 
-    // Inisialisasi Handler Drag Seluler & Desktop Empiris
     initSliderDragEngine(statusOp);
 }
 
-// 5. Engine Drag Slider Touch/Mouse (Stabilisasi Gerakan & Transisi Koordinat)
+// 5. Engine Drag Slider Touch/Mouse
 function initSliderDragEngine(statusOp) {
     const wrapper = document.querySelector('.slider-wrapper');
     const thumb = document.getElementById('slider-thumb');
@@ -159,7 +154,6 @@ function initSliderDragEngine(statusOp) {
     let startX = 0;
     const maxTrack = wrapper.clientWidth - thumb.clientWidth;
 
-    // Bersihkan transisi saat menyeret agar responsif 1:1 dengan jari/mouse
     const startDrag = (e) => { 
         isDragging = true; 
         thumb.style.transition = "none";
@@ -172,16 +166,13 @@ function initSliderDragEngine(statusOp) {
         const currentX = (e.type === 'touchmove') ? e.touches[0].clientX : e.clientX;
         const rect = wrapper.getBoundingClientRect();
         
-        // Kalkulasi posisi x absolut di dalam batas track wrapper slider
         let x = currentX - rect.left - (thumb.clientWidth / 2);
-        
         if (x < 0) x = 0;
         if (x > maxTrack) x = maxTrack;
 
         thumb.style.transform = `translateX(${x}px)`;
         if (fill) fill.style.width = `${x + (thumb.clientWidth / 2)}px`;
 
-        // Jika geseran mencapai ambang batas aman eksekusi 96%
         if (x >= maxTrack * 0.96) {
             isDragging = false;
             thumb.style.transform = `translateX(${maxTrack}px)`;
@@ -194,7 +185,6 @@ function initSliderDragEngine(statusOp) {
         if (!isDragging) return;
         isDragging = false;
         
-        // Tambahkan animasi transisi halus saat thumb memantul kembali ke titik awal
         thumb.style.transition = "transform 0.25s ease-out";
         thumb.style.transform = "translateX(0px)";
         if (fill) {
@@ -203,22 +193,18 @@ function initSliderDragEngine(statusOp) {
         }
     };
 
-    // Lepas event handler lama agar tidak terjadi penumpukan listener (memory leak)
     const newThumb = thumb.cloneNode(true);
     thumb.parentNode.replaceChild(newThumb, thumb);
 
-    // Re-bind Event Listeners Desktop Mouse
     newThumb.addEventListener('mousedown', startDrag);
     window.addEventListener('mousemove', doDrag);
     window.addEventListener('mouseup', stopDrag);
 
-    // Re-bind Event Listeners Mobile Touch Screen
     newThumb.addEventListener('touchstart', startDrag, { passive: true });
     window.addEventListener('touchmove', doDrag, { passive: true });
     window.addEventListener('touchend', stopDrag);
 }
 
-// 6. Tembak Perubahan Status Operasional Ke Firebase (Pipa FB4_BOARD)
 function processSliderAction(statusSekarang) {
     const targetId = window.CoreState?.currentMissionId;
     if (!targetId) {
@@ -227,52 +213,128 @@ function processSliderAction(statusSekarang) {
         return;
     }
     
-    // Mainkan efek suara notifikasi sirkuit hq
     if (typeof playCoreSFX === 'function') {
         playCoreSFX('notif-sfx');
-    } else {
-        const audio = document.getElementById('notif-sfx');
-        if (audio) { audio.currentTime = 0; audio.play().catch(() => {}); }
     }
 
-    // Logika Tingkatan Status: open -> terima -> kerja
     let statusBaru = "terima";
     if (statusSekarang === "terima") {
         statusBaru = "kerja";
     }
 
-    console.log(`[BRAIN 2] Mengalihkan status matriks misi ${targetId} menjadi: ${statusBaru}`);
-
-    // Dukungan multi-instans router board
     const boardDB = typeof getTerminal === 'function' ? (getTerminal('FB4_BOARD') || getTerminal('ojeklokal-42b84-default-rtdb')) : null;
     
     if (!boardDB) {
-        // Mode Standalone Fallback: Jika database off, lakukan perubahan lokal di objek session/RAM langsung
-        console.warn("[BRAIN 2] Firebase Router Off. Mengubah status operasional lokal (Virtual Override).");
+        console.warn("[BRAIN 2] Mengubah status operasional lokal (Virtual Override).");
         if (window.CoreState.activeMission) {
             window.CoreState.activeMission.status_operational = statusBaru;
             window.CoreState.activeMission.status = statusBaru;
-            
-            // Simpan pemutakhiran data ke session storage agar persisten saat di-refresh
             sessionStorage.setItem('current_mission_full', JSON.stringify(window.CoreState.activeMission));
             
-            // Re-render UI otomatis berdasarkan status baru
-            setTimeout(() => { setupActionSlider(statusBaru); }, 400);
+            // Jika berubah menjadi status kerja, inisialisasi sinyal P2P tiruan untuk pengujian simulator
+            if (statusBaru === "kerja") {
+                window.CoreState.p2pSignal = "OTW";
+            }
+            
+            setTimeout(() => { updateHQViewer(window.CoreState.activeMission); }, 400);
         }
         return;
     }
 
-    // Mode Online Terkoneksi: Update data langsung ke cloud real-time database
     boardDB.ref(`kontrak_mission/${targetId}`).update({
         status_operational: statusBaru,
         status: statusBaru,
         timestamp_operational_update: firebase.database.ServerValue.TIMESTAMP
     })
+    .then(() => {
+        // Jika berhasil pindah ke status kerja, set inisialisasi sinyal P2P pertama kali ke DB
+        if (statusBaru === "kerja") {
+            boardDB.ref(`kontrak_signals/${targetId}`).set("OTW");
+        }
+    })
     .catch((err) => {
         console.error("Firebase Update Error:", err);
-        alert("Gagal merespon matriks misi: " + err.message);
-        setupActionSlider(statusSekarang); // Rollback visual otomatis ke posisi semula
+        setupActionSlider(statusSekarang);
     });
+}
+
+// ===================================================================
+// UTILITY PENYUNTIKAN INTERAKSI REAL-TIME P2P DECK MATRIX (FITUR BARU)
+// ===================================================================
+function renderP2POperationalDeck() {
+    const p2pDeck = document.getElementById('p2p-deck');
+    const actionSpace = document.getElementById('p2p-action-space');
+    
+    if (!p2pDeck || !actionSpace) return;
+    p2pDeck.style.display = "block";
+    
+    const role = window.CoreState.virtualRole || "adventurer";
+    const currentSignal = window.CoreState.p2pSignal || "WAITING";
+    
+    let buttonHtml = "";
+
+    // PARADIGMA KEMUDI 1: TAMPILAN SISI ADVENTURER (DRIVER)
+    if (role === "adventurer") {
+        if (currentSignal === "OTW") {
+            buttonHtml = `<button class="btn-p2p" onclick="triggerP2PTransition('ARRIVED')" style="background:var(--neon-blue); color:#000;"><i class="fa-solid fa-location-crosshairs"></i> SAYA SUDAH SAMPAI LOKASI [A]</button>`;
+        } else if (currentSignal === "ARRIVED") {
+            buttonHtml = `<button class="btn-p2p" onclick="triggerP2PTransition('DELIVERING')" style="background:var(--neon-orange); color:#000;"><i class="fa-solid fa-truck-fast"></i> BARANG AMAN, MULAI ANTAR KE LOKASI [B]</button>`;
+        } else if (currentSignal === "DELIVERING") {
+            buttonHtml = `
+                <div style="text-align:center; font-size:11px; color:#666; font-family:'JetBrains Mono'; margin-bottom:8px;">MENUNGGU KONFIRMASI REQUESTER DI LOKASI [B]</div>
+                <button class="btn-p2p" style="background:rgba(0,255,136,0.05); color:var(--neon-green); border:1px solid var(--neon-green);" disabled><i class="fa-solid fa-spinner fa-spin"></i> TRANSMITTING CARGO SIGNAL...</button>
+            `;
+            // Trigger kemunculan penghitung waktu pengaman/AFK di sirkuit penutupan darurat HTML
+            if (typeof syncEmergencyState === 'function' && window.CoreState.activeMission) {
+                syncEmergencyState(window.CoreState.activeMission);
+            }
+        } else {
+            buttonHtml = `<button class="btn-p2p" onclick="triggerP2PTransition('OTW')" style="background:var(--neon-purple); color:#fff;"><i class="fa-solid fa-satellite-dish"></i> AKTIFKAN SINYAL RADIO OTW</button>`;
+        }
+    } 
+    // PARADIGMA KEMUDI 2: TAMPILAN SISI REQUESTER (CLIENT VIEW)
+    else {
+        if (currentSignal === "OTW") {
+            buttonHtml = `<button class="btn-p2p" style="background:#111; color:#ff5500; border:1px solid #ff5500;" disabled><i class="fa-solid fa-motorcycle"></i> AGENT SEDANG MENUJU LOKASI ANDA</button>`;
+        } else if (currentSignal === "ARRIVED") {
+            buttonHtml = `<button class="btn-p2p" style="background:#111; color:#00f3ff; border:1px solid #00f3ff;" disabled><i class="fa-solid fa-box"></i> AGENT BERADA DI TITIK JEMPUT JALUR [A]</button>`;
+        } else if (currentSignal === "DELIVERING") {
+            buttonHtml = `<button class="btn-p2p" onclick="triggerRequesterFinalize()" style="background:var(--neon-green); color:#000; box-shadow:0 0 15px var(--neon-green);"><i class="fa-solid fa-circle-check"></i> KARGO DIKONDISIKAN, SELESAIKAN KONTRAK</button>`;
+        } else {
+            buttonHtml = `<button class="btn-p2p" style="background:#222; color:#555;" disabled>MENUNGGU RESPON GERAK FIELD AGENT...</button>`;
+        }
+    }
+
+    actionSpace.innerHTML = buttonHtml;
+}
+
+// Fungsi Trigger Transmisi Transisi Sinyal P2P (Menembak ke Brain 1 / Gateway)
+function triggerP2PTransition(nextSignal) {
+    if (typeof sendP2PSignal === 'function') {
+        sendP2PSignal(nextSignal);
+    } else {
+        // Fallback Simulasi RAM Lokal jika stand alone offline
+        window.CoreState.p2pSignal = nextSignal;
+        console.log(`[VIRTUAL P2P] Mengubah Sinyal Lokal ke -> ${nextSignal}`);
+        renderP2POperationalDeck();
+    }
+}
+
+// Fungsi Jabat Tangan Penutupan Kontrak oleh Sisi Pemesan (Requester)
+async function triggerRequesterFinalize() {
+    const setuju = await sysConfirm("KONFIRMASI SELESAI", "Apakah Anda menyatakan bahwa komoditas kargo telah mendarat dengan selamat di lokasi [B]?");
+    if (!setuju) return;
+
+    if (typeof updateMissionStatusToDone === 'function') {
+        updateMissionStatusToDone();
+    }
+    
+    // Buka jendela modal evaluasi bintang laporan yang ada di HTML utama
+    if (typeof openEvaluationWindow === 'function') {
+        openEvaluationWindow();
+    } else if (typeof openEvalReq === 'function') {
+        openEvalReq();
+    }
 }
 
 // 7. Bersihkan Tampilan Saat Standby (Kembali ke State Kosong)
@@ -285,7 +347,6 @@ function resetHQViewerToStandby() {
     const statusText = document.getElementById('live-status-text');
     if (statusText) statusText.innerText = "[SYS] STANDBY - MENUNGGU DATA MASUK";
 
-    // Bersihkan seluruh komponen teks menggunakan ID yang tepat
     if (document.getElementById('m-id-display')) document.getElementById('m-id-display').innerText = "ID: STANDBY";
     if (document.getElementById('m-kategori')) document.getElementById('m-kategori').innerText = "SYSTEM";
     if (document.getElementById('m-judul')) document.getElementById('m-judul').innerText = "MENUNGGU KONTRAK MASUK";
@@ -295,6 +356,15 @@ function resetHQViewerToStandby() {
     if (document.getElementById('m-titikb')) document.getElementById('m-titikb').innerText = "--";
     if (document.getElementById('m-barang')) document.getElementById('m-barang').innerText = "--";
     
+    // Reset Data Tambahan Finansial & Laci Dokumen
+    if (document.getElementById('m-reward-display')) document.getElementById('m-reward-display').innerText = "Rp 0";
+    if (document.getElementById('m-zona-badge')) document.getElementById('m-zona-badge').innerText = "SHARD: --";
+    if (document.getElementById('drawer-a')) document.getElementById('drawer-a').innerText = "--";
+    if (document.getElementById('drawer-b')) document.getElementById('drawer-b').innerText = "--";
+    
     const sliderZone = document.getElementById('slider-zone');
     if (sliderZone) sliderZone.style.display = "none";
+
+    const p2pDeck = document.getElementById('p2p-deck');
+    if (p2pDeck) p2pDeck.style.display = "none";
 }
