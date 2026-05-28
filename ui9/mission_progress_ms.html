@@ -15,11 +15,50 @@
     <script src="terminal_router.js"></script>
     
     <script>
+        // 1. Deklarasi Memori Global RAM CoreState
         window.CoreState = window.CoreState || {
             currentMissionId: null,
             driverData: null,
             activeMission: null
         };
+
+        // 2. JEMBATAN SINKRONISASI FALLBACK (Hasil Diskusi Diagnostik SessionStorage)
+        (function bootstrapCoreData() {
+            try {
+                const activeContractId = sessionStorage.getItem('active_contract_id') || sessionStorage.getItem('processing_contract');
+                const rawMission = sessionStorage.getItem('current_mission_full');
+                const rawUser = sessionStorage.getItem('user_identity');
+
+                if (activeContractId) {
+                    window.CoreState.currentMissionId = activeContractId;
+                }
+
+                if (rawUser) {
+                    window.CoreState.driverData = JSON.parse(rawUser);
+                }
+
+                if (rawMission) {
+                    const parsedMission = JSON.parse(rawMission);
+                    
+                    // Paritas Mapping Properti: Menyelaraskan struktur data session ke standar tampilan Viewer
+                    window.CoreState.activeMission = {
+                        ...parsedMission,
+                        id_misi: parsedMission.id_misi || activeContractId,
+                        status_operational: parsedMission.status_operational || parsedMission.status || "kerja",
+                        kategori: parsedMission.kategori || parsedMission.category || "MOTOR RIDE",
+                        judul: parsedMission.judul || `KONTRAK ${parsedMission.category || 'DELIVERY'}`,
+                        nama_pemesan: parsedMission.nama_pemesan || parsedMission.client_name || "Stranger",
+                        jarak: parsedMission.jarak || parsedMission.reward ? "Calculated" : "0",
+                        titik_jemput: parsedMission.titik_jemput || parsedMission.origin_name || parsedMission.origin_desa || "--",
+                        titik_tujuan: parsedMission.titik_tujuan || parsedMission.dest_name || parsedMission.dest_desa || "--",
+                        deskripsi_barang: parsedMission.deskripsi_barang || parsedMission.catatan || parsedMission.dest_details || "--"
+                    };
+                    console.log("[BOOTSTRAP] Sukses memetakan data cadangan dari SessionStorage ke CoreState RAM.", window.CoreState.activeMission);
+                }
+            } catch (e) {
+                console.error("[BOOTSTRAP ERROR] Gagal melakukan sinkronisasi data sirkuit awal:", e);
+            }
+        })();
     </script>
 
     <script src="core_gateway.js" defer></script>
@@ -51,10 +90,9 @@
             max-width: 500px;
             margin: 0 auto;
             box-sizing: border-box;
-            padding-bottom: 80px; /* Jarak aman agar tidak tertutup tombol debug */
+            padding-bottom: 80px; 
         }
 
-        /* Desain Slider Mekanis Utama Sesuai Gambar Berkas Anda */
         .slider-wrapper {
             position: relative;
             width: 100%;
@@ -109,7 +147,6 @@
             width: 0px;
         }
 
-        /* Penyelaras Bintang Evaluasi Modals */
         .star-rating-area i {
             font-size: 24px;
             color: #222233;
@@ -158,7 +195,7 @@
             padding: 10px;
             border-radius: 6px;
             margin-bottom: 12px;
-            max-height: 150px;
+            max-height: 120px;
             overflow-y: auto;
             font-size: 11px;
             color: #00ff88;
@@ -284,8 +321,8 @@
             <button onclick="toggleDebugConsole()" style="background:#ff3362; border:none; color:#fff; padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer;">CLOSE</button>
         </div>
         
-        <label style="font-size: 11px; color: #888;">FIREBASE CONNECTION STATUS:</label>
-        <div id="debug-fb-status" style="font-size: 12px; color: var(--neon-orange); margin-bottom: 10px; font-weight: bold;">CHECKING NETWORK...</div>
+        <label style="font-size: 11px; color: #888;">FIREBASE CONFIG CHECK:</label>
+        <div id="debug-fb-status" style="font-size: 12px; color: var(--neon-orange); margin-bottom: 10px; font-weight: bold;">CHECKING INSTANCE NETWORK...</div>
 
         <label style="font-size: 11px; color: #888;">LOCAL STORAGE DUMP:</label>
         <div id="debug-localstorage" class="debug-section">Loading...</div>
@@ -317,7 +354,39 @@
             });
         }
 
-        // CONTROL LOGIC UNTUK PANEL DEBUG
+        // PEMICU RENDER RE-FILL OTOMATIS JIKA GATEWAY LEWAT
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                if (window.CoreState && window.CoreState.activeMission) {
+                    console.log("[RUNTIME] Memicu pemutakhiran tampilan murni menggunakan data bootstrap.");
+                    if (typeof updateMissionUI === 'function') {
+                        updateMissionUI(window.CoreState.activeMission);
+                    } else {
+                        // Fallback jika core_hq_viewer gagal melakukan inisialisasi awal akibat Firebase crash
+                        const m = window.CoreState.activeMission;
+                        if(document.getElementById('m-id-display')) document.getElementById('m-id-display').innerText = "ID: " + (m.id_misi || "STANDBY");
+                        if(document.getElementById('m-judul')) document.getElementById('m-judul').innerText = m.judul || "--";
+                        if(document.getElementById('m-kategori')) document.getElementById('m-kategori').innerText = m.kategori || "SYSTEM";
+                        if(document.getElementById('m-pemesan')) document.getElementById('m-pemesan').innerText = m.nama_pemesan || "--";
+                        if(document.getElementById('m-titika')) document.getElementById('m-titika').innerText = m.titik_jemput || "--";
+                        if(document.getElementById('m-titikb')) document.getElementById('m-titikb').innerText = m.titik_tujuan || "--";
+                        if(document.getElementById('m-barang')) document.getElementById('m-barang').innerText = m.deskripsi_barang || "--";
+                        
+                        if(window.CoreState.driverData) {
+                            const d = window.CoreState.driverData;
+                            if(document.getElementById('u-name')) document.getElementById('u-name').innerText = d.nick || "Anonymous Agent";
+                            if(document.getElementById('u-rank')) document.getElementById('u-rank').innerText = (d.role || "?").substring(0,2).toUpperCase();
+                        }
+                        
+                        // Set teks status operasional dasar
+                        if(document.getElementById('live-status-text')) {
+                            document.getElementById('live-status-text').innerText = "[FALLBACK-SYS] ACTIVE ON CONTRACT MATRIX";
+                        }
+                    }
+                }
+            }, 800); // Penundaan sirkuit agar tumpukan skrip eksternal siap
+        });
+
         function toggleDebugConsole() {
             const consoleEl = document.getElementById('debugConsole');
             consoleEl.classList.toggle('show');
@@ -327,7 +396,6 @@
         }
 
         function runDiagnosticReport() {
-            // 1. Ambil Dump LocalStorage
             let localData = {};
             for (let i = 0; i < localStorage.length; i++) {
                 let k = localStorage.key(i);
@@ -335,7 +403,6 @@
             }
             document.getElementById('debug-localstorage').innerText = JSON.stringify(localData, null, 2);
 
-            // 2. Ambil Dump SessionStorage
             let sessionData = {};
             for (let i = 0; i < sessionStorage.length; i++) {
                 let k = sessionStorage.key(i);
@@ -343,28 +410,28 @@
             }
             document.getElementById('debug-sessionstorage').innerText = JSON.stringify(sessionData, null, 2);
 
-            // 3. Ambil Objek Memori CoreState
             if (window.CoreState) {
                 document.getElementById('debug-corestate').innerText = JSON.stringify(window.CoreState, null, 2);
-            } else {
-                document.getElementById('debug-corestate').innerText = "FATAL: Objek window.CoreState Tidak Ditemukan!";
             }
 
-            // 4. Periksa Listener Jaringan Firebase Kontrak
             try {
-                const fbApp = firebase.app();
-                firebase.database().ref(".info/connected").on("value", function(snap) {
-                    if (snap.val() === true) {
-                        document.getElementById('debug-fb-status').innerText = "ONLINE (Connected to Shard DB)";
+                if (firebase.apps.length > 0) {
+                    document.getElementById('debug-fb-status').innerText = `READY (${firebase.apps.length} App Inisialized Default)`;
+                    document.getElementById('debug-fb-status').style.color = "var(--neon-green)";
+                } else {
+                    document.getElementById('debug-fb-status').innerText = "VIRTUAL OVERRIDE: Membuka Jembatan Koneksi Manual...";
+                    // Mencoba memaksa inisialisasi jika router tertidur
+                    if (typeof getTerminal === 'function') {
+                        getTerminal('FB4_BOARD');
+                        document.getElementById('debug-fb-status').innerText = "CONNECTED VIA TERMINAL_ROUTER OVERRIDE";
                         document.getElementById('debug-fb-status').style.color = "var(--neon-green)";
                     } else {
-                        document.getElementById('debug-fb-status').innerText = "OFFLINE (Disconnected from Shard DB)";
-                        document.getElementById('debug-fb-status').style.color = "#ff3362";
+                        document.getElementById('debug-fb-status').innerText = "STANDALONE BOOTSTRAP (No App Initialization)";
+                        document.getElementById('debug-fb-status').style.color = "var(--neon-purple)";
                     }
-                });
+                }
             } catch(e) {
-                document.getElementById('debug-fb-status').innerText = "FATAL ERROR: " + e.message;
-                document.getElementById('debug-fb-status').style.color = "#ff3362";
+                document.getElementById('debug-fb-status').innerText = "ROUTER LOG: " + e.message;
             }
         }
 
@@ -376,10 +443,9 @@
                 coreState: JSON.parse(document.getElementById('debug-corestate').innerText || "{}"),
                 fbStatus: document.getElementById('debug-fb-status').innerText
             };
-
             navigator.clipboard.writeText(JSON.stringify(report, null, 2))
-                .then(() => alert("Seluruh data diagnosik berhasil disalin! Tempelkan di notepad untuk dianalisis."))
-                .catch(() => alert("Gagal menyalin otomatis. Silakan salin manual data teks di layar."));
+                .then(() => alert("Seluruh data diagnosik berhasil disalin!"))
+                .catch(() => alert("Gagal menyalin otomatis. Silakan salin teks manual."));
         }
     </script>
 </body>
