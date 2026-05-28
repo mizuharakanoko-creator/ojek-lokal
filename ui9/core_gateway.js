@@ -1,128 +1,221 @@
 /* ===================================================================
-   CORE_GATEWAY.JS (BRAIN 1)
+   CORE_GATEWAY.JS (BRAIN 1) - OPTIMIZED FOR REAL-TIME SESSION PARITY
    Fungsi: Jembatan Data Utama, State Manager, & Sinkronisasi Shard
    =================================================================== */
 
-// 1. Objek State Global Aplikasi
-const CoreState = {
-    driverId: localStorage.getItem('ms_driver_id') || "D001", // Default jika kosong
-    currentMissionId: localStorage.getItem('ms_active_mission_id') || null,
-    missionData: null,
+// 1. Objek State Global Aplikasi (Diselaraskan dengan window.CoreState dari HTML)
+window.CoreState = window.CoreState || {
+    currentMissionId: null,
+    driverData: null,
+    activeMission: null,
     networkStatus: "OFFLINE"
 };
 
+// Fungsi helper ekstrak data awal dari session storage
+function bootstrapSessionData() {
+    try {
+        // Mengambil ID kontrak aktif dari data session yang terbukti ada
+        const activeContractId = sessionStorage.getItem('active_contract_id') || sessionStorage.getItem('processing_contract');
+        const rawUser = sessionStorage.getItem('user_identity');
+        const rawMission = sessionStorage.getItem('current_mission_full');
+
+        if (activeContractId) {
+            window.CoreState.currentMissionId = activeContractId;
+        }
+
+        if (rawUser) {
+            window.CoreState.driverData = JSON.parse(rawUser);
+        }
+
+        if (rawMission) {
+            const parsed = JSON.parse(rawMission);
+            // Standarisasi paritas mapping: Mengubah struktur inggris session ke struktur lokal viewer
+            window.CoreState.activeMission = {
+                ...parsed,
+                id_misi: parsed.id_misi || activeContractId,
+                status_operational: parsed.status_operational || parsed.status || "open",
+                kategori: parsed.kategori || parsed.category || "MOTOR RIDE",
+                judul: parsed.judul || `KONTRAK ${parsed.category || 'DELIVERY'}`,
+                nama_pemesan: parsed.nama_pemesan || parsed.client_name || "Stranger",
+                jarak: parsed.jarak || (parsed.reward ? "Calculated" : "0"),
+                titik_jemput: parsed.titik_jemput || parsed.origin_name || parsed.origin_desa || "--",
+                titik_tujuan: parsed.titik_tujuan || parsed.dest_name || parsed.dest_desa || "--",
+                deskripsi_barang: parsed.deskripsi_barang || parsed.catatan || parsed.dest_details || "--"
+            };
+        }
+    } catch (e) {
+        console.error("[GATEWAY BOOTSTRAP ERROR]", e);
+    }
+}
+
 // 2. Inisialisasi Aliran Jaringan Data
 function initCoreGateway() {
-    console.log("[BRAIN 1] Menghubungkan sirkuit data untuk Driver:", CoreState.driverId);
-    updateNetworkStatus("CONNECTING", "Mengubungkan ke Shard Jaringan...");
+    // Jalankan bootstrap cadangan internal terlebih dahulu
+    bootstrapSessionData();
 
-    // Pastikan terminal router tersedia
+    const driverUID = window.CoreState.driverData ? window.CoreState.driverData.uid : "ANONYMOUS";
+    console.log("[BRAIN 1] Menghubungkan sirkuit data untuk Agent UID:", driverUID);
+    updateNetworkStatus("CONNECTING", "[SYS] CONNECTING TO SHARD MATRIX...");
+
+    // Cek ketersediaan fungsi router eksternal terminal_router.js
     if (typeof getTerminal !== 'function') {
-        console.error("[BRAIN 1] TERMINAL ROUTER TIDAK DETEKSI!");
-        updateNetworkStatus("ERROR", "Terminal Router Hilang");
+        console.warn("[BRAIN 1] TERMINAL ROUTER BELUM SIAP / TIDAK TERDETEKSI. Mengaktifkan Mode Fallback Session.");
+        activateSessionFallback();
         return;
     }
 
-    // Ambil koneksi Shard Driver dari FB1_MASTER untuk profil, atau FB4_BOARD untuk papan misi
-    // Berdasarkan berkas Anda, data papan misi aktif ditarik dari FB4_BOARD node kontrak_mission
-    const boardDB = getTerminal('FB4_BOARD'); 
-    const masterDB = getTerminal('FB1_MASTER');
-
-    if (!boardDB || !masterDB) {
-        updateNetworkStatus("ERROR", "Gagal Membuka Jalur Shard");
-        return;
-    }
-
-    // A. STREAM 1: Dengarkan data Profil Driver dari FB4 / FB1 (Menyesuaikan dengan layout)
-    boardDB.ref(`drivers/${CoreState.driverId}`).on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data && typeof renderDriverProfile === 'function') {
-            renderDriverProfile(data);
-        } else {
-            // Fallback profil jika node di FB4 kosong, set nama default dari ID
-            if (typeof renderDriverProfile === 'function') {
-                renderDriverProfile({ name: "AGENT " + CoreState.driverId, rank: "A", role: "FIELD OPERATIVE" });
-            }
+    try {
+        // Ambil koneksi database melalui terminal router sesuai biding app-compat
+        const boardDB = getTerminal('FB4_BOARD') || getTerminal('ojeklokal-42b84-default-rtdb'); 
+        
+        if (!boardDB) {
+            throw new Error("Gagal alokasi nama instans database");
         }
-    }, (err) => {
-        console.error("[BRAIN 1] Driver Stream Error:", err);
-    });
 
-    // B. STREAM 2: Mendengarkan Papan Kontrak Misi secara Real-Time
-    boardDB.ref("kontrak_mission").on('value', (snapshot) => {
-        let activeMissionFound = false;
-
-        snapshot.forEach((childSnapshot) => {
-            const mission = childSnapshot.val();
-            
-            // Logika COCOK: Driver ID sama DAN status operasional BUKAN "done"
-            if (mission.driver_id === CoreState.driverId && mission.status_operational !== "done") {
-                activeMissionFound = true;
-                CoreState.currentMissionId = childSnapshot.key;
-                CoreState.missionData = mission;
-
-                // Kunci ID Misi ke Storage agar jika di-refresh tidak hilang
-                localStorage.setItem('ms_active_mission_id', childSnapshot.key);
-                
-                updateNetworkStatus("ONLINE", "[SYS] KONTRAK AKTIF TERDETEKSI");
-                
-                // Distribusikan data ke Brain 2 (Viewer) & Brain 3 (Settlement jika ada)
-                if (typeof updateHQViewer === 'function') updateHQViewer(mission);
-                if (typeof syncEmergencyState === 'function') syncEmergencyState(mission);
+        // A. STREAM 1: Sinkronisasi Status & Profil Driver
+        boardDB.ref(`drivers/${driverUID}`).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                window.CoreState.driverData = { ...window.CoreState.driverData, ...data };
+            }
+            // Trigger rendering profil ke UI Viewer (core_hq_viewer.js)
+            if (typeof updateDriverProfileUI === 'function') {
+                updateDriverProfileUI(window.CoreState.driverData);
             }
         });
 
-        // Jika setelah diperiksa tidak ada misi aktif untuk driver ini
-        if (!activeMissionFound) {
-            clearCoreMissionState();
-        }
-    }, (err) => {
-        console.error("[BRAIN 1] Mission Stream Error:", err);
-        updateNetworkStatus("ERROR", "Data Misi Terputus");
-    });
+        // B. STREAM 2: Mendengarkan Papan Kontrak Misi secara Real-Time via Node Database
+        // Menggunakan jalur fallback ID Kontrak Aktif jika ada
+        const targetRefPath = window.CoreState.currentMissionId ? `kontrak_mission/${window.CoreState.currentMissionId}` : `kontrak_mission`;
+
+        boardDB.ref(targetRefPath).on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (!val) {
+                // Jika data kosong di Firebase, cek apakah session storage punya backup
+                if (window.CoreState.activeMission) {
+                    console.log("[GATEWAY] Firebase kosong, mempertahankan data memori session.");
+                    distributeCoreData(window.CoreState.activeMission);
+                } else {
+                    clearCoreMissionState();
+                }
+                return;
+            }
+
+            let activeMission = null;
+
+            if (window.CoreState.currentMissionId && snapshot.key === window.CoreState.currentMissionId) {
+                // Jika menembak langsung ke ID spesifik
+                activeMission = val;
+            } else {
+                // Jika mendengarkan ke seluruh list kontrak_mission, cari yang COCOK
+                Object.keys(val).forEach(key => {
+                    const m = val[key];
+                    // Pencarian berdasarkan kecocokan UID driver atau ID Requester yang sedang diproses
+                    if ((m.driver_id === driverUID || m.id_requester === window.CoreState.driverData?.uid) && m.status_operational !== "done") {
+                        activeMission = m;
+                        window.CoreState.currentMissionId = key;
+                    }
+                });
+            }
+
+            if (activeMission) {
+                // Normalisasi struktur data Firebase ke format penayangan layar
+                const normalizedMission = {
+                    ...activeMission,
+                    id_misi: activeMission.id_misi || window.CoreState.currentMissionId,
+                    status_operational: activeMission.status_operational || activeMission.status || "kerja",
+                    kategori: activeMission.kategori || activeMission.category || "MOTOR RIDE",
+                    judul: activeMission.judul || `KONTRAK ${activeMission.category || 'DELIVERY'}`,
+                    nama_pemesan: activeMission.nama_pemesan || activeMission.client_name || "Stranger",
+                    titik_jemput: activeMission.titik_jemput || activeMission.origin_name || "--",
+                    titik_tujuan: activeMission.titik_tujuan || activeMission.dest_name || "--",
+                    deskripsi_barang: activeMission.deskripsi_barang || activeMission.catatan || "--"
+                };
+
+                window.CoreState.activeMission = normalizedMission;
+                updateNetworkStatus("ONLINE", "[SYS] KONTRAK AKTIF TERDETEKSI");
+                distributeCoreData(normalizedMission);
+            } else {
+                if (window.CoreState.activeMission) {
+                    distributeCoreData(window.CoreState.activeMission);
+                } else {
+                    clearCoreMissionState();
+                }
+            }
+        }, (err) => {
+            console.error("[BRAIN 1] Mission Stream Error:", err);
+            activateSessionFallback("[SYS] LINK EROR - MODE CADANGAN AKTIF");
+        });
+
+    } catch (e) {
+        console.error("[BRAIN 1] Firebase Initialization Crash:", e.message);
+        activateSessionFallback("[SYS] OVERRIDE VIRTUAL MEMORY");
+    }
+}
+
+// Fungsi mendistribusikan data matang ke Brain 2 (Viewer) & Brain 3 (Settlement)
+function distributeCoreData(missionData) {
+    if (typeof updateHQViewer === 'function') {
+        updateHQViewer(missionData);
+    } else if (typeof updateMissionUI === 'function') {
+        updateMissionUI(missionData);
+    }
+    if (typeof syncEmergencyState === 'function') {
+        syncEmergencyState(missionData);
+    }
+}
+
+// Fungsi Aktivasi Jalur Memori Lokal (Fallback) saat Firebase mati/mengalami delay inisialisasi
+function activateSessionFallback(customMessage) {
+    updateNetworkStatus("STANDBY", customMessage || "[SYS] RUNNING VIA LOCAL STORAGE");
+    if (window.CoreState.activeMission) {
+        console.log("[GATEWAY VIRTUAL] Mengalirkan data replika session storage ke viewer.");
+        distributeCoreData(window.CoreState.activeMission);
+    } else {
+        clearCoreMissionState();
+    }
 }
 
 // 3. Pembersihan State saat Misi Kosong / Selesai
 function clearCoreMissionState() {
-    CoreState.currentMissionId = null;
-    CoreState.missionData = null;
-    localStorage.removeItem('ms_active_mission_id');
-
+    window.CoreState.currentMissionId = null;
+    window.CoreState.activeMission = null;
+    
     updateNetworkStatus("STANDBY", "[SYS] STANDBY - MENUNGGU DATA MASUK");
     
     if (typeof resetHQViewerToStandby === 'function') resetHQViewerToStandby();
     if (typeof resetEmergencyState === 'function') resetEmergencyState();
 }
 
-// 4. Update Status Bar di UI
+// 4. Update Status Bar di UI secara Real-Time
 function updateNetworkStatus(status, message) {
-    CoreState.networkStatus = status;
+    window.CoreState.networkStatus = status;
     const indicator = document.getElementById('status-indicator');
     const statusText = document.getElementById('live-status-text');
 
     if (statusText) statusText.innerText = message;
     if (indicator) {
-        indicator.className = "status-dot"; // Reset class
+        indicator.className = "status-dot"; 
         if (status === "ONLINE") indicator.style.background = "var(--neon-green, #00ff88)";
         else if (status === "STANDBY") indicator.style.background = "var(--neon-blue, #00f3ff)";
-        else if (status === "CONNECTING") indicator.style.background = "var(--neon-yellow, #ffcc00)";
+        else if (status === "CONNECTING") indicator.style.background = "var(--neon-orange, #ff5500)";
         else indicator.style.background = "var(--neon-red, #ff3362)";
     }
 }
 
-// 5. Fungsi Tombol Paksa Refresh Gateway
+// 5. Fungsi Paksa Refresh Aliran Data Gateway
 function forceRefreshGateway() {
     playCoreSFX('click-sfx');
     initCoreGateway();
 }
 
-// Helper Audio
+// Helper Audio SFX
 function playCoreSFX(id) {
     const audio = document.getElementById(id);
     if (audio) { audio.currentTime = 0; audio.play().catch(() => {}); }
 }
 
-// Booting awal saat DOM siap
+// Booting awal saat sirkuit DOM siap dimuat
 window.addEventListener('DOMContentLoaded', () => {
     initCoreGateway();
 });
