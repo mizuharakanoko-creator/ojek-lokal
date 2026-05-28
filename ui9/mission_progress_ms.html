@@ -19,7 +19,8 @@
         window.CoreState = window.CoreState || {
             currentMissionId: null,
             driverData: null,
-            activeMission: null
+            activeMission: null,
+            virtualRole: "adventurer" // Mode peran virtual dasar: adventurer / requester
         };
 
         // 2. JEMBATAN SINKRONISASI FALLBACK (Hasil Diskusi Diagnostik SessionStorage)
@@ -40,7 +41,6 @@
                 if (rawMission) {
                     const parsedMission = JSON.parse(rawMission);
                     
-                    // Paritas Mapping Properti: Menyelaraskan struktur data session ke standar tampilan Viewer
                     window.CoreState.activeMission = {
                         ...parsedMission,
                         id_misi: parsedMission.id_misi || activeContractId,
@@ -48,12 +48,12 @@
                         kategori: parsedMission.kategori || parsedMission.category || "MOTOR RIDE",
                         judul: parsedMission.judul || `KONTRAK ${parsedMission.category || 'DELIVERY'}`,
                         nama_pemesan: parsedMission.nama_pemesan || parsedMission.client_name || "Stranger",
-                        jarak: parsedMission.jarak || parsedMission.reward ? "Calculated" : "0",
+                        jarak: parsedMission.jarak || (parsedMission.reward ? "Calculated" : "0"),
                         titik_jemput: parsedMission.titik_jemput || parsedMission.origin_name || parsedMission.origin_desa || "--",
                         titik_tujuan: parsedMission.titik_tujuan || parsedMission.dest_name || parsedMission.dest_desa || "--",
                         deskripsi_barang: parsedMission.deskripsi_barang || parsedMission.catatan || parsedMission.dest_details || "--"
                     };
-                    console.log("[BOOTSTRAP] Sukses memetakan data cadangan dari SessionStorage ke CoreState RAM.", window.CoreState.activeMission);
+                    console.log("[BOOTSTRAP] Sukses memetakan data akar ke CoreState RAM.", window.CoreState.activeMission);
                 }
             } catch (e) {
                 console.error("[BOOTSTRAP ERROR] Gagal melakukan sinkronisasi data sirkuit awal:", e);
@@ -66,7 +66,6 @@
     <script src="core_settlement.js" defer></script>
 
     <style>
-        /* Memastikan kecocokan warna visual 100% dengan kodeB.html */
         :root {
             --b-dark: #050508;
             --b-panel: rgba(13, 13, 23, 0.65);
@@ -74,6 +73,7 @@
             --neon-blue: #00f3ff;
             --neon-purple: #bc13fe;
             --neon-green: #00ff88;
+            --neon-red: #ff3362;
         }
         
         body {
@@ -93,69 +93,59 @@
             padding-bottom: 80px; 
         }
 
-        .slider-wrapper {
-            position: relative;
-            width: 100%;
-            height: 52px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--neon-blue);
-            border-radius: 26px;
+        /* STYLING UTILITY EXPANDABLE DRAWER */
+        .drawer-detail {
+            max-height: 0;
             overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.2);
-        }
-
-        .slider-text {
+            transition: max-height 0.3s ease-out;
+            background: rgba(0,0,0,0.4);
+            border-radius: 4px;
             font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            color: var(--neon-blue);
-            z-index: 2;
-            pointer-events: none;
+            color: #aaa;
             font-family: 'JetBrains Mono', monospace;
-            text-shadow: 0 0 5px rgba(0, 243, 255, 0.6);
+        }
+        .drawer-detail.open {
+            max-height: 150px;
+            margin-top: 8px;
+            padding: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
         }
 
-        .slider-thumb {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 52px;
-            height: 52px;
-            background: var(--neon-blue);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #000;
-            font-size: 16px;
+        .btn-inline-util {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #ccc;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
             cursor: pointer;
-            z-index: 3;
-            box-shadow: 0 0 15px var(--neon-blue);
-            transition: transform 0.1s;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .btn-inline-util:hover {
+            border-color: var(--neon-blue);
+            color: var(--neon-blue);
         }
 
-        .slider-fill {
-            position: absolute;
-            left: 0;
-            top: 0;
-            height: 100%;
-            background: rgba(0, 243, 255, 0.2);
-            z-index: 1;
-            width: 0px;
+        /* P2P ACTION RADAR PANEL */
+        .p2p-control-deck {
+            background: rgba(10,10,18,0.9);
+            border: 1px solid #222;
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 15px;
         }
-
-        .star-rating-area i {
-            font-size: 24px;
-            color: #222233;
+        .btn-p2p {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
             cursor: pointer;
-            transition: color 0.2s, transform 0.1s;
-        }
-        .star-rating-area i.active {
-            color: var(--neon-purple);
-            text-shadow: 0 0 10px rgba(188, 19, 254, 0.5);
+            text-align: center;
+            letter-spacing: 1px;
+            border: none;
+            transition: all 0.2s;
         }
 
         /* STYLING CORES DEBUG OVERLAY INTERFACE */
@@ -180,13 +170,14 @@
         .debug-console {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5, 5, 8, 0.96);
+            background: rgba(5, 5, 8, 0.97);
             z-index: 9998;
             display: none;
             flex-direction: column;
             box-sizing: border-box;
             padding: 20px;
             font-family: 'JetBrains Mono', monospace;
+            overflow-y: auto;
         }
         .debug-console.show { display: flex; }
         .debug-section {
@@ -201,6 +192,17 @@
             color: #00ff88;
             white-space: pre-wrap;
         }
+        .simulator-role-btn {
+            padding: 10px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #fff;
+            background: #151525;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -214,13 +216,14 @@
             <div style="display: flex; align-items: center; gap: 12px;">
                 <div id="u-rank" class="rank-badge" style="background: var(--neon-orange); color:#000; font-weight:900; padding:4px 9px; border-radius:4px; font-family:'JetBrains Mono';">?</div>
                 <div>
-                    <div id="u-role" style="font-size: 9px; color: #666; letter-spacing: 1px; font-weight: bold;">FIELD AGENT</div>
+                    <div id="u-role" style="font-size: 9px; color: #ff5500; letter-spacing: 1px; font-weight: bold;">ADVENTURER MODE</div>
                     <div id="u-name" style="font-weight: 700; font-size: 15px; color: #fff;">Connecting Shard...</div>
                 </div>
             </div>
-            <button onclick="if(typeof forceRefreshGateway === 'function') { forceRefreshGateway(); } else { location.reload(); }" style="background:none; border:1px solid #222; color:#555; padding:8px 12px; border-radius:6px; cursor:pointer;">
-                <i class="fa-solid fa-sync-alt"></i>
-            </button>
+            <div style="display: flex; align-items: flex-end; flex-direction: column;">
+                <div id="m-zona-badge" style="font-size: 10px; font-family:'JetBrains Mono'; color: var(--neon-blue); font-weight: bold; margin-bottom: 2px;">SHARD: --</div>
+                <div id="m-reward-display" style="font-size: 14px; font-family:'JetBrains Mono'; color: var(--neon-green); font-weight: 900;">Rp 0</div>
+            </div>
         </header>
 
         <div class="panel status-panel" style="padding: 10px 15px; margin-bottom: 15px; border-radius: 10px; display: flex; align-items: center; gap: 10px; font-size: 12px; background: var(--b-panel); border: 1px solid rgba(255,255,255,0.03);">
@@ -247,12 +250,27 @@
 
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
                 <div style="background: rgba(0,0,0,0.25); padding: 11px; border-radius: 6px; border-left: 3px solid var(--neon-orange);">
-                    <div style="font-size: 9px; color: #666; font-weight: bold; font-family: 'JetBrains Mono';">[A] TITIK JEMPUT ORIGIN</div>
-                    <div id="m-titika" style="font-size: 13px; margin-top: 2px; font-weight: 500; color: #eee;">--</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <div style="font-size: 9px; color: #666; font-weight: bold; font-family: 'JetBrains Mono';">[A] TITIK JEMPUT ORIGIN</div>
+                        <div style="display: flex; gap: 6px;">
+                            <button id="btn-maps-a" class="btn-inline-util" onclick="openGmapsRoute('origin')"><i class="fa-solid fa-compass" style="color:var(--neon-orange);"></i> MAPS</button>
+                            <button class="btn-inline-util" onclick="toggleDrawer('drawer-a')">[+] DETIL</button>
+                        </div>
+                    </div>
+                    <div id="m-titika" style="font-size: 13px; font-weight: 500; color: #eee;">--</div>
+                    <div id="drawer-a" class="drawer-detail">--</div>
                 </div>
+                
                 <div style="background: rgba(0,0,0,0.25); padding: 11px; border-radius: 6px; border-left: 3px solid var(--neon-green);">
-                    <div style="font-size: 9px; color: #666; font-weight: bold; font-family: 'JetBrains Mono';">[B] DESTINASI TUJUAN</div>
-                    <div id="m-titikb" style="font-size: 13px; margin-top: 2px; font-weight: 500; color: #eee;">--</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <div style="font-size: 9px; color: #666; font-weight: bold; font-family: 'JetBrains Mono';">[B] DESTINASI TUJUAN</div>
+                        <div style="display: flex; gap: 6px;">
+                            <button id="btn-maps-b" class="btn-inline-util" onclick="openGmapsRoute('dest')"><i class="fa-solid fa-compass" style="color:var(--neon-green);"></i> MAPS</button>
+                            <button class="btn-inline-util" onclick="toggleDrawer('drawer-b')">[+] DETIL</button>
+                        </div>
+                    </div>
+                    <div id="m-titikb" style="font-size: 13px; font-weight: 500; color: #eee;">--</div>
+                    <div id="drawer-b" class="drawer-detail">--</div>
                 </div>
             </div>
 
@@ -266,6 +284,15 @@
                     <div id="slider-text" class="slider-text">GESER UNTUK RESPOND KONTRAK</div>
                     <div id="slider-fill" class="slider-fill"></div>
                     <div id="slider-thumb" class="slider-thumb"><i class="fa-solid fa-angles-right"></i></div>
+                </div>
+            </div>
+
+            <div id="p2p-deck" class="p2p-control-deck" style="display: none;">
+                <div style="font-size: 9px; color: #666; font-family:'JetBrains Mono'; margin-bottom: 8px; text-align: center;">
+                    <i class="fa-solid fa-satellite-dish"></i> PEER-TO-PEER INTERACTION PROTOCOL
+                </div>
+                <div id="p2p-action-space">
+                    <button class="btn-p2p" style="background:#222; color:#555;" disabled>MENUNGGU SINYAL KONTRAK...</button>
                 </div>
             </div>
 
@@ -288,17 +315,18 @@
         <div class="modal-box" style="background:#0a0a10; border:1px solid rgba(255,255,255,0.05); padding:20px; border-radius:12px; width:88%; max-width:350px;">
             <div class="modalTitle" style="color: var(--neon-purple); font-family: 'JetBrains Mono', monospace; font-weight: bold; font-size: 14px; margin-bottom: 8px;">EVALUASI OPERASIONAL</div>
             <div class="modalMsg" style="font-size: 12px; color: #888; margin-bottom: 15px;">Berikan penilaian respon pemesan untuk arsip data Guild.</div>
-            
             <div style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0;">
                 <span style="font-size: 11px; color: #aaa; font-family: 'JetBrains Mono', monospace;">RATING PEMESAN</span>
                 <div class="star-rating-area" id="req-stars" style="display: flex; gap: 8px;">
+                    <i class="fa-solid fa-star" onclick="setStarRating(1)"></i>
+                    <i class="fa-solid fa-star" onclick="setStarRating(2)"></i>
+                    <i class="fa-solid fa-star" onclick="setStarRating(3)"></i>
+                    <i class="fa-solid fa-star" onclick="setStarRating(4)"></i>
+                    <i class="fa-solid fa-star" onclick="setStarRating(5)"></i>
                 </div>
             </div>
-            
-            <input type="text" id="input-eval-catatan" class="modal-input" placeholder="Catatan Opsional (Maks 40 karakter)..." maxlength="40" style="width: 100%; box-sizing: border-box; margin-bottom: 15px; background:#000; border:1px solid #222; color:#fff; padding:10px; border-radius:6px; font-size:12px;">
-            <button id="btn-submit-eval" class="btn-main" style="width: 100%; border: 1px solid var(--neon-purple); color: var(--neon-purple); background: rgba(188,19,254,0.03); padding:11px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:12px;">
-                KIRIM LAPORAN SELESAI
-            </button>
+            <input type="text" id="input-eval-catatan" class="modal-input" placeholder="Catatan Opsional..." maxlength="40" style="width: 100%; box-sizing: border-box; margin-bottom: 15px; background:#000; border:1px solid #222; color:#fff; padding:10px; border-radius:6px; font-size:12px;">
+            <button id="btn-submit-eval" onclick="executeSubmitEvaluation()" style="width: 100%; border: 1px solid var(--neon-purple); color: var(--neon-purple); background: rgba(188,19,254,0.03); padding:11px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:12px;">KIRIM LAPORAN SELESAI</button>
         </div>
     </div>
 
@@ -321,11 +349,14 @@
             <button onclick="toggleDebugConsole()" style="background:#ff3362; border:none; color:#fff; padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer;">CLOSE</button>
         </div>
         
+        <label style="font-size: 11px; color: #888; font-weight: bold; display: block; margin-bottom: 6px; color: var(--neon-blue);">P2P ROLE SWITCH VIRTUALIZER:</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <button class="simulator-role-btn" id="sim-btn-adv" onclick="simulateRoleChange('adventurer')" style="border-color: var(--neon-orange);">SIMULATE ADVENTURER (DRIVER)</button>
+            <button class="simulator-role-btn" id="sim-btn-req" onclick="simulateRoleChange('requester')">SIMULATE REQUESTER (CLIENT)</button>
+        </div>
+
         <label style="font-size: 11px; color: #888;">FIREBASE CONFIG CHECK:</label>
         <div id="debug-fb-status" style="font-size: 12px; color: var(--neon-orange); margin-bottom: 10px; font-weight: bold;">CHECKING INSTANCE NETWORK...</div>
-
-        <label style="font-size: 11px; color: #888;">LOCAL STORAGE DUMP:</label>
-        <div id="debug-localstorage" class="debug-section">Loading...</div>
 
         <label style="font-size: 11px; color: #888;">SESSION STORAGE DUMP:</label>
         <div id="debug-sessionstorage" class="debug-section">Loading...</div>
@@ -339,52 +370,119 @@
     </div>
 
     <script>
+        let currentRatingSelected = 5;
+
         function sysConfirm(title, msg) {
             return new Promise((resolve) => {
                 const modal = document.getElementById('sysConfirmModal');
                 document.getElementById('confirmTitle').innerText = title;
                 document.getElementById('confirmMsg').innerText = msg;
                 modal.classList.add('show');
-
                 const cancel = document.getElementById('confirmCancelBtn');
                 const exec = document.getElementById('confirmExecuteBtn');
-
                 cancel.onclick = () => { modal.classList.remove('show'); resolve(false); };
                 exec.onclick = () => { modal.classList.remove('show'); resolve(true); };
             });
         }
 
-        // PEMICU RENDER RE-FILL OTOMATIS JIKA GATEWAY LEWAT
+        // CONTROL DROP-DOWN DRAWER LOKASI (MAXIMIZE / MINIMIZE)
+        function toggleDrawer(drawerId) {
+            const el = document.getElementById(drawerId);
+            if (el) {
+                el.classList.toggle('open');
+                const btn = el.previousElementSibling.querySelector('button:not(#btn-maps-a):not(#btn-maps-b)');
+                if (btn) {
+                    btn.innerText = el.classList.contains('open') ? "[-] TUTUP" : "[+] DETIL";
+                }
+            }
+        }
+
+        // INTERLOCK GOOGLE MAPS EXTERNAL ROUTING LINK
+        function openGmapsRoute(type) {
+            const m = window.CoreState?.activeMission;
+            if (!m) return;
+            const coords = (type === 'origin') ? m.origin_coords : m.dest_coords;
+            if (coords && coords !== "--") {
+                window.open(`https://www.google.com/maps/search/?api=1&query=${coords}`, '_blank');
+            } else {
+                alert("Koordinat GPS tidak valid atau belum dimuat!");
+            }
+        }
+
+        // ENGINE VIRTUALIZER ALIH PERAN (DIAGNOSTIC BACKDOOR)
+        function simulateRoleChange(role) {
+            window.CoreState.virtualRole = role;
+            const uRole = document.getElementById('u-role');
+            const btnAdv = document.getElementById('sim-btn-adv');
+            const btnReq = document.getElementById('sim-btn-req');
+            
+            if (role === 'adventurer') {
+                if (uRole) uRole.innerText = "ADVENTURER MODE";
+                if (uRole) uRole.style.color = "var(--neon-orange)";
+                btnAdv.style.borderColor = "var(--neon-orange)";
+                btnReq.style.borderColor = "#333";
+            } else {
+                if (uRole) uRole.innerText = "REQUESTER MODE (CLIENT VIEW)";
+                if (uRole) uRole.style.color = "var(--neon-purple)";
+                btnReq.style.borderColor = "var(--neon-purple)";
+                btnAdv.style.borderColor = "#333";
+            }
+            
+            alert(`Sirkuit RAM dialihkan ke: ${role.toUpperCase()}`);
+            toggleDebugConsole();
+            
+            // Re-trigger rendering UI dengan paradigma peran baru
+            if (window.CoreState.activeMission && typeof updateMissionUI === 'function') {
+                updateMissionUI(window.CoreState.activeMission);
+            }
+        }
+
+        // EVALUATION RATING HANDLER
+        function setStarRating(num) {
+            currentRatingSelected = num;
+            const stars = document.getElementById('req-stars').getElementsByTagName('i');
+            for (let i = 0; i < stars.length; i++) {
+                if (i < num) stars[i].classList.add('active');
+                else stars[i].classList.remove('active');
+            }
+        }
+
+        function openEvaluationWindow() {
+            setStarRating(5);
+            document.getElementById('input-eval-catatan').value = "";
+            document.getElementById('reqEvalModal').classList.add('show');
+        }
+
+        function executeSubmitEvaluation() {
+            document.getElementById('reqEvalModal').classList.remove('show');
+            const catatan = document.getElementById('input-eval-catatan').value || "Selesai Sempurna";
+            
+            alert(`Arsip Terkunci! Rating: ${currentRatingSelected} Star. Catatan: ${catatan}`);
+            
+            // Trigger clear state gateway kembali ke standby
+            if (typeof clearCoreMissionState === 'function') {
+                clearCoreMissionState();
+            } else {
+                location.reload();
+            }
+        }
+
+        // RUNTIME MONITOR RE-FILL PIPELINE
         window.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 if (window.CoreState && window.CoreState.activeMission) {
-                    console.log("[RUNTIME] Memicu pemutakhiran tampilan murni menggunakan data bootstrap.");
+                    const m = window.CoreState.activeMission;
+                    // Ambil detail pendukung dan pasang ke antarmuka utama
+                    if (document.getElementById('m-reward-display')) document.getElementById('m-reward-display').innerText = m.reward ? `Rp ${m.reward.toLocaleString()}` : "Rp 0";
+                    if (document.getElementById('m-zona-badge')) document.getElementById('m-zona-badge').innerText = `SHARD: ${m.shard_id || m.zona || '--'}`;
+                    if (document.getElementById('drawer-a')) document.getElementById('drawer-a').innerText = m.origin_details || "Tidak ada rincian patokan.";
+                    if (document.getElementById('drawer-b')) document.getElementById('drawer-b').innerText = m.dest_details || "Tidak ada rincian patokan.";
+
                     if (typeof updateMissionUI === 'function') {
-                        updateMissionUI(window.CoreState.activeMission);
-                    } else {
-                        // Fallback jika core_hq_viewer gagal melakukan inisialisasi awal akibat Firebase crash
-                        const m = window.CoreState.activeMission;
-                        if(document.getElementById('m-id-display')) document.getElementById('m-id-display').innerText = "ID: " + (m.id_misi || "STANDBY");
-                        if(document.getElementById('m-judul')) document.getElementById('m-judul').innerText = m.judul || "--";
-                        if(document.getElementById('m-kategori')) document.getElementById('m-kategori').innerText = m.kategori || "SYSTEM";
-                        if(document.getElementById('m-pemesan')) document.getElementById('m-pemesan').innerText = m.nama_pemesan || "--";
-                        if(document.getElementById('m-titika')) document.getElementById('m-titika').innerText = m.titik_jemput || "--";
-                        if(document.getElementById('m-titikb')) document.getElementById('m-titikb').innerText = m.titik_tujuan || "--";
-                        if(document.getElementById('m-barang')) document.getElementById('m-barang').innerText = m.deskripsi_barang || "--";
-                        
-                        if(window.CoreState.driverData) {
-                            const d = window.CoreState.driverData;
-                            if(document.getElementById('u-name')) document.getElementById('u-name').innerText = d.nick || "Anonymous Agent";
-                            if(document.getElementById('u-rank')) document.getElementById('u-rank').innerText = (d.role || "?").substring(0,2).toUpperCase();
-                        }
-                        
-                        // Set teks status operasional dasar
-                        if(document.getElementById('live-status-text')) {
-                            document.getElementById('live-status-text').innerText = "[FALLBACK-SYS] ACTIVE ON CONTRACT MATRIX";
-                        }
+                        updateMissionUI(m);
                     }
                 }
-            }, 800); // Penundaan sirkuit agar tumpukan skrip eksternal siap
+            }, 600);
         });
 
         function toggleDebugConsole() {
@@ -396,56 +494,26 @@
         }
 
         function runDiagnosticReport() {
-            let localData = {};
-            for (let i = 0; i < localStorage.length; i++) {
-                let k = localStorage.key(i);
-                localData[k] = localStorage.getItem(k);
-            }
-            document.getElementById('debug-localstorage').innerText = JSON.stringify(localData, null, 2);
-
             let sessionData = {};
             for (let i = 0; i < sessionStorage.length; i++) {
                 let k = sessionStorage.key(i);
                 sessionData[k] = sessionStorage.getItem(k);
             }
             document.getElementById('debug-sessionstorage').innerText = JSON.stringify(sessionData, null, 2);
-
-            if (window.CoreState) {
-                document.getElementById('debug-corestate').innerText = JSON.stringify(window.CoreState, null, 2);
-            }
-
-            try {
-                if (firebase.apps.length > 0) {
-                    document.getElementById('debug-fb-status').innerText = `READY (${firebase.apps.length} App Inisialized Default)`;
-                    document.getElementById('debug-fb-status').style.color = "var(--neon-green)";
-                } else {
-                    document.getElementById('debug-fb-status').innerText = "VIRTUAL OVERRIDE: Membuka Jembatan Koneksi Manual...";
-                    // Mencoba memaksa inisialisasi jika router tertidur
-                    if (typeof getTerminal === 'function') {
-                        getTerminal('FB4_BOARD');
-                        document.getElementById('debug-fb-status').innerText = "CONNECTED VIA TERMINAL_ROUTER OVERRIDE";
-                        document.getElementById('debug-fb-status').style.color = "var(--neon-green)";
-                    } else {
-                        document.getElementById('debug-fb-status').innerText = "STANDALONE BOOTSTRAP (No App Initialization)";
-                        document.getElementById('debug-fb-status').style.color = "var(--neon-purple)";
-                    }
-                }
-            } catch(e) {
-                document.getElementById('debug-fb-status').innerText = "ROUTER LOG: " + e.message;
+            if (window.CoreState) document.getElementById('debug-corestate').innerText = JSON.stringify(window.CoreState, null, 2);
+            if (firebase.apps.length > 0) {
+                document.getElementById('debug-fb-status').innerText = `CONNECTED READY TO CLOUD STREAM`;
+                document.getElementById('debug-fb-status').style.color = "var(--neon-green)";
             }
         }
 
         function copyDebugData() {
             const report = {
                 timestamp: new Date().toISOString(),
-                localStorage: JSON.parse(document.getElementById('debug-localstorage').innerText || "{}"),
                 sessionStorage: JSON.parse(document.getElementById('debug-sessionstorage').innerText || "{}"),
-                coreState: JSON.parse(document.getElementById('debug-corestate').innerText || "{}"),
-                fbStatus: document.getElementById('debug-fb-status').innerText
+                coreState: JSON.parse(document.getElementById('debug-corestate').innerText || "{}")
             };
-            navigator.clipboard.writeText(JSON.stringify(report, null, 2))
-                .then(() => alert("Seluruh data diagnosik berhasil disalin!"))
-                .catch(() => alert("Gagal menyalin otomatis. Silakan salin teks manual."));
+            navigator.clipboard.writeText(JSON.stringify(report, null, 2)).then(() => alert("Data diagnosik berhasil disalin!"));
         }
     </script>
 </body>
