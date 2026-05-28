@@ -1,0 +1,205 @@
+/* ===================================================================
+   CORE_SETTLEMENT.JS (BRAIN 3)
+   Fungsi: Penghitungan Masa Proteksi AFK, Sistem Rating Bintang, 
+           & Eksekusi Penutupan Dokumen Misi (Selesai Absolut)
+   =================================================================== */
+
+let emergencyIntervalEngine = null;
+let selectedRatingValue = 0;
+
+// 1. Sinkronisasi Kondisi Darurat Berdasarkan Data Mentah Brain 1
+function syncEmergencyState(mission) {
+    if (!mission) {
+        resetEmergencyState();
+        return;
+    }
+
+    const statusOp = mission.status_operational;
+    const emZone = document.getElementById('emergency-zone');
+
+    // Protokol darurat otomatis aktif HANYA saat status operasional berada di tahap "kerja"
+    if (statusOp === "kerja") {
+        if (emZone && emZone.style.display === "none") {
+            startEmergencyCountdown(mission.timestamp_operational_update || Date.now());
+        }
+    } else {
+        resetEmergencyState();
+    }
+}
+
+// 2. Engine Hitung Mundur Munculnya Tombol Selesai Paksa Darurat
+function startEmergencyCountdown(lastUpdateTimestamp) {
+    const emZone = document.getElementById('emergency-zone');
+    const emTimer = document.getElementById('em-timer-msg');
+    const sliderCont = document.getElementById('slider-container-em');
+    const emSlider = document.getElementById('em-slider');
+
+    if (!emZone || !emTimer || !sliderCont) return;
+
+    if (emergencyIntervalEngine) clearInterval(emergencyIntervalEngine);
+
+    // Tampilkan bungkus luar darurat
+    emZone.style.display = "block";
+    emTimer.style.display = "block";
+    sliderCont.style.display = "none";
+    if (emSlider) emSlider.value = 0;
+
+    // Atur durasi tunggu pelepasan enkripsi pengaman (Contoh: 10 Detik)
+    let countdown = 10;
+    emTimer.innerText = `TOMBOL SELESAI DARURAT AKAN MUNCUL DALAM ${countdown}S... GUNAKAN INI APABILA PEMESAN AFK TANPA MENGKONFIRMASI SELESAI`;
+
+    emergencyIntervalEngine = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+            emTimer.innerText = `TOMBOL SELESAI DARURAT AKAN MUNCUL DALAM ${countdown}S... GUNAKAN INI APABILA PEMESAN AFK TANPA MENGKONFIRMASI SELESAI`;
+        } else {
+            clearInterval(emergencyIntervalEngine);
+            emergencyIntervalEngine = null;
+
+            // Transisi: Sembunyikan teks hitung mundur, munculkan range slider override
+            emTimer.style.display = "none";
+            sliderCont.style.display = "block";
+
+            if (typeof playCoreSFX === 'function') playCoreSFX('notif-sfx');
+        }
+    }, 1000);
+
+    // Konfigurasi Input Slider Darurat
+    if (emSlider) {
+        emSlider.oninput = function() {
+            if (this.value >= 98) {
+                this.value = 100;
+                executeEmergencyAction();
+            }
+        };
+    }
+}
+
+// 3. Konfirmasi Aksi Selesai Paksa (AFK)
+async function executeEmergencyAction() {
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Getar Pulsa Keamanan
+
+    const yakin = await sysConfirm(
+        "SELESAI PAKSA (AFK)", 
+        "AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan diarahkan ke form laporan evaluasi.", 
+        true
+    );
+
+    if (yakin) {
+        openEvaluationModal();
+    } else {
+        // Reset slider darurat jika batal
+        const emSlider = document.getElementById('em-slider');
+        if (emSlider) emSlider.value = 0;
+    }
+}
+
+// 4. Buka Form Evaluasi & Gambar Bintang Dinamis
+function openEvaluationModal() {
+    selectedRatingValue = 0;
+    const evalModal = document.getElementById('reqEvalModal');
+    const starContainer = document.getElementById('req-stars');
+
+    if (!evalModal || !starContainer) return;
+
+    // Bersihkan kontainer dan buat 5 ikon bintang fa-star secara murni
+    starContainer.innerHTML = "";
+    for (let i = 1; i <= 5; i++) {
+        const starIcon = document.createElement('i');
+        starIcon.className = "fa-solid fa-star";
+        starIcon.style.cursor = "pointer";
+        starIcon.style.fontSize = "20px";
+        starIcon.style.color = "#333344"; // Warna mati awal
+        starIcon.style.transition = "color 0.2s, transform 0.1s";
+
+        // Tambah event klik ke masing-masing bintang
+        starIcon.addEventListener('click', () => highlightStars(i));
+        starContainer.appendChild(starIcon);
+    }
+
+    evalModal.classList.add('show');
+}
+
+// 5. Efek Visual Seleksi Bintang
+function highlightStars(ratingValue) {
+    if (typeof playCoreSFX === 'function') playCoreSFX('click-sfx');
+    selectedRatingValue = ratingValue;
+
+    const stars = document.querySelectorAll('#req-stars i');
+    stars.forEach((star, index) => {
+        if (index < ratingValue) {
+            star.style.color = "var(--neon-purple, #bc13fe)"; // Menyala ungu neon
+            star.style.transform = "scale(1.2)";
+        } else {
+            star.style.color = "#333344"; // Padam
+            star.style.transform = "scale(1.0)";
+        }
+    });
+}
+
+// 6. Tembak Perintah Tutup Kontrak Ke Firebase Absolut
+function submitMissionSettlement() {
+    if (typeof playCoreSFX === 'function') playCoreSFX('click-sfx');
+    
+    if (!CoreState.currentMissionId) return;
+
+    if (selectedRatingValue === 0) {
+        alert("Evaluasi gagal dikirim. Silakan pilih salah satu rating bintang.");
+        return;
+    }
+
+    const catatanInput = document.getElementById('input-eval-catatan');
+    const txtCatatan = catatanInput ? catatanInput.value.trim() : "";
+
+    // Sembunyikan Modal Segera untuk Mencegah Double Submit
+    const evalModal = document.getElementById('reqEvalModal');
+    if (evalModal) evalModal.classList.remove('show');
+
+    console.log(`[BRAIN 3] Menutup dokumen misi ${CoreState.currentMissionId} dengan rating ${selectedRatingValue}`);
+
+    const boardDB = getTerminal('FB4_BOARD'); //
+    
+    // Kirim Perintah Done & Simpan Laporan Rating ke Dalam Shard Node Misi Tersebut
+    boardDB.ref(`kontrak_mission/${CoreState.currentMissionId}`).update({
+        status_operational: "done",
+        rating_requester: selectedRatingValue,
+        catatan_evaluasi: txtCatatan,
+        timestamp_closed: firebase.database.ServerValue.TIMESTAMP
+    })
+    .then(() => {
+        alert("KONTRAK SELESAI: Dokumen berhasil diarsipkan ke dalam basis data Guild.");
+        if (catatanInput) catatanInput.value = "";
+    })
+    .catch((err) => {
+        alert("Gagal menutup berkas misi di server: " + err.message);
+    });
+}
+
+// 7. Reset State Darurat ke Posisi Siaga
+function resetEmergencyState() {
+    if (emergencyIntervalEngine) {
+        clearInterval(emergencyIntervalEngine);
+        emergencyIntervalEngine = null;
+    }
+    selectedRatingValue = 0;
+
+    const emZone = document.getElementById('emergency-zone');
+    const emTimer = document.getElementById('em-timer-msg');
+    const sliderCont = document.getElementById('slider-container-em');
+    const emSlider = document.getElementById('em-slider');
+    const evalModal = document.getElementById('reqEvalModal');
+
+    if (emZone) emZone.style.display = "none";
+    if (emTimer) emTimer.style.display = "none";
+    if (sliderCont) sliderCont.style.display = "none";
+    if (emSlider) emSlider.value = 0;
+    if (evalModal) evalModal.classList.remove('show');
+}
+
+// Inisialisasi Event Click Tombol Submit di Modal saat Halaman Selesai Dimuat
+window.addEventListener('DOMContentLoaded', () => {
+    const btnSubmitEval = document.getElementById('btn-submit-eval');
+    if (btnSubmitEval) {
+        btnSubmitEval.addEventListener('click', submitMissionSettlement);
+    }
+});
