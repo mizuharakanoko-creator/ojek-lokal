@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BATTLEFIELD HUB | GUILD</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#050508">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        /* === QUANTUM DESIGN SYSTEM === */
+        :root {
+            --bg-main: #050508;
+            --bg-panel: rgba(13, 13, 20, 0.8);
+            --neon-blue: #00f3ff;
+            --neon-green: #00ff88;
+            --neon-red: #ff3366;
+            --neon-purple: #bc13fe;
+            --neon-yellow: #ffcc00;
+            --text-main: #e0e0e0;
+            --glass: rgba(5, 5, 8, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+            --font-sans: 'Inter', -apple-system, sans-serif;
+        }
+
+        /* NATIVE APP FEEL FIXES */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            user-select: none;
+            box-sizing: border-box;
+            scrollbar-width: none;
+        }
+        *::-webkit-scrollbar {
+            display: none;
+        }
+
+        input, textarea {
+            user-select: text !important;
+        }
+
+        body, html { 
+            margin: 0; padding: 0; 
+            background: radial-gradient(circle at top right, #111, var(--bg-main)); 
+            color: var(--text-main); 
+            font-family: var(--font-sans); 
+            overflow: hidden; 
+            height: 100%; width: 100%; 
+            overscroll-behavior-y: none;
+            touch-action: manipulation;
+        }
+        
+        button, input { font-family: inherit; outline: none; }
+        .hide { display: none !important; }
+
+        /* === GLOBAL HEADER === */
+        #global-header { 
+            position: absolute; top: 0; width: 100%; z-index: 2000; 
+            background: var(--glass); border-bottom: 1px solid var(--glass-border); 
+            padding: 12px 15px; backdrop-filter: blur(20px);
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        .identity-badge { display: flex; align-items: center; gap: 12px; }
+        .rank-frame { 
+            width: 45px; height: 45px; border: 2px solid var(--neon-blue); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;
+            background: rgba(0, 243, 255, 0.05); color: var(--neon-blue); 
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+        }
+
+        /* Refresh Button */
+        .btn-refresh {
+            background: rgba(0,243,255,0.1); border: 1px solid var(--neon-blue); color: var(--neon-blue);
+            width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.3s; box-shadow: 0 0 10px rgba(0,243,255,0.2);
+        }
+        .btn-refresh:active { transform: rotate(180deg) scale(0.9); }
+
+        /* === TABS & VIEWPORT === */
+        .viewport { position: absolute; top: 65px; bottom: 65px; width: 100%; overflow: hidden; }
+        .tab-pane { 
+            position: absolute; inset: 0; 
+            opacity: 0; pointer-events: none; transform: translateY(15px); 
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto; overflow-x: hidden;
+            padding-bottom: 30px;
+        }
+        .tab-pane.active { opacity: 1; pointer-events: all; transform: translateY(0); }
+
+        /* --- TAB 1: HQ --- */
+        .hq-container { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        
+        /* AI Assistant */
+        .ai-terminal { 
+            background: rgba(188, 19, 254, 0.05); border: 1px solid rgba(188, 19, 254, 0.3); 
+            border-radius: 15px; padding: 15px; display: flex; gap: 15px; align-items: center;
+            box-shadow: 0 0 20px rgba(188, 19, 254, 0.05) inset; backdrop-filter: blur(5px);
+            transition: all 0.5s ease;
+        }
+        .ai-terminal.alert { border-color: var(--neon-red); background: rgba(255, 51, 102, 0.05); }
+        .ai-terminal.success { border-color: var(--neon-green); background: rgba(0, 255, 136, 0.05); }
+        #ai-text { font-size: 13px; font-style: italic; color: #d8b4fe; line-height: 1.5; transition: 0.3s; }
+
+        /* Live Status */
+        .status-panel {
+            background: rgba(0,0,0,0.7); border-left: 4px solid var(--neon-blue); padding: 15px;
+            border-radius: 8px; font-family: var(--font-mono); border: 1px solid var(--glass-border);
+            border-left-width: 4px; display: flex; align-items: center; gap: 15px;
+        }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); animation: blink 1.5s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        #live-status-text { font-size: 12px; color: #fff; font-weight: bold; letter-spacing: 1px; flex: 1; }
+        #live-status-time { font-size: 10px; color: #888; }
+
+        /* Mission Dossier Card */
+        .dossier { background: var(--bg-panel); border: 1px solid var(--glass-border); border-radius: 20px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); backdrop-filter: blur(10px); }
+        .dossier-head { background: rgba(255,255,255,0.03); padding: 12px 15px; font-size: 11px; color: #aaa; display: flex; justify-content: space-between; font-family: var(--font-mono); border-bottom: 1px solid var(--glass-border); letter-spacing: 1px; }
+        .dossier-body { padding: 20px; position: relative; transition: all 0.5s ease; }
+        .data-syncing { opacity: 0.6; filter: blur(3px); }
+        .m-title { font-size: 24px; font-weight: 900; color: var(--neon-green); margin: 0 0 15px 0; letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 10px rgba(0,255,136,0.3); }
+        
+        /* Narrative Progress Bar */
+        #mission-progress-container { margin-bottom: 25px; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); }
+        .prog-label { font-size: 11px; color: #bbb; display: flex; justify-content: space-between; margin-bottom: 8px; font-style: italic; }
+        .prog-track { height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+        .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple)); transition: width 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; }
+
+        /* Data Sync Animations */
+        .loading-shimmer { background: linear-gradient(90deg, #0d0d14 25%, #1a1a24 50%, #0d0d14 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; color: transparent !important; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* Slide-to-Confirm System */
+        .slider-wrapper {
+            position: relative; width: 100%; height: 56px; background: rgba(0,0,0,0.6); 
+            border: 1px solid var(--glass-border); border-radius: 28px; overflow: hidden; margin-top: 15px; box-shadow: inset 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .slider-text {
+            position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 900; color: #888; letter-spacing: 2px; pointer-events: none; z-index: 1; text-transform: uppercase;
+        }
+        .slider-fill {
+            position: absolute; top: 0; left: 0; height: 100%; width: 0; background: linear-gradient(90deg, rgba(0,255,136,0.1), rgba(0,255,136,0.4)); z-index: 2; transition: width 0.1s;
+        }
+        .slider-thumb {
+            position: absolute; top: 3px; left: 3px; width: 50px; height: 50px; background: var(--neon-green);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #000; font-size: 20px;
+            cursor: pointer; z-index: 3; box-shadow: 0 0 15px rgba(0,255,136,0.5); transition: background 0.3s;
+        }
+
+        /* Action Buttons */
+        .btn-main {
+            background: linear-gradient(135deg, rgba(0,243,255,0.1), rgba(0,243,255,0.02));
+            border: 1px solid var(--neon-blue); color: var(--neon-blue);
+            padding: 14px; border-radius: 12px; text-transform: uppercase; font-weight: 900;
+            letter-spacing: 1px; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; width: 100%; font-size: 13px;
+        }
+        .btn-main:hover, .btn-main:active { background: var(--neon-blue); color: #000; box-shadow: 0 0 20px rgba(0,243,255,0.4); transform: translateY(-2px); }
+
+        /* --- WA DRAWER (SLIDE-TO-ACTION REVISI) --- */
+        .drawer-toggle-btn { 
+            position: fixed; bottom: 85px; right: 20px; z-index: 2500; 
+            background: #25d366; border: none; color: #fff; border-radius: 50%; 
+            width: 55px; height: 55px; display: flex; align-items: center; justify-content: center; 
+            font-size: 28px; box-shadow: 0 5px 20px rgba(37, 211, 102, 0.4); cursor: pointer; transition: 0.3s;
+        }
+        .action-drawer { position: fixed; bottom: 65px; left: 0; width: 100%; background: rgba(10,10,15,0.95); backdrop-filter: blur(30px); border-top: 1px solid #25d366; transform: translateY(150%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 2400; border-radius: 25px 25px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,0.7); padding-bottom: 20px; }
+        .action-drawer.open { transform: translateY(0); }
+        .drawer-handle { width: 50px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 15px auto; cursor: pointer; }
+
+        /* --- GLOBAL FOOTER & NAV BADGES --- */
+        #global-footer { position: absolute; bottom: 0; width: 100%; height: 65px; z-index: 3000; background: var(--glass); border-top: 1px solid var(--glass-border); backdrop-filter: blur(20px); }
+        .nav-grid { display: flex; height: 100%; }
+        .nav-item { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #666; cursor: pointer; transition: 0.3s; font-weight: 500; letter-spacing: 1px; }
+        .nav-item.active { color: var(--neon-blue); background: linear-gradient(0deg, rgba(0,243,255,0.05), transparent); }
+        .nav-item i { font-size: 20px; margin-bottom: 5px; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .nav-item.active i { transform: translateY(-3px) scale(1.1); text-shadow: 0 0 10px rgba(0,243,255,0.5); }
+
+        /* --- MODALS --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 10000;
+            display: none; 
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.show { display: flex; opacity: 1; }
+        
+        .modal-box {
+            background: rgba(10, 10, 15, 0.98);
+            width: 95%;
+            max-width: 400px;
+            max-height: 85vh;
+            padding: 2rem 1.5rem;
+            overflow-y: auto;
+            position: relative;
+            border: 1px solid var(--neon-blue);
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transform: scale(0.95);
+            animation: modalSlideIn 0.3s forwards;
+        }
+
+        .modal-overlay.show .modal-box { transform: scale(1); }
+
+        .star-row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; background: rgba(0,0,0,0.4); padding: 12px 15px; border-radius: 12px; border: 1px solid var(--glass-border); width: 100%;}
+        .stars i { font-size: 22px; color: #444; cursor: pointer; margin-left: 8px; transition: 0.2s; }
+        .stars i.on { color: #ffcc00; text-shadow: 0 0 15px rgba(255,204,0,0.5); transform: scale(1.1); }
+    
+        /* Desain Knob Slider Darurat */
+        #em-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 70px;
+            height: 45px;
+            background: #ff3366;
+            cursor: pointer;
+            border-radius: 4px;
+            box-shadow: -100vw 0 0 100vw rgba(255, 51, 102, 0.4), 0 0 15px #ff3366;
+            border: 1px solid #fff;
+        }
+
+        #em-slider::-moz-range-thumb {
+            width: 70px;
+            height: 45px;
+            background: #ff3366;
+            cursor: pointer;
+            border: 1px solid #fff;
+        }
+
+        /* Dekorasi Garis Taktis System Modal */
+        .modal-box::before {
+            content: "";
+            position: absolute;
+            top: -2px; left: -2px;
+            width: 20px; height: 20px;
+            border-top: 2px solid var(--neon-blue);
+            border-left: 2px solid var(--neon-blue);
+        }
+
+        @keyframes modalSlideIn {
+            from { transform: translateY(-30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-box.danger { border-color: #ff4444; box-shadow: 0 0 30px rgba(255, 68, 68, 0.1); }
+        .modal-box.danger::before { border-color: #ff4444; }
+
+        .modalTitle {
+            width: 100%;
+            margin: 0 0 1rem 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #222;
+            color: var(--neon-blue);
+            font-size: 14px;
+            letter-spacing: 3px;
+            font-family: var(--font-mono);
+            font-weight: 900;
+            text-align: center;
+        }
+
+        .modal-box.danger .modalTitle { color: #ff4444; }
+
+        .modalMsg {
+            width: 100%;
+            margin-bottom: 1.5rem;
+            font-size: 13px;
+            color: #bbb;
+            line-height: 1.6;
+            font-family: var(--font-mono);
+            text-align: center;
+        }
+
+        .modal-input {
+            width: 100%;
+            max-width: 100%;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #444;
+            color: white;
+            padding: 10px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .modal-btn-group {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .modal-btn-group .btn-main {
+            flex: 1;
+            padding: 12px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <header id="global-header">
+        <div class="identity-badge">
+            <div id="u-rank" class="rank-frame">?</div>
+            <div>
+                <div id="u-role" style="font-size: 10px; color: #888; letter-spacing: 1.5px; text-transform: uppercase;">SINKRONISASI...</div>
+                <div id="u-name" style="font-weight: 700; font-size: 16px; transition: opacity 0.3s;">Memuat Data</div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="btn-refresh" onclick="forceRefreshData()" title="Re-Fetch Shard Data"><i class="fa-solid fa-rotate"></i></button>
+            <img src="ai_irene_face.png" style="width:38px; height:38px; border-radius:50%; border:2px solid var(--neon-purple); box-shadow: 0 0 10px rgba(188,19,254,0.4);" alt="AI">
+        </div>
+    </header>
+
+    <main class="viewport">
+        <div id="tab-hq" class="tab-pane active">
+            <div class="hq-container">
+
+                <div id="ai-terminal-box" class="ai-terminal">
+                    <i class="fa-solid fa-microchip" style="color: var(--neon-purple); font-size: 28px; text-shadow: 0 0 10px rgba(188,19,254,0.3);"></i>
+                    <div id="ai-text">Menganalisis parameter misi...</div>
+                </div>
+
+                <div class="status-panel">
+                    <div class="status-dot" id="status-indicator"></div>
+                    <div id="live-status-text">[SYS] STANDBY - MENUNGGU DATA</div>
+                    <div id="live-status-time">--:--</div>
+                </div>
+
+                <div class="dossier">
+                    <div class="dossier-head">
+                        <span>MISSION_FILE_ACTIVE</span>
+                        <span id="m-id-display">ID: ---</span>
+                    </div>
+
+                    <div class="dossier-body">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                            <div>
+                                <div id="m-category-badge" style="background: var(--neon-purple); color: #000; font-size: 9px; font-weight: bold; padding: 3px 8px; border-radius: 5px; display: inline-block; margin-bottom: 6px; text-transform: uppercase;">CATEGORY</div>
+                                <h1 id="m-title" class="m-title">MENGAMBIL KATEGORI...</h1>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 9px; color: #666; letter-spacing: 1px;">NAMA PEMESAN</div>
+                                <div id="m-client-name" style="font-size: 12px; color: var(--neon-blue); font-weight: bold;">--</div>
+                            </div>
+                        </div>
+
+                        <div id="mission-progress-container">
+                            <div class="prog-label">
+                                <span id="m-status-text">Menganalisis matriks logistik...</span>
+                                <span id="m-progress-pct" style="color: var(--neon-blue); font-weight: bold;">0%</span>
+                            </div>
+                            <div class="prog-track">
+                                <div id="m-progress-bar" class="prog-fill"></div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <div id="mission-timer-hub" style="font-family: var(--font-mono); color: var(--neon-purple); font-size: 11px; border: 1px solid rgba(188,19,254,0.3); background: rgba(188,19,254,0.05); padding: 6px 10px; border-radius: 8px;">
+                                <i class="fa-solid fa-clock"></i> <span id="timer-val">00:00:00</span>
+                            </div>
+                            <div style="font-family: var(--font-mono); font-size: 12px; color: var(--neon-green); background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.3); padding: 5px 10px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,255,136,0.1);">
+                                <i class="fa-solid fa-route"></i> Estimasi Rute <span id="m-distance">0</span> KM
+                            </div>
+                        </div>
+
+                        <div id="location-hub" style="margin-top: 20px;">
+                            <div style="background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 12px;">
+                                <div style="font-size: 9px; color: var(--neon-yellow); letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-store"></i> TITIK PEMESAN / TITIK JEMPUT (A)</div>
+                                <div id="m-origin-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                                <button id="btn-maps-origin" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px; background: rgba(0,243,255,0.05);">
+                                    <i class="fa-solid fa-location-arrow"></i> Buka Google Maps
+                                </button>
+                            </div>
+
+                            <div id="dest-hub" class="hide" style="background: rgba(0,255,136,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(0,255,136,0.2); margin-bottom: 12px;">
+                                <div style="font-size: 9px; color: var(--neon-green); letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-flag-checkered"></i> TITIK TUJUAN PENGIRIMAN (B)</div>
+                                <div id="m-dest-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                                <button id="btn-maps-dest" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px; border-color: var(--neon-green); color: var(--neon-green); background: rgba(0,255,136,0.05);">
+                                    <i class="fa-solid fa-map-pin"></i> Buka Google Maps
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                            <div style="font-size: 11px; color: var(--neon-purple); font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;">
+                                <i class="fa-solid fa-layer-group"></i> DAFTAR PESANAN (MULTI-POINT)
+                            </div>
+                            <div id="m-cargo-detail" style="font-size: 14px; color: #eee; white-space: pre-line; line-height: 1.6; font-family: var(--font-mono);">--</div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border-top: 1px solid var(--glass-border); padding-top: 15px;">
+                            <div>
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">REWARD TUNAI</div>
+                                <div id="m-reward-cash" style="color: var(--neon-green); font-weight: bold; font-size: 16px;">Rp 0</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 9px; color: #777; letter-spacing: 1px; margin-bottom:4px;">NAMA PELAKSANA</div>
+                                <div id="m-adv-nick" style="font-size: 13px; color: #fff; font-weight: bold;">--</div>
+                            </div>
+                        </div>
+
+                        <div id="action-slider-box" class="hide">
+                            <div style="font-size: 10px; color: var(--neon-green); text-align: center; margin-top: 20px; font-weight: bold; letter-spacing: 1px;">KONFIRMASI SELESAI dan BERI NILAI</div>
+                            <div class="slider-wrapper" id="slider-wrapper">
+                                <div class="slider-text" id="slider-text">GESER UNTUK SELESAI</div>
+                                <div class="slider-fill" id="slider-fill"></div>
+                                <div class="slider-thumb" id="slider-thumb"><i class="fa-solid fa-angles-right"></i></div>
+                            </div>
+                        </div>
+
+                        <div id="emergency-zone" class="hide" style="margin-top: 20px; padding: 15px; border: 2px solid #ff3366; border-radius: 12px; background: linear-gradient(180deg, rgba(20, 0, 0, 0.95) 0%, rgba(0, 0, 0, 1) 100%); box-shadow: 0 0 20px rgba(255, 51, 102, 0.2), inset 0 0 10px rgba(255, 51, 102, 0.1); position: relative; overflow: hidden;">
+                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03)); background-size: 100% 3px, 3px 100%; pointer-events: none;"></div>
+
+                            <p id="em-timer" style="color: #ff3366; font-size: 12px; text-align: center; font-family: var(--font-mono); margin: 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5px; text-shadow: 0 0 10px rgba(255, 51, 102, 0.7);">
+                                MENGINISIALISASI PROTOKOL DARURAT...
+                            </p>
+                            
+                            <div id="slider-container-em" style="display: none; margin-top: 15px; width: 100%; position: relative; height: 45px; background: rgba(255, 51, 102, 0.1); border-radius: 6px; border: 1px solid #ff3366; overflow: hidden;">
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; font-size: 10px; color: #fff; font-weight: bold; width: 100%; text-align: center; letter-spacing: 2px; z-index: 1;">
+                                    GESER MENTOK : SELESAI PAKSA AKTIF
+                                </div>
+
+                                <input type="range" id="em-slider" min="0" max="100" value="0" style="-webkit-appearance: none; width: 100%; height: 100%; cursor: pointer; background: transparent; position: relative; z-index: 2; margin: 0; outline: none;">
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div id="adv-status-hub" class="hide" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; border: 1px solid var(--glass-border);">
+                    <div style="font-size: 11px; color: #888; margin-bottom: 12px; font-weight: bold; letter-spacing: 1px; text-align: center;">KIRIM UPDATE PROGRES LAPANGAN</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <button class="btn-main" style="background: rgba(0,243,255,0.05); font-size: 11px;" onclick="sendLiveStatus('OTW Lokasi Asal')"><i class="fa-solid fa-motorcycle"></i> OTW TITIK</button>
+                        <button class="btn-main" style="background: rgba(0,243,255,0.05); font-size: 11px;" onclick="sendLiveStatus('OTW Lokasi Tujuan')"><i class="fa-solid fa-truck-fast"></i> OTW TUJUAN</button>
+                        <button class="btn-main" style="background: rgba(0,255,136,0.05); border-color: var(--neon-green); color: var(--neon-green); font-size: 11px;" onclick="sendLiveStatus('Tiba di Lokasi')"><i class="fa-solid fa-check-double"></i> TIBA</button>
+                        <button class="btn-main" style="background: rgba(255,51,102,0.05); border-color: var(--neon-red); color: var(--neon-red); font-size: 11px;" onclick="sendLiveStatus('Kendala Lapangan')"><i class="fa-solid fa-triangle-exclamation"></i> ADA KENDALA</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <button id="requester-toggle-btn" class="drawer-toggle-btn hide" onclick="toggleActionDrawer()">
+        <i class="fa-brands fa-whatsapp"></i>
+    </button>
+
+    <div id="action-drawer" class="action-drawer">
+        <div class="drawer-handle" onclick="toggleActionDrawer()"></div>
+        <div style="padding: 0 20px;">
+            <div style="text-align: center; font-size: 10px; color: #888; letter-spacing: 2px; margin-bottom: 15px; font-weight: bold;">HUBUNGI VIA WHATSAPP</div>
+            <div id="role-action-area"></div>
+        </div>
+    </div>
+
+    <footer id="global-footer">
+        <nav class="nav-grid">
+            <div class="nav-item active" onclick="switchTab('tab-hq', this)">
+                <i class="fa-solid fa-atom"></i>HQ
+            </div>
+        </nav>
+    </footer>
+
+    <div id="modalEvalAdv" class="modal-overlay">
+        <div class="modal-box" style="border-color: var(--neon-green);">
+            <h3 style="color: var(--neon-green); margin-top: 0; font-weight: 900; letter-spacing: 1px;">EVALUASI PARTNER</h3>
+            <p style="font-size: 12px; color: #aaa; margin-bottom: 25px;">Berikan penilaian performa kerja, nilai yg anda berikan akan mempengaruhi reputasi individu.</p>
+            <div id="eval-star-group" style="width: 100%;"></div>
+            <button class="btn-main" style="background: var(--neon-green); color: #000; border: none; margin-top: 30px; font-size: 14px;" onclick="executeAdvFinal()">KIRIM & TUTUP KONTRAK</button>
+        </div>
+    </div>
+
+    <div id="modalEvalReq" class="modal-overlay">
+        <div class="modal-box" style="border-color: var(--neon-blue);">
+            <h3 style="color: var(--neon-blue); margin-top: 0; font-weight: 900; letter-spacing: 1px;">LAPORAN KLIEN</h3>
+            <p style="font-size: 12px; color: #aaa; margin-bottom: 25px;">Bantu komunitas menilai kualitas requester untuk referensi masa depan.</p>
+            <div id="eval-bool-group" style="width: 100%;"></div>
+            <button class="btn-main" style="background: var(--neon-blue); color: #000; border: none; margin-top: 30px; font-size: 14px;" onclick="executeReqFinal()">KIRIM LAPORAN</button>
+        </div>
+    </div>
+
+    <div id="sysModal" class="modal-overlay" style="z-index: 15000;">
+        <div id="modalBox" class="modal-box">
+            <div id="modalTitle" class="modalTitle">TITLE</div>
+            <div id="modalMsg" class="modalMsg">MESSAGE</div>
+            <input type="text" id="modalInput" class="modal-input" placeholder="Ketik disini..." style="display: none;">
+            <div id="modalBtnGroup" class="modal-btn-group"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 0. CUSTOM SYSTEM MODAL LOGIC (PROMISE-BASED)
+        // ==========================================
+        function sysAlert(title, msg, isDanger = false) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('sysModal');
+                const box = document.getElementById('modalBox');
+                const titleEl = document.getElementById('modalTitle');
+                const msgEl = document.getElementById('modalMsg');
+                const btnGroup = document.getElementById('modalBtnGroup');
+                const inputField = document.getElementById('modalInput');
+
+                modal.style.display = "flex";
+                titleEl.innerText = title;
+                msgEl.innerText = msg;
+                box.className = isDanger ? "modal-box danger" : "modal-box";
+                inputField.style.display = "none";
+                btnGroup.innerHTML = "";
+
+                const btnOk = document.createElement('button');
+                btnOk.className = "btn-main";
+                btnOk.innerText = "MENGERTI";
+                if(isDanger) {
+                    btnOk.style.borderColor = "var(--neon-red)";
+                    btnOk.style.color = "var(--neon-red)";
+                    btnOk.style.background = "rgba(255,51,102,0.1)";
+                }
+                btnOk.onclick = () => {
+                    modal.style.display = "none";
+                    resolve();
+                };
+                btnGroup.appendChild(btnOk);
+            });
+        }
+
+        function sysConfirm(title, msg, isDanger = false, verifyWord = null) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('sysModal');
+                const box = document.getElementById('modalBox');
+                const titleEl = document.getElementById('modalTitle');
+                const msgEl = document.getElementById('modalMsg');
+                const btnGroup = document.getElementById('modalBtnGroup');
+                const inputField = document.getElementById('modalInput');
+
+                modal.style.display = "flex";
+                titleEl.innerText = title;
+                msgEl.innerText = msg;
+                box.className = isDanger ? "modal-box danger" : "modal-box";
+                btnGroup.innerHTML = "";
+
+                if (verifyWord) {
+                    inputField.style.display = "block";
+                    inputField.placeholder = `KETIK '${verifyWord}'`;
+                    inputField.value = "";
+                } else {
+                    inputField.style.display = "none";
+                }
+
+                const btnCancel = document.createElement('button');
+                btnCancel.className = "btn-main";
+                btnCancel.style.background = "rgba(255,255,255,0.05)";
+                btnCancel.style.borderColor = "#444";
+                btnCancel.style.color = "#ccc";
+                btnCancel.innerText = "BATAL";
+                btnCancel.onclick = () => {
+                    modal.style.display = "none";
+                    resolve(false);
+                };
+                btnGroup.appendChild(btnCancel);
+
+                const btnOk = document.createElement('button');
+                btnOk.className = "btn-main";
+                btnOk.innerText = "EKSEKUSI";
+                if(isDanger) {
+                    btnOk.style.borderColor = "var(--neon-red)";
+                    btnOk.style.color = "var(--neon-red)";
+                    btnOk.style.background = "rgba(255,51,102,0.1)";
+                }
+                btnOk.onclick = () => {
+                    if (verifyWord && inputField.value !== verifyWord) {
+                        msgEl.innerHTML = `<span style="color:#ff4444">VERIFIKASI GAGAL!</span><br>${msg}`;
+                        inputField.style.borderColor = "var(--neon-red)";
+                        return;
+                    }
+                    modal.style.display = "none";
+                    resolve(true);
+                };
+                btnGroup.appendChild(btnOk);
+            });
+        }
+
+        // ==========================================
+        // 1. GLOBAL STATE & SYNC
+        // ==========================================
+        const user = typeof Clearchance !== 'undefined' ? Clearchance.enforceIdentity() : {role: 'adventurer', uid: 'test-uid'};
+        const mission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
+        const contractId = sessionStorage.getItem('active_contract_id') || mission.id_misi || "TEST-ID";
+        const isAdv = user.role === 'adventurer';
+
+        const dbDeal = typeof getTerminal !== 'undefined' ? getTerminal('FB5_DEAL') : null;
+        const dbMaster = typeof getTerminal !== 'undefined' ? getTerminal('FB1_MASTER') : null;
+
+        let ratings = { keamanan:0, kecerdasan:0, kepercayaan:0, keramahan:0, penampilan:0, kejujuran:0 };
+        let reports = { baik:null, tips:null, cash:null, extra:null };
+
+        window.onload = async () => {
+            initUI();
+            if(dbDeal && dbMaster) {
+                await performDeepMining(); 
+                syncStatus();
+                syncTracking();
+            }
+            initSliderAction();
+            startEmergencyProtocol();
+        };
+
+        function vibratePulse() { if(window.navigator && window.navigator.vibrate) window.navigator.vibrate([50, 100, 50]); }
+
+        // ==========================================
+        // 2. UI ENGINE & NAVIGATION
+        // ==========================================
+        function initUI() {
+            document.getElementById('m-id-display').innerText = "ID: " + contractId;
+
+            const area = document.getElementById('role-action-area');
+            if(isAdv) {
+                document.getElementById('adv-status-hub').classList.remove('hide');
+                document.getElementById('action-drawer').classList.add('hide');
+            } else {
+                document.getElementById('requester-toggle-btn').classList.remove('hide');
+                document.getElementById('action-slider-box').classList.remove('hide'); 
+            }
+        }
+
+        function switchTab(id, el) {
+            if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(5);
+            
+            document.querySelectorAll('.tab-pane').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(id).classList.add('active');
+            el.classList.add('active');
+        }
+
+        function toggleActionDrawer() {
+            const drawer = document.getElementById('action-drawer');
+            drawer.classList.toggle('open');
+        }
+
+        async function forceRefreshData() {
+            document.querySelector('.btn-refresh i').style.animation = "spin 1s linear infinite";
+            updateAI("Memaksa re-sinkronisasi data dari Shard...", "normal");
+            if(typeof performDeepMining !== 'undefined') await performDeepMining();
+            setTimeout(() => {
+                document.querySelector('.btn-refresh i').style.animation = "none";
+            }, 1000);
+        }
+
+        // ==========================================
+        // 3. DEEP MINING & INJECTION LOGIC
+        // ==========================================
+        async function performDeepMining() {
+            if(typeof getSupremeData === 'undefined') return;
+            const dossier = document.querySelector('.dossier-body');
+            const uName = document.getElementById('u-name');
+            
+            dossier.classList.add('data-syncing');
+            uName.classList.add('loading-shimmer');
+
+            try {
+                const DATA = await getSupremeData(contractId);
+                if (!DATA) throw new Error("Data Shard tidak terjangkau");
+
+                const partner = isAdv ? DATA.requester : DATA.adventurer;
+                
+                setTimeout(() => {
+                    uName.classList.remove('loading-shimmer');
+                    uName.innerText = partner?.profile?.nama || "Unknown Entity";
+                    
+                    if (isAdv) {
+                        document.getElementById('u-rank').innerText = partner?.profile?.tier ? `T${partner.profile.tier}` : "T1";
+                        document.getElementById('u-role').innerText = "REQUESTER";
+                    } else {
+                        document.getElementById('u-rank').innerText = partner?.profile?.rank || "F";
+                        document.getElementById('u-role').innerText = "ADVENTURER";
+                    }
+                    
+                    dossier.classList.remove('data-syncing');
+                    updateAI("Koneksi stabil. Segera jalin komunikasi dan konfirmasikan misi dikerjakan dengan baik.", "success");
+                }, 600);
+
+                injectDetails(DATA);
+
+            } catch (e) {
+                updateAI(`ERROR: ${e.message}`, "alert");
+                dossier.classList.remove('data-syncing');
+                uName.classList.remove('loading-shimmer');
+            }
+        }
+
+        function updateAI(text, type) {
+            const box = document.getElementById('ai-terminal-box');
+            const txt = document.getElementById('ai-text');
+            box.className = 'ai-terminal ' + (type === 'normal' ? '' : type);
+            txt.innerText = text;
+            
+            if(type === 'alert' || type === 'success') {
+                setTimeout(() => { box.className = 'ai-terminal'; }, 5000);
+            }
+        }
+
+        function parseCoordsString(coordStr) {
+            if(!coordStr || coordStr === "NEGO") return null;
+            const parts = coordStr.split(',');
+            if(parts.length === 2) return [parseFloat(parts[0]), parseFloat(parts[1])];
+            return null;
+        }
+
+        function injectDetails(DATA) {
+            if (!DATA || !DATA.mission) return;
+
+            const m = DATA.mission;
+            const detail = m.full_mission_data || {};
+
+            const catStr = detail.category || m.category || "CLASSIFIED";
+            document.getElementById('m-title').innerText = catStr.toUpperCase();
+            document.getElementById('m-client-name').innerText = detail.client_name || "STRANGER";
+            document.getElementById('m-distance').innerText = detail.distance_est || "0";
+            
+            document.getElementById('m-status-text').innerText = isAdv ? "Mission Secured. Menunggu pergerakan." : `Partner Engaged: ${m.adventurer_nick || 'Unknown'}`;
+            document.getElementById('m-progress-pct').innerText = "15%";
+            document.getElementById('m-progress-bar').style.width = "15%";
+
+            document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+            document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Unknown";
+
+            const btnMapsO = document.getElementById('btn-maps-origin');
+            const oCoords = parseCoordsString(detail.origin_coords);
+            if (oCoords) {
+                document.getElementById('m-origin-name').innerText = detail.origin_name || "Koordinat Terenkripsi";
+                
+                if (isAdv) {
+                    btnMapsO.classList.remove('hide');
+                    btnMapsO.onclick = () => window.open(`https://www.google.com/maps?q=$${detail.origin_coords}`);
+                }
+            }
+
+            const destHub = document.getElementById('dest-hub');
+            if (detail.dest_name || detail.dest_desa) {
+                destHub.classList.remove('hide');
+                document.getElementById('m-dest-name').innerText = detail.dest_desa || detail.dest_name;
+                
+                const dCoords = parseCoordsString(detail.dest_coords);
+                if(dCoords) {
+                    const btnMapsD = document.getElementById('btn-maps-dest');
+                    if (isAdv) {
+                        btnMapsD.classList.remove('hide');
+                        btnMapsD.onclick = () => window.open(`https://www.google.com/maps?q=$${detail.dest_coords}`);
+                    }
+                }
+            }
+
+            if (detail.multi_points && Array.isArray(detail.multi_points)) {
+                document.getElementById('cargo-hub').classList.remove('hide');
+                document.getElementById('m-cargo-detail').innerText = detail.multi_points.map((t, i) => `${i + 1}. ${t}`).join('\n');
+            }
+
+            if(!isAdv) {
+                const area = document.getElementById('role-action-area');
+                const phone = DATA?.adventurer?.profile?.whatsapp || "";
+                
+                area.innerHTML = `
+                    <div style="background: rgba(37, 211, 102, 0.1); border: 1px solid rgba(37, 211, 102, 0.3); padding: 15px; border-radius: 15px; text-align: center;">
+                        <div style="font-size: 11px; color: #aaa; margin-bottom: 15px;">Nomor anda tidak kami sebarkan, anda bisa hubungi pelaksana misi via whatsapp untuk komunikasi yg lebih stabil.</div>
+                        <button onclick="window.open('https://wa.me/${phone.replace(/\D/g,'')}')" style="background:#25d366; color:#000; border:none; padding:15px; border-radius:12px; font-weight:900; cursor:pointer; transition:0.2s; width:100%; box-shadow:0 5px 15px rgba(37,211,102,0.3);">
+                            <i class="fa-brands fa-whatsapp" style="font-size:20px; margin-right:8px;"></i> HUBUNGI ADVENTURER
+                        </button>
+                    </div>
+                `;
+            }
+            
+            startMissionTimer(m.start_time || Date.now());
+        }
+
+        // ==========================================
+        // 4. HQ & STATUS TRANSMISSION
+        // ==========================================
+        function sendLiveStatus(str) {
+            if(dbDeal) dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).set({ text: str, ts: Date.now() });
+        }
+
+        function syncStatus() {
+            if(!dbDeal) return;
+            dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).on('value', snap => {
+                if(snap.exists()) {
+                    const d = snap.val();
+                    const sText = document.getElementById('live-status-text');
+                    const sTime = document.getElementById('live-status-time');
+                    const sInd = document.getElementById('status-indicator');
+                    
+                    sText.innerText = d.text.toUpperCase();
+                    sTime.innerText = new Date(d.ts).toLocaleTimeString();
+                    
+                    if(d.text.includes('Kendala')) {
+                        updateAI("Mendeteksi gangguan di lapangan...", "alert");
+                        sInd.style.background = "var(--neon-red)"; sInd.style.boxShadow = "0 0 10px var(--neon-red)";
+                        document.getElementById('m-status-text').innerText = "Warning: ada kendala.";
+                        document.getElementById('m-status-text').style.color = "var(--neon-red)";
+                        document.getElementById('m-progress-bar').style.background = "var(--neon-red)";
+                    } else if(d.text.includes('Tiba')) {
+                        updateAI("Partner telah mencapai titik koordinat. Menunggu konfirmasi.", "success");
+                        sInd.style.background = "var(--neon-green)"; sInd.style.boxShadow = "0 0 10px var(--neon-green)";
+                        document.getElementById('m-status-text').innerText = "Objective Reached.";
+                        document.getElementById('m-status-text').style.color = "var(--neon-green)";
+                        document.getElementById('m-progress-pct').innerText = "100%";
+                        document.getElementById('m-progress-bar').style.width = "100%";
+                        document.getElementById('m-progress-bar').style.background = "var(--neon-green)";
+                        
+                        if(!isAdv) { vibratePulse(); document.getElementById('action-slider-box').classList.add('pulse'); }
+                    } else if(d.text.includes('OTW')) {
+                        updateAI("Kendaraan sedang bergerak melintasi sektor.", "normal");
+                        sInd.style.background = "var(--neon-blue)"; sInd.style.boxShadow = "0 0 10px var(--neon-blue)";
+                        document.getElementById('m-status-text').innerText = "In Transit...";
+                        document.getElementById('m-progress-pct').innerText = "55%";
+                        document.getElementById('m-progress-bar').style.width = "55%";
+                        document.getElementById('m-progress-bar').style.background = "linear-gradient(90deg, var(--neon-blue), var(--neon-purple))";
+                    }
+                }
+            });
+
+            dbDeal.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
+                if(snap.val() === 'completed_req' && isAdv) openEvalReq();
+            });
+        }
+
+        // ==========================================
+        // 5. SLIDE TO CONFIRM & EVALUATION SYSTEM
+        // ==========================================
+        function initSliderAction() {
+            const wrapper = document.getElementById('slider-wrapper');
+            const thumb = document.getElementById('slider-thumb');
+            const fill = document.getElementById('slider-fill');
+            const text = document.getElementById('slider-text');
+            if(!thumb) return;
+
+            let isDragging = false;
+            let startX = 0;
+            let maxW = 0;
+
+            const startDrag = (e) => {
+                isDragging = true;
+                startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                maxW = wrapper.clientWidth - thumb.clientWidth - 6; 
+                thumb.style.transition = "none";
+                fill.style.transition = "none";
+            };
+
+            const moveDrag = (e) => {
+                if(!isDragging) return;
+                let curX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                let move = curX - startX;
+                if(move < 0) move = 0;
+                if(move > maxW) move = maxW;
+                
+                thumb.style.transform = `translateX(${move}px)`;
+                fill.style.width = `${move + 25}px`;
+                text.style.opacity = 1 - (move / maxW);
+            };
+
+            const endDrag = (e) => {
+                if(!isDragging) return;
+                isDragging = false;
+                let curX = e.type.includes('mouse') ? e.clientX : e.changedTouches[0].clientX;
+                let move = curX - startX;
+                
+                thumb.style.transition = "transform 0.3s";
+                fill.style.transition = "width 0.3s";
+                text.style.transition = "opacity 0.3s";
+
+                if(move > maxW * 0.9) {
+                    thumb.style.transform = `translateX(${maxW}px)`;
+                    fill.style.width = `100%`;
+                    vibratePulse();
+                    setTimeout(() => openEvalAdv(), 400); 
+                } else {
+                    thumb.style.transform = `translateX(0px)`;
+                    fill.style.width = `0px`;
+                    text.style.opacity = 1;
+                }
+            };
+
+            thumb.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', moveDrag);
+            document.addEventListener('mouseup', endDrag);
+
+            thumb.addEventListener('touchstart', startDrag, {passive: true});
+            document.addEventListener('touchmove', moveDrag, {passive: true});
+            document.addEventListener('touchend', endDrag);
+        }
+
+        function openEvalAdv() {
+            const cats = ['keamanan', 'kecerdasan', 'kepercayaan', 'keramahan', 'penampilan', 'kejujuran'];
+            const grp = document.getElementById('eval-star-group');
+            grp.innerHTML = "";
+            cats.forEach(c => {
+                grp.innerHTML += `
+                    <div class="star-row">
+                        <span style="font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; color:#ccc;">${c}</span>
+                        <div class="stars" id="star-${c}">
+                            ${[1,2,3,4,5].map(i => `<i class="fa-solid fa-star" onclick="setStar('${c}', ${i})"></i>`).join('')}
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('modalEvalAdv').classList.add('show');
+        }
+
+        function setStar(cat, val) {
+            ratings[cat] = val;
+            const s = document.getElementById(`star-${cat}`).children;
+            for(let i=0; i<5; i++) s[i].classList.toggle('on', i < val);
+        }
+
+        async function executeAdvFinal() {
+            const elNick = document.getElementById('m-adv-nick');
+            const targetNick = elNick ? elNick.innerText.trim().toLowerCase() : "";
+
+            try {
+                const r = (typeof ratings !== 'undefined') ? ratings : { keamanan:0, kecerdasan:0, kepercayaan:0, keramahan:0, penampilan:0, kejujuran:0 };
+
+                if(!dbMaster) throw new Error("DB Master belum terhubung.");
+                const snap = await dbMaster.ref('adventurer_index').once('value');
+                let meta = null;
+                snap.forEach(child => { if(child.val().nickname.toLowerCase() === targetNick) meta = child.val(); });
+
+                if (!meta) {
+                    await sysAlert("ERROR", "Nickname pelaksana tidak ditemukan di database index!", true);
+                    return;
+                }
+
+                const shardId = meta.shard_id;
+                const idAdv = meta.id_adv;
+                const targetShard = typeof getTerminal !== 'undefined' ? getTerminal(shardId) : null;
+                if(!targetShard) throw new Error("Terminal Shard tidak ditemukan.");
+
+                const [expSnap, diagSnap] = await Promise.all([
+                    targetShard.ref(`adventurer_experience/${idAdv}`).once('value'),
+                    targetShard.ref(`adventurer_diagram/${idAdv}`).once('value')
+                ]);
+
+                let { exp: curExp = 0, level: curLvl = 1, max_exp: maxExp = 100 } = expSnap.val() || {};
+                let newExp = curExp + (mission.rpg_reward?.exp || 0);
+                let newLvl = curLvl;
+                let newMaxExp = maxExp;
+                while (newExp >= newMaxExp) {
+                    newExp -= newMaxExp;
+                    newLvl++;
+                    newMaxExp = newMaxExp * 3;
+                }
+
+                const p = {
+                    keamanan: r.keamanan || 0,
+                    kecerdasan: r.kecerdasan || 0,
+                    kepercayaan: r.kepercayaan || 0,
+                    keramahan: r.keramahan || 0,
+                    penampilan: r.penampilan || 0, 
+                    kejujuran: r.kejujuran || 0     
+                };
+                const totalPoinMisi = p.keamanan + p.kecerdasan + p.kepercayaan + p.keramahan + p.kejujuran + p.penampilan;
+
+                let starField = "star_1";
+                if (totalPoinMisi === 30) starField = "star_5";
+                else if (totalPoinMisi > 24) starField = "star_4";
+                else if (totalPoinMisi > 18) starField = "star_3";
+                else if (totalPoinMisi > 12) starField = "star_2";
+
+                const auditMsg = `--- AUDIT 6 PARAMETER ---\nTarget: ${targetNick.toUpperCase()}\n\n` +
+                `[Experience]\nLevel: ${curLvl} -> ${newLvl}\n\n` +
+                `[Diagram +]\nKeamanan: ${p.keamanan} | Kecerdasan: ${p.kecerdasan}\n` +
+                `Kepercayaan: ${p.kepercayaan} | Keramahan: ${p.keramahan}\n` +
+                `Kejujuran: ${p.kejujuran} | Penampilan: ${p.penampilan}\n` +
+                `Total: ${totalPoinMisi} / 30\n\n` +
+                `Sinkronkan ke Shard ${shardId}?`;
+
+                if (!(await sysConfirm("KONFIRMASI AUDIT", auditMsg))) return;
+
+                await Promise.all([
+                    targetShard.ref(`adventurer_profile/${idAdv}`).update({ level: newLvl }),
+                    targetShard.ref(`adventurer_experience/${idAdv}`).update({ exp: newExp, level: newLvl, max_exp: newMaxExp }),
+                    targetShard.ref(`adventurer_diagram/${idAdv}`).update({
+                        nilai_keamanan: firebase.database.ServerValue.increment(p.keamanan),
+                        nilai_kecerdasan: firebase.database.ServerValue.increment(p.kecerdasan),
+                        nilai_kepercayaan: firebase.database.ServerValue.increment(p.kepercayaan),
+                        nilai_keramahan: firebase.database.ServerValue.increment(p.keramahan),
+                        nilai_kejujuran: firebase.database.ServerValue.increment(p.kejujuran),
+                        nilai_penampilan: firebase.database.ServerValue.increment(p.penampilan)
+                    }),
+                    targetShard.ref(`adventurer_reputation/${idAdv}`).update({
+                        [starField]: firebase.database.ServerValue.increment(1),
+                        total_mission_completed: firebase.database.ServerValue.increment(1)
+                    }),
+                    targetShard.ref(`adventurer_coxin/${idAdv}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward?.greenStone || 0)),
+                    dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_req' }),
+                    getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).update({ status: 'completed_req' })
+                ]);
+
+                await sysAlert("BERHASIL", "Data Berhasil Disimpan ke Shard!");
+                window.location.href = "index.html";
+
+            } catch (err) {
+                await sysAlert("SINKRONISASI GAGAL", err.message, true);
+            }
+        }
+
+        function openEvalReq() {
+            const qs = [
+                {k:'baik', q:'Apakah Klien memberi titik yg sesuai?'},
+                {k:'tips', q:'Diberi reward tips tambahan?'},
+                {k:'cash', q:'Pembayaran uang tunai sesuai dengan kesepakatan?'},
+                {k:'extra', q:'Ada beban ekstra tanpa kompensasi?'}
+            ];
+            const grp = document.getElementById('eval-bool-group');
+            grp.innerHTML = "";
+            qs.forEach(o => {
+                grp.innerHTML += `
+                    <div style="margin-top:20px; text-align:left; background:rgba(0,0,0,0.3); padding:15px; border-radius:12px; border:1px solid var(--glass-border);">
+                        <div style="font-size:13px; margin-bottom:12px; font-weight:bold; color:#ddd;">${o.q}</div>
+                        <div style="display:flex; gap:10px;">
+                            <button onclick="setBool('${o.k}', true)" id="b-${o.k}-y" class="btn-main" style="background:rgba(255,255,255,0.05); color:#fff; border-color:#444;">YA</button>
+                            <button onclick="setBool('${o.k}', false)" id="b-${o.k}-n" class="btn-main" style="background:rgba(255,255,255,0.05); color:#fff; border-color:#444;">TIDAK</button>
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('modalEvalReq').classList.add('show');
+        }
+
+        function setBool(k, val) {
+            reports[k] = val;
+            const btnY = document.getElementById(`b-${k}-y`);
+            const btnN = document.getElementById(`b-${k}-n`);
+            
+            btnY.style.borderColor = val ? 'var(--neon-green)' : '#444';
+            btnY.style.color = val ? 'var(--neon-green)' : '#000';
+            btnY.style.background = val ? 'var(--neon-green)' : 'rgba(255,255,255,0.05)';
+            
+            btnN.style.borderColor = !val ? 'var(--neon-red)' : '#444';
+            btnN.style.color = !val ? 'var(--neon-red)' : '#000';
+            btnN.style.background = !val ? 'var(--neon-red)' : 'rgba(255,255,255,0.05)';
+        }
+
+        async function executeReqFinal() {
+            const elClient = document.getElementById('m-client-name');
+            const targetClient = elClient ? elClient.innerText.trim().toLowerCase() : "";
+
+            if (targetClient === "stranger") {
+                await sysAlert(
+                    "PERINGATAN SISTEM",
+                    "Requester berstatus STRANGER.\nTidak ada data penilaian yang akan disimpan ke database.\n\nSaran: Harap lebih berhati-hati dikemudian hari. Pahami bahwa pemesan ada yang terdaftar sebagai CITIZEN dan ada yang TIDAK TERDAFTAR.",
+                    true
+                );
+
+                if(typeof Clearchance !== 'undefined') Clearchance.clearActiveMission();
+                
+                if(dbDeal) {
+                    await Promise.all([
+                        dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_all' }),
+                        getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).update({ status: 'completed_all' })
+                    ]);
+                }
+                return location.href = "index.html";
+            }
+
+            if (!targetClient || targetClient === "..." || targetClient === "loading") {
+                await sysAlert("ERROR", "Sistem belum siap: Nama Requester belum muncul!", true);
+                return;
+            }
+
+            try {
+                if(!dbMaster) throw new Error("DB Master Offline.");
+                const snap = await dbMaster.ref('requester_index').once('value');
+                let meta = null;
+                snap.forEach(child => { 
+                    if(child.val().nickname && child.val().nickname.toLowerCase() === targetClient) {
+                        meta = child.val(); 
+                    }
+                });
+
+                if (!meta) {
+                    await sysAlert("ERROR", `Data Requester [${targetClient}] tidak ditemukan!`, true);
+                    return;
+                }
+
+                const shardId = meta.shard_id;
+                const idReq = meta.id_req;
+                const targetShard = typeof getTerminal !== 'undefined' ? getTerminal(shardId) : null;
+                
+                const p = {
+                    sesuai: reports.baik ? 1 : 0,
+                    tidak_sesuai: reports.baik ? 0 : 1,
+                    tips: reports.tips ? 1 : 0,
+                    pas: reports.cash ? 1 : 0,
+                    kurang: reports.cash ? 0 : 1,
+                    ekstra: reports.extra ? 1 : 0
+                };
+
+                const auditMsg = `--- AUDIT EVALUASI CITIZEN ---\nTARGET: ${targetClient.toUpperCase()}\n\nLaporan ini akan disimpan permanen di Shard ${shardId}.\nLanjutkan?`;
+
+                if (!(await sysConfirm("KONFIRMASI LAPORAN", auditMsg))) return;
+
+                await Promise.all([
+                    targetShard.ref(`requester_diagram/${idReq}`).update({
+                        titik_kordinat_sesuai: firebase.database.ServerValue.increment(p.sesuai),
+                        titik_kordinat_tidak_sesuai: firebase.database.ServerValue.increment(p.tidak_sesuai),
+                        memberi_tips: firebase.database.ServerValue.increment(p.tips),
+                        memberi_tunai_pas: firebase.database.ServerValue.increment(p.pas),
+                        memberi_tunai_kurang: firebase.database.ServerValue.increment(p.kurang),
+                        minta_tambahan_kerja: firebase.database.ServerValue.increment(p.ekstra)
+                    }),
+                    targetShard.ref(`requester_reputation/${idReq}`).update({
+                        total_order: firebase.database.ServerValue.increment(1)
+                    }),
+                    dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_all' }),
+                    getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).update({ status: 'completed_all' })
+                ]);
+
+                await sysAlert("BERHASIL", "Laporan Citizen terekam.");
+                if(typeof Clearchance !== 'undefined') Clearchance.clearActiveMission();
+                location.href = "index.html";
+
+            } catch (err) {
+                await sysAlert("GAGAL", err.message, true);
+            }
+        }
+
+        // ==========================================
+        // 6. DB GEOLOCATION TRACKING (MAPS REMOVED)
+        // ==========================================
+        function syncTracking() {
+            if(navigator.geolocation && dbDeal) {
+                navigator.geolocation.watchPosition(p => {
+                    const {latitude, longitude} = p.coords;
+                    dbDeal.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({
+                        lat: latitude, 
+                        lng: longitude, 
+                        ts: Date.now()
+                    });
+                });
+            }
+        }
+
+        // ==========================================
+        // 7. UTILS & TIMERS
+        // ==========================================
+        function startMissionTimer(startTime) {
+            const timerVal = document.getElementById('timer-val');
+            setInterval(() => {
+                const diff = Date.now() - startTime;
+                const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                timerVal.innerText = `${h}:${m}:${s}`;
+            }, 1000);
+        }
+
+        // --- SISTEM EMERGENCY RELEASE ---
+        function startEmergencyProtocol() {
+            if (!isAdv) return; 
+
+            const emZone = document.getElementById('emergency-zone');
+            const emTimer = document.getElementById('em-timer');
+            const sliderCont = document.getElementById('slider-container-em');
+            const emSlider = document.getElementById('em-slider');
+
+            if (!emZone) return;
+            emZone.classList.remove('hide'); 
+
+            let countdown = 10; 
+            
+            let emInterval = setInterval(() => {
+                countdown--;
+                if (countdown > 0) {
+                    emTimer.innerText = `TOMBOL SELESAI DARURAT AKAN MUNCUL DALAM ${countdown}S... GUNAKAN INI APABILA PEMESAN AFK TANPA MENGKONFIRMASI SELESAI`;
+                } else {
+                    clearInterval(emInterval);
+                    emTimer.style.display = 'none';
+                    sliderCont.style.display = 'block';
+                    updateAI("Protokol Selesai Paksa (AFK) telah diaktifkan.", "alert");
+                }
+            }, 1000);
+
+            emSlider.oninput = function() {
+                if (this.value >= 98) {
+                    this.value = 100;
+                    executeEmergencyAction();
+                }
+            };
+        }
+
+        async function executeEmergencyAction() {
+            vibratePulse();
+            const yakin = await sysConfirm("SELESAI PAKSA", "AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan diarahkan ke form laporan.", true);
+            if (yakin) {
+                openEvalReq(); 
+            } else {
+                document.getElementById('em-slider').value = 0;
+            }
+        }
+
+    </script>
+</body>
+</html>
