@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BATTLEFIELD HUB | PROGRESS MISI</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#050508">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        /* === QUANTUM DESIGN SYSTEM === */
+        :root {
+            --bg-main: #050508;
+            --bg-panel: rgba(13, 13, 20, 0.8);
+            --neon-blue: #00f3ff;
+            --neon-green: #00ff88;
+            --neon-red: #ff3366;
+            --neon-purple: #bc13fe;
+            --neon-yellow: #ffcc00;
+            --text-main: #e0e0e0;
+            --glass: rgba(5, 5, 8, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+            --font-sans: 'Inter', -apple-system, sans-serif;
+        }
+
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            user-select: none;
+            box-sizing: border-box;
+            scrollbar-width: none;
+        }
+        *::-webkit-scrollbar { display: none; }
+        body, html { 
+            margin: 0; padding: 0; 
+            background: radial-gradient(circle at top right, #111, var(--bg-main)); 
+            color: var(--text-main); font-family: var(--font-sans); 
+            overflow: hidden; height: 100%; width: 100%; 
+            overscroll-behavior-y: none; touch-action: manipulation;
+        }
+        .hide { display: none !important; }
+
+        /* === GLOBAL HEADER === */
+        #global-header { 
+            position: absolute; top: 0; width: 100%; z-index: 2000; 
+            background: var(--glass); border-bottom: 1px solid var(--glass-border); 
+            padding: 12px 15px; backdrop-filter: blur(20px);
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        .identity-badge { display: flex; align-items: center; gap: 12px; }
+        .rank-frame { 
+            width: 45px; height: 45px; border: 2px solid var(--neon-blue); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;
+            background: rgba(0, 243, 255, 0.05); color: var(--neon-blue); 
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+        }
+        .btn-refresh {
+            background: rgba(0,243,255,0.1); border: 1px solid var(--neon-blue); color: var(--neon-blue);
+            width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.3s; box-shadow: 0 0 10px rgba(0,243,255,0.2);
+        }
+
+        /* === VIEWPORT === */
+        .viewport { position: absolute; top: 65px; bottom: 65px; width: 100%; overflow: hidden; }
+        .tab-pane { position: absolute; inset: 0; overflow-y: auto; padding-bottom: 30px; }
+        .hq-container { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        
+        .ai-terminal { 
+            background: rgba(188, 19, 254, 0.05); border: 1px solid rgba(188, 19, 254, 0.3); 
+            border-radius: 15px; padding: 15px; display: flex; gap: 15px; align-items: center;
+        }
+        #ai-text { font-size: 13px; font-style: italic; color: #d8b4fe; line-height: 1.5; }
+
+        .status-panel {
+            background: rgba(0,0,0,0.7); border-left: 4px solid var(--neon-blue); padding: 15px;
+            border-radius: 8px; font-family: var(--font-mono); border: 1px solid var(--glass-border);
+            border-left-width: 4px; display: flex; align-items: center; gap: 15px;
+        }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); animation: blink 1.5s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        #live-status-text { font-size: 12px; color: #fff; font-weight: bold; letter-spacing: 1px; flex: 1; }
+        #live-status-time { font-size: 10px; color: #888; }
+
+        .dossier { background: var(--bg-panel); border: 1px solid var(--glass-border); border-radius: 20px; overflow: hidden; }
+        .dossier-head { background: rgba(255,255,255,0.03); padding: 12px 15px; font-size: 11px; color: #aaa; display: flex; justify-content: space-between; font-family: var(--font-mono); border-bottom: 1px solid var(--glass-border); }
+        .dossier-body { padding: 20px; position: relative; }
+        .data-syncing { opacity: 0.6; filter: blur(3px); }
+        .m-title { font-size: 24px; font-weight: 900; color: var(--neon-green); margin: 0 0 15px 0; text-transform: uppercase; text-shadow: 0 0 10px rgba(0,255,136,0.3); }
+        
+        #mission-progress-container { margin-bottom: 25px; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); }
+        .prog-label { font-size: 11px; color: #bbb; display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .prog-track { height: 6px; background: #1a1a1a; border-radius: 3px; overflow: hidden; }
+        .prog-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple)); transition: width 1.5s ease; }
+
+        /* Slide-to-Confirm System */
+        .slider-wrapper {
+            position: relative; width: 100%; height: 56px; background: rgba(0,0,0,0.6); 
+            border: 1px solid var(--glass-border); border-radius: 28px; overflow: hidden; margin-top: 15px;
+        }
+        .slider-text {
+            position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 900; color: #888; letter-spacing: 2px; pointer-events: none; z-index: 1; text-transform: uppercase;
+        }
+        .slider-fill { position: absolute; top: 0; left: 0; height: 100%; width: 0; background: linear-gradient(90deg, rgba(0,255,136,0.1), rgba(0,255,136,0.4)); z-index: 2; }
+        .slider-thumb {
+            position: absolute; top: 3px; left: 3px; width: 50px; height: 50px; background: var(--neon-green);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #000; font-size: 20px;
+            cursor: pointer; z-index: 3; box-shadow: 0 0 15px rgba(0,255,136,0.5);
+        }
+
+        .btn-main {
+            background: linear-gradient(135deg, rgba(0,243,255,0.1), rgba(0,243,255,0.02));
+            border: 1px solid var(--neon-blue); color: var(--neon-blue);
+            padding: 14px; border-radius: 12px; text-transform: uppercase; font-weight: 900;
+            cursor: pointer; width: 100%; font-size: 13px;
+        }
+        .btn-main:active { background: var(--neon-blue); color: #000; }
+
+        /* WhatsApp Drawer */
+        .drawer-toggle-btn { 
+            position: fixed; bottom: 85px; right: 20px; z-index: 2500; 
+            background: #25d366; border: none; color: #fff; border-radius: 50%; 
+            width: 55px; height: 55px; display: flex; align-items: center; justify-content: center; 
+            font-size: 28px; box-shadow: 0 5px 20px rgba(37, 211, 102, 0.4); cursor: pointer;
+        }
+        .action-drawer { position: fixed; bottom: 65px; left: 0; width: 100%; background: rgba(10,10,15,0.95); backdrop-filter: blur(30px); border-top: 1px solid #25d366; transform: translateY(150%); transition: transform 0.4s ease; z-index: 2400; border-radius: 25px 25px 0 0; padding-bottom: 20px; }
+        .action-drawer.open { transform: translateY(0); }
+        .drawer-handle { width: 50px; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin: 15px auto; }
+
+        #global-footer { position: absolute; bottom: 0; width: 100%; height: 65px; z-index: 3000; background: var(--glass); border-top: 1px solid var(--glass-border); }
+        .nav-grid { display: flex; height: 100%; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: var(--neon-blue); font-weight: 500; }
+        .nav-item i { font-size: 20px; margin-bottom: 5px; text-shadow: 0 0 10px rgba(0,243,255,0.5); }
+
+        /* Emergency Input Custom Range */
+        #em-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 70px; height: 45px; background: #ff3366; border-radius: 4px; box-shadow: -100vw 0 0 100vw rgba(255, 51, 102, 0.4), 0 0 15px #ff3366; border: 1px solid #fff;
+        }
+        #em-slider::-moz-range-thumb { width: 70px; height: 45px; background: #ff3366; border: 1px solid #fff; }
+
+        /* System Modal Base CSS */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); z-index: 15000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-box { background: rgba(10, 10, 15, 0.98); width: 95%; max-width: 400px; padding: 2rem 1.5rem; border: 1px solid var(--neon-blue); position: relative; border-radius: 4px; display: flex; flex-direction: column; align-items: center; }
+        .modal-box.danger { border-color: #ff4444; }
+        .modalTitle { width: 100%; margin-bottom: 1rem; padding-bottom: 10px; border-bottom: 1px solid #222; color: var(--neon-blue); font-size: 14px; font-weight: 900; font-family: var(--font-mono); text-align: center; }
+        .modal-box.danger .modalTitle { color: #ff4444; }
+        .modalMsg { width: 100%; margin-bottom: 1.5rem; font-size: 13px; color: #bbb; line-height: 1.6; font-family: var(--font-mono); text-align: center; }
+        .modal-input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid #444; color: white; padding: 10px; margin-bottom: 1.5rem; text-align: center; }
+        .modal-btn-group { display: flex; gap: 10px; width: 100%; }
+    </style>
+</head>
+<body>
+
+    <header id="global-header">
+        <div class="identity-badge">
+            <div id="u-rank" class="rank-frame">?</div>
+            <div>
+                <div id="u-role" style="font-size: 10px; color: #888; letter-spacing: 1.5px; text-transform: uppercase;">SINKRONISASI...</div>
+                <div id="u-name" style="font-weight: 700; font-size: 16px;">Memuat Data</div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="btn-refresh" onclick="forceRefreshData()"><i class="fa-solid fa-rotate"></i></button>
+            <img src="ai_irene_face.png" style="width:38px; height:38px; border-radius:50%; border:2px solid var(--neon-purple);" alt="AI">
+        </div>
+    </header>
+
+    <main class="viewport">
+        <div id="tab-hq" class="tab-pane">
+            <div class="hq-container">
+
+                <div id="ai-terminal-box" class="ai-terminal">
+                    <i class="fa-solid fa-microchip" style="color: var(--neon-purple); font-size: 28px;"></i>
+                    <div id="ai-text">Menganalisis parameter misi...</div>
+                </div>
+
+                <div class="status-panel">
+                    <div class="status-dot" id="status-indicator"></div>
+                    <div id="live-status-text">[SYS] STANDBY - MENUNGGU DATA</div>
+                    <div id="live-status-time">--:--</div>
+                </div>
+
+                <div class="dossier">
+                    <div class="dossier-head">
+                        <span>MISSION_FILE_ACTIVE</span>
+                        <span id="m-id-display">ID: ---</span>
+                    </div>
+
+                    <div class="dossier-body">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                            <div>
+                                <div id="m-category-badge" style="background: var(--neon-purple); color: #000; font-size: 9px; font-weight: bold; padding: 3px 8px; border-radius: 5px; display: inline-block; margin-bottom: 6px; text-transform: uppercase;">CATEGORY</div>
+                                <h1 id="m-title" class="m-title">LOADING...</h1>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 9px; color: #666;">NAMA PEMESAN</div>
+                                <div id="m-client-name" style="font-size: 12px; color: var(--neon-blue); font-weight: bold;">--</div>
+                            </div>
+                        </div>
+
+                        <div id="mission-progress-container">
+                            <div class="prog-label">
+                                <span id="m-status-text">Menganalisis matriks logistik...</span>
+                                <span id="m-progress-pct" style="color: var(--neon-blue); font-weight: bold;">0%</span>
+                            </div>
+                            <div class="prog-track">
+                                <div id="m-progress-bar" class="prog-fill"></div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <div id="mission-timer-hub" style="font-family: var(--font-mono); color: var(--neon-purple); font-size: 11px; border: 1px solid rgba(188,19,254,0.3); background: rgba(188,19,254,0.05); padding: 6px 10px; border-radius: 8px;">
+                                <i class="fa-solid fa-clock"></i> <span id="timer-val">00:00:00</span>
+                            </div>
+                            <div style="font-family: var(--font-mono); font-size: 12px; color: var(--neon-green); background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.3); padding: 5px 10px; border-radius: 8px;">
+                                <i class="fa-solid fa-route"></i> Estimasi Rute <span id="m-distance">0</span> KM
+                            </div>
+                        </div>
+
+                        <div id="location-hub">
+                            <div style="background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 12px;">
+                                <div style="font-size: 9px; color: var(--neon-yellow); letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-store"></i> TITIK JEMPUT (A)</div>
+                                <div id="m-origin-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                                <button id="btn-maps-origin" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px;">
+                                    <i class="fa-solid fa-location-arrow"></i> Buka Google Maps
+                                </button>
+                            </div>
+
+                            <div id="dest-hub" class="hide" style="background: rgba(0,255,136,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(0,255,136,0.2); margin-bottom: 12px;">
+                                <div style="font-size: 9px; color: var(--neon-green); letter-spacing: 1.5px; margin-bottom: 5px;"><i class="fa-solid fa-flag-checkered"></i> TITIK TUJUAN (B)</div>
+                                <div id="m-dest-name" style="font-size: 15px; font-weight: bold; color: #fff;">--</div>
+                                <button id="btn-maps-dest" class="hide btn-main" style="margin-top:10px; font-size: 11px; padding: 10px; border-color: var(--neon-green); color: var(--neon-green);">
+                                    <i class="fa-solid fa-map-pin"></i> Buka Google Maps
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="cargo-hub" class="hide" style="background: rgba(188, 19, 254, 0.05); border: 1px dashed var(--neon-purple); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                            <div id="m-cargo-detail" style="font-size: 14px; color: #eee; white-space: pre-line; font-family: var(--font-mono);">--</div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); padding-top: 15px;">
+                            <div>
+                                <div style="font-size: 9px; color: #777;">REWARD TUNAI</div>
+                                <div id="m-reward-cash" style="color: var(--neon-green); font-weight: bold; font-size: 16px;">Rp 0</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 9px; color: #777;">NAMA PELAKSANA</div>
+                                <div id="m-adv-nick" style="font-size: 13px; color: #fff; font-weight: bold;">--</div>
+                            </div>
+                        </div>
+
+                        <div id="action-slider-box" class="hide">
+                            <div style="font-size: 10px; color: var(--neon-green); text-align: center; margin-top: 20px; font-weight: bold;">KONFIRMASI SELESAI DAN LANJUT PENILAIAN</div>
+                            <div class="slider-wrapper" id="slider-wrapper">
+                                <div class="slider-text" id="slider-text">GESER UNTUK SELESAI</div>
+                                <div class="slider-fill" id="slider-fill"></div>
+                                <div class="slider-thumb" id="slider-thumb"><i class="fa-solid fa-angles-right"></i></div>
+                            </div>
+                        </div>
+
+                        <div id="emergency-zone" class="hide" style="margin-top: 20px; padding: 15px; border: 2px solid #ff3366; border-radius: 12px; background: #000;">
+                            <p id="em-timer" style="color: #ff3366; font-size: 12px; text-align: center; font-family: var(--font-mono); margin: 0; font-weight: bold;">
+                                MENGINISIALISASI PROTOKOL DARURAT...
+                            </p>
+                            <div id="slider-container-em" style="display: none; margin-top: 15px; width: 100%; position: relative; height: 45px; background: rgba(255, 51, 102, 0.1); border-radius: 6px; border: 1px solid #ff3366; overflow: hidden;">
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; font-size: 10px; color: #fff; font-weight: bold; width: 100%; text-align: center; z-index: 1;">
+                                    GESER MENTOK : SELESAI PAKSA (HAPUS JURIDIKSI)
+                                </div>
+                                <input type="range" id="em-slider" min="0" max="100" value="0" style="-webkit-appearance: none; width: 100%; height: 100%; cursor: pointer; background: transparent; position: relative; z-index: 2; margin: 0; outline: none;">
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div id="adv-status-hub" class="hide" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; border: 1px solid var(--glass-border);">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <button class="btn-main" onclick="sendLiveStatus('OTW Lokasi Asal')"><i class="fa-solid fa-motorcycle"></i> OTW TITIK</button>
+                        <button class="btn-main" onclick="sendLiveStatus('OTW Lokasi Tujuan')"><i class="fa-solid fa-truck-fast"></i> OTW TUJUAN</button>
+                        <button class="btn-main" onclick="sendLiveStatus('Tiba di Lokasi')"><i class="fa-solid fa-check-double"></i> TIBA</button>
+                        <button class="btn-main" onclick="sendLiveStatus('Kendala Lapangan')"><i class="fa-solid fa-triangle-exclamation"></i> ADA KENDALA</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <button id="requester-toggle-btn" class="drawer-toggle-btn hide" onclick="toggleActionDrawer()">
+        <i class="fa-brands fa-whatsapp"></i>
+    </button>
+
+    <div id="action-drawer" class="action-drawer">
+        <div class="drawer-handle" onclick="toggleActionDrawer()"></div>
+        <div style="padding: 0 20px;" id="role-action-area"></div>
+    </div>
+
+    <footer id="global-footer">
+        <nav class="nav-grid"><div class="nav-item"><i class="fa-solid fa-atom"></i>MONITORING HQ</div></nav>
+    </footer>
+
+    <div id="sysModal" class="modal-overlay">
+        <div id="modalBox" class="modal-box">
+            <div id="modalTitle" class="modalTitle">TITLE</div>
+            <div id="modalMsg" class="modalMsg">MESSAGE</div>
+            <input type="text" id="modalInput" class="modal-input" style="display: none;">
+            <div id="modalBtnGroup" class="modal-btn-group"></div>
+        </div>
+    </div>
+
+    <script>
+        // SYSTEM MODALS
+        function sysAlert(title, msg, isDanger = false) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('sysModal');
+                const box = document.getElementById('modalBox');
+                document.getElementById('modalTitle').innerText = title;
+                document.getElementById('modalMsg').innerText = msg;
+                box.className = isDanger ? "modal-box danger" : "modal-box";
+                document.getElementById('modalInput').style.display = "none";
+                const grp = document.getElementById('modalBtnGroup'); grp.innerHTML = "";
+                const btn = document.createElement('button'); btn.className = "btn-main"; btn.innerText = "OK";
+                btn.onclick = () => { modal.style.display = "none"; resolve(); };
+                grp.appendChild(btn); modal.style.display = "flex";
+            });
+        }
+
+        function sysConfirm(title, msg, isDanger = false, verifyWord = null) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('sysModal');
+                const box = document.getElementById('modalBox');
+                const inputField = document.getElementById('modalInput');
+                document.getElementById('modalTitle').innerText = title;
+                document.getElementById('modalMsg').innerText = msg;
+                box.className = isDanger ? "modal-box danger" : "modal-box";
+                if(verifyWord) { inputField.style.display = "block"; inputField.placeholder = `KETIK '${verifyWord}'`; inputField.value = ""; } else { inputField.style.display = "none"; }
+                const grp = document.getElementById('modalBtnGroup'); grp.innerHTML = "";
+                
+                const btnC = document.createElement('button'); btnC.className = "btn-main"; btnC.innerText = "BATAL"; btnC.style.background = "#222";
+                btnC.onclick = () => { modal.style.display = "none"; resolve(false); };
+                grp.appendChild(btnC);
+
+                const btnO = document.createElement('button'); btnO.className = "btn-main"; btnO.innerText = "LANJUT";
+                btnO.onclick = () => {
+                    if(verifyWord && inputField.value !== verifyWord) { inputField.style.borderColor = "#ff3366"; return; }
+                    modal.style.display = "none"; resolve(true);
+                };
+                grp.appendChild(btnO); modal.style.display = "flex";
+            });
+        }
+
+        // STATE & CORES
+        const user = typeof Clearchance !== 'undefined' ? Clearchance.enforceIdentity() : {role: 'adventurer', uid: 'test-uid'};
+        const mission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
+        const contractId = sessionStorage.getItem('active_contract_id') || mission.id_misi || "TEST-ID";
+        const isAdv = user.role === 'adventurer';
+
+        const dbDeal = typeof getTerminal !== 'undefined' ? getTerminal('FB5_DEAL') : null;
+        const dbMaster = typeof getTerminal !== 'undefined' ? getTerminal('FB1_MASTER') : null;
+
+        window.onload = async () => {
+            initUI();
+            if(dbDeal && dbMaster) {
+                await performDeepMining(); 
+                syncStatus();
+                syncTracking();
+            }
+            if(!isAdv) initSliderAction();
+            if(isAdv) startEmergencyProtocol();
+        };
+
+        function initUI() {
+            document.getElementById('m-id-display').innerText = "ID: " + contractId;
+            if(isAdv) {
+                document.getElementById('adv-status-hub').classList.remove('hide');
+            } else {
+                document.getElementById('requester-toggle-btn').classList.remove('hide');
+                document.getElementById('action-slider-box').classList.remove('hide'); 
+            }
+        }
+
+        function toggleActionDrawer() { document.getElementById('action-drawer').classList.toggle('open'); }
+
+        async function performDeepMining() {
+            if(typeof getSupremeData === 'undefined') return;
+            try {
+                const DATA = await getSupremeData(contractId);
+                if (!DATA) return;
+                const partner = isAdv ? DATA.requester : DATA.adventurer;
+                
+                document.getElementById('u-name').innerText = partner?.profile?.nama || "Unknown Entity";
+                document.getElementById('u-role').innerText = isAdv ? "REQUESTER" : "ADVENTURER";
+                document.getElementById('u-rank').innerText = isAdv ? `T${partner?.profile?.tier || '1'}` : (partner?.profile?.rank || "F");
+
+                // Ampan simpan nick target & ID Misi asli untuk halaman penilaian
+                sessionStorage.setItem('eval_target_nick', isAdv ? (DATA.mission?.client_name || "stranger") : (DATA.mission?.adventurer_nick || "unknown"));
+                sessionStorage.setItem('eval_mission_code_id', DATA.mission?.id_misi_asli || "CLASSIFIED");
+
+                injectDetails(DATA);
+            } catch (e) { console.error(e); }
+        }
+
+        function injectDetails(DATA) {
+            const m = DATA.mission;
+            const detail = m.full_mission_data || {};
+            document.getElementById('m-title').innerText = (detail.category || m.category || "CLASSIFIED").toUpperCase();
+            document.getElementById('m-client-name').innerText = detail.client_name || "STRANGER";
+            document.getElementById('m-distance').innerText = detail.distance_est || "0";
+            document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+            document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Unknown";
+            document.getElementById('m-origin-name').innerText = detail.origin_name || "--";
+
+            if (detail.dest_name || detail.dest_desa) {
+                document.getElementById('dest-hub').classList.remove('hide');
+                document.getElementById('m-dest-name').innerText = detail.dest_desa || detail.dest_name;
+            }
+            if(!isAdv) {
+                const phone = DATA?.adventurer?.profile?.whatsapp || "";
+                document.getElementById('role-action-area').innerHTML = `
+                    <button onclick="window.open('https://wa.me/${phone.replace(/\D/g,'')}')" style="background:#25d366; color:#000; border:none; padding:15px; border-radius:12px; font-weight:900; width:100%;">
+                        HUBUNGI ADVENTURER VIA WHATSAPP
+                    </button>`;
+            }
+            startMissionTimer(m.start_time || Date.now());
+        }
+
+        function startMissionTimer(startTime) {
+            setInterval(() => {
+                const diff = Date.now() - startTime;
+                const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                document.getElementById('timer-val').innerText = `${h}:${m}:${s}`;
+            }, 1000);
+        }
+
+        function sendLiveStatus(str) {
+            if(dbDeal) dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).set({ text: str, ts: Date.now() });
+        }
+
+        function syncStatus() {
+            if(!dbDeal) return;
+            // Listener untuk memantau perubahan status penyelesaian secara real-time
+            dbDeal.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
+                const statusValue = snap.val();
+                if(statusValue === 'evaluating' || statusValue === 'evaluating_emergency') {
+                    // Set marker di session storage agar halaman penilaian tahu metodenya
+                    sessionStorage.setItem('eval_emergency_triggered', statusValue === 'evaluating_emergency' ? 'true' : 'false');
+                    window.location.href = "penilaian.html";
+                }
+            });
+
+            dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).on('value', snap => {
+                if(!snap.exists()) return;
+                const d = snap.val();
+                document.getElementById('live-status-text').innerText = d.text.toUpperCase();
+                document.getElementById('live-status-time').innerText = new Date(d.ts).toLocaleTimeString();
+            });
+        }
+
+        // SLIDER REQUESTER (NORMAL ROUTE)
+        function initSliderAction() {
+            const wrapper = document.getElementById('slider-wrapper');
+            const thumb = document.getElementById('slider-thumb');
+            const fill = document.getElementById('slider-fill');
+            const text = document.getElementById('slider-text');
+            let isDragging = false, startX = 0, maxW = 0;
+
+            const startDrag = (e) => { isDragging = true; startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX; maxW = wrapper.clientWidth - thumb.clientWidth - 6; };
+            const moveDrag = (e) => {
+                if(!isDragging) return;
+                let curX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                let move = curX - startX;
+                if(move < 0) move = 0; if(move > maxW) move = maxW;
+                thumb.style.transform = `translateX(${move}px)`; fill.style.width = `${move + 25}px`; text.style.opacity = 1 - (move / maxW);
+            };
+            const endDrag = async (e) => {
+                if(!isDragging) return; isDragging = false;
+                let curX = e.type.includes('mouse') ? e.clientX : e.changedTouches[0].clientX;
+                if((curX - startX) > maxW * 0.9) {
+                    thumb.style.transform = `translateX(${maxW}px)`; fill.style.width = `100%`;
+                    // Eksekusi pelemparan peran lewat Firebase Status
+                    if(dbDeal) {
+                        await dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'evaluating' });
+                    }
+                } else { thumb.style.transform = `translateX(0px)`; fill.style.width = `0px`; text.style.opacity = 1; }
+            };
+            thumb.addEventListener('mousedown', startDrag); document.addEventListener('mousemove', moveDrag); document.addEventListener('mouseup', endDrag);
+            thumb.addEventListener('touchstart', startDrag, {passive: true}); document.addEventListener('touchmove', moveDrag, {passive: true}); document.addEventListener('touchend', endDrag);
+        }
+
+        // EMERGENCY PROTOCOL ADVENTURER (EMERGENCY ROUTE)
+        function startEmergencyProtocol() {
+            const emZone = document.getElementById('emergency-zone');
+            const emTimer = document.getElementById('em-timer');
+            const sliderCont = document.getElementById('slider-container-em');
+            const emSlider = document.getElementById('em-slider');
+            emZone.classList.remove('hide'); 
+
+            let countdown = 10;
+            let emInterval = setInterval(() => {
+                countdown--;
+                if (countdown > 0) { emTimer.innerText = `TOMBOL SELESAI DARURAT MUNCUL DALAM ${countdown}S... USE IF REQUESTER AFK`; } 
+                else { clearInterval(emInterval); emTimer.style.display = 'none'; sliderCont.style.display = 'block'; }
+            }, 1000);
+
+            emSlider.oninput = function() { if (this.value >= 98) { this.value = 100; executeEmergencyAction(); } };
+        }
+
+        async function executeEmergencyAction() {
+            const yakin = await sysConfirm("SELESAI PAKSA", "Sistem akan MENGHANCURKAN data penugasan di Board utama saat ini juga untuk mencegah error loop.\n\nLanjutkan ke halaman laporan?", true);
+            if (yakin) {
+                const kodeMisiAsli = sessionStorage.getItem('eval_mission_code_id') || "";
+                
+                // PENGHANCURAN DATA DIMAJUKAN DI SINI UNTUK JALUR DARURAT (Pencegahan Bug Total)
+                try {
+                    if(dbMaster && kodeMisiAsli) {
+                        await dbMaster.ref(`index_misi/${kodeMisiAsli}`).remove();
+                        await dbMaster.ref(`kode_misi/${kodeMisiAsli}`).remove();
+                    }
+                    if(typeof getTerminal !== 'undefined') {
+                        await getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).remove();
+                    }
+                } catch(err) { console.warn("Pembersihan awal parsial:", err); }
+
+                // Pemicu pelemparan halaman lewat status Firebase
+                if(dbDeal) {
+                    await dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'evaluating_emergency' });
+                }
+            } else { document.getElementById('em-slider').value = 0; }
+        }
+
+        function syncTracking() {
+            if(navigator.geolocation && dbDeal) {
+                navigator.geolocation.watchPosition(p => {
+                    dbDeal.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({ lat: p.coords.latitude, lng: p.coords.longitude, ts: Date.now() });
+                });
+            }
+        }
+        function forceRefreshData() { location.reload(); }
+    </script>
+</body>
+</html>
