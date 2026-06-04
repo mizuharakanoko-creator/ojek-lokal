@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BATTLEFIELD HUB | EVALUASI KONTRAK</title>
+    <meta name="theme-color" content="#050508">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        :root {
+            --bg-main: #050508;
+            --neon-blue: #00f3ff;
+            --neon-green: #00ff88;
+            --neon-red: #ff3366;
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body, html { margin:0; padding:0; background:var(--bg-main); color:#fff; font-family: 'Inter', sans-serif; height:100%; overflow:hidden; }
+        
+        .container { padding: 25px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; overflow-y: auto; }
+        .header-title { text-align: center; font-weight: 900; font-size: 20px; letter-spacing: 1px; margin-top: 10px; }
+        
+        /* Countdown Alert Bar */
+        .timer-bar {
+            background: rgba(255, 51, 102, 0.1); border: 1px solid var(--neon-red);
+            padding: 10px; border-radius: 8px; text-align: center; font-family: var(--font-mono);
+            font-size: 11px; color: var(--neon-red); margin-bottom: 20px;
+        }
+
+        .star-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); }
+        .stars i { font-size: 20px; color: #333; cursor: pointer; margin-left: 5px; }
+        .stars i.on { color: #ffcc00; text-shadow: 0 0 10px rgba(255,204,0,0.4); }
+
+        .btn-main {
+            background: var(--neon-blue); color: #000; border: none; padding: 16px;
+            border-radius: 12px; text-transform: uppercase; font-weight: 900; font-size: 14px;
+            cursor: pointer; width: 100%; letter-spacing: 1px; margin-top: 20px;
+        }
+        .hide { display: none !important; }
+
+        /* Style system modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(5px); z-index: 10000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal-box { background: #0b0b10; width: 95%; max-width: 400px; padding: 2rem 1.5rem; border: 1px solid var(--neon-blue); border-radius: 4px; text-align: center; }
+        .modalTitle { color: var(--neon-blue); font-size: 14px; font-weight: 900; margin-bottom: 15px; font-family: var(--font-mono); }
+        .modalMsg { font-size: 13px; color: #ccc; line-height: 1.6; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div>
+            <div id="countdown-alert" class="timer-bar">
+                PROTOKOL AUTO-SUBMIT AKTIF: NYATAKAN PENILAIAN DALAM <span id="time-left">20</span> DETIK
+            </div>
+
+            <h2 id="page-title" class="header-title">EVALUASI PARTNER</h2>
+            <p id="page-desc" style="text-align: center; font-size: 12px; color: #888; margin-bottom: 25px;">Sistem telah mengisi poin standar yang adil secara otomatis.</p>
+
+            <div id="form-requester-view" class="hide">
+                <div id="eval-star-group"></div>
+            </div>
+
+            <div id="form-adventurer-view" class="hide">
+                <div id="eval-bool-group"></div>
+            </div>
+        </div>
+
+        <button id="btn-submit-eval" class="btn-main">KIRIM PENILAIAN & TUTUP KONTRAK</button>
+    </div>
+
+    <div id="sysModal" class="modal-overlay">
+        <div class="modal-box">
+            <div id="modalTitle" class="modalTitle">TITLE</div>
+            <div id="modalMsg" class="modalMsg">MESSAGE</div>
+            <div id="modalBtnGroup"></div>
+        </div>
+    </div>
+
+    <script>
+        // MODALS
+        function sysAlert(title, msg) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('sysModal');
+                document.getElementById('modalTitle').innerText = title;
+                document.getElementById('modalMsg').innerText = msg;
+                const grp = document.getElementById('modalBtnGroup'); grp.innerHTML = "";
+                const btn = document.createElement('button'); btn.className = "btn-main"; btn.innerText = "MENGERTI";
+                btn.onclick = () => { modal.style.display = "none"; resolve(); };
+                grp.appendChild(btn); modal.style.display = "flex";
+            });
+        }
+
+        // CORES STATE
+        const user = typeof Clearchance !== 'undefined' ? Clearchance.enforceIdentity() : {role: 'adventurer', uid: 'test-uid'};
+        const mission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
+        const contractId = sessionStorage.getItem('active_contract_id') || "TEST-ID";
+        const isAdv = user.role === 'adventurer';
+
+        // Ambil data krusial yang diestafetkan dari halaman progress
+        const targetPartner = sessionStorage.getItem('eval_target_nick') || "unknown";
+        const kodeMisiAsli = sessionStorage.getItem('eval_mission_code_id') || "";
+        const isEmergencyPath = sessionStorage.getItem('eval_emergency_triggered') === 'true';
+
+        const dbDeal = typeof getTerminal !== 'undefined' ? getTerminal('FB5_DEAL') : null;
+        const dbMaster = typeof getTerminal !== 'undefined' ? getTerminal('FB1_MASTER') : null;
+
+        // DATA CONTAINER (NILAI PRE-FILLED STANDAR / TIDAK MAX)
+        let ratings = { keamanan:4, kecerdasan:4, kepercayaan:4, keramahan:4, penampilan:4, kejujuran:4 };
+        let reports = { baik:true, tips:false, cash:true, extra:false };
+
+        let countdownValue = 20;
+        let countdownTimer = null;
+
+        window.onload = () => {
+            if(isAdv) {
+                renderAdventurerForm();
+                document.getElementById('btn-submit-eval').style.background = "var(--neon-green)";
+                document.getElementById('btn-submit-eval').onclick = () => executeReqFinal();
+            } else {
+                renderRequesterForm();
+                document.getElementById('btn-submit-eval').style.background = "var(--neon-blue)";
+                document.getElementById('btn-submit-eval').onclick = () => executeAdvFinal();
+            }
+
+            // Jalankan hitung mundur otomatis untuk proteksi AFK
+            startAFKTimeoutProtocol();
+        };
+
+        // RENDER & PRE-FILL FORM REQUESTER (BINTANG 4 AUTOMATIC)
+        function renderRequesterForm() {
+            document.getElementById('form-requester-view').classList.remove('hide');
+            document.getElementById('page-title').innerText = "AUDIT ADVENTURER";
+            document.getElementById('page-title').style.color = "var(--neon-blue)";
+            
+            const cats = ['keamanan', 'kecerdasan', 'kepercayaan', 'keramahan', 'penampilan', 'kejujuran'];
+            const grp = document.getElementById('eval-star-group');
+            grp.innerHTML = "";
+            
+            cats.forEach(c => {
+                grp.innerHTML += `
+                    <div class="star-row">
+                        <span style="font-size:11px; font-weight:bold; text-transform:uppercase; color:#ccc;">${c}</span>
+                        <div class="stars" id="star-${c}">
+                            ${[1,2,3,4,5].map(i => `<i class="fa-solid fa-star ${i <= 4 ? 'on' : ''}" onclick="setStar('${c}', ${i})"></i>`).join('')}
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function setStar(cat, val) {
+            ratings[cat] = val;
+            const s = document.getElementById(`star-${cat}`).children;
+            for(let i=0; i<5; i++) s[i].classList.toggle('on', i < val);
+        }
+
+        // RENDER & PRE-FILL FORM ADVENTURER (JAWABAN ADIL AUTOMATIC)
+        function renderAdventurerForm() {
+            document.getElementById('form-adventurer-view').classList.remove('hide');
+            document.getElementById('page-title').innerText = "LAPORAN CITIZEN";
+            document.getElementById('page-title').style.color = "var(--neon-green)";
+
+            const qs = [
+                {k:'baik', q:'Apakah Klien memberi titik koordinat yang sesuai?', d: true},
+                {k:'tips', q:'Apakah Anda diberikan bonus tips tambahan?', d: false},
+                {k:'cash', q:'Pembayaran nilai tunai pas & sesuai kesepakatan?', d: true},
+                {k:'extra', q:'Apakah Klien meminta beban kerja ekstra tanpa kompensasi?', d: false}
+            ];
+            const grp = document.getElementById('eval-bool-group');
+            grp.innerHTML = "";
+
+            qs.forEach(o => {
+                const isYes = o.d;
+                grp.innerHTML += `
+                    <div style="margin-bottom:15px; text-align:left; background:rgba(0,0,0,0.3); padding:12px; border-radius:8px; border:1px solid var(--glass-border);">
+                        <div style="font-size:12px; margin-bottom:10px; color:#ddd;">${o.q}</div>
+                        <div style="display:flex; gap:10px;">
+                            <button onclick="setBool('${o.k}', true)" id="b-${o.k}-y" style="flex:1; padding:10px; border-radius:6px; font-size:11px; font-weight:bold; border:1px solid ${isYes?'var(--neon-green)':'#444'}; background:${isYes?'var(--neon-green)':'transparent'}; color:${isYes?'#000':'#fff'}">YA</button>
+                            <button onclick="setBool('${o.k}', false)" id="b-${o.k}-n" style="flex:1; padding:10px; border-radius:6px; font-size:11px; font-weight:bold; border:1px solid ${!isYes?'var(--neon-red)':'#444'}; background:${!isYes?'var(--neon-red)':'transparent'}; color:${!isYes?'#000':'#fff'}">TIDAK</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function setBool(k, val) {
+            reports[k] = val;
+            const btnY = document.getElementById(`b-${k}-y`);
+            const btnN = document.getElementById(`b-${k}-n`);
+            
+            btnY.style.borderColor = val ? 'var(--neon-green)' : '#444';
+            btnY.style.background = val ? 'var(--neon-green)' : 'transparent';
+            btnY.style.color = val ? '#000' : '#fff';
+            
+            btnN.style.borderColor = !val ? 'var(--neon-red)' : '#444';
+            btnN.style.background = !val ? 'var(--neon-red)' : 'transparent';
+            btnN.style.color = !val ? '#000' : '#fff';
+        }
+
+        // TIMER ANTI-AFK ENGINE
+        function startAFKTimeoutProtocol() {
+            const display = document.getElementById('time-left');
+            countdownTimer = setInterval(() => {
+                countdownValue--;
+                display.innerText = countdownValue;
+                if(countdownValue <= 0) {
+                    clearInterval(countdownTimer);
+                    document.getElementById('countdown-alert').innerText = "WAKTU HABIS. MENGEKSEKUSI AUTO-SUBMIT...";
+                    if(isAdv) { executeReqFinal(); } else { executeAdvFinal(); }
+                }
+            }, 1000);
+        }
+
+        // PROSES SUBMIT REQUESTER -> AKUMULASI SHARD & PENGHANCURAN MISI LOBBY
+        async function executeAdvFinal() {
+            clearInterval(countdownTimer);
+            const targetNick = targetPartner.trim().toLowerCase();
+
+            try {
+                if(!dbMaster) throw new Error("DB Master Offline.");
+                const snap = await dbMaster.ref('adventurer_index').once('value');
+                let meta = null;
+                snap.forEach(child => { if(child.val().nickname.toLowerCase() === targetNick) meta = child.val(); });
+
+                if (meta) {
+                    const shardId = meta.shard_id;
+                    const idAdv = meta.id_adv;
+                    const targetShard = typeof getTerminal !== 'undefined' ? getTerminal(shardId) : null;
+                    
+                    if(targetShard) {
+                        // Perhitungan Leveling RPG Core
+                        let expSnap = await targetShard.ref(`adventurer_experience/${idAdv}`).once('value');
+                        let { exp: curExp = 0, level: curLvl = 1, max_exp: maxExp = 100 } = expSnap.val() || {};
+                        let newExp = curExp + (mission.rpg_reward?.exp || 0);
+                        let newLvl = curLvl; let newMaxExp = maxExp;
+                        while (newExp >= newMaxExp) { newExp -= newMaxExp; newLvl++; newMaxExp = newMaxExp * 3; }
+
+                        // Kalkulasi Reputasi Bintang Berdasarkan Total Parameter
+                        const totalPoin = ratings.keamanan + ratings.kecerdasan + ratings.kepercayaan + ratings.keramahan + ratings.kejujuran + ratings.penampilan;
+                        let starField = "star_1";
+                        if (totalPoin === 30) starField = "star_5";
+                        else if (totalPoin > 24) starField = "star_4";
+                        else if (totalPoin > 18) starField = "star_3";
+                        else if (totalPoin > 12) starField = "star_2";
+
+                        // Tembak Data Increment ke Shard Tujuan Pelaksana
+                        await Promise.all([
+                            targetShard.ref(`adventurer_profile/${idAdv}`).update({ level: newLvl }),
+                            targetShard.ref(`adventurer_experience/${idAdv}`).update({ exp: newExp, level: newLvl, max_exp: newMaxExp }),
+                            targetShard.ref(`adventurer_diagram/${idAdv}`).update({
+                                nilai_keamanan: firebase.database.ServerValue.increment(ratings.keamanan),
+                                nilai_kecerdasan: firebase.database.ServerValue.increment(ratings.kecerdasan),
+                                nilai_kepercayaan: firebase.database.ServerValue.increment(ratings.kepercayaan),
+                                nilai_keramahan: firebase.database.ServerValue.increment(ratings.keramahan),
+                                nilai_kejujuran: firebase.database.ServerValue.increment(ratings.kejujuran),
+                                nilai_penampilan: firebase.database.ServerValue.increment(ratings.penampilan)
+                            }),
+                            targetShard.ref(`adventurer_reputation/${idAdv}`).update({
+                                [starField]: firebase.database.ServerValue.increment(1),
+                                total_mission_completed: firebase.database.ServerValue.increment(1)
+                            }),
+                            targetShard.ref(`adventurer_coxin/${idAdv}/green_stone`).set(firebase.database.ServerValue.increment(mission.rpg_reward?.greenStone || 0))
+                        ]);
+                    }
+                }
+
+                // JALUR NORMAL: PROSES PENGHANCURAN JEJAK DATA MISI DI FB1 & FB4 DILAKUKAN DI SINI
+                if (!isEmergencyPath) {
+                    try {
+                        if(dbMaster && kodeMisiAsli) {
+                            await dbMaster.ref(`index_misi/${kodeMisiAsli}`).remove();
+                            await dbMaster.ref(`kode_misi/${kodeMisiAsli}`).remove();
+                        }
+                        if(typeof getTerminal !== 'undefined') {
+                            await getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).remove();
+                        }
+                        if(dbDeal) {
+                            await dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_all' });
+                        }
+                    } catch(ex) { console.warn("Pembersihan database:", ex); }
+                }
+
+                await sysAlert("BERHASIL", "Sinkronisasi evaluasi tuntas. Kontrak ditutup resmi.");
+                window.location.href = "index.html"; // Requester kembali ke index utama
+
+            } catch (err) {
+                console.error(err);
+                window.location.href = "index.html";
+            }
+        }
+
+        // PROSES SUBMIT ADVENTURER -> SIMPAN DATA LAPORAN CITIZEN
+        async function executeReqFinal() {
+            clearInterval(countdownTimer);
+            const targetClient = targetPartner.trim().toLowerCase();
+
+            // Jika status requester stranger, bypass penyimpanan shard langsung hapus sisa data
+            if (targetClient === "stranger" || isEmergencyPath) {
+                cleanUpAndExitAdventurer();
+                return;
+            }
+
+            try {
+                if(!dbMaster) throw new Error("DB Master Offline.");
+                const snap = await dbMaster.ref('requester_index').once('value');
+                let meta = null;
+                snap.forEach(child => { if(child.val().nickname && child.val().nickname.toLowerCase() === targetClient) meta = child.val(); });
+
+                if (meta) {
+                    const shardId = meta.shard_id;
+                    const idReq = meta.id_req;
+                    const targetShard = typeof getTerminal !== 'undefined' ? getTerminal(shardId) : null;
+                    
+                    if(targetShard) {
+                        await Promise.all([
+                            targetShard.ref(`requester_diagram/${idReq}`).update({
+                                titik_kordinat_sesuai: firebase.database.ServerValue.increment(reports.baik ? 1 : 0),
+                                titik_kordinat_tidak_sesuai: firebase.database.ServerValue.increment(reports.baik ? 0 : 1),
+                                memberi_tips: firebase.database.ServerValue.increment(reports.tips ? 1 : 0),
+                                memberi_tunai_pas: firebase.database.ServerValue.increment(reports.cash ? 1 : 0),
+                                memberi_tunai_kurang: firebase.database.ServerValue.increment(reports.cash ? 0 : 1),
+                                minta_tambahan_kerja: firebase.database.ServerValue.increment(reports.extra ? 1 : 0)
+                            }),
+                            targetShard.ref(`requester_reputation/${idReq}`).update({
+                                total_order: firebase.database.ServerValue.increment(1)
+                            })
+                        ]);
+                    }
+                }
+
+                cleanUpAndExitAdventurer();
+
+            } catch (err) {
+                console.error(err);
+                cleanUpAndExitAdventurer();
+            }
+        }
+
+        async function cleanUpAndExitAdventurer() {
+            try {
+                if(typeof Clearchance !== 'undefined') Clearchance.clearActiveMission();
+                if(dbDeal) {
+                    await dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'completed_all' });
+                }
+            } catch(e) { console.warn(e); }
+            
+            window.location.href = "lobby_adventurer.html"; // Adventurer kembali aman ke lobby
+        }
+    </script>
+</body>
+</html>
