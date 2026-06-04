@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign - Briefing Room</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+    <style>
+        /* === THEME SOVEREIGN (100% VISUAL INTEGRATED) === */
+        :root {
+            --bg-cyber: #07080e;
+            --neon-blue: #00f3ff;
+            --neon-green: #00ff88;
+            --neon-red: #ff3366;
+            --neon-yellow: #ffcc00;
+            --glass-panel: rgba(13, 16, 27, 0.85);
+            --glass-border: rgba(0, 243, 255, 0.15);
+            --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+        }
+
+        body { 
+            background-color: var(--bg-cyber); 
+            background-image: 
+                linear-gradient(rgba(0, 243, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.02) 1px, transparent 1px);
+            background-size: 25px 25px;
+            color: #e0e0e0; 
+            font-family: 'Inter', -apple-system, sans-serif; 
+            padding: 15px; 
+            margin: 0; 
+            overflow-x: hidden; 
+        }
+
+        .container { max-width: 600px; margin: auto; padding-bottom: 50px; }
+        
+        /* Assistant Comm-Link Box Custom Styling */
+        .assistant-box { 
+            background: rgba(13, 16, 27, 0.7); 
+            border: 1px solid var(--glass-border); 
+            display: flex; 
+            padding: 15px; 
+            margin-bottom: 20px; 
+            border-radius: 12px; 
+            align-items: center; 
+            position: relative; 
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(0, 243, 255, 0.05);
+        }
+        .assistant-box::before { 
+            content: "• COMM-LINK ACTIVE"; 
+            position: absolute; 
+            top: 8px; 
+            right: 12px; 
+            font-size: 9px; 
+            font-family: var(--font-mono);
+            font-weight: bold;
+            color: var(--neon-blue); 
+            letter-spacing: 1px;
+        }
+        .assistant-img { 
+            width: 65px; 
+            height: 65px; 
+            border: 2px solid var(--neon-blue); 
+            background: #101424; 
+            border-radius: 50%;
+            margin-right: 15px; 
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+            object-fit: cover;
+        }
+        .assistant-chat { flex-grow: 1; }
+        .assistant-name { font-weight: 900; color: var(--neon-blue); font-size: 13px; margin-bottom: 4px; display: block; letter-spacing: 1px; }
+        .assistant-msg { font-size: 12px; line-height: 1.5; color: #b4c2ee; }
+
+        /* Contract Card Custom Styling */
+        .contract-card { 
+            background: var(--glass-panel); 
+            border: 1px solid var(--glass-border); 
+            border-top: 4px solid var(--neon-blue); 
+            padding: 22px; 
+            position: relative; 
+            border-radius: 14px;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 243, 255, 0.02); 
+        }
+        .contract-id { font-size: 11px; color: #5c698a; letter-spacing: 2px; font-family: var(--font-mono); font-weight: bold; }
+        .mission-title { color: #fff; margin: 12px 0; font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; text-shadow: 0 0 10px rgba(255,255,255,0.1); }
+        
+        /* Grid Display System Custom Styling */
+        .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 20px; }
+        .data-item { background: rgba(0, 0, 0, 0.25); padding: 12px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.03); }
+        .data-item span { display: block; font-size: 10px; color: #68759e; font-weight: bold; letter-spacing: 1px; margin-bottom: 4px; text-transform: uppercase; }
+        .data-item b { font-size: 14px; color: #fff; font-family: var(--font-mono); }
+        .data-item small { color: var(--neon-blue); font-size: 11px; opacity: 0.8; }
+
+        .disclaimer-box { 
+            background: rgba(255, 51, 102, 0.03); 
+            border: 1px dashed rgba(255, 51, 102, 0.25); 
+            padding: 14px; 
+            margin: 20px 0; 
+            border-radius: 8px;
+            font-size: 11px; 
+            line-height: 1.6;
+            color: #d199a9; 
+            text-align: justify; 
+        }
+        .disclaimer-box b { color: var(--neon-red); }
+
+        .status-panel { text-align: center; padding: 10px; border: none; background: transparent; margin-top: 15px; }
+        .pulse-dot { height: 8px; width: 8px; background-color: var(--neon-green); border-radius: 50%; display: inline-block; margin-right: 8px; box-shadow: 0 0 10px var(--neon-green); animation: blink 1s infinite; }
+        
+        /* Action Button Refactoring */
+        .btn-action { 
+            width: 100%; 
+            padding: 16px; 
+            font-size: 14px;
+            font-weight: 900; 
+            cursor: pointer; 
+            border: none; 
+            border-radius: 10px;
+            text-transform: uppercase; 
+            letter-spacing: 2px; 
+            margin-top: 10px; 
+            transition: all 0.3s ease;
+        }
+        .btn-start { 
+            background: linear-gradient(135deg, #00ff88 0%, #00b359 100%); 
+            color: #000; 
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.25);
+        }
+        .btn-start:active { transform: scale(0.98); opacity: 0.9; }
+        
+        .btn-abort { 
+            background: rgba(255, 51, 102, 0.05); 
+            color: var(--neon-red); 
+            border: 1px solid rgba(255, 51, 102, 0.3); 
+            padding: 14px; 
+            font-size: 11px; 
+            font-weight: bold;
+            border-radius: 8px;
+            width: 100%; 
+            margin-top: 25px; 
+            cursor: pointer; 
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            transition: all 0.2s ease;
+        }
+        .btn-abort:hover, .btn-abort:active { background: var(--neon-red); color: #000; box-shadow: 0 0 15px rgba(255, 51, 102, 0.3); }
+        .btn-disabled { background: #1a1d29 !important; color: #4e5775 !important; border: 1px solid rgba(255,255,255,0.05) !important; pointer-events: none; box-shadow: none !important; }
+
+        /* ======================================================= */
+        /* === PERFECT ALIGNMENT FOR THE ULTRA-CYBER MODAL SYSTEM === */
+        /* ======================================================= */
+        .modal-overlay { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(4, 6, 12, 0.92); 
+            display: none; 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 10000; 
+            backdrop-filter: blur(12px); 
+        }
+
+        .modal-box {  
+            background-color: #0c0f1d;
+            background-image: 
+                linear-gradient(rgba(0, 243, 255, 0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.015) 1px, transparent 1px);
+            background-size: 20px 20px;
+            border: 1px solid var(--neon-blue); 
+            padding: 24px; 
+            width: 88%; 
+            max-width: 360px; 
+            text-align: center; 
+            box-sizing: border-box; 
+            position: relative;
+            border-radius: 16px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8), inset 0 0 25px rgba(0, 243, 255, 0.08);
+            animation: modalPop 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes modalPop {
+            from { transform: scale(0.85); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* Danger Mode Modals */
+        .modal-box.danger { 
+            border-color: var(--neon-red); 
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8), inset 0 0 25px rgba(255, 51, 102, 0.08);
+        }
+        
+        .modal-title { 
+            font-size: 15px; 
+            font-weight: 900; 
+            margin-bottom: 15px; 
+            color: var(--neon-blue); 
+            text-transform: uppercase; 
+            font-family: var(--font-mono);
+            letter-spacing: 1.5px;
+        }
+        .modal-box.danger .modal-title { color: var(--neon-red); }
+        
+        .modal-msg { 
+            font-size: 12px; 
+            color: #b2bedb; 
+            margin-bottom: 25px; 
+            line-height: 1.6; 
+            text-align: center; 
+            margin: 15px 0 25px 0; 
+            padding: 0 5px; 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .modal-msg b { color: var(--neon-blue); font-family: var(--font-mono); }
+        .modal-box.danger .modal-msg b { color: var(--neon-red); }
+
+        .modal-btn-group { display: flex; gap: 12px; width: 100%; }
+        .modal-btn { 
+            flex: 1; 
+            padding: 13px; 
+            border: none; 
+            font-size: 12px;
+            font-weight: 900; 
+            cursor: pointer; 
+            text-transform: uppercase; 
+            border-radius: 8px;
+            letter-spacing: 1px;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-confirm { 
+            background: var(--neon-blue); 
+            color: #000; 
+            box-shadow: 0 2px 10px rgba(0, 243, 255, 0.2);
+        }
+        .btn-confirm-danger { 
+            background: var(--neon-red); 
+            color: #fff; 
+            box-shadow: 0 2px 10px rgba(255, 51, 102, 0.2);
+        }
+        .btn-cancel { 
+            background: #191e33; 
+            color: #707fab; 
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .btn-confirm:active, .btn-confirm-danger:active, .btn-cancel:active { transform: scale(0.96); }
+
+        @keyframes blink { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+
+        /* Cyberpunk Input Box Decoration */
+        #modalInput {
+            width: 100% !important;
+            box-sizing: border-box;
+            background: #060812 !important;
+            border: 1px solid rgba(255, 51, 102, 0.4) !important;
+            color: var(--neon-red) !important;
+            padding: 12px !important;
+            text-align: center;
+            font-family: var(--font-mono) !important;
+            font-weight: bold;
+            font-size: 14px;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        #modalInput::placeholder { color: #4b2633; font-size: 11px; letter-spacing: 0px; }
+        #modalInput:focus { border-color: var(--neon-red) !important; box-shadow: 0 0 15px rgba(255, 51, 102, 0.25); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="assistant-box">
+        <img id="asisImg" src="https://via.placeholder.com/70/111/00ffff?text=..." class="assistant-img">
+        <div class="assistant-chat">
+            <span class="assistant-name" id="asisName">SYSTEM</span>
+            <div class="assistant-msg" id="statusMsg">MENGHUBUNGKAN KE FREKUENSI KONTRAK...</div>
+        </div>
+    </div>
+
+    <div class="contract-card">
+        <div class="contract-id" id="displayCid">CONTRACT ID: ---</div>
+        <h2 class="mission-title" id="displayTitle">SINKRONISASI DATA...</h2>
+        
+        <div class="data-grid" id="dataDisplay"></div>
+
+        <div class="disclaimer-box">
+            <b>DISCLAIMER:</b> Risiko operasional di luar koordinat aplikasi, dan bahwa segala bentuk kelalaian, kecurangan, atau insiden di lapangan adalah tanggung jawab personal baik pemberi misi dan penerima misi, pihak aplikasi tidak bertanggung jawab atas kerugian fisik maupun materi. <br>
+            <b style="color:var(--neon-blue);">Ketentuan:</b> Apa yang penerima misi bayarkan adalah hak sepenuhnya untuk si pelaksana misi tanpa ada potongan dari pihak aplikasi.
+        </div>
+
+        <div class="status-panel">
+            <div id="actionArea"></div>
+        </div>
+    </div>
+</div>
+
+<div id="sysModal" class="modal-overlay">
+    <div class="modal-box" id="modalBox">
+        <h3 class="modal-title" id="modalTitle">SISTEM</h3>
+        <p class="modal-msg" id="modalMsg">Pesan...</p>
+        
+        <input type="text" id="modalInput" placeholder="Ketik di sini...">
+        
+        <div class="modal-btn-group" id="modalBtnGroup"></div>
+    </div>
+</div>
+
+<script>
+    // === INITIALIZATION ===
+    const user = Clearchance.enforceIdentity();
+    const contractId = sessionStorage.getItem('active_contract_id');
+    const db4 = getTerminal('FB4_BOARD');
+    
+    if (!contractId) {
+        handleError("AKSES ILEGAL", "ID Kontrak hilang dari memori sesi.");
+    }
+
+    let isInitialLoad = true;
+    let currentC = null;
+
+    // === FIREBASE LISTENER ===
+    const contractRef = db4.ref(`kontrak_mission/${contractId}`);
+
+    contractRef.on('value', async snap => {
+        if (!snap.exists()) {
+            if (isInitialLoad) { isInitialLoad = false; return; }
+            handleError("KONTRAK MATI", "Kontrak telah ditarik atau dihancurkan.", true);
+            return;
+        }
+
+        isInitialLoad = false;
+        const c = snap.val();
+        currentC = c;
+
+        let extraData = { namaLengkap: "Memuat...", desa: "Memuat..." };
+        if (c.id_adventurer) {
+            const detail = await getAdventurerDetails(c.id_adventurer);
+            if (detail) extraData = detail;
+        }
+
+        let extraReq = { namaAsli: "Memuat...", kecamatan: "Memuat..." };
+        if (c.id_requester) {
+            const detailReq = await getRequesterDetails(c.id_requester);
+            if (detailReq) extraReq = detailReq;
+        }
+
+        if (user.uid !== c.id_requester && user.uid !== c.id_adventurer) {
+            handleError("AKSES DITOLAK", "Anda bukan bagian dari kontrak ini.");
+            return;
+        }
+
+        if (c.full_mission_data) {
+            sessionStorage.setItem('current_mission_full', JSON.stringify(c.full_mission_data));
+        }
+
+        renderUI(c, extraData, extraReq);
+
+        if (c.is_started === true) {
+            contractRef.off();
+            window.location.href = "mission_progress.html";
+        }
+    });
+
+    async function getAdventurerDetails(idAdv) {
+        try {
+            const db1 = getTerminal('FB1_MASTER');
+            if (!db1) throw new Error("Terminal FB1_MASTER tidak ditemukan!");
+            const indexSnap = await db1.ref(`adventurer_index/${idAdv}`).once('value');
+            if (!indexSnap.exists()) return { namaLengkap: "ID TIDAK VALID", desa: "-" };
+            
+            const indexData = indexSnap.val();
+            const shard = indexData.shard_id;
+            const area = indexData.area_tugas;
+            const dbTarget = getTerminal(shard); 
+            if (!dbTarget) throw new Error(`Terminal ${shard} tidak ditemukan!`);
+
+            const pathProfile = `adventurer-${area}/Umum/${idAdv}`;
+            const profileSnap = await dbTarget.ref(pathProfile).once('value');
+            
+            if (profileSnap.exists()) {
+                const data = profileSnap.val();
+                return {
+                    namaLengkap: data.nama_lengkap || "Tanpa Nama",
+                    desa: (data.domisili_lengkap && data.domisili_lengkap.desa) ? data.domisili_lengkap.desa : "-"
+                };
+            }
+            return { namaLengkap: "PROFIL KOSONG", desa: "-" };
+        } catch (e) {
+            return { namaLengkap: "ERROR KONEKSI", desa: "KONEKSI" };
+        }
+    }
+
+    async function getRequesterDetails(idReq) {
+        try {
+            const db1 = getTerminal('FB1_MASTER');
+            const indexSnap = await db1.ref(`requester_index/${idReq}`).once('value');
+            if (!indexSnap.exists()) return null;
+            const { shard_id } = indexSnap.val();
+            const dbTarget = getTerminal(shard_id);
+            const profileSnap = await dbTarget.ref(`requester_data/${idReq}`).once('value');
+            
+            if (profileSnap.exists()) {
+                const data = profileSnap.val();
+                return {
+                    namaAsli: data.nama_asli || "Tanpa Nama", 
+                    kecamatan: (data.metadata && data.metadata.kecamatan_asal) ? data.metadata.kecamatan_asal : "-"
+                };
+            }
+        } catch (e) { console.error(e); }
+        return null;
+    }
+
+    function renderUI(c, extra, extraReq) {
+        const m = c.full_mission_data || {};
+        
+        document.getElementById('displayCid').innerText = `CONTRACT ID: ${c.id_kontrak}`;
+        document.getElementById('displayTitle').innerText = m.id_misi || "MISI KONTRAK";
+        
+        document.getElementById('dataDisplay').innerHTML = `
+            <div class="data-item"><span>NAMA REQUESTER</span><b>${extraReq.namaAsli}</b><span><small>${extraReq.kecamatan}</small></span></div>
+            <div class="data-item"><span>NAMA ADVENTURER</span><b>${extra.namaLengkap}</b><span><small>${extra.desa}</small></span></div>
+            <div class="data-item"><span>REWARD</span><b style="color:var(--neon-green);">Rp ${(c.reward || 0).toLocaleString()}</b></div>
+            <div class="data-item"><span>PERAN ANDA</span><b style="color:var(--neon-yellow);">${user.role.toUpperCase()}</b></div>
+            <div class="data-item"><span>LOKASI ASAL</span><b>${m.origin_desa || '-'}</b></div>
+            <div class="data-item"><span>LOKASI TUJUAN</span><b>${m.dest_desa || '-'}</b></div>
+        `;
+
+        const actionArea = document.getElementById('actionArea');
+        const statusMsg = document.getElementById('statusMsg');
+        actionArea.innerHTML = "";
+
+        if (user.role === 'adventurer') {
+            statusMsg.innerText = "Sinyal Anda terdeteksi. Untuk memulai silahkan tekan tombol terima kontrak dan segera jalin komunikasi dengan pihak pemberi misi, untuk memperjelas detail misi dan menghindari pembatalan sepihak.";
+            actionArea.innerHTML = `<button id="btnStart" class="btn-action btn-start" onclick="reqStart()">EKSEKUSI KONTRAK SEKARANG</button>`;
+        } else {
+            statusMsg.innerText = "Menunggu Adventurer menerima kontrak. Anda bisa membatalkan misi jika Adventurer tidak merespons dalam jangka waktu cukup lama.";
+            actionArea.innerHTML = `
+                <div style="font-size:11px; color:#68759e; font-weight:bold; font-family:var(--font-mono); margin-bottom:10px;"><span class="pulse-dot"></span> MENANTI RESPONS ADVENTURER...</div>
+                <button class="btn-abort" onclick="reqAbort('${m.id_misi}', '${c.id_shard}', '${c.id_desa}')">HANCURKAN KONTRAK & MISI</button>
+            `;
+        }
+        updateAssistant();
+    }
+
+    function reqStart() {
+        showModal(
+            "TERIMA KONTRAK?", 
+            `Dengan melanjutkan, Anda secara sadar menyetujui:\n\n• Tanggung Jawab Penuh: Kelalaian atau insiden lapangan adalah tanggung jawab Adventurer.\n\n• Disclaimer: Risiko operasional di luar koordinat aplikasi adalah tanggung jawab personal kedua belah pihak.`,
+            false, true, async () => {
+            const btn = document.getElementById('btnStart');
+            btn.disabled = true;
+            btn.innerText = "SYNCHRONIZING...";
+            btn.classList.add('btn-disabled');
+
+            try {
+                await contractRef.update({ is_started: true, start_time: Date.now() });
+                if (currentC.id_shard && currentC.id_desa && currentC.id_misi) {
+                    await db4.ref(`mission-${currentC.id_shard}/${currentC.id_desa}/${currentC.id_misi}`).update({ status: 'on-going' });
+                }
+            } catch (e) {
+                btn.disabled = false;
+                btn.innerText = "EKSEKUSI KONTRAK SEKARANG";
+                btn.classList.remove('btn-disabled');
+                showModal("ERROR", "Gagal menghubungi server: " + e.message, true);
+            }
+        });
+    }
+
+    function reqAbort(mid, shard, desa) {
+        showModal(
+            "KONFIRMASI PENGHANCURAN", 
+            "Ketik HANCURKAN untuk mengonfirmasi penghancuran misi dan kontrak. Tindakan ini permanen.", 
+            true, true, async () => {
+                try {
+                    document.getElementById('statusMsg').innerText = "MENGHANCURKAN TRANSMISI KONTRAK...";
+                    await db4.ref(`mission-${shard}/${desa}/${mid}`).remove();
+                    await db4.ref(`bids/${mid}`).remove();
+                    await contractRef.remove();
+                    window.location.href = "lobby_requester.html";
+                } catch (e) {
+                    showModal("ERROR", "Gagal menghapus: " + e.message, true);
+                }
+            }, true
+        );
+    }
+
+    function showModal(title, msg, isDanger = false, isConfirm = false, onOk = null, showInput = false) {
+        const modal = document.getElementById('sysModal');
+        const box = document.getElementById('modalBox');
+        const btnGroup = document.getElementById('modalBtnGroup');
+        const inputField = document.getElementById('modalInput');
+        
+        modal.style.display = "flex";
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalMsg').innerText = msg;
+        box.className = isDanger ? "modal-box danger" : "modal-box";
+        
+        if (showInput) {
+            inputField.style.display = "block";
+            inputField.value = "";
+            inputField.focus();
+        } else {
+            inputField.style.display = "none";
+        }
+        
+        btnGroup.innerHTML = "";
+        if (isConfirm) {
+            const btnCancel = document.createElement('button');
+            btnCancel.className = "modal-btn btn-cancel";
+            btnCancel.innerText = "BATAL";
+            btnCancel.onclick = () => modal.style.display = "none";
+            
+            const btnOk = document.createElement('button');
+            btnOk.className = isDanger ? "modal-btn btn-confirm-danger" : "modal-btn btn-confirm";
+            btnOk.innerText = "YA, EKSEKUSI";
+            
+            btnOk.onclick = () => { 
+                if (showInput) {
+                    if (inputField.value === "HANCURKAN") {
+                        modal.style.display = "none"; 
+                        if(onOk) onOk();
+                    } else {
+                        showModal("VERIFIKASI GAGAL", "Kode konfirmasi tidak sesuai. Otorisasi ditolak.", true);   
+                    }
+                } else {
+                    modal.style.display = "none"; 
+                    if(onOk) onOk();
+                }
+            };
+            
+            btnGroup.appendChild(btnCancel);
+            btnGroup.appendChild(btnOk);
+        } else {
+            const btnClose = document.createElement('button');
+            btnClose.className = "modal-btn btn-confirm";
+            btnClose.innerText = "MENGERTI";
+            btnClose.onclick = () => { modal.style.display = "none"; if(onOk) onOk(); };
+            btnGroup.appendChild(btnClose);
+        }
+    }
+
+    function handleError(title, msg, isRedirect = true) {
+        showModal(title, msg, true, false, () => {
+            if (isRedirect) window.location.href = "index.html";
+        });
+    }
+
+    function updateAssistant() {
+        const hour = new Date().getHours();
+        const assists = ["irene", "amy", "aldis", "ruby", "tessia", "aria", "asia", "sissy"];
+        const selected = assists[Math.floor(hour / 3)];
+        
+        document.getElementById('asisName').innerText = selected.toUpperCase();
+        document.getElementById('asisImg').src = selected + ".png"; 
+    }
+
+    updateAssistant();
+    setInterval(updateAssistant, 60000); 
+</script>
+</body>
+</html>
