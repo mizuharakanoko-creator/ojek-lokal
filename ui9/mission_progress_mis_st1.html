@@ -1,735 +1,418 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sovereign - Briefing Room</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BATTLEFIELD HUB | PROGRESS MISI</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#05060a">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
     <script src="terminal_router.js"></script>
     <script src="clearchance.js"></script>
+
     <style>
-        /* === THEME SOVEREIGN (CYBER-TACTICAL & ANIMATED) === */
+        /* === SOVEREIGN UI / CYBER-TACTICAL THEME === */
         :root {
-            --bg-cyber: #05060a;
+            --bg-base: #05060a;
+            --panel-bg: rgba(13, 16, 27, 0.8);
             --neon-blue: #00f3ff;
-            --neon-green: #00ff88;
             --neon-red: #ff3366;
-            --neon-yellow: #ffcc00;
-            --glass-panel: rgba(13, 16, 27, 0.75);
-            --glass-border: rgba(0, 243, 255, 0.15);
-            --font-mono: 'JetBrains Mono', 'Courier New', monospace;
-            --transition-smooth: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            --neon-green: #00ff88;
+            --text-main: #e0e0e0;
+            --text-muted: #68759e;
+            --font-ui: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --border-glow: rgba(0, 243, 255, 0.2);
         }
 
-        body { 
-            background-color: var(--bg-cyber); 
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-base);
             background-image: 
-                linear-gradient(rgba(0, 243, 255, 0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 243, 255, 0.02) 1px, transparent 1px);
-            background-size: 30px 30px;
-            color: #e0e0e0; 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
-            padding: 15px; 
-            margin: 0; 
-            overflow-x: hidden; 
+                linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: var(--text-main);
+            font-family: var(--font-ui);
+            overflow-x: hidden;
         }
 
-        .container { 
-            max-width: 600px; 
-            margin: auto; 
-            padding-bottom: 50px; 
-        }
-        
-        /* --- ENTRY ANIMATIONS --- */
-        @keyframes slideUpFade {
+        /* --- ANIMATIONS --- */
+        @keyframes slideUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 10px rgba(0, 243, 255, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(0, 243, 255, 0.6); }
+        }
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
 
-        .container > div {
-            opacity: 0;
-            animation: slideUpFade 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        /* --- MAIN LAYOUT --- */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
         }
-        .assistant-box { animation-delay: 0.1s !important; }
-        .contract-card { animation-delay: 0.2s !important; }
 
-        /* --- ASSISTANT COMM-LINK BOX --- */
-        .assistant-box { 
-            background: var(--glass-panel); 
-            border: 1px solid var(--glass-border); 
-            display: flex; 
-            padding: 15px; 
-            margin-bottom: 20px; 
-            border-radius: 12px; 
-            align-items: center; 
-            position: relative; 
-            backdrop-filter: blur(12px);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0, 243, 255, 0.05);
-            transition: var(--transition-smooth);
-        }
-        .assistant-box:hover {
-            border-color: rgba(0, 243, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 243, 255, 0.1);
-        }
-        .assistant-box::before { 
-            content: "• COMM-LINK ACTIVE"; 
-            position: absolute; 
-            top: 8px; 
-            right: 12px; 
-            font-size: 9px; 
-            font-family: var(--font-mono);
-            font-weight: bold;
-            color: var(--neon-blue); 
-            letter-spacing: 1px;
-            animation: pulseText 2s infinite;
-        }
-        @keyframes pulseText {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-        .assistant-img { 
-            width: 65px; 
-            height: 65px; 
-            border: 2px solid rgba(0, 243, 255, 0.5); 
-            background: #0a0d1a; 
-            border-radius: 50%;
-            margin-right: 15px; 
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
-            object-fit: cover;
-            transition: var(--transition-smooth);
-        }
-        .assistant-box:hover .assistant-img {
-            border-color: var(--neon-blue);
-            box-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
-            transform: scale(1.05);
-        }
-        .assistant-chat { flex-grow: 1; }
-        .assistant-name { font-weight: 900; color: var(--neon-blue); font-size: 13px; margin-bottom: 4px; display: block; letter-spacing: 1px; }
-        .assistant-msg { font-size: 12px; line-height: 1.5; color: #a5b4dc; transition: color 0.3s ease; }
-
-        /* --- CONTRACT CARD --- */
-        .contract-card { 
-            background: var(--glass-panel); 
-            border: 1px solid var(--glass-border); 
-            border-top: 4px solid var(--neon-blue); 
-            padding: 25px; 
-            position: relative; 
-            border-radius: 14px;
-            backdrop-filter: blur(15px);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 243, 255, 0.03); 
-            overflow: hidden;
-        }
-        /* Scanline Overlay Effect */
-        .contract-card::after {
-            content: "";
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(to bottom, transparent 50%, rgba(0, 243, 255, 0.015) 51%);
-            background-size: 100% 4px;
-            pointer-events: none;
+        /* --- MAP CONTAINER --- */
+        #map-container {
+            flex: 1;
+            position: relative;
+            border-bottom: 2px solid var(--neon-blue);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+            animation: slideUp 0.6s ease-out forwards;
             z-index: 1;
         }
-
-        .contract-id { font-size: 11px; color: #5c698a; letter-spacing: 2px; font-family: var(--font-mono); font-weight: bold; position: relative; z-index: 2; }
-        .mission-title { color: #ffffff; margin: 12px 0; font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; text-shadow: 0 0 15px rgba(255,255,255,0.2); position: relative; z-index: 2; }
-        
-        /* --- DYNAMIC DATA GRID --- */
-        .data-grid { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 12px; 
-            margin: 20px 0; 
-            border-top: 1px solid rgba(255,255,255,0.06); 
-            padding-top: 20px; 
-            position: relative; 
-            z-index: 2;
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #0a0d14; /* Fallback before map loads */
         }
-        
-        @keyframes popIn {
-            from { opacity: 0; transform: scale(0.95) translateY(10px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-
-        .data-item { 
-            background: rgba(0, 0, 0, 0.3); 
-            padding: 12px 14px; 
-            border-radius: 8px; 
-            border: 1px solid rgba(255,255,255,0.04); 
-            opacity: 0;
-            animation: popIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-            transition: var(--transition-smooth);
-        }
-        .data-item:hover {
-            background: rgba(0, 243, 255, 0.05);
-            border-color: rgba(0, 243, 255, 0.2);
-            transform: translateY(-2px);
-        }
-        /* Staggered Grid Animations */
-        .data-item:nth-child(1) { animation-delay: 0.3s; }
-        .data-item:nth-child(2) { animation-delay: 0.4s; }
-        .data-item:nth-child(3) { animation-delay: 0.5s; }
-        .data-item:nth-child(4) { animation-delay: 0.6s; }
-        .data-item:nth-child(5) { animation-delay: 0.7s; }
-        .data-item:nth-child(6) { animation-delay: 0.8s; }
-
-        .data-item span { display: block; font-size: 10px; color: #68759e; font-weight: bold; letter-spacing: 1px; margin-bottom: 4px; text-transform: uppercase; }
-        .data-item b { font-size: 14px; color: #fff; font-family: var(--font-mono); }
-        .data-item small { color: var(--neon-blue); font-size: 11px; opacity: 0.8; }
-
-        /* --- INFO BOXES --- */
-        .disclaimer-box { 
-            background: rgba(255, 51, 102, 0.03); 
-            border: 1px dashed rgba(255, 51, 102, 0.25); 
-            padding: 15px; 
-            margin: 20px 0; 
-            border-radius: 8px;
-            font-size: 11px; 
-            line-height: 1.6;
-            color: #d199a9; 
-            text-align: justify; 
-            position: relative; 
-            z-index: 2;
-            transition: var(--transition-smooth);
-        }
-        .disclaimer-box:hover {
-            background: rgba(255, 51, 102, 0.06);
-            border-color: rgba(255, 51, 102, 0.5);
-        }
-        .disclaimer-box b { color: var(--neon-red); }
-
-        .status-panel { text-align: center; padding: 10px 0 0 0; border: none; background: transparent; position: relative; z-index: 2; }
-        
-        .pulse-dot { 
-            height: 8px; 
-            width: 8px; 
-            background-color: var(--neon-green); 
-            border-radius: 50%; 
-            display: inline-block; 
-            margin-right: 8px; 
-            box-shadow: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green); 
-            animation: pulseGlow 1.5s infinite; 
-        }
-        @keyframes pulseGlow { 
-            0% { transform: scale(0.95); opacity: 0.5; box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); } 
-            70% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 6px rgba(0, 255, 136, 0); } 
-            100% { transform: scale(0.95); opacity: 0.5; box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); } 
-        }
-
-        /* --- BUTTONS --- */
-        .btn-action { 
-            width: 100%; 
-            padding: 16px; 
-            font-size: 14px;
-            font-weight: 900; 
-            cursor: pointer; 
-            border: none; 
-            border-radius: 10px;
-            text-transform: uppercase; 
-            letter-spacing: 2px; 
-            margin-top: 10px; 
-            transition: var(--transition-smooth);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        /* Shimmer effect inside start button */
-        .btn-start::after {
-            content: '';
+        /* Cyberpunk overlay effect for map */
+        #map-container::after {
+            content: "";
             position: absolute;
-            top: 0; left: -100%; width: 50%; height: 100%;
-            background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
-            transform: skewX(-25deg);
-            animation: shimmer 3s infinite;
-        }
-        @keyframes shimmer {
-            0% { left: -100%; }
-            20% { left: 200%; }
-            100% { left: 200%; }
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(rgba(0, 243, 255, 0.05) 10%, transparent 10%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 400; /* Above Leaflet tiles */
         }
 
-        .btn-start { 
-            background: linear-gradient(135deg, #00ff88 0%, #00b359 100%); 
-            color: #000; 
-            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.2);
-        }
-        .btn-start:hover {
-            box-shadow: 0 6px 25px rgba(0, 255, 136, 0.4);
-            transform: translateY(-2px);
-        }
-        .btn-start:active { transform: scale(0.98) translateY(0); }
-        
-        .btn-abort { 
-            background: rgba(255, 51, 102, 0.05); 
-            color: var(--neon-red); 
-            border: 1px solid rgba(255, 51, 102, 0.3); 
-            padding: 14px; 
-            font-size: 11px; 
-            font-weight: bold;
-            border-radius: 8px;
-            width: 100%; 
-            margin-top: 25px; 
-            cursor: pointer; 
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            transition: var(--transition-smooth);
-        }
-        .btn-abort:hover { 
-            background: rgba(255, 51, 102, 0.15); 
-            border-color: var(--neon-red);
-            box-shadow: 0 0 20px rgba(255, 51, 102, 0.3); 
-            transform: translateY(-2px);
-        }
-        .btn-abort:active { transform: scale(0.98); background: var(--neon-red); color:#000; }
-        
-        .btn-disabled { 
-            background: #1a1d29 !important; 
-            color: #4e5775 !important; 
-            border: 1px solid rgba(255,255,255,0.05) !important; 
-            pointer-events: none; 
-            box-shadow: none !important; 
-        }
-
-        /* ======================================================= */
-        /* === MODAL SYSTEM: ANIMATED & RESPONSIVE === */
-        /* ======================================================= */
-        .modal-overlay { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: rgba(4, 6, 12, 0.7); 
-            display: none; 
-            justify-content: center; 
-            align-items: center; 
-            z-index: 10000; 
-            backdrop-filter: blur(12px); 
-            opacity: 0;
-            animation: fadeInOverlay 0.3s ease forwards;
-        }
-        @keyframes fadeInOverlay { to { opacity: 1; } }
-
-        .modal-box {  
-            background-color: #0c0f1d;
-            background-image: 
-                linear-gradient(rgba(0, 243, 255, 0.015) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 243, 255, 0.015) 1px, transparent 1px);
-            background-size: 20px 20px;
-            border: 1px solid var(--neon-blue); 
-            padding: 26px; 
-            width: 88%; 
-            max-width: 360px; 
-            text-align: center; 
-            box-sizing: border-box; 
+        /* --- DASHBOARD / INFO PANEL --- */
+        .dashboard-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            margin-top: -20px;
             position: relative;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), inset 0 0 30px rgba(0, 243, 255, 0.05);
-            transform: scale(0.8) translateY(20px);
+            z-index: 10;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+            animation: slideUp 0.6s ease-out 0.2s forwards;
             opacity: 0;
-            animation: modalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-        @keyframes modalPop {
-            to { transform: scale(1) translateY(0); opacity: 1; }
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        .modal-box.danger { 
-            border-color: var(--neon-red); 
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), inset 0 0 30px rgba(255, 51, 102, 0.08);
-            animation: modalPopDanger 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        /* Status Header */
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 10px;
         }
-        @keyframes modalPopDanger {
-            0% { transform: scale(0.8) translateY(20px); opacity: 0; }
-            50% { transform: scale(1.02) translateY(0); opacity: 1; }
-            75% { transform: scale(0.98); }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        
-        .modal-title { 
-            font-size: 16px; 
-            font-weight: 900; 
-            margin-bottom: 15px; 
-            color: var(--neon-blue); 
-            text-transform: uppercase; 
+        .status-title {
             font-family: var(--font-mono);
-            letter-spacing: 1.5px;
-        }
-        .modal-box.danger .modal-title { color: var(--neon-red); text-shadow: 0 0 10px rgba(255,51,102,0.3); }
-        
-        .modal-msg { 
-            font-size: 13px; 
-            color: #b2bedb; 
-            margin-bottom: 25px; 
-            line-height: 1.6; 
-            text-align: center; 
-            margin: 15px 0 25px 0; 
-            padding: 0 5px; 
-        }
-        .modal-msg b { color: var(--neon-blue); font-family: var(--font-mono); font-weight: bold;}
-        .modal-box.danger .modal-msg b { color: var(--neon-red); }
-
-        .modal-btn-group { display: flex; gap: 12px; width: 100%; }
-        .modal-btn { 
-            flex: 1; 
-            padding: 14px; 
-            border: none; 
-            font-size: 12px;
-            font-weight: 900; 
-            cursor: pointer; 
-            text-transform: uppercase; 
-            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 900;
+            color: var(--neon-blue);
             letter-spacing: 1px;
-            transition: var(--transition-smooth);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
-        .btn-confirm { 
-            background: var(--neon-blue); 
-            color: #000; 
-            box-shadow: 0 4px 15px rgba(0, 243, 255, 0.2);
+        .status-title i {
+            animation: pulseGlow 2s infinite;
+            border-radius: 50%;
         }
-        .btn-confirm:hover { box-shadow: 0 6px 20px rgba(0, 243, 255, 0.4); transform: translateY(-2px); }
-        
-        .btn-confirm-danger { 
-            background: var(--neon-red); 
-            color: #fff; 
-            box-shadow: 0 4px 15px rgba(255, 51, 102, 0.2);
-        }
-        .btn-confirm-danger:hover { box-shadow: 0 6px 20px rgba(255, 51, 102, 0.4); transform: translateY(-2px); }
-        
-        .btn-cancel { 
-            background: #191e33; 
-            color: #707fab; 
-            border: 1px solid rgba(255,255,255,0.05);
-        }
-        .btn-cancel:hover { background: #222945; color: #fff; transform: translateY(-2px); }
-        
-        .btn-confirm:active, .btn-confirm-danger:active, .btn-cancel:active { transform: scale(0.95) translateY(0); }
 
-        /* Modal Input Animation */
-        #modalInput {
-            width: 100% !important;
-            box-sizing: border-box;
-            background: rgba(6, 8, 18, 0.8) !important;
-            border: 1px solid rgba(255, 51, 102, 0.3) !important;
-            color: var(--neon-red) !important;
-            padding: 14px !important;
-            text-align: center;
-            font-family: var(--font-mono) !important;
-            font-weight: bold;
-            font-size: 15px;
-            letter-spacing: 2px;
-            margin-bottom: 25px;
-            border-radius: 8px;
-            outline: none;
-            transition: var(--transition-smooth);
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        /* Info Cards */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
         }
-        #modalInput::placeholder { color: rgba(255, 51, 102, 0.3); font-size: 12px; letter-spacing: 0px; font-weight: normal; }
-        #modalInput:focus { 
-            border-color: var(--neon-red) !important; 
-            box-shadow: 0 0 20px rgba(255, 51, 102, 0.2), inset 0 0 15px rgba(255, 51, 102, 0.1); 
-            background: rgba(255, 51, 102, 0.02) !important;
-            transform: scale(1.02);
+        .info-card {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 12px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        .info-card:hover {
+            border-color: var(--border-glow);
+            background: rgba(0, 243, 255, 0.05);
+        }
+        .info-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+            display: block;
+        }
+        .info-value {
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        /* --- EMERGENCY SLIDER SECTION --- */
+        .emergency-zone {
+            margin-top: 10px;
+            padding: 15px;
+            background: rgba(255, 51, 102, 0.05);
+            border: 1px dashed rgba(255, 51, 102, 0.3);
+            border-radius: 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .emergency-zone.hide {
+            display: none;
+        }
+        .em-timer-text {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--neon-red);
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        .slider-wrapper {
+            position: relative;
+            width: 100%;
+            height: 50px;
+            background: #111;
+            border-radius: 25px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 51, 102, 0.2);
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+        
+        /* Custom Input Range styling for elegance */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 3;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 40px;
+            width: 60px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #ff3366, #cc0033);
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(255, 51, 102, 0.5);
+            border: 2px solid #fff;
+            position: relative;
+            z-index: 4;
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:active {
+            transform: scale(0.95);
+        }
+        
+        .slider-text {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0; left: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 12px;
+            letter-spacing: 2px;
+            color: rgba(255, 255, 255, 0.5);
+            z-index: 1;
+            pointer-events: none;
+            text-transform: uppercase;
+        }
+
+        /* --- ACTION BUTTONS --- */
+        .btn-action {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-family: var(--font-mono);
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .btn-refresh {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-muted);
+            margin-top: 10px;
+            font-size: 11px;
+            padding: 10px;
+        }
+        .btn-refresh:hover {
+            background: rgba(255,255,255,0.05);
+            color: #fff;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="assistant-box">
-        <img id="asisImg" src="https://via.placeholder.com/70/111/00ffff?text=..." class="assistant-img">
-        <div class="assistant-chat">
-            <span class="assistant-name" id="asisName">SYSTEM</span>
-            <div class="assistant-msg" id="statusMsg">MENGHUBUNGKAN KE FREKUENSI KONTRAK...</div>
-        </div>
+<div class="app-container">
+    
+    <div id="map-container">
+        <div id="map"></div>
     </div>
 
-    <div class="contract-card">
-        <div class="contract-id" id="displayCid">CONTRACT ID: ---</div>
-        <h2 class="mission-title" id="displayTitle">SINKRONISASI DATA...</h2>
-        
-        <div class="data-grid" id="dataDisplay"></div>
-
-        <div class="disclaimer-box">
-            <b>DISCLAIMER:</b> Risiko operasional di luar koordinat aplikasi, dan bahwa segala bentuk kelalaian, kecurangan, atau insiden di lapangan adalah tanggung jawab personal baik pemberi misi dan penerima misi, pihak aplikasi tidak bertanggung jawab atas kerugian fisik maupun materi. <br>
-            <b style="color:var(--neon-blue); display:block; margin-top:8px;">Ketentuan:</b> Apa yang penerima misi bayarkan adalah hak sepenuhnya untuk si pelaksana misi tanpa ada potongan dari pihak aplikasi.
+    <div class="dashboard-panel">
+        <div class="status-header">
+            <div class="status-title">
+                <i class="fa-solid fa-satellite-dish"></i> 
+                SISTEM PELACAKAN AKTIF
+            </div>
         </div>
 
-        <div class="status-panel">
-            <div id="actionArea"></div>
+        <div class="info-grid">
+            <div class="info-card">
+                <span class="info-label">Status Misi</span>
+                <span class="info-value" id="statusMisiText" style="color: var(--neon-green);">ON-GOING</span>
+            </div>
+            <div class="info-card">
+                <span class="info-label">Jarak Target</span>
+                <span class="info-value" id="distanceText">Menghitung...</span>
+            </div>
         </div>
-    </div>
-</div>
 
-<div id="sysModal" class="modal-overlay">
-    <div class="modal-box" id="modalBox">
-        <h3 class="modal-title" id="modalTitle">SISTEM</h3>
-        <p class="modal-msg" id="modalMsg">Pesan...</p>
-        
-        <input type="text" id="modalInput" placeholder="Ketik di sini...">
-        
-        <div class="modal-btn-group" id="modalBtnGroup"></div>
+        <div id="em-zone" class="emergency-zone hide">
+            <div id="em-timer" class="em-timer-text">
+                TOMBOL SELESAI DARURAT AKAN MUNCUL DALAM 10S... GUNAKAN INI APABILA PEMESAN AFK TANPA MENGKONFIRMASI SELESAI
+            </div>
+            
+            <div id="slider-container-em" class="slider-wrapper" style="display: none;">
+                <div class="slider-text">GESER UNTUK SELESAI PAKSA >></div>
+                <input type="range" id="em-slider" min="0" max="100" value="0">
+            </div>
+        </div>
+
+        <button class="btn-action btn-refresh" onclick="forceRefreshData()">
+            <i class="fa-solid fa-rotate"></i> Refresh Koneksi Sinkronisasi
+        </button>
     </div>
+
 </div>
 
 <script>
-    // === INITIALIZATION (Logika Asli Tidak Diubah) ===
+    // Inisialisasi dari cuplikan kode Anda
     const user = Clearchance.enforceIdentity();
     const contractId = sessionStorage.getItem('active_contract_id');
-    const db4 = getTerminal('FB4_BOARD');
-    
-    if (!contractId) {
-        handleError("AKSES ILEGAL", "ID Kontrak hilang dari memori sesi.");
-    }
+    const dbDeal = typeof getTerminal !== 'undefined' ? getTerminal('FB4_BOARD') : null;
+    const dbMaster = typeof getTerminal !== 'undefined' ? getTerminal('FB1_MASTER') : null;
 
-    let isInitialLoad = true;
-    let currentC = null;
+    // --- LOGIKA DARURAT (Sesuai Snippet Anda) ---
+    function initEmergencyZone() {
+        const emZone = document.getElementById('em-zone');
+        const emTimer = document.getElementById('em-timer');
+        const sliderCont = document.getElementById('slider-container-em');
+        const emSlider = document.getElementById('em-slider');
 
-    // === FIREBASE LISTENER ===
-    const contractRef = db4.ref(`kontrak_mission/${contractId}`);
+        if (!emZone) return;
+        emZone.classList.remove('hide'); 
 
-    contractRef.on('value', async snap => {
-        if (!snap.exists()) {
-            if (isInitialLoad) { isInitialLoad = false; return; }
-            handleError("KONTRAK MATI", "Kontrak telah ditarik atau dihancurkan.", true);
-            return;
-        }
-
-        isInitialLoad = false;
-        const c = snap.val();
-        currentC = c;
-
-        let extraData = { namaLengkap: "Memuat...", desa: "Memuat..." };
-        if (c.id_adventurer) {
-            const detail = await getAdventurerDetails(c.id_adventurer);
-            if (detail) extraData = detail;
-        }
-
-        let extraReq = { namaAsli: "Memuat...", kecamatan: "Memuat..." };
-        if (c.id_requester) {
-            const detailReq = await getRequesterDetails(c.id_requester);
-            if (detailReq) extraReq = detailReq;
-        }
-
-        if (user.uid !== c.id_requester && user.uid !== c.id_adventurer) {
-            handleError("AKSES DITOLAK", "Anda bukan bagian dari kontrak ini.");
-            return;
-        }
-
-        if (c.full_mission_data) {
-            sessionStorage.setItem('current_mission_full', JSON.stringify(c.full_mission_data));
-        }
-
-        renderUI(c, extraData, extraReq);
-
-        if (c.is_started === true) {
-            contractRef.off();
-            window.location.href = "mission_progress_mis_st1.html";
-        }
-    });
-
-    async function getAdventurerDetails(idAdv) {
-        try {
-            const db1 = getTerminal('FB1_MASTER');
-            if (!db1) throw new Error("Terminal FB1_MASTER tidak ditemukan!");
-            const indexSnap = await db1.ref(`adventurer_index/${idAdv}`).once('value');
-            if (!indexSnap.exists()) return { namaLengkap: "ID TIDAK VALID", desa: "-" };
-            
-            const indexData = indexSnap.val();
-            const shard = indexData.shard_id;
-            const area = indexData.area_tugas;
-            const dbTarget = getTerminal(shard); 
-            if (!dbTarget) throw new Error(`Terminal ${shard} tidak ditemukan!`);
-
-            const pathProfile = `adventurer-${area}/Umum/${idAdv}`;
-            const profileSnap = await dbTarget.ref(pathProfile).once('value');
-            
-            if (profileSnap.exists()) {
-                const data = profileSnap.val();
-                return {
-                    namaLengkap: data.nama_lengkap || "Tanpa Nama",
-                    desa: (data.domisili_lengkap && data.domisili_lengkap.desa) ? data.domisili_lengkap.desa : "-"
-                };
-            }
-            return { namaLengkap: "PROFIL KOSONG", desa: "-" };
-        } catch (e) {
-            return { namaLengkap: "ERROR KONEKSI", desa: "KONEKSI" };
-        }
-    }
-
-    async function getRequesterDetails(idReq) {
-        try {
-            const db1 = getTerminal('FB1_MASTER');
-            const indexSnap = await db1.ref(`requester_index/${idReq}`).once('value');
-            if (!indexSnap.exists()) return null;
-            const { shard_id } = indexSnap.val();
-            const dbTarget = getTerminal(shard_id);
-            const profileSnap = await dbTarget.ref(`requester_data/${idReq}`).once('value');
-            
-            if (profileSnap.exists()) {
-                const data = profileSnap.val();
-                return {
-                    namaAsli: data.nama_asli || "Tanpa Nama", 
-                    kecamatan: (data.metadata && data.metadata.kecamatan_asal) ? data.metadata.kecamatan_asal : "-"
-                };
-            }
-        } catch (e) { console.error(e); }
-        return null;
-    }
-
-    function renderUI(c, extra, extraReq) {
-        const m = c.full_mission_data || {};
+        let countdown = 10; 
         
-        document.getElementById('displayCid').innerText = `CONTRACT ID: ${c.id_kontrak}`;
-        document.getElementById('displayTitle').innerText = m.id_misi || "MISI KONTRAK";
-        
-        document.getElementById('dataDisplay').innerHTML = `
-            <div class="data-item"><span>NAMA REQUESTER</span><b>${extraReq.namaAsli}</b><span><small>${extraReq.kecamatan}</small></span></div>
-            <div class="data-item"><span>NAMA ADVENTURER</span><b>${extra.namaLengkap}</b><span><small>${extra.desa}</small></span></div>
-            <div class="data-item"><span>REWARD</span><b style="color:var(--neon-green);">Rp ${(c.reward || 0).toLocaleString()}</b></div>
-            <div class="data-item"><span>PERAN ANDA</span><b style="color:var(--neon-yellow);">${user.role.toUpperCase()}</b></div>
-            <div class="data-item"><span>LOKASI ASAL</span><b>${m.origin_desa || '-'}</b></div>
-            <div class="data-item"><span>LOKASI TUJUAN</span><b>${m.dest_desa || '-'}</b></div>
-        `;
+        let emInterval = setInterval(() => {
+            countdown--;
+            if (countdown > 0) {
+                emTimer.innerText = `TOMBOL SELESAI DARURAT AKAN MUNCUL DALAM ${countdown}S... GUNAKAN INI APABILA PEMESAN AFK TANPA MENGKONFIRMASI SELESAI`;
+            } else {
+                clearInterval(emInterval);
+                emTimer.style.display = 'none';
+                sliderCont.style.display = 'block';
+                // updateAI("Protokol Selesai Paksa (AFK) telah diaktifkan.", "alert"); // Asumsi fungsi updateAI ada di file lain
+            }
+        }, 1000);
 
-        const actionArea = document.getElementById('actionArea');
-        const statusMsg = document.getElementById('statusMsg');
-        actionArea.innerHTML = "";
-
-        if (user.role === 'adventurer') {
-            statusMsg.innerText = "Sinyal Anda terdeteksi. Untuk memulai silahkan tekan tombol terima kontrak dan segera jalin komunikasi dengan pihak pemberi misi, untuk memperjelas detail misi dan menghindari pembatalan sepihak.";
-            actionArea.innerHTML = `<button id="btnStart" class="btn-action btn-start" onclick="reqStart()">EKSEKUSI KONTRAK SEKARANG</button>`;
-        } else {
-            statusMsg.innerText = "Menunggu Adventurer menerima kontrak. Anda bisa membatalkan misi jika Adventurer tidak merespons dalam jangka waktu cukup lama.";
-            actionArea.innerHTML = `
-                <div style="font-size:11px; color:#68759e; font-weight:bold; font-family:var(--font-mono); margin-bottom:15px; margin-top:5px;"><span class="pulse-dot"></span> MENANTI RESPONS ADVENTURER...</div>
-                <button class="btn-abort" onclick="reqAbort('${m.id_misi}', '${c.id_shard}', '${c.id_desa}')">HANCURKAN KONTRAK & MISI</button>
-            `;
-        }
-        updateAssistant();
+        emSlider.oninput = function() {
+            if (this.value >= 98) {
+                this.value = 100;
+                executeEmergencyAction();
+            }
+        };
     }
 
-    function reqStart() {
-        showModal(
-            "TERIMA KONTRAK?", 
-            `Dengan melanjutkan, Anda secara sadar menyetujui:\n\n• Tanggung Jawab Penuh: Kelalaian atau insiden lapangan adalah tanggung jawab Adventurer.\n\n• Disclaimer: Risiko operasional di luar koordinat aplikasi adalah tanggung jawab personal kedua belah pihak.`,
-            false, true, async () => {
-            const btn = document.getElementById('btnStart');
-            btn.disabled = true;
-            btn.innerText = "SYNCHRONIZING...";
-            btn.classList.add('btn-disabled');
-
+    async function executeEmergencyAction() {
+        if(typeof vibratePulse === 'function') vibratePulse();
+        
+        // Mock fungsi confirm jika sysConfirm belum di-load di snippet ini
+        const yakin = confirm("AKTIFKAN SELESAI PAKSA?\n\nGunakan jika Requester tidak merespon/AFK. Anda akan diarahkan ke form laporan.");
+        
+        if (yakin) {
+            const kodeMisiAsli = sessionStorage.getItem('eval_mission_code_id') || "";
+            
+            // PENGHANCURAN DATA DIMAJUKAN DI SINI UNTUK JALUR DARURAT (Pencegahan Bug Total)
             try {
-                await contractRef.update({ is_started: true, start_time: Date.now() });
-                if (currentC.id_shard && currentC.id_desa && currentC.id_misi) {
-                    await db4.ref(`mission-${currentC.id_shard}/${currentC.id_desa}/${currentC.id_misi}`).update({ status: 'on-going' });
+                if(dbMaster && kodeMisiAsli) {
+                    await dbMaster.ref(`index_misi/${kodeMisiAsli}`).remove();
+                    await dbMaster.ref(`kode_misi/${kodeMisiAsli}`).remove();
                 }
-            } catch (e) {
-                btn.disabled = false;
-                btn.innerText = "EKSEKUSI KONTRAK SEKARANG";
-                btn.classList.remove('btn-disabled');
-                showModal("ERROR", "Gagal menghubungi server: " + e.message, true);
+                if(typeof getTerminal !== 'undefined') {
+                    await getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).remove();
+                }
+            } catch(err) { console.warn("Pembersihan awal parsial:", err); }
+
+            // Pemicu pelemparan halaman lewat status Firebase
+            if(dbDeal) {
+                await dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'evaluating_emergency' });
             }
-        });
-    }
-
-    function reqAbort(mid, shard, desa) {
-        showModal(
-            "KONFIRMASI PENGHANCURAN", 
-            "Ketik HANCURKAN untuk mengonfirmasi penghancuran misi dan kontrak. Tindakan ini permanen.", 
-            true, true, async () => {
-                try {
-                    document.getElementById('statusMsg').innerText = "MENGHANCURKAN TRANSMISI KONTRAK...";
-                    await db4.ref(`mission-${shard}/${desa}/${mid}`).remove();
-                    await db4.ref(`bids/${mid}`).remove();
-                    await contractRef.remove();
-                    window.location.href = "lobby_requester.html";
-                } catch (e) {
-                    showModal("ERROR", "Gagal menghapus: " + e.message, true);
-                }
-            }, true
-        );
-    }
-
-    function showModal(title, msg, isDanger = false, isConfirm = false, onOk = null, showInput = false) {
-        const modal = document.getElementById('sysModal');
-        const box = document.getElementById('modalBox');
-        const btnGroup = document.getElementById('modalBtnGroup');
-        const inputField = document.getElementById('modalInput');
-        
-        modal.style.display = "flex";
-        document.getElementById('modalTitle').innerText = title;
-        document.getElementById('modalMsg').innerText = msg;
-        box.className = isDanger ? "modal-box danger" : "modal-box";
-        
-        if (showInput) {
-            inputField.style.display = "block";
-            inputField.value = "";
-            inputField.focus();
-        } else {
-            inputField.style.display = "none";
-        }
-        
-        btnGroup.innerHTML = "";
-        if (isConfirm) {
-            const btnCancel = document.createElement('button');
-            btnCancel.className = "modal-btn btn-cancel";
-            btnCancel.innerText = "BATAL";
-            btnCancel.onclick = () => { 
-                modal.style.animation = "none";
-                modal.style.opacity = "0";
-                setTimeout(() => { modal.style.display = "none"; modal.style.opacity = "1"; modal.style.animation = "fadeInOverlay 0.3s ease forwards"; }, 300);
-            };
-            
-            const btnOk = document.createElement('button');
-            btnOk.className = isDanger ? "modal-btn btn-confirm-danger" : "modal-btn btn-confirm";
-            btnOk.innerText = "LAKUKAN";
-            btnOk.onclick = () => {
-                if (showInput) {
-                    if (inputField.value.trim().toUpperCase() !== "HANCURKAN") {
-                        inputField.style.borderColor = "var(--neon-red)";
-                        inputField.style.transform = "scale(1.05)";
-                        setTimeout(() => inputField.style.transform = "scale(1)", 200);
-                        return;
-                    }
-                }
-                if (onOk) onOk();
-                modal.style.display = "none";
-            };
-            btnGroup.appendChild(btnCancel);
-            btnGroup.appendChild(btnOk);
-        } else {
-            const btnOk = document.createElement('button');
-            btnOk.className = "modal-btn btn-confirm";
-            btnOk.innerText = "MENGERTI";
-            btnOk.onclick = () => { modal.style.display = "none"; if(onOk) onOk(); };
-            btnGroup.appendChild(btnOk);
+        } else { 
+            document.getElementById('em-slider').value = 0; 
         }
     }
 
-    function handleError(title, msg, redirect = false) {
-        showModal(title, msg, true, false, () => {
-            if (redirect) {
-                window.location.href = user.role === 'adventurer' ? "lobby_adventurer.html" : "lobby_requester.html";
-            }
-        });
-    }
-
-    // --- COSMETIC: ASISTEN GAMBAR BERUBAH SESUAI ROLE ---
-    function updateAssistant() {
-        const asisImg = document.getElementById('asisImg');
-        const asisName = document.getElementById('asisName');
-        if (user.role === 'adventurer') {
-            asisImg.src = "https://ui-avatars.com/api/?name=AD&background=00f3ff&color=000&size=100&bold=true";
-            asisName.innerText = "SOVEREIGN COMMAND";
-            asisName.style.color = "var(--neon-blue)";
-        } else {
-            asisImg.src = "https://ui-avatars.com/api/?name=RQ&background=ffcc00&color=000&size=100&bold=true";
-            asisName.innerText = "SOVEREIGN DISPATCH";
-            asisName.style.color = "var(--neon-yellow)";
+    function syncTracking() {
+        if(navigator.geolocation && dbDeal) {
+            navigator.geolocation.watchPosition(p => {
+                dbDeal.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({ 
+                    lat: p.coords.latitude, 
+                    lng: p.coords.longitude, 
+                    ts: Date.now() 
+                });
+            });
         }
     }
+
+    function forceRefreshData() { 
+        location.reload(); 
+    }
+
+    // Panggil Inisialisasi awal (Bisa disesuaikan jika di kode asli dipanggil di tempat lain)
+    setTimeout(() => {
+        initEmergencyZone();
+        syncTracking();
+    }, 2000);
+
 </script>
-
 </body>
 </html>
