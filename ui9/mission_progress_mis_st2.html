@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SOVEREIGN | OPERATION HUB</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#050505">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        /* === SOVEREIGN DYNAMIC DESIGN SYSTEM === */
+        :root {
+            --primary: #ff0055;
+            --neon-blue: #00ffff;
+            --neon-green: #00ff00;
+            --bg-dark: #050505;
+            --card-bg: #0a0a0a;
+            --text-main: #e0e0e0;
+            --text-muted: #888;
+            --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+            
+            /* Dynamic Variables Base (Swapped by JS later) */
+            --theme-color: #00ffff; 
+            --theme-glow: rgba(0, 255, 255, 0.2);
+            --theme-bg: rgba(0, 255, 255, 0.05);
+        }
+
+        body[data-role="adventurer"] {
+            --theme-color: var(--neon-blue);
+            --theme-glow: rgba(0, 255, 255, 0.2);
+            --theme-bg: rgba(0, 255, 255, 0.05);
+        }
+
+        body[data-role="requester"] {
+            --theme-color: var(--primary);
+            --theme-glow: rgba(255, 0, 85, 0.2);
+            --theme-bg: rgba(255, 0, 85, 0.05);
+        }
+
+        * { -webkit-tap-highlight-color: transparent; user-select: none; box-sizing: border-box; scrollbar-width: none; }
+        *::-webkit-scrollbar { display: none; }
+        
+        body, html { 
+            margin: 0; padding: 0; 
+            background: radial-gradient(circle at 50% 50%, #1a1a1a 0%, var(--bg-dark) 100%); 
+            color: var(--text-main); font-family: var(--font-mono); 
+            overflow: hidden; height: 100%; width: 100%; overscroll-behavior-y: none;
+        }
+        
+        .hide { display: none !important; }
+
+        /* === LOADER OVERLAY (Dari Kode B) === */
+        #pageLoader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-dark); z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s ease;
+        }
+        .spinner { width: 50px; height: 50px; border: 3px solid rgba(255, 255, 255, 0.1); border-top: 3px solid var(--theme-color); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
+
+        /* === GLOBAL HEADER (Compact & Tactical) === */
+        #global-header { 
+            position: absolute; top: 0; width: 100%; height: 60px; z-index: 2000; 
+            background: rgba(10, 10, 10, 0.9); border-bottom: 1px solid #222; 
+            display: flex; justify-content: space-between; align-items: center; padding: 0 15px;
+            backdrop-filter: blur(10px);
+        }
+        .net-status { display: flex; flex-direction: column; }
+        #connectionStatus { color: var(--theme-color); font-size: 11px; font-weight: bold; letter-spacing: 1px; }
+        #live-status-time { color: var(--text-muted); font-size: 9px; margin-top: 2px; }
+        .btn-refresh {
+            background: transparent; border: 1px solid var(--theme-color); color: var(--theme-color);
+            width: 30px; height: 30px; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s;
+        }
+
+        /* === 3 MAIN TABS NAV === */
+        .tab-nav {
+            position: absolute; top: 60px; width: 100%; height: 45px; display: flex; 
+            background: var(--card-bg); border-bottom: 2px solid #222; z-index: 1900;
+        }
+        .tab-btn {
+            flex: 1; background: transparent; color: var(--text-muted); border: none; 
+            font-family: inherit; font-size: 11px; font-weight: bold; cursor: pointer;
+            border-bottom: 2px solid transparent; transition: all 0.3s ease;
+        }
+        .tab-btn.active { color: var(--theme-color); border-bottom-color: var(--theme-color); background: var(--theme-bg); }
+
+        /* === VIEWPORT & KONTEN TABS === */
+        .viewport { position: absolute; top: 105px; bottom: 0; width: 100%; overflow: hidden; background: transparent; }
+        .tab-pane { position: absolute; inset: 0; overflow-y: auto; padding: 15px; padding-bottom: 90px; display: none; animation: fadeInSlideUp 0.3s ease; }
+        .tab-pane.active { display: block; }
+
+        .card-box { background: var(--card-bg); border: 1px solid #222; border-radius: 4px; padding: 15px; margin-bottom: 15px; }
+        .neon-border { border-left: 3px solid var(--theme-color); }
+
+        /* TAB 1: OP-DASH (Operation Dashboard) */
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--theme-color); animation: pulseNeon 1.5s infinite; }
+        #live-status-text { font-size: 13px; color: var(--theme-color); font-weight: bold; letter-spacing: 1px; flex: 1; animation: typeStatus 2s infinite; }
+        
+        #mission-progress-container { background: #080808; padding: 12px; border-radius: 4px; border: 1px solid #1a1a1a; margin-top: 15px; }
+        .prog-label { font-size: 11px; color: #bbb; display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .prog-track { height: 4px; background: #222; border-radius: 2px; overflow: hidden; }
+        .prog-fill { height: 100%; width: 0%; background: var(--theme-color); transition: width 1.5s ease; box-shadow: 0 0 10px var(--theme-color); }
+
+        .btn-main { background: transparent; border: 1px solid var(--theme-color); color: var(--theme-color); padding: 12px; border-radius: 4px; text-transform: uppercase; font-weight: bold; cursor: pointer; width: 100%; font-size: 11px; font-family: var(--font-mono); transition: 0.3s; }
+        .btn-main:active { background: var(--theme-color); color: #000; }
+
+        /* Sliders */
+        .slider-wrapper { position: relative; width: 100%; height: 50px; background: #080808; border: 1px solid #222; border-radius: 4px; overflow: hidden; margin-top: 15px; }
+        .slider-text { position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: #555; pointer-events: none; z-index: 1; }
+        .slider-fill { position: absolute; top: 0; left: 0; height: 100%; width: 0; background: var(--theme-bg); z-index: 2; border-right: 2px solid var(--theme-color); box-shadow: 5px 0 15px var(--theme-glow); }
+        .slider-thumb { position: absolute; top: 2px; left: 2px; width: 44px; height: 44px; background: var(--theme-color); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #000; font-size: 18px; cursor: pointer; z-index: 3; box-shadow: 0 0 10px var(--theme-color); }
+
+        #emergency-zone { margin-top: 15px; padding: 15px; border: 1px solid var(--primary); border-radius: 4px; background: #0a0a0a; animation: pulseRedZone 2s infinite; }
+        #em-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 60px; height: 48px; background: var(--primary); border-radius: 2px; box-shadow: -100vw 0 0 100vw rgba(255, 0, 85, 0.3), 0 0 15px var(--primary); border: 1px solid #fff; }
+
+        /* TAB 2: INTEL (Mission Details) */
+        .m-title { font-size: 18px; font-weight: 900; color: var(--theme-color); margin: 0 0 5px 0; text-transform: uppercase; letter-spacing: 1px; }
+        .route-point { margin-top: 15px; background: rgba(255,255,255,0.02); padding: 10px; border-left: 2px solid var(--neon-blue); border-radius: 4px; }
+        .route-point.dest { border-left-color: var(--neon-green); }
+        .radar-container { position: relative; height: 2px; background: #111; overflow: hidden; margin-top: 8px; }
+        .radar-bar { position: absolute; height: 100%; width: 30%; background: linear-gradient(90deg, transparent, var(--theme-color), transparent); animation: scanRoute 2s linear infinite; }
+
+        /* TAB 3: ARCHIVE (Partner Profile Grid) */
+        .profile-grid { display: grid; grid-template-columns: 80px 1fr; gap: 15px; align-items: start; }
+        .avatar-frame { width: 80px; height: 80px; border: 1px solid var(--theme-color); border-radius: 4px; background: var(--theme-bg); display: flex; align-items: center; justify-content: center; font-size: 30px; color: var(--theme-color); box-shadow: inset 0 0 10px var(--theme-glow); }
+        .info-row { display: flex; justify-content: space-between; border-bottom: 1px dashed #222; padding: 8px 0; font-size: 11px; }
+
+        /* === TACTICAL DRAWER (BOTTOM HUB) === */
+        .drawer-toggle-btn { 
+            position: fixed; bottom: 20px; right: 20px; z-index: 2500; 
+            background: var(--theme-color); border: none; color: #000; border-radius: 4px; 
+            width: 55px; height: 55px; display: flex; align-items: center; justify-content: center; 
+            font-size: 24px; box-shadow: 0 0 20px var(--theme-glow); cursor: pointer; transition: 0.3s;
+        }
+        .action-drawer { 
+            position: fixed; bottom: 0; left: 0; width: 100%; height: 60%; 
+            background: rgba(5,5,5,0.98); border-top: 2px solid var(--theme-color); 
+            transform: translateY(110%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            z-index: 2400; padding: 15px; display: flex; flex-direction: column;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+        }
+        .action-drawer.open { transform: translateY(0); }
+        .drawer-handle { width: 50px; height: 4px; background: #333; margin: 0 auto 15px auto; border-radius: 2px; }
+        
+        .drawer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; height: 100%; }
+        .drawer-item { background: #0a0a0a; border: 1px solid #222; border-radius: 4px; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+        .drawer-item i { font-size: 24px; color: var(--theme-color); }
+        .drawer-item span { font-size: 10px; color: #888; font-weight: bold; letter-spacing: 1px; }
+
+        /* === SYSTEM MODAL (Kode A Logic + Kode B Style) === */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: 15000; display: none; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.2s ease; }
+        .modal-box { background: var(--card-bg); width: 95%; max-width: 350px; padding: 20px; border: 1px solid var(--theme-color); position: relative; border-radius: 4px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 20px var(--theme-glow); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .modal-box.danger { border-color: var(--primary); box-shadow: 0 0 20px rgba(255, 0, 85, 0.15); }
+        .modalTitle { width: 100%; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #222; color: var(--theme-color); font-size: 14px; font-weight: 900; letter-spacing: 1px; text-align: center; }
+        .modal-box.danger .modalTitle { color: var(--primary); }
+        .modalMsg { width: 100%; margin-bottom: 20px; font-size: 12px; color: #ccc; line-height: 1.6; text-align: center; }
+        .modal-input { width: 100%; background: #050505; border: 1px solid var(--primary); color: var(--primary); padding: 12px; margin-bottom: 15px; text-align: center; outline: none; font-family: var(--font-mono); font-size: 14px; }
+        .modal-btn-group { display: flex; gap: 10px; width: 100%; }
+        .btn-modal { flex: 1; padding: 12px; cursor: pointer; font-weight: bold; font-family: var(--font-mono); font-size: 11px; border-radius: 2px; border: none; }
+        .btn-modal.primary { background: var(--theme-color); color: #000; }
+        .btn-modal.danger-fill { background: var(--primary); color: #fff; }
+        .btn-modal.secondary { background: transparent; color: var(--text-muted); border: 1px solid #444; }
+
+        /* Animations */
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes scanRoute { 0% { left: -30px; } 100% { left: 100%; } }
+        @keyframes pulseNeon { 0%, 100% { box-shadow: 0 0 5px var(--theme-color); } 50% { box-shadow: 0 0 15px var(--theme-color); } }
+        @keyframes pulseRedZone { 0%, 100% { box-shadow: inset 0 0 10px rgba(255,0,85,0.1); } 50% { box-shadow: inset 0 0 30px rgba(255,0,85,0.2); } }
+        @keyframes typeStatus { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeInSlideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body data-role="adventurer"> <div id="pageLoader">
+        <div class="spinner"></div>
+        <div style="color: var(--theme-color); letter-spacing: 2px; font-size: 12px; animation: typeStatus 1s infinite;">SINKRONISASI JARINGAN...</div>
+    </div>
+
+    <header id="global-header">
+        <div class="net-status">
+            <div id="connectionStatus">● MENGHUBUNGKAN...</div>
+            <div id="live-status-time">LATENCY: --ms</div>
+        </div>
+        <button class="btn-refresh" onclick="forceRefreshData()"><i class="fa-solid fa-rotate-right"></i></button>
+    </header>
+
+    <nav class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('tab-op', this)"><i class="fa-solid fa-satellite-dish"></i> OP-DASH</button>
+        <button class="tab-btn" onclick="switchTab('tab-intel', this)"><i class="fa-solid fa-folder-open"></i> INTEL</button>
+        <button class="tab-btn" onclick="switchTab('tab-archive', this)"><i class="fa-solid fa-id-card-clip"></i> ARCHIVE</button>
+    </nav>
+
+    <main class="viewport">
+        
+        <div id="tab-op" class="tab-pane active">
+            
+            <div class="card-box neon-border" style="display: flex; align-items: center; gap: 15px;">
+                <div class="status-dot" id="status-indicator"></div>
+                <div id="live-status-text">[SYS] STANDBY - MENUNGGU DATA</div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <div style="flex: 1; background: var(--theme-bg); border: 1px solid var(--theme-glow); padding: 10px; border-radius: 4px; text-align: center;">
+                    <div style="font-size: 9px; color: var(--text-muted); margin-bottom: 5px;">TIMER OPERASI</div>
+                    <div id="timer-val" style="color: var(--theme-color); font-weight: bold; font-size: 14px;"><i class="fa-solid fa-stopwatch"></i> 00:00:00</div>
+                </div>
+                <div style="flex: 1; background: var(--theme-bg); border: 1px solid var(--theme-glow); padding: 10px; border-radius: 4px; text-align: center;">
+                    <div style="font-size: 9px; color: var(--text-muted); margin-bottom: 5px;">JARAK ESTIMASI</div>
+                    <div style="color: var(--theme-color); font-weight: bold; font-size: 14px;"><i class="fa-solid fa-route"></i> <span id="m-distance">0</span> KM</div>
+                </div>
+            </div>
+
+            <div id="mission-progress-container">
+                <div class="prog-label">
+                    <span id="m-status-text">Menganalisis matriks logistik...</span>
+                    <span id="m-progress-pct" style="color: var(--theme-color); font-weight: bold;">0%</span>
+                </div>
+                <div class="prog-track"><div id="m-progress-bar" class="prog-fill"></div></div>
+            </div>
+
+            <div id="adv-status-hub" class="hide card-box">
+                <div style="font-size: 9px; color: #888; margin-bottom: 10px; text-align: center;">KENDALI LAPANGAN (ADVENTURER)</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn-main" onclick="sendLiveStatus('OTW Lokasi Asal')"><i class="fa-solid fa-motorcycle"></i> OTW ORIGIN</button>
+                    <button class="btn-main" onclick="sendLiveStatus('OTW Lokasi Tujuan')"><i class="fa-solid fa-truck-fast"></i> OTW DEST</button>
+                    <button class="btn-main" onclick="sendLiveStatus('Tiba di Lokasi')"><i class="fa-solid fa-check-double"></i> TIBA</button>
+                    <button class="btn-main" style="border-color: var(--primary); color: var(--primary);" onclick="sendLiveStatus('Kendala Lapangan')"><i class="fa-solid fa-triangle-exclamation"></i> KENDALA</button>
+                </div>
+            </div>
+
+            <div id="emergency-zone" class="hide">
+                <p id="em-timer" style="color: var(--primary); font-size: 11px; text-align: center; font-weight: bold; margin:0;">INISIALISASI PROTOKOL DARURAT...</p>
+                <div id="slider-container-em" style="display: none; margin-top: 10px; width: 100%; position: relative; height: 50px; background: #110000; border-radius: 4px; border: 1px solid var(--primary); overflow: hidden;">
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; font-size: 10px; color: #fff; width: 100%; text-align: center; z-index: 1;">GESER MENTOK : HANCURKAN JURIDIKSI</div>
+                    <input type="range" id="em-slider" min="0" max="100" value="0" style="-webkit-appearance: none; width: 100%; height: 100%; cursor: pointer; background: transparent; position: relative; z-index: 2; margin: 0; outline: none;">
+                </div>
+            </div>
+
+            <div id="action-slider-box" class="hide card-box">
+                <div style="font-size: 9px; color: var(--theme-color); text-align: center; font-weight: bold;">OTORISASI PENYELESAIAN MISI (REQUESTER)</div>
+                <div class="slider-wrapper" id="slider-wrapper">
+                    <div class="slider-text" id="slider-text">GESER UNTUK SELESAI</div>
+                    <div class="slider-fill" id="slider-fill"></div>
+                    <div class="slider-thumb" id="slider-thumb"><i class="fa-solid fa-angles-right"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-intel" class="tab-pane hide">
+            <div class="card-box">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                    <div>
+                        <div id="m-category-badge" style="background: var(--theme-bg); color: var(--theme-color); border: 1px solid var(--theme-color); font-size: 9px; padding: 2px 6px; border-radius: 2px; display: inline-block; margin-bottom: 5px;">KATEGORI</div>
+                        <h1 id="m-title" class="m-title">LOADING...</h1>
+                        <div id="m-id-display" style="font-size: 9px; color: #666;">ID: ---</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 9px; color: #666;">KLIEN / REQUESTER</div>
+                        <div id="m-client-name" style="font-size: 11px; color: #fff; font-weight: bold;">--</div>
+                    </div>
+                </div>
+
+                <div class="route-point origin">
+                    <div style="font-size: 9px; color: var(--neon-blue); letter-spacing: 1px; margin-bottom: 4px;"><i class="fa-solid fa-crosshairs"></i> ORIGIN (TITIK JEMPUT)</div>
+                    <div id="m-origin-name" style="font-size: 13px; color: #fff; font-weight: bold;">--</div>
+                    <div class="radar-container"><div class="radar-bar" style="background: linear-gradient(90deg, transparent, var(--neon-blue), transparent);"></div></div>
+                </div>
+
+                <div id="dest-hub" class="route-point dest hide">
+                    <div style="font-size: 9px; color: var(--neon-green); letter-spacing: 1px; margin-bottom: 4px;"><i class="fa-solid fa-flag-checkered"></i> DESTINATION (TITIK TUJUAN)</div>
+                    <div id="m-dest-name" style="font-size: 13px; color: #fff; font-weight: bold;">--</div>
+                    <div class="radar-container"><div class="radar-bar" style="background: linear-gradient(90deg, transparent, var(--neon-green), transparent);"></div></div>
+                </div>
+
+                <div id="cargo-hub" class="hide" style="margin-top: 15px; background: rgba(255,255,255,0.02); border: 1px dashed #444; padding: 10px; border-radius: 4px;">
+                    <div style="font-size: 9px; color: #888; margin-bottom: 5px;">DETAIL LOGISTIK / CATATAN:</div>
+                    <div id="m-cargo-detail" style="font-size: 11px; color: #ccc; white-space: pre-line;">--</div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #222; padding-top: 15px; margin-top: 15px;">
+                    <div>
+                        <div style="font-size: 9px; color: #777;">NILAI KONTRAK</div>
+                        <div id="m-reward-cash" style="color: var(--neon-green); font-weight: bold; font-size: 16px;">Rp 0</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 9px; color: #777;">PELAKSANA</div>
+                        <div id="m-adv-nick" style="font-size: 12px; color: #fff; font-weight: bold;">--</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-archive" class="tab-pane hide">
+            <div class="card-box">
+                <div class="profile-grid">
+                    <div class="avatar-frame"><i class="fa-solid fa-user-astronaut"></i></div>
+                    <div>
+                        <div style="font-size: 9px; color: var(--text-muted); margin-bottom: 2px;">IDENTITAS TERVERIFIKASI</div>
+                        <div id="u-name" style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 4px;">SINKRONISASI...</div>
+                        <div style="display: flex; gap: 8px;">
+                            <span id="u-rank" style="background: var(--theme-bg); border: 1px solid var(--theme-color); color: var(--theme-color); padding: 2px 6px; border-radius: 2px; font-size: 10px; font-weight: bold;">?</span>
+                            <span id="u-role" style="color: var(--text-muted); font-size: 10px; text-transform: uppercase; align-self: center;">ROLE</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px; border-top: 1px dashed #222; padding-top: 10px;">
+                    <div class="info-row"><span>Domisili Operasi:</span> <b id="p-domicile" style="color: #ccc;">SINKRONISASI...</b></div>
+                    <div class="info-row"><span>Tipe Kendaraan:</span> <b id="p-arsenal" style="color: #ccc;">SINKRONISASI...</b></div>
+                    <div class="info-row"><span>Status Reputasi:</span> <b id="p-reputation" style="color: var(--theme-color);">ACTIVE</b></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <button id="requester-toggle-btn" class="drawer-toggle-btn" onclick="toggleActionDrawer()">
+        <i class="fa-solid fa-layer-group"></i>
+    </button>
+
+    <div id="action-drawer" class="action-drawer">
+        <div class="drawer-handle" onclick="toggleActionDrawer()"></div>
+        <div style="font-size: 10px; color: #666; text-align: center; margin-bottom: 15px; letter-spacing: 2px;">TACTICAL UTILITY HUB</div>
+        
+        <div class="drawer-grid">
+            <div class="drawer-item" id="grid-chat">
+                <i class="fa-brands fa-whatsapp" style="color: #25d366;"></i>
+                <span>SECURE LINE</span>
+                <div id="role-action-area" style="width: 100%; margin-top: 5px;">
+                    <div style="font-size: 8px; color:#555;">(Memuat Kanal...)</div>
+                </div>
+            </div>
+
+            <div class="drawer-item" id="grid-maps">
+                <i class="fa-solid fa-map-location-dot"></i>
+                <span>RADAR & GPS</span>
+                <div style="width: 100%; display: flex; flex-direction: column; gap: 5px; margin-top: 5px;">
+                    <button id="btn-maps-origin" class="hide btn-main" style="padding: 6px; font-size: 9px; border-color: var(--neon-blue); color: var(--neon-blue);">MAP ORIGIN</button>
+                    <button id="btn-maps-dest" class="hide btn-main" style="padding: 6px; font-size: 9px; border-color: var(--neon-green); color: var(--neon-green);">MAP DEST</button>
+                    <div id="maps-placeholder" style="font-size: 8px; color:#555;">(Live Tracking Prep...)</div>
+                </div>
+            </div>
+
+            <div class="drawer-item">
+                <i class="fa-solid fa-file-invoice-dollar" style="color: #ffcc00;"></i>
+                <span style="color: #ffcc00;">INVOICE DATA</span>
+                <div style="font-size: 8px; color:#555;">[LOCKED]</div>
+            </div>
+
+            <div class="drawer-item">
+                <i class="fa-solid fa-shield-halved" style="color: #a855f7;"></i>
+                <span style="color: #a855f7;">CREDIT & PENALTY</span>
+                <div style="font-size: 8px; color:#555;">[LOCKED]</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="sysModal" class="modal-overlay">
+        <div id="modalBox" class="modal-box">
+            <div id="modalTitle" class="modalTitle">TITLE</div>
+            <div id="modalMsg" class="modalMsg">MESSAGE</div>
+            <input type="text" id="modalInput" class="modal-input" style="display: none;">
+            <div id="modalBtnGroup" class="modal-btn-group"></div>
+        </div>
+    </div>
+
+    <script>
+        // === 1. AUDIO CONTEXT (SFX Kode B) ===
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        ['click', 'touchstart'].forEach(evt => 
+            document.body.addEventListener(evt, () => { if(audioCtx.state === 'suspended') audioCtx.resume(); }, { once: true, passive: true })
+        );
+
+        function playSFX(type) {
+            if(audioCtx.state === 'suspended') return;
+            const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain();
+            osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+            if (type === 'beep') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'alert') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+            } else if (type === 'success') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(600, audioCtx.currentTime); osc.frequency.setValueAtTime(900, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        // === 2. TAB SWITCHING LOGIC ===
+        function switchTab(tabId, btnElement) {
+            playSFX('beep');
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+            btnElement.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        function toggleActionDrawer() { 
+            playSFX('beep');
+            document.getElementById('action-drawer').classList.toggle('open'); 
+        }
+
+        // === 3. SYSTEM MODALS (Modified for SFX & Sovereign Style) ===
+        function sysAlert(title, msg, isDanger = false) {
+            return new Promise((resolve) => {
+                playSFX(isDanger ? 'alert' : 'beep');
+                const modal = document.getElementById('sysModal');
+                const box = document.getElementById('modalBox');
+                document.getElementById('modalTitle').innerText = title;
+                document.getElementById('modalMsg').innerText = msg;
+                box.className = isDanger ? "modal-box danger" : "modal-box";
+                document.getElementById('modalInput').style.display = "none";
+                const grp = document.getElementById('modalBtnGroup'); grp.innerHTML = "";
+                
+                const btn = document.createElement('button'); 
+                btn.className = isDanger ? "btn-modal danger-fill" : "btn-modal primary"; 
+                btn.innerText = "MENGERTI";
+                btn.onclick = () => { modal.style.display = "none"; playSFX('beep'); resolve(); };
+                grp.appendChild(btn); modal.style.display = "flex";
+            });
+        }
+
+        function sysConfirm(title, msg, isDanger = false, verifyWord = null) {
+            return new Promise((resolve) => {
+                playSFX(isDanger ? 'alert' : 'beep');
+                const modal = document.getElementById('sysModal');
+                const box = document.getElementById('modalBox');
+                const inputField = document.getElementById('modalInput');
+                document.getElementById('modalTitle').innerText = title;
+                document.getElementById('modalMsg').innerText = msg;
+                box.className = isDanger ? "modal-box danger" : "modal-box";
+                if(verifyWord) { inputField.style.display = "block"; inputField.placeholder = `KETIK '${verifyWord}'`; inputField.value = ""; } else { inputField.style.display = "none"; }
+                const grp = document.getElementById('modalBtnGroup'); grp.innerHTML = "";
+                
+                const btnC = document.createElement('button'); 
+                btnC.className = "btn-modal secondary"; 
+                btnC.innerText = "BATAL"; 
+                btnC.onclick = () => { modal.style.display = "none"; resolve(false); };
+                grp.appendChild(btnC);
+
+                const btnO = document.createElement('button'); 
+                btnO.className = isDanger ? "btn-modal danger-fill" : "btn-modal primary"; 
+                btnO.innerText = "PROSES";
+                btnO.onclick = () => {
+                    if(verifyWord && inputField.value !== verifyWord) { inputField.style.borderColor = "#ff0055"; playSFX('alert'); return; }
+                    modal.style.display = "none"; playSFX('success'); resolve(true);
+                };
+                grp.appendChild(btnO); modal.style.display = "flex";
+            });
+        }
+
+        // === 4. STATE & CORES (KODE A ASLI) ===
+        const user = typeof Clearchance !== 'undefined' ? Clearchance.enforceIdentity() : {role: 'adventurer', uid: 'test-uid'};
+        const mission = JSON.parse(sessionStorage.getItem('current_mission_full') || "{}");
+        const contractId = sessionStorage.getItem('active_contract_id') || mission.id_misi || "TEST-ID";
+        const isAdv = user.role === 'adventurer';
+
+        const dbDeal = typeof getTerminal !== 'undefined' ? getTerminal('FB5_DEAL') : null;
+        const dbMaster = typeof getTerminal !== 'undefined' ? getTerminal('FB1_MASTER') : null;
+
+        window.onload = async () => {
+            // Set dynamic theme role
+            document.body.setAttribute('data-role', user.role);
+
+            initUI();
+            if(dbDeal && dbMaster) {
+                monitorConnection(); // Fungsi Network Ping Baru
+                await performDeepMining(); 
+                syncStatus();
+                syncTracking();
+            }
+            if(!isAdv) initSliderAction();
+            if(isAdv) startEmergencyProtocol();
+
+            // Sembunyikan loader setelah inisialisasi selesai
+            setTimeout(() => {
+                document.getElementById('pageLoader').style.opacity = '0';
+                setTimeout(() => document.getElementById('pageLoader').style.display = 'none', 500);
+            }, 800);
+        };
+
+        function monitorConnection() {
+            const statusEl = document.getElementById('connectionStatus');
+            const pingEl = document.getElementById('live-status-time');
+            dbDeal.ref(".info/connected").on("value", (snap) => {
+                if (snap.val() === true) {
+                    statusEl.innerText = "● SYSTEM ONLINE";
+                    const startTime = Date.now();
+                    dbDeal.ref('.info/serverTimeOffset').once('value', () => {
+                        const ping = Date.now() - startTime;
+                        pingEl.innerText = `LATENCY: ${ping}ms`;
+                    });
+                } else {
+                    statusEl.innerText = "○ SYSTEM OFFLINE";
+                    pingEl.innerText = "MENGHUBUNGKAN ULANG...";
+                }
+            });
+        }
+
+        function initUI() {
+            document.getElementById('m-id-display').innerText = "ID: " + contractId;
+            if(isAdv) {
+                document.getElementById('adv-status-hub').classList.remove('hide');
+            } else {
+                document.getElementById('action-slider-box').classList.remove('hide'); 
+            }
+            // Toggle drawer button selalu ada untuk kedua role sekarang, untuk akses map dll.
+        }
+
+        async function performDeepMining() {
+            if(typeof getSupremeData === 'undefined') return;
+            try {
+                const DATA = await getSupremeData(contractId);
+                if (!DATA) return;
+                const partner = isAdv ? DATA.requester : DATA.adventurer;
+                
+                // Isi ke Profil Archive (Tab 3)
+                document.getElementById('u-name').innerText = partner?.profile?.nama || "Unknown Entity";
+                document.getElementById('u-role').innerText = isAdv ? "REQUESTER" : "ADVENTURER";
+                document.getElementById('u-rank').innerText = isAdv ? `T${partner?.profile?.tier || '1'}` : (partner?.profile?.rank || "F");
+                
+                // Tambahan Deep Mining Profil
+                if(partner?.profile?.domisili_lengkap) {
+                    document.getElementById('p-domicile').innerText = `${partner.profile.domisili_lengkap.desa || '-'}, Kec. ${partner.profile.domisili_lengkap.kecamatan || '-'}`;
+                } else {
+                    document.getElementById('p-domicile').innerText = "Data tidak tersedia";
+                }
+
+                if(partner?.profile?.arsenal) {
+                    document.getElementById('p-arsenal').innerText = `${partner.profile.arsenal.merk || '-'} [${partner.profile.arsenal.plat || '-'}]`;
+                } else {
+                    document.getElementById('p-arsenal').innerText = "Tidak ada kendaraan terdaftar";
+                }
+
+                sessionStorage.setItem('eval_target_nick', isAdv ? (DATA.mission?.client_name || "stranger") : (DATA.mission?.adventurer_nick || "unknown"));
+                sessionStorage.setItem('eval_mission_code_id', DATA.mission?.id_misi_asli || "CLASSIFIED");
+
+                injectDetails(DATA);
+            } catch (e) { console.error(e); }
+        }
+
+        function injectDetails(DATA) {
+            const m = DATA.mission;
+            const detail = m.full_mission_data || {};
+            
+            // Tab 2: Intel Dossier
+            document.getElementById('m-title').innerText = (detail.category || m.category || "CLASSIFIED").toUpperCase();
+            document.getElementById('m-client-name').innerText = detail.client_name || "STRANGER";
+            document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+            document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Unknown";
+            
+            document.getElementById('m-origin-name').innerText = detail.origin_name || "--";
+            
+            // Tombol Maps Origin dipindah ke Drawer -> Munculkan jika ada
+            if(detail.origin_name) {
+                const btnOrg = document.getElementById('btn-maps-origin');
+                btnOrg.classList.remove('hide');
+                document.getElementById('maps-placeholder').style.display = 'none';
+            }
+
+            if (detail.dest_name || detail.dest_desa) {
+                document.getElementById('dest-hub').classList.remove('hide');
+                document.getElementById('m-dest-name').innerText = detail.dest_desa || detail.dest_name;
+                const btnDst = document.getElementById('btn-maps-dest');
+                btnDst.classList.remove('hide');
+                document.getElementById('maps-placeholder').style.display = 'none';
+            }
+
+            if(detail.catatan || detail.dest_details) {
+                document.getElementById('cargo-hub').classList.remove('hide');
+                document.getElementById('m-cargo-detail').innerText = detail.dest_details || detail.catatan;
+            }
+
+            // Tab 1: Jarak
+            document.getElementById('m-distance').innerText = detail.distance_est || "0";
+
+            // Inject tombol WA ke dalam Drawer (Grid Chat)
+            if(!isAdv) {
+                const phone = DATA?.adventurer?.profile?.whatsapp || "";
+                document.getElementById('role-action-area').innerHTML = `
+                    <button onclick="window.open('https://wa.me/${phone.replace(/\D/g,'')}')" style="background:#25d366; color:#000; border:none; padding:8px; border-radius:4px; font-weight:900; width:100%; font-size:10px; cursor:pointer;">
+                        BUKA WHATSAPP
+                    </button>`;
+            }
+            startMissionTimer(m.start_time || Date.now());
+        }
+
+        function startMissionTimer(startTime) {
+            setInterval(() => {
+                const diff = Date.now() - startTime;
+                const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                document.getElementById('timer-val').innerHTML = `<i class="fa-solid fa-stopwatch"></i> ${h}:${m}:${s}`;
+            }, 1000);
+        }
+
+        function sendLiveStatus(str) {
+            playSFX('beep');
+            if(dbDeal) dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).set({ text: str, ts: Date.now() });
+        }
+
+        function syncStatus() {
+            if(!dbDeal) return;
+            dbDeal.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
+                const statusValue = snap.val();
+                if(statusValue === 'evaluating' || statusValue === 'evaluating_emergency') {
+                    sessionStorage.setItem('eval_emergency_triggered', statusValue === 'evaluating_emergency' ? 'true' : 'false');
+                    window.location.href = "penilaian.html";
+                }
+            });
+
+            dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).on('value', snap => {
+                if(!snap.exists()) return;
+                const d = snap.val();
+                
+                const statusEl = document.getElementById('live-status-text');
+                statusEl.innerText = d.text.toUpperCase();
+                
+                // Tweak bar progress secara visual kasar berdasarkan teks status
+                const fill = document.getElementById('m-progress-bar');
+                const pct = document.getElementById('m-progress-pct');
+                const stText = document.getElementById('m-status-text');
+                
+                let percent = 10;
+                if(d.text.includes('OTW')) percent = 40;
+                if(d.text.includes('Tiba')) percent = 80;
+                if(d.text.includes('Kendala')) { percent = 50; fill.style.background = "var(--primary)"; }
+                else { fill.style.background = "var(--theme-color)"; }
+
+                fill.style.width = percent + "%";
+                pct.innerText = percent + "%";
+                stText.innerText = d.text;
+
+                statusEl.style.animation = 'none';
+                statusEl.offsetHeight; 
+                statusEl.style.animation = 'typeStatus 2s infinite';
+                playSFX('beep');
+            });
+        }
+
+        // SLIDER REQUESTER
+        function initSliderAction() {
+            const wrapper = document.getElementById('slider-wrapper');
+            const thumb = document.getElementById('slider-thumb');
+            const fill = document.getElementById('slider-fill');
+            const text = document.getElementById('slider-text');
+            let isDragging = false, startX = 0, maxW = 0;
+
+            const startDrag = (e) => { 
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                isDragging = true; startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX; maxW = wrapper.clientWidth - thumb.clientWidth - 4; 
+            };
+            const moveDrag = (e) => {
+                if(!isDragging) return;
+                let curX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                let move = curX - startX;
+                if(move < 0) move = 0; if(move > maxW) move = maxW;
+                thumb.style.transform = `translateX(${move}px)`; fill.style.width = `${move + 20}px`; text.style.opacity = 1 - (move / maxW);
+            };
+            const endDrag = async (e) => {
+                if(!isDragging) return; isDragging = false;
+                let curX = e.type.includes('mouse') ? e.clientX : e.changedTouches[0].clientX;
+                if((curX - startX) > maxW * 0.9) {
+                    thumb.style.transform = `translateX(${maxW}px)`; fill.style.width = `100%`;
+                    playSFX('success');
+                    if(dbDeal) await dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'evaluating' });
+                } else { thumb.style.transform = `translateX(0px)`; fill.style.width = `0px`; text.style.opacity = 1; }
+            };
+            thumb.addEventListener('mousedown', startDrag); document.addEventListener('mousemove', moveDrag); document.addEventListener('mouseup', endDrag);
+            thumb.addEventListener('touchstart', startDrag, {passive: true}); document.addEventListener('touchmove', moveDrag, {passive: true}); document.addEventListener('touchend', endDrag);
+        }
+
+        // EMERGENCY PROTOCOL ADVENTURER
+        function startEmergencyProtocol() {
+            const emZone = document.getElementById('emergency-zone');
+            const emTimer = document.getElementById('em-timer');
+            const sliderCont = document.getElementById('slider-container-em');
+            const emSlider = document.getElementById('em-slider');
+            emZone.classList.remove('hide'); 
+
+            let countdown = 10;
+            let emInterval = setInterval(() => {
+                countdown--;
+                if (countdown > 0) { emTimer.innerText = `TOMBOL SELESAI DARURAT MUNCUL DALAM ${countdown}S...`; } 
+                else { clearInterval(emInterval); emTimer.style.display = 'none'; sliderCont.style.display = 'block'; playSFX('alert'); }
+            }, 1000);
+
+            emSlider.oninput = function() { 
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                if (this.value >= 98) { this.value = 100; executeEmergencyAction(); } 
+            };
+        }
+
+        async function executeEmergencyAction() {
+            const yakin = await sysConfirm("SELESAI PAKSA", "Sistem akan menghancurkan data penugasan dari Board utama. Lanjutkan?", true);
+            if (yakin) {
+                const kodeMisiAsli = sessionStorage.getItem('eval_mission_code_id') || "";
+                try {
+                    if(dbMaster && kodeMisiAsli) {
+                        await dbMaster.ref(`index_misi/${kodeMisiAsli}`).remove();
+                        await dbMaster.ref(`kode_misi/${kodeMisiAsli}`).remove();
+                    }
+                    if(typeof getTerminal !== 'undefined') await getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).remove();
+                } catch(err) { console.warn("Pembersihan parsial gagal:", err); }
+
+                if(dbDeal) await dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'evaluating_emergency' });
+            } else { document.getElementById('em-slider').value = 0; }
+        }
+
+        function syncTracking() {
+            if(navigator.geolocation && dbDeal) {
+                navigator.geolocation.watchPosition(p => {
+                    dbDeal.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({ lat: p.coords.latitude, lng: p.coords.longitude, ts: Date.now() });
+                });
+            }
+        }
+
+        function forceRefreshData() { playSFX('beep'); document.getElementById('pageLoader').style.display = 'flex'; document.getElementById('pageLoader').style.opacity = '1'; setTimeout(() => location.reload(), 500); }
+    </script>
+</body>
+</html>
