@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" class="notranslate" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BATTLEFIELD HUB | PROGRESS MISI (SOVEREIGN UPGRADE)</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#050505">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script src="terminal_router.js"></script>
+    <script src="clearchance.js"></script>
+
+    <style>
+        /* === SOVEREIGN DESIGN SYSTEM INTEGRATION === */
+        :root {
+            --primary: #ff0055;
+            --neon-blue: #00ffff;
+            --neon-green: #00ff00;
+            --bg-dark: #050505;
+            --card-bg: #0a0a0a;
+            --text-main: #e0e0e0;
+            --text-muted: #888;
+        }
+
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            user-select: none;
+            box-sizing: border-box;
+            scrollbar-width: none;
+        }
+        *::-webkit-scrollbar { display: none; }
+        
+        body, html { 
+            margin: 0; padding: 0; 
+            background: var(--bg-dark); 
+            color: var(--text-main); 
+            font-family: 'Courier New', Courier, monospace; 
+            overflow: hidden; height: 100%; width: 100%; 
+            overscroll-behavior-y: none; touch-action: manipulation;
+            background-image: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #050505 100%);
+        }
+        
+        .hide { display: none !important; }
+
+        /* === LOADER OVERLAY === */
+        #pageLoader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-dark); z-index: 99999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s ease;
+        }
+        .spinner {
+            width: 50px; height: 50px;
+            border: 3px solid rgba(0, 255, 255, 0.1);
+            border-top: 3px solid var(--neon-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* === GLOBAL HEADER BAR === */
+        #global-header { 
+            position: absolute; top: 0; width: 100%; z-index: 2000; 
+            background: rgba(10, 10, 10, 0.9); border-bottom: 1px solid #222; 
+            padding: 12px 15px; backdrop-filter: blur(10px);
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+        }
+        .identity-badge { display: flex; align-items: center; gap: 12px; }
+        
+        /* Rank Badge Style dari Referensi */
+        .rank-badge { 
+            padding: 4px 8px; border-radius: 2px; font-size: 11px; font-weight: bold; 
+            display: inline-block; text-transform: uppercase; font-family: monospace;
+        }
+        .rank-trainer { background: #222; color: #888; border: 1px solid #888; }
+        .rank-F { background: #222; color: #a3a3a3; border: 1px solid #a3a3a3; }
+        .rank-E { background: rgba(74, 222, 128, 0.1); color: #4ade80; border: 1px solid #4ade80; }
+        .rank-D { background: rgba(96, 165, 250, 0.1); color: #60a5fa; border: 1px solid #60a5fa; }
+        .rank-C { background: rgba(168, 85, 247, 0.1); color: #a855f7; border: 1px solid #a855f7; }
+        .rank-B { background: rgba(250, 204, 21, 0.1); color: #facc15; border: 1px solid #facc15; }
+        .rank-A { background: rgba(251, 146, 60, 0.2); color: #fb923c; border: 1px solid #fb923c; }
+        .rank-A-plus { background: rgba(248, 113, 113, 0.2); color: #f87171; border: 1px solid #f87171; animation: pulseRed 1.5s infinite; }
+        .rank-S { background: linear-gradient(45deg, #ff0000, #ff7300, #ff0000); background-size: 200% 200%; color: #fff; border: 1px solid #ff4500; box-shadow: 0 0 10px #ff4500; animation: fireGlow 2s ease infinite; }
+
+        .btn-refresh {
+            background: transparent; color: var(--neon-blue); border: 1px solid var(--neon-blue);
+            padding: 6px 12px; font-size: 10px; cursor: pointer; border-radius: 3px;
+            transition: 0.3s; display: flex; align-items: center; gap: 5px; font-weight: bold;
+        }
+        .btn-refresh:hover { background: var(--neon-blue); color: #000; box-shadow: 0 0 10px var(--neon-blue); }
+
+        /* === VIEWPORT & MAIN CONTAINER === */
+        .viewport { position: absolute; top: 70px; bottom: 65px; width: 100%; overflow: hidden; }
+        .tab-pane { position: absolute; inset: 0; overflow-y: auto; padding-bottom: 40px; }
+        .hq-container { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        
+        .ai-terminal { 
+            background: rgba(0, 255, 255, 0.03); border: 1px solid rgba(0, 255, 255, 0.1); 
+            border-radius: 4px; padding: 12px; display: flex; gap: 12px; align-items: center;
+        }
+        #ai-text { font-size: 11px; font-style: italic; color: var(--neon-blue); line-height: 1.5; }
+
+        .status-panel {
+            background: var(--card-bg); border: 1px solid #222; padding: 12px; border-radius: 4px;
+            border-left: 3px solid var(--neon-blue); display: flex; justify-content: space-between; align-items: center;
+        }
+        #live-status-text { font-size: 11px; color: var(--text-main); font-weight: bold; letter-spacing: 1px; }
+        #live-status-time { font-size: 9px; color: var(--text-muted); text-align: right; }
+
+        /* === CARDS & ROUTE MAP === */
+        .card { background: var(--card-bg); border: 1px solid #222; padding: 15px; border-radius: 4px; position: relative; }
+        .m-title { font-size: 16px; font-weight: bold; color: var(--primary); margin: 0; letter-spacing: 1px; text-transform: uppercase; }
+        
+        .route-map { margin: 15px 0; padding: 15px; background: #080808; border: 1px solid #1a1a1a; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; position: relative; }
+        .route-point { text-align: center; z-index: 2; background: #080808; padding: 0 10px; width: 45%; }
+        .route-point span { font-size: 9px; color: var(--text-muted); display: block; margin-bottom: 5px; letter-spacing: 1px; }
+        .route-point b { color: #fff; font-size: 12px; text-shadow: 0 0 5px rgba(255,255,255,0.2); text-transform: uppercase; }
+        .route-line-container { flex-grow: 1; height: 2px; background: #333; position: relative; z-index: 1; overflow: hidden; }
+        .route-scanner { position: absolute; top: 0; left: 0; width: 30px; height: 2px; background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); animation: scanRoute 2s linear infinite; }
+
+        .reward-tag { color: var(--neon-green); font-size: 20px; font-weight: bold; display: block; margin: 10px 0; text-shadow: 0 0 5px rgba(0, 25, 0, 0.3); }
+        .timer-tag { color: #ffcc00; font-size: 14px; font-weight: bold; }
+
+        /* Mission Progress Track */
+        #mission-progress-container { margin: 15px 0; background: #080808; padding: 12px; border-radius: 4px; border: 1px solid #1a1a1a; }
+        .prog-label { font-size: 11px; color: #bbb; display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .prog-track { height: 3px; background: #222; border-radius: 2px; overflow: hidden; position: relative; }
+        .prog-fill { height: 100%; width: 0%; background: var(--neon-blue); transition: width 1.5s ease; box-shadow: 0 0 10px var(--neon-blue); }
+
+        /* Detail Shard Blocks */
+        .detail-block { margin-top: 12px; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 4px; border-left: 2px solid var(--neon-blue); font-size: 12px; line-height: 1.6; }
+        .detail-block.dest { border-left-color: var(--neon-green); background: rgba(0,255,0,0.02); }
+
+        /* === QUANTUM SLIDER RAIL === */
+        .slider-wrapper {
+            position: relative; width: 100%; height: 50px; background: #080808; 
+            border: 1px solid #222; border-radius: 4px; overflow: hidden; margin-top: 15px;
+        }
+        .slider-text {
+            position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: bold; color: #555; letter-spacing: 2px; pointer-events: none; z-index: 1; text-transform: uppercase;
+        }
+        .slider-fill { position: absolute; top: 0; left: 0; height: 100%; width: 0; background: rgba(0, 255, 255, 0.08); z-index: 2; border-right: 2px solid var(--neon-blue); }
+        .slider-thumb {
+            position: absolute; top: 2px; left: 2px; width: 44px; height: 44px; background: var(--neon-blue);
+            border-radius: 2px; display: flex; align-items: center; justify-content: center; color: #000; font-size: 16px;
+            cursor: pointer; z-index: 3; box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        /* === RED ALERT ZONE === */
+        #emergency-zone { margin-top: 15px; padding: 12px; border: 1px solid var(--primary); border-radius: 4px; background: #0a0a0a; }
+        #em-timer { color: var(--primary); font-size: 11px; text-align: center; margin: 0; font-weight: bold; letter-spacing: 1px; animation: typeStatus 1.5s infinite; }
+        #slider-container-em { display: none; margin-top: 12px; width: 100%; position: relative; height: 45px; background: #110000; border-radius: 4px; border: 1px solid var(--primary); overflow: hidden; }
+        #em-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 50px; height: 43px; background: var(--primary); border-radius: 2px; 
+            box-shadow: -100vw 0 0 100vw rgba(255, 0, 85, 0.2), 0 0 10px var(--primary); border: 1px solid #fff; cursor: ew-resize;
+        }
+
+        .btn-main {
+            background: transparent; border: 1px solid var(--neon-blue); color: var(--neon-blue);
+            padding: 10px; border-radius: 4px; text-transform: uppercase; font-weight: bold;
+            cursor: pointer; width: 100%; font-size: 11px; font-family: monospace; transition: 0.3s;
+        }
+        .btn-main:hover { background: var(--neon-blue); color: #000; box-shadow: 0 0 10px var(--neon-blue); }
+
+        /* === DEBUG PANEL SYSTEM === */
+        .debug-panel { background: #070707; border: 1px dashed #333; padding: 12px; border-radius: 4px; margin-top: 20px; }
+        .debug-title { font-size: 10px; color: #ffcc00; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .btn-debug-copy { background: rgba(255,204,0,0.1); border: 1px solid #ffcc00; color: #ffcc00; font-size: 9px; padding: 2px 6px; cursor: pointer; font-family: monospace; }
+
+        /* === SOVEREIGN MODALS SYSTEM === */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: 15000; display: none; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.2s ease; }
+        .modal-box { background: var(--card-bg); width: 90%; max-width: 350px; padding: 20px; border: 1px solid var(--neon-blue); border-radius: 4px; box-shadow: 0 0 20px rgba(0, 255, 255, 0.1); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .modal-box.danger { border-color: var(--primary); box-shadow: 0 0 20px rgba(255, 0, 85, 0.15); }
+        .modal-title { margin: 0 0 15px 0; color: var(--neon-blue); font-size: 14px; font-weight: bold; letter-spacing: 1px; border-bottom: 1px solid #222; padding-bottom: 8px; text-align: center; }
+        .modal-box.danger .modal-title { color: var(--primary); }
+        .modal-msg { font-size: 12px; color: #ccc; line-height: 1.6; text-align: center; margin-bottom: 15px; }
+        .modal-input { width: 100%; background: #050505; border: 1px solid var(--primary); color: var(--primary); padding: 10px; margin-bottom: 15px; text-align: center; outline: none; font-family: monospace; font-size: 14px; }
+        .profile-stat { display: flex; justify-content: space-between; border-bottom: 1px dashed #222; padding: 6px 0; font-size: 11px; align-items: center; }
+        
+        .modal-btn-group { display: flex; gap: 10px; width: 100%; }
+        .btn-modal { flex: 1; padding: 10px; cursor: pointer; font-weight: bold; font-family: monospace; font-size: 11px; border-radius: 2px; transition: 0.3s; }
+        .btn-modal.primary { background: var(--neon-blue); color: #000; border: none; }
+        .btn-modal.secondary { background: transparent; color: var(--text-muted); border: 1px solid #444; }
+        .btn-modal.danger-fill { background: var(--primary); color: #fff; border: none; }
+        .btn-modal:hover { filter: brightness(1.2); }
+
+        /* FOOTER & DRAWER */
+        #global-footer { position: absolute; bottom: 0; width: 100%; height: 65px; z-index: 3000; background: rgba(10, 10, 10, 0.9); border-top: 1px solid #222; backdrop-filter: blur(10px); }
+        .nav-grid { display: flex; height: 100%; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: var(--neon-blue); font-weight: bold; letter-spacing: 1px; gap: 4px; }
+        
+        .drawer-toggle-btn { position: fixed; bottom: 85px; right: 20px; z-index: 2500; background: #25d366; border: none; color: #000; border-radius: 4px; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 0 10px rgba(37, 211, 102, 0.3); cursor: pointer; }
+        .action-drawer { position: fixed; bottom: 65px; left: 0; width: 100%; background: rgba(5,5,5,0.98); border-top: 1px solid #25d366; transform: translateY(150%); transition: transform 0.4s ease; z-index: 2400; padding-bottom: 20px; }
+        .action-drawer.open { transform: translateY(0); }
+        .drawer-handle { width: 40px; height: 4px; background: #333; margin: 12px auto; border-radius: 2px; }
+
+        /* ANIMATIONS */
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes scanRoute { 0% { left: -30px; } 100% { left: 100%; } }
+        @keyframes typeStatus { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes fireGlow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; box-shadow: 0 0 12px #ffcc00; } 100% { background-position: 0% 50%; } }
+        @keyframes pulseRed { 0% { box-shadow: 0 0 5px #ff4444; } 50% { box-shadow: 0 0 12px #ff4444; } 100% { box-shadow: 0 0 5px #ff4444; } }
+    </style>
+</head>
+<body>
+
+    <div id="pageLoader">
+        <div class="spinner"></div>
+        <div style="color: var(--neon-blue); letter-spacing: 2px; font-size: 11px; animation: typeStatus 1s infinite;">SINKRONISASI DATA SHARD...</div>
+    </div>
+
+    <header id="global-header">
+        <div class="identity-badge">
+            <span id="u-rank-badge" class="rank-badge rank-F">?</span>
+            <div>
+                <div id="u-role" style="font-size: 9px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase;">SINKRONISASI...</div>
+                <div id="u-name" style="font-weight: bold; font-size: 13px; color: #fff;" onclick="viewPartnerProfile()">Memuat Data...</div>
+            </div>
+        </div>
+        <button class="btn-refresh" onclick="forceRefreshData()">
+            <i class="fa-solid fa-rotate-right"></i> REFRESH
+        </button>
+    </header>
+
+    <main class="viewport">
+        <div id="tab-hq" class="tab-pane">
+            <div class="hq-container">
+
+                <div id="ai-terminal-box" class="ai-terminal">
+                    <i class="fa-solid fa-circle-info" style="color: var(--neon-blue); font-size: 16px;"></i>
+                    <div id="ai-text">Menganalisis matriks logistik penugasan lapangan...</div>
+                </div>
+
+                <div class="status-panel">
+                    <div id="live-status-text">● STANDBY - MENUNGGU TRANSMISI</div>
+                    <div id="live-status-time">LATENCY: --ms</div>
+                </div>
+
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <span id="m-category-badge" style="background: rgba(255,0,85,0.1); color: var(--primary); border: 1px solid var(--primary); font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 2px; display: inline-block; margin-bottom: 6px; text-transform: uppercase;">CATEGORY</span>
+                            <h1 id="m-title" class="m-title">ID: ---</h1>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="timer-tag" id="timer-val">00:00:00</div>
+                            <div style="font-size: 8px; color: var(--text-muted); letter-spacing: 0.5px;">WAKTU BERJALAN</div>
+                        </div>
+                    </div>
+
+                    <div class="route-map" id="routeMap">
+                        <div class="route-point">
+                            <span>ORIGIN</span>
+                            <b id="mapOrigin">---</b>
+                        </div>
+                        <div class="route-line-container"><div class="route-scanner"></div></div>
+                        <div class="route-point">
+                            <span>DESTINATION</span>
+                            <b id="mapDest">---</b>
+                        </div>
+                    </div>
+
+                    <div id="mission-progress-container">
+                        <div class="prog-label">
+                            <span id="m-status-text">Sinkronisasi status operasional...</span>
+                            <span id="m-progress-pct" style="color: var(--neon-blue); font-weight: bold;">0%</span>
+                        </div>
+                        <div class="prog-track">
+                            <div id="m-progress-bar" class="prog-fill"></div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <div>
+                            <span style="font-size: 10px; color: #555; display: block;">NILAI KONTRAK FINAL:</span>
+                            <span class="reward-tag" id="m-reward-cash">Rp 0</span>
+                        </div>
+                        <div style="text-align: right; font-size: 11px; color: var(--neon-green);">
+                            <i class="fa-solid fa-route"></i> Rute <span id="m-distance">0</span> KM
+                        </div>
+                    </div>
+
+                    <div id="m-origin-block" class="detail-block">
+                        <b style="color:var(--neon-blue); font-size:10px;">TITIK ASAL (ORIGIN):</b><br>
+                        <span id="m-origin-name" style="color:#fff">-</span><br>
+                        <button id="btn-maps-origin" class="hide btn-main" style="margin-top:8px;"><i class="fa-solid fa-location-arrow"></i> BUKA SCANNER MAPS</button>
+                    </div>
+
+                    <div id="m-dest-block" class="detail-block dest hide">
+                        <b style="color:var(--neon-green); font-size:10px;">TITIK TUJUAN (DESTINATION):</b><br>
+                        <span id="m-dest-name" style="color:#fff">-</span><br>
+                        <button id="btn-maps-dest" class="hide btn-main" style="margin-top:8px; border-color: var(--neon-green); color: var(--neon-green);"><i class="fa-solid fa-map-pin"></i> BUKA SCANNER MAPS</button>
+                    </div>
+
+                    <div id="cargo-hub" class="detail-block hide" style="border-left-color: #ffcc00; background: rgba(255,204,0,0.02);">
+                        <b style="color:#ffcc00; font-size:10px;">DETAIL LOGISTIK / KEBUTUHAN:</b><br>
+                        <span id="m-cargo-detail" style="color:#eee; white-space: pre-line;">-</span>
+                    </div>
+
+                    <div class="profile-stat" style="margin-top: 15px; border-top: 1px solid #222; padding-top: 8px;">
+                        <span>Klien Pemesan:</span> <b id="m-client-name" style="color: var(--neon-blue);">--</b>
+                    </div>
+                    <div class="profile-stat">
+                        <span>Pelaksana Lapangan:</span> <b id="m-adv-nick" style="color: #fff;">--</b>
+                    </div>
+
+                    <div id="action-slider-box" class="hide">
+                        <div style="font-size: 9px; color: var(--neon-blue); text-align: center; margin-top: 15px; font-weight: bold; letter-spacing: 1px;">KONFIRMASI PENYELESAIAN PENUGASAN</div>
+                        <div class="slider-wrapper" id="slider-wrapper">
+                            <div class="slider-text" id="slider-text">GESER UNTUK MENYELESAIKAN MISI</div>
+                            <div class="slider-fill" id="slider-fill"></div>
+                            <div class="slider-thumb" id="slider-thumb"><i class="fa-solid fa-angles-right"></i></div>
+                        </div>
+                    </div>
+
+                    <div id="emergency-zone" class="hide">
+                        <p id="em-timer">MENGINISIALISASI PROTOKOL RED ALERT...</p>
+                        <div id="slider-container-em">
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; font-size: 9px; color: #fff; font-weight: bold; width: 100%; text-align: center; z-index: 1; letter-spacing: 1px;">
+                                GESER PENUH : HANCURKAN YURIDIKSI DATA
+                            </div>
+                            <input type="range" id="em-slider" min="0" max="100" value="0" style="-webkit-appearance: none; width: 100%; height: 100%; cursor: pointer; background: transparent; position: relative; z-index: 2; margin: 0; outline: none;">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="adv-status-hub" class="hide card" style="margin-top:0;">
+                    <div style="font-size: 10px; color: #888; margin-bottom: 10px; text-align: center; letter-spacing: 1px;">KENDALI STATUS REAL-TIME</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <button class="btn-main" onclick="sendLiveStatus('OTW Lokasi Asal')">➔ OTW ORIGIN</button>
+                        <button class="btn-main" onclick="sendLiveStatus('OTW Lokasi Tujuan')">➔ OTW DEST</button>
+                        <button class="btn-main" style="border-color: var(--neon-green); color: var(--neon-green);" onclick="sendLiveStatus('Tiba di Lokasi')">✓ TIBA LOKASI</button>
+                        <button class="btn-main" style="border-color: var(--primary); color: var(--primary);" onclick="sendLiveStatus('Kendala Lapangan')">⚠ KENDALA</button>
+                    </div>
+                </div>
+
+                <div class="debug-panel">
+                    <div class="debug-title">
+                        <span>[SYSTEM_STORAGE_LOGS]</span>
+                        <button class="btn-debug-copy" onclick="copyStorageDebug()">COPY DATA DEBUG</button>
+                    </div>
+                    <div style="font-family: monospace; font-size: 9px; color: #888; max-height: 80px; overflow-y: auto; white-space: pre-wrap;" id="debugDumpBox">Mengompilasi data cache...</div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <button id="requester-toggle-btn" class="drawer-toggle-btn hide" onclick="toggleActionDrawer()">
+        <i class="fa-brands fa-whatsapp"></i>
+    </button>
+
+    <div id="action-drawer" class="action-drawer">
+        <div class="drawer-handle" onclick="toggleActionDrawer()"></div>
+        <div style="padding: 0 20px;" id="role-action-area"></div>
+    </div>
+
+    <footer id="global-footer">
+        <nav class="nav-grid">
+            <div class="nav-item"><i class="fa-solid fa-satellite-dish" style="color:var(--neon-green);"></i>MONITORING SHARD HUB ONLINE</div>
+        </nav>
+    </footer>
+
+    <div id="sysModal" class="modal-overlay">
+        <div id="modalBox" class="modal-box">
+            <div id="modalTitle" class="modal-title">TITLE</div>
+            <div id="modalMsg" class="modal-msg">MESSAGE</div>
+            <input type="text" id="modalInput" class="modal-input" style="display: none;">
+            <div id="modalBtnGroup" class="modal-btn-group"></div>
+        </div>
+    </div>
+
+    <script>
+        // === 1. INTERNAL SYSTEM AUDIO (SFX) ===
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        document.body.addEventListener('click', () => { if(audioCtx.state === 'suspended') audioCtx.resume(); }, { once: true });
+        document.body.addEventListener('touchstart', () => { if(audioCtx.state === 'suspended') audioCtx.resume(); }, { once: true, passive: true });
+
+        function playSFX(type) {
+            if(audioCtx.state === 'suspended') return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+
+            if (type === 'beep') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'alert') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+            } else if (type === 'success') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(600, audioCtx.currentTime); osc.frequency.setValueAtTime(900, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        // === 2. UNIVERSAL MODALS HANDLING (SOVEREIGN ENGINE REVISI) ===
+        function sysAlert(title, msg, isDanger = false) {
+            return new Promise((resolve) => {
+                playSFX(isDanger ? 'alert' : 'beep');
+                const modal = document.getElementById('sysModal');
+                const box = document.getElementById('modalBox');
+                document.getElementById('modalTitle').innerText = title;
+                document.getElementById('modalMsg').innerText = msg;
+                box.className = isDanger ? "modal-box danger" : "modal-box";
+                document.getElementById('modalInput').style.display = "none";
+                
+                const grp = document.getElementById('modalBtnGroup'); grp.innerHTML = "";
+                const btn = document.createElement('button');
+                btn.className = isDanger ? "btn-modal danger-fill" : "btn-modal primary";
+                btn.innerText = "MENGERTI";
+                btn.onclick = () => { modal.style.display = "none"; playSFX('beep'); resolve(); };
+                grp.appendChild(btn); modal.style.display = "flex";
+            });
+        }
+
+        function sysConfirm(title, msg, isDanger = false, verifyWord = null) {
+            return new Promise((resolve) => {
+                playSFX(isDanger ? 'alert' : 'beep');
+                const modal = document.getElementById('sysModal');
+                const box = document.getElementById('modalBox');
+                const inputField = document.getElementById('modalInput');
+                
+                document.getElementById('modalTitle').innerText = title;
+                document.getElementById('modalMsg').innerText = msg;
+                box.className = isDanger ? "modal-box danger" : "modal-box";
+                
+                if(verifyWord) {
+                    inputField.style.display = "block";
+                    inputField.placeholder = `KETIK '${verifyWord}'`;
+                    inputField.value = "";
+                } else { inputField.style.display = "none"; }
+                
+                const grp = document.getElementById('modalBtnGroup'); grp.innerHTML = "";
+                const btnC = document.createElement('button');
+                btnC.className = "btn-modal secondary"; btnC.innerText = "BATAL";
+                btnC.onclick = () => { modal.style.display = "none"; resolve(false); };
+                grp.appendChild(btnC);
+
+                const btnO = document.createElement('button');
+                btnO.className = isDanger ? "btn-modal danger-fill" : "btn-modal primary";
+                btnO.innerText = "PROSES";
+                btnO.onclick = () => {
+                    if(verifyWord && inputField.value !== verifyWord) {
+                        inputField.style.borderColor = "#ff0055"; playSFX('alert'); return;
+                    }
+                    modal.style.display = "none"; playSFX('success'); resolve(true);
+                };
+                grp.appendChild(btnO); modal.style.display = "flex";
+            });
+        }
+
+        // === 3. CORES STATE & INITIALIZATION ===
+        const user = typeof Clearchance !== 'undefined' ? Clearchance.enforceIdentity() : {role: 'adventurer', uid: 'test-uid', nick: 'Dev_Test'};
+        const contractId = sessionStorage.getItem('active_contract_id') || "TEST-ID";
+        const isAdv = user.role === 'adventurer';
+
+        const dbDeal = typeof getTerminal !== 'undefined' ? getTerminal('FB5_DEAL') : null;
+        const dbMaster = typeof getTerminal !== 'undefined' ? getTerminal('FB1_MASTER') : null;
+        
+        let initialLoadComplete = false;
+        let cachedPartnerNick = "";
+        let cachedPartnerDefaultRank = "F";
+
+        window.onload = async () => {
+            initUI();
+            dumpStorageToView();
+            if(dbDeal && dbMaster) {
+                await performDeepMining();
+                syncStatus();
+                syncTracking();
+            } else {
+                // Mock loader resolve jika environment router absen
+                resolveLoader();
+            }
+            if(!isAdv) initSliderAction();
+            if(isAdv) startEmergencyProtocol();
+        };
+
+        function initUI() {
+            if(isAdv) {
+                document.getElementById('adv-status-hub').classList.remove('hide');
+            } else {
+                document.getElementById('requester-toggle-btn').classList.remove('hide');
+                document.getElementById('action-slider-box').classList.remove('hide');
+            }
+        }
+
+        function resolveLoader() {
+            if(!initialLoadComplete) {
+                document.getElementById('pageLoader').style.opacity = '0';
+                setTimeout(() => document.getElementById('pageLoader').style.display = 'none', 500);
+                initialLoadComplete = true;
+            }
+        }
+
+        function toggleActionDrawer() { document.getElementById('action-drawer').classList.toggle('open'); playSFX('beep'); }
+
+        // === 4. DATA DEEP MINING CROSS-SHARD BROADCAST ===
+        async function performDeepMining() {
+            if(typeof getSupremeData === 'undefined') return;
+            try {
+                const DATA = await getSupremeData(contractId);
+                if (!DATA) { resolveLoader(); return; }
+                const partner = isAdv ? DATA.requester : DATA.adventurer;
+                
+                cachedPartnerNick = partner?.profile?.nickname || partner?.profile?.nama || "Unknown";
+                cachedPartnerDefaultRank = partner?.profile?.rank || "F";
+
+                document.getElementById('u-name').innerText = partner?.profile?.nama || "Unknown Entity";
+                document.getElementById('u-role').innerText = isAdv ? "KLIEN PEMESAN (REQUESTER)" : "KONTRAKTOR (ADVENTURER)";
+                
+                const frameRank = document.getElementById('u-rank-badge');
+                const rawRank = isAdv ? `T${partner?.profile?.tier || '1'}` : (partner?.profile?.rank || "F");
+                frameRank.innerText = rawRank;
+                frameRank.className = `rank-badge rank-${rawRank.replace('+', '-plus')}`;
+
+                sessionStorage.setItem('eval_target_nick', isAdv ? (DATA.mission?.client_name || "stranger") : (DATA.mission?.adventurer_nick || "unknown"));
+                sessionStorage.setItem('eval_mission_code_id', DATA.mission?.id_misi_asli || "CLASSIFIED");
+
+                injectDetails(DATA);
+                resolveLoader();
+            } catch (e) { console.error(e); resolveLoader(); }
+        }
+
+        function injectDetails(DATA) {
+            const m = DATA.mission;
+            const detail = m.full_mission_data || {};
+            
+            document.getElementById('m-title').innerText = "ID: " + (m.id_misi || contractId);
+            document.getElementById('m-category-badge').innerText = (detail.category || m.category || "Umum").toUpperCase();
+            document.getElementById('m-client-name').innerText = detail.client_name || "STRANGER";
+            document.getElementById('m-distance').innerText = detail.distance_est || "0";
+            document.getElementById('m-reward-cash').innerText = "Rp " + Number(m.reward || 0).toLocaleString();
+            document.getElementById('m-adv-nick').innerText = m.adventurer_nick || "Unknown";
+            
+            document.getElementById('m-origin-name').innerText = `${detail.origin_name || '-'} (${detail.origin_desa || '-'}) \n Detail: ${detail.origin_details || '-'}`;
+            
+            document.getElementById('mapOrigin').innerText = (detail.origin_desa || '-').toUpperCase();
+
+            const isSpecialCategory = (m.category === 'Titip Beli' || m.category === 'Help');
+            document.getElementById('mapDest').innerText = isSpecialCategory ? 'AREA LOKAL' : (detail.dest_desa || '-').toUpperCase();
+
+            if (isSpecialCategory) {
+                document.getElementById('cargo-hub').classList.remove('hide');
+                document.getElementById('m-cargo-detail').innerText = detail.dest_details || "Tidak ada catatan logistik detail.";
+            } else {
+                document.getElementById('m-dest-block').classList.remove('hide');
+                document.getElementById('m-dest-name').innerText = `${detail.dest_name || detail.dest_desa || '-'} (${detail.dest_desa || '-'}) \n Detail: ${detail.dest_details || '-'}`;
+            }
+
+            if(!isAdv) {
+                const phone = DATA?.adventurer?.profile?.whatsapp || "";
+                document.getElementById('role-action-area').innerHTML = `
+                    <button class="btn-main" onclick="window.open('https://wa.me/${phone.replace(/\D/g,'')}')" style="background:#25d366; color:#000; border:none; padding:12px; font-weight:bold; font-size:12px;">
+                        <i class="fa-brands fa-whatsapp"></i> HUBUNGI VIA WA SECURE LINE
+                    </button>`;
+            }
+            startMissionTimer(m.start_time || Date.now());
+        }
+
+        function startMissionTimer(startTime) {
+            setInterval(() => {
+                const diff = Date.now() - startTime;
+                const h = Math.floor(diff / 3600000).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+                document.getElementById('timer-val').innerText = `${h}:${h === '00' ? m : m}:${s}`;
+            }, 1000);
+        }
+
+        // === 5. REAL-TIME SYNCHRONIZATION & ACCELEROMETER/PING ===
+        function sendLiveStatus(str) {
+            playSFX('beep');
+            if(dbDeal) dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).set({ text: str, ts: Date.now() });
+        }
+
+        function syncStatus() {
+            if(!dbDeal) return;
+            const pingEl = document.getElementById('live-status-time');
+            
+            dbDeal.ref(".info/connected").on("value", (snap) => {
+                if (snap.val() === true) {
+                    const startTime = Date.now();
+                    dbDeal.ref('.info/serverTimeOffset').once('value', () => {
+                        const ping = Date.now() - startTime;
+                        pingEl.innerText = `PING: ${ping}ms | SHARD ONLINE`;
+                        pingEl.style.color = "var(--neon-green)";
+                    });
+                } else {
+                    pingEl.innerText = "SHARD OFFLINE"; pingEl.style.color = "var(--primary)";
+                }
+            });
+
+            dbDeal.ref(`kontrak_detail/${contractId}/status`).on('value', snap => {
+                const statusValue = snap.val();
+                if(statusValue === 'evaluating' || statusValue === 'evaluating_emergency') {
+                    sessionStorage.setItem('eval_emergency_triggered', statusValue === 'evaluating_emergency' ? 'true' : 'false');
+                    window.location.href = "penilaian.html";
+                }
+                
+                // Kalkulasi Progress bar persentase berdasarkan tahapan status
+                const progressMap = { 'briefing': 25, 'otw_origin': 50, 'otw_dest': 75, 'arrived': 90, 'evaluating': 100 };
+                const pct = progressMap[statusValue] || 15;
+                document.getElementById('m-progress-bar').style.width = `${pct}%`;
+                document.getElementById('m-progress-pct').innerText = `${pct}%`;
+            });
+
+            dbDeal.ref(`kontrak_detail/${contractId}/latest_status`).on('value', snap => {
+                if(!snap.exists()) return;
+                const d = snap.val();
+                document.getElementById('live-status-text').innerText = `● STATUS: ${d.text.toUpperCase()}`;
+                playSFX('beep');
+            });
+        }
+
+        // === 6. PROFILING DEEP MINING DIALOG LOOKUP ===
+        async function viewPartnerProfile() {
+            if(!cachedPartnerNick) return;
+            playSFX('beep');
+            
+            // Re-utilisasi struktur modal utama untuk menayangkan detail profil lengkap
+            const modal = document.getElementById('sysModal');
+            const box = document.getElementById('modalBox');
+            const grp = document.getElementById('modalBtnGroup');
+            
+            document.getElementById('modalTitle').innerText = "BUKU INDUK ENTITAS";
+            document.getElementById('modalMsg').innerHTML = `<div style="color:var(--neon-blue);">Menambang Shard Data...</div>`;
+            box.className = "modal-box"; document.getElementById('modalInput').style.display = "none";
+            grp.innerHTML = "";
+            modal.style.display = "flex";
+
+            try {
+                if(!dbMaster) {
+                    document.getElementById('modalMsg').innerHTML = `Sistem lokal terisolasi. ID Nickname: <b>${cachedPartnerNick}</b>`;
+                    return;
+                }
+                const snapIdx = await dbMaster.ref('adventurer_index').orderByChild('nickname').equalTo(cachedPartnerNick).once('value');
+                if(!snapIdx.exists()){
+                    document.getElementById('modalMsg').innerHTML = `Entitas Rekan tidak terdaftar pada Shard Utama Global.`;
+                    return;
+                }
+                
+                const meta = Object.values(snapIdx.val())[0];
+                const shard = getTerminal(meta.shard_id || "FB2_RUNNER");
+                const id = meta.id_adv;
+                const area = meta.area_tugas;
+
+                const [snapProfile, snapRole, snapRept] = await Promise.all([
+                    shard.ref(`adventurer_profile/${id}`).once('value'),
+                    shard.ref(`adventurer-${area}/Umum/${id}`).once('value'),
+                    shard.ref(`adventurer_reputation/${id}`).once('value')
+                ]);
+
+                const p = snapProfile.val() || {};
+                const r = snapRole.val() || {};
+                const t = snapRept.val() || {};
+
+                document.getElementById('modalMsg').innerHTML = `
+                    <div class="profile-stat"><span>Nama Real:</span><b>${r.nama_lengkap || '-'}</b></div>
+                    <div class="profile-stat"><span>Gelar Otoritas:</span><b style="color:#fb923c;">${p.gelar || 'OPERASIONAL'}</b></div>
+                    <div class="profile-stat"><span>Level Guard:</span><b>LVL ${p.level || 1}</b></div>
+                    <div class="profile-stat"><span>Unit Arsenal:</span><b style="color:var(--neon-green);">${r.arsenal?.merk || '-'} [${r.arsenal?.plat || '-'}]</b></div>
+                    <div class="profile-stat"><span>Domisili:</span><b>${r.domisili_lengkap?.desa || '-'}</b></div>
+                    <div class="profile-stat"><span>Misi Sukses:</span><b>${t.total_mission_completed || 0} Kali</b></div>
+                `;
+            } catch(e) {
+                document.getElementById('modalMsg').innerText = "Gagal memproses parsing shard: " + e.message;
+            }
+            
+            const btnClose = document.createElement('button');
+            btnClose.className = "btn-modal secondary"; btnClose.innerText = "TUTUP";
+            btnClose.onclick = () => modal.style.display = "none";
+            grp.appendChild(btnClose);
+        }
+
+        // === 7. CONFIRMATION SLIDERS INTERACTIVITY (QUANTUM RAIL) ===
+        function initSliderAction() {
+            const wrapper = document.getElementById('slider-wrapper');
+            const thumb = document.getElementById('slider-thumb');
+            const fill = document.getElementById('slider-fill');
+            const text = document.getElementById('slider-text');
+            let isDragging = false, startX = 0, maxW = 0;
+
+            const startDrag = (e) => {
+                isDragging = true;
+                startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                maxW = wrapper.clientWidth - thumb.clientWidth - 4;
+            };
+            const moveDrag = (e) => {
+                if(!isDragging) return;
+                let curX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                let move = curX - startX;
+                if(move < 0) move = 0; if(move > maxW) move = maxW;
+                thumb.style.transform = `translateX(${move}px)`;
+                fill.style.width = `${move + 20}px`;
+                text.style.opacity = 1 - (move / maxW);
+            };
+            const endDrag = async (e) => {
+                if(!isDragging) return; isDragging = false;
+                let curX = e.type.includes('mouse') ? e.clientX : e.changedTouches[0].clientX;
+                if((curX - startX) > maxW * 0.85) {
+                    thumb.style.transform = `translateX(${maxW}px)`; fill.style.width = `100%`;
+                    playSFX('success');
+                    if(dbDeal) { await dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'evaluating' }); }
+                } else {
+                    thumb.style.transform = `translateX(0px)`; fill.style.width = `0px`; text.style.opacity = 1;
+                }
+            };
+            thumb.addEventListener('mousedown', startDrag); document.addEventListener('mousemove', moveDrag); document.addEventListener('mouseup', endDrag);
+            thumb.addEventListener('touchstart', startDrag, {passive: true}); document.addEventListener('touchmove', moveDrag, {passive: true}); document.addEventListener('touchend', endDrag);
+        }
+
+        // === 8. RED ALERT EMERGENCY PROTOCOL ===
+        function startEmergencyProtocol() {
+            const emZone = document.getElementById('emergency-zone');
+            const emTimer = document.getElementById('em-timer');
+            const sliderCont = document.getElementById('slider-container-em');
+            const emSlider = document.getElementById('em-slider');
+            emZone.classList.remove('hide');
+
+            let countdown = 10;
+            let emInterval = setInterval(() => {
+                countdown--;
+                if (countdown > 0) {
+                    emTimer.innerText = `PROTOKOL SELESAI DARURAT TERBUKA DALAM ${countdown}S... (GUNAKAN BILA REQUESTER AFK)`;
+                } else {
+                    clearInterval(emInterval);
+                    emTimer.style.display = 'none';
+                    sliderCont.style.display = 'block';
+                    playSFX('alert');
+                }
+            }, 1000);
+
+            emSlider.oninput = function() {
+                if (this.value >= 98) { this.value = 100; executeEmergencyAction(); }
+            };
+        }
+
+        async function executeEmergencyAction() {
+            const yakin = await sysConfirm("EKSEKUSI PEMBERSIHAN KRITIS", "Sistem akan menghapus data index penugasan pada Board utama secara paksa.\n\nLanjutkan pemutusan koneksi?", true, "HANCURKAN");
+            if (yakin) {
+                const kodeMisiAsli = sessionStorage.getItem('eval_mission_code_id') || "";
+                try {
+                    if(dbMaster && kodeMisiAsli) {
+                        await dbMaster.ref(`index_misi/${kodeMisiAsli}`).remove();
+                        await dbMaster.ref(`kode_misi/${kodeMisiAsli}`).remove();
+                    }
+                    if(typeof getTerminal !== 'undefined') {
+                        await getTerminal('FB4_BOARD').ref(`kontrak_mission/${contractId}`).remove();
+                    }
+                } catch(err) { console.warn("Pembersihan parsial aktif:", err); }
+
+                if(dbDeal) { await dbDeal.ref(`kontrak_detail/${contractId}`).update({ status: 'evaluating_emergency' }); }
+            } else { document.getElementById('em-slider').value = 0; }
+        }
+
+        function syncTracking() {
+            if(navigator.geolocation && dbDeal) {
+                navigator.geolocation.watchPosition(p => {
+                    dbDeal.ref(`kontrak_detail/${contractId}/tracking/${user.uid}`).set({ lat: p.coords.latitude, lng: p.coords.longitude, ts: Date.now() });
+                }, null, { enableHighAccuracy: true });
+            }
+        }
+
+        // === 9. EXTRACT & COPY STORAGE MODULE (DEBUG TOOL) ===
+        function dumpStorageToView() {
+            const debugBox = document.getElementById('debugDumpBox');
+            const dumpData = {
+                TIMESTAMP_LOCAL: new Date().toLocaleString(),
+                SESSION_STORAGE: {},
+                LOCAL_STORAGE: {}
+            };
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i); dumpData.SESSION_STORAGE[key] = sessionStorage.getItem(key);
+            }
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i); dumpData.LOCAL_STORAGE[key] = localStorage.getItem(key);
+            }
+            debugBox.innerText = JSON.stringify(dumpData, null, 2);
+            return JSON.stringify(dumpData);
+        }
+
+        async function copyStorageDebug() {
+            playSFX('beep');
+            const dataText = dumpStorageToView();
+            try {
+                await navigator.clipboard.writeText(dataText);
+                await sysAlert("DEBUGGER SYSTEM", "Seluruh isi Session & Local Storage berhasil disalin ke clipboard! Siap dilaporkan.");
+            } catch (err) {
+                // Fallback jika API Clipboard ditolak / tidak diizinkan di webview
+                const txtArea = document.createElement("textarea"); txtArea.value = dataText;
+                document.body.appendChild(txtArea); txtArea.select(); document.execCommand("copy");
+                document.body.removeChild(txtArea);
+                await sysAlert("DEBUGGER SYSTEM", "Salin via metode Fallback berhasil.");
+            }
+        }
+
+        function forceRefreshData() { playSFX('beep'); setTimeout(() => location.reload(), 200); }
+    </script>
+</body>
+</html>
