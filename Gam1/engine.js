@@ -1,25 +1,25 @@
 const GameEngine = {
-    // Data Karakter Utama
     player: {
         name: "Arthur",
-        age: 15,          // Umur mulai
-        day: 1,           // Hari ke-
-        year: 1,          // Tahun ke-
+        age: 15,
+        day: 1,
+        year: 1,
         str: 10,
         agi: 10,
         int: 10,
         gold: 50,
         status: "Solo Adventurer",
         guild: "Belum Terdaftar",
+        party: "Sendiri (Solo)",
         isAlive: true
     },
 
-    // Sistem Registry Event (Pusat penampung semua event dari file terpisah)
     registry: [],
+    isAutoPlaying: false,
+    timer: null,
+    speed: 1500, // Kecepatan jalan otomatis (dalam milidetik / 1.5 detik per hari)
 
-    // Fungsi untuk mendaftarkan event baru dari file lain
     registerEvent(eventObj) {
-        // eventObj minimal memiliki: id, condition(player), weight, execute(player, logFunc)
         this.registry.push(eventObj);
     },
 
@@ -45,8 +45,11 @@ const GameEngine = {
         document.getElementById("val-gold").innerText = this.player.gold;
         document.getElementById("val-status").innerText = this.player.status;
         document.getElementById("val-guild").innerText = this.player.guild;
+        document.getElementById("val-party").innerText = this.player.party;
 
         if (!this.player.isAlive) {
+            this.stopAuto();
+            document.getElementById("btn-toggle-auto").disabled = true;
             document.getElementById("btn-next").disabled = true;
             document.getElementById("choice-container").innerHTML = "<h3 style='color:red;'>Karakter Telah Meninggal Dunia.</h3>";
         }
@@ -63,7 +66,7 @@ const GameEngine = {
             this.player.age++;
             this.log(`Tahun berganti. Usia karakter sekarang ${this.player.age} tahun.`);
             
-            // Sistem Kematian karena Usia Tua (Misal: max 80 tahun)
+            // Sistem Kematian karena Usia Tua (Misal: 80 tahun)
             if (this.player.age >= 80 && Math.random() < 0.2) {
                 this.player.isAlive = false;
                 this.log("Karakter meninggal dunia dengan tenang karena usia tua.");
@@ -72,7 +75,7 @@ const GameEngine = {
             }
         }
 
-        // 2. Filter Event yang memenuhi syarat (kondisi unik tiap event)
+        // 2. Filter Event yang memenuhi syarat
         let availableEvents = this.registry.filter(ev => {
             if (ev.condition) {
                 return ev.condition(this.player);
@@ -80,7 +83,7 @@ const GameEngine = {
             return true;
         });
 
-        // 3. Ambil Event secara Random berdasarkan bobot (weight)
+        // 3. Ambil Event secara Random berdasarkan bobot
         if (availableEvents.length > 0) {
             let totalWeight = availableEvents.reduce((sum, ev) => sum + (ev.weight || 1), 0);
             let randomNum = Math.random() * totalWeight;
@@ -89,6 +92,10 @@ const GameEngine = {
             for (let ev of availableEvents) {
                 currentWeight += (ev.weight || 1);
                 if (randomNum <= currentWeight) {
+                    // Jika event memiliki pilihan interaktif, JEDA otomatis game-nya
+                    if (ev.hasChoices) {
+                        this.stopAuto();
+                    }
                     ev.execute(this.player, (msg) => this.log(msg), (choices) => this.showChoices(choices));
                     break;
                 }
@@ -100,22 +107,47 @@ const GameEngine = {
         this.updateUI();
     },
 
-    showChoices(choices) {
-        // Jika event memunculkan pilihan interaktif
-        let container = document.getElementById("choice-container");
-        container.innerHTML = "<h4>Pilihan Tindakan:</h4>";
-        
-        // Nonaktifkan tombol lanjut waktu sampai pilihan dipilih
+    toggleAuto() {
+        if (this.isAutoPlaying) {
+            this.stopAuto();
+        } else {
+            this.startAuto();
+        }
+    },
+
+    startAuto() {
+        if (!this.player.isAlive) return;
+        this.isAutoPlaying = true;
+        document.getElementById("btn-toggle-auto").innerText = "Pause (Berhenti Otomatis)";
+        document.getElementById("btn-toggle-auto").style.background = "#ff4444";
         document.getElementById("btn-next").disabled = true;
 
+        this.timer = setInterval(() => {
+            this.nextTurn();
+        }, this.speed);
+    },
+
+    stopAuto() {
+        this.isAutoPlaying = false;
+        clearInterval(this.timer);
+        document.getElementById("btn-toggle-auto").innerText = "Mulai Auto-Progress";
+        document.getElementById("btn-toggle-auto").style.background = "#ffcc00";
+        document.getElementById("btn-next").disabled = false;
+    },
+
+    showChoices(choices) {
+        let container = document.getElementById("choice-container");
+        container.innerHTML = "<h4>⚠️ [EVENT UTAMA] Butuh Keputusanmu:</h4>";
+        
         choices.forEach(ch => {
             let btn = document.createElement("button");
             btn.innerText = ch.text;
             btn.onclick = () => {
                 ch.action(this.player, (msg) => this.log(msg));
                 container.innerHTML = "";
-                document.getElementById("btn-next").disabled = false;
                 this.updateUI();
+                // Otomatis lanjut jalan lagi setelah memilih (opsional, jika ingin dilanjut)
+                // this.startAuto(); 
             };
             container.appendChild(btn);
         });
