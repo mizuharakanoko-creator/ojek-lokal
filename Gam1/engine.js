@@ -4,6 +4,7 @@ const GameEngine = {
         age: 15,
         day: 1,
         year: 1,
+        // Status Dasar
         str: 10,
         agi: 10,
         int: 10,
@@ -11,13 +12,37 @@ const GameEngine = {
         status: "Solo Adventurer",
         guild: "Belum Terdaftar",
         party: "Sendiri (Solo)",
+        
+        // Data Sistem Nyata (Bukan Sekadar Teks)
+        housing: {
+            name: "Kamar Sewa Murah",
+            tier: 1,
+            dailyCost: 1
+        },
+        partner: null, // Contoh struktur: { name: "Aria", affection: 10, status: "Pacar" }
+        pet: null,     // Contoh struktur: { name: "Fifi", type: "Serigala", level: 1, hunger: 100 }
+        summon: null,
+        
+        // Inventory & Equipment Nyata
+        inventory: [
+            { id: "potion_hp", name: "Ramuan Penyembuh", type: "consumable", value: 20, effect: { hp: 50 } },
+            { id: "bread", name: "Roti Kering", type: "consumable", value: 5, effect: { hunger: 20 } }
+        ],
+        equipment: {
+            weapon: { name: "Pedang Karatan", slot: "weapon", bonusStr: 2, value: 10 },
+            armor: { name: "Pakaian Kain", slot: "armor", bonusAgi: 1, value: 5 }
+        },
+        skills: [
+            { id: "slash", name: "Tebasan Dasar", level: 1, desc: "Serangan fisik dasar." }
+        ],
+        
         isAlive: true
     },
 
     registry: [],
     isAutoPlaying: false,
     timer: null,
-    speed: 1500, // Kecepatan jalan otomatis (dalam milidetik / 1.5 detik per hari)
+    speed: 1500, // Kecepatan 1.5 detik per hari
 
     registerEvent(eventObj) {
         this.registry.push(eventObj);
@@ -30,22 +55,131 @@ const GameEngine = {
 
     log(message) {
         const logBox = document.getElementById("event-log");
-        logBox.innerHTML += `[Thn ${this.player.year} - Hari ${this.player.day}] ${message}<br>`;
-        logBox.scrollTop = logBox.scrollHeight;
+        if (logBox) {
+            logBox.innerHTML += `[Thn ${this.player.year} - Hari ${this.player.day}] ${message}<br>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+    },
+
+    // --- FUNGSI MANAJEMEN DATA NYATA ---
+    addItem(item) {
+        this.player.inventory.push(item);
+        this.log(`Mendapatkan item: <b>${item.name}</b>`);
+        this.updateUI();
+    },
+
+    useItem(index) {
+        let item = this.player.inventory[index];
+        if (!item) return;
+        if (item.type === "consumable") {
+            this.log(`Menggunakan ${item.name}.`);
+            // Efek item bisa disesuaikan
+            this.player.inventory.splice(index, 1);
+        }
+        this.updateUI();
+    },
+
+    sellItem(index) {
+        let item = this.player.inventory[index];
+        if (!item) return;
+        this.player.gold += item.value;
+        this.log(`Menjual ${item.name} seharga ${item.value} Gold.`);
+        this.player.inventory.splice(index, 1);
+        this.updateUI();
+    },
+
+    equipItem(newEquip, index) {
+        let slot = newEquip.slot; // "weapon" atau "armor"
+        let oldEquip = this.player.equipment[slot];
+        
+        // Lepas item lama ke inventory
+        if (oldEquip && oldEquip.name !== "Pedang Karatan" && oldEquip.name !== "Pakaian Kain") {
+            this.player.inventory.push(oldEquip);
+        }
+        
+        // Pasang item baru
+        this.player.equipment[slot] = newEquip;
+        this.player.inventory.splice(index, 1);
+        this.log(`Menggunakan perlengkapan: ${newEquip.name}`);
+        this.updateUI();
+    },
+
+    learnOrUpgradeSkill(skillId, skillName) {
+        let existing = this.player.skills.find(s => s.id === skillId);
+        if (existing) {
+            existing.level++;
+            this.log(`Skill <b>${skillName}</b> naik ke level ${existing.level}!`);
+        } else {
+            this.player.skills.push({ id: skillId, name: skillName, level: 1, desc: "Skill baru." });
+            this.log(`Mempelajari skill baru: <b>${skillName}</b>!`);
+        }
+        this.updateUI();
+    },
+
+    // --- PROGRES ENTITAS OTONOM (Istri, Pet, Rumah) DI LATAR BELAKANG ---
+    updateAutonomousEntities() {
+        // 1. Progres Pet
+        if (this.player.pet) {
+            this.player.pet.hunger -= 5;
+            if (this.player.pet.hunger <= 0) {
+                this.log(`⚠️ Pet kamu (${this.player.pet.name}) kelaparan dan kabur ke hutan!`);
+                this.player.pet = null;
+            } else if (Math.random() < 0.1) {
+                this.player.pet.level++;
+                this.log(`🐾 Pet kamu (${this.player.pet.name}) tumbuh semakin kuat (Level ${this.player.pet.level})!`);
+            }
+        }
+
+        // 2. Progres Istri / Partner (Punya story sendiri)
+        if (this.player.partner) {
+            this.player.partner.affection += Math.floor(Math.random() * 3);
+            // Contoh alur cerita otomatis partner
+            if (this.player.partner.affection >= 50 && this.player.partner.status === "Pacar") {
+                this.player.partner.status = "Tunangan";
+                this.log(`💍 Hubungan dengan ${this.player.partner.name} meningkat ke tahap Tunangan!`);
+            } else if (this.player.partner.affection >= 100 && this.player.partner.status === "Tunangan") {
+                this.player.partner.status = "Istri (Menikah Sah)";
+                this.log(`💒 ${this.player.partner.name} dan kamu resmi melangsungkan pernikahan agung!`);
+            }
+        }
+
+        // 3. Biaya Hidup Rumah
+        if (this.player.housing && this.player.housing.dailyCost > 0) {
+            if (this.player.gold >= this.player.housing.dailyCost) {
+                this.player.gold -= this.player.housing.dailyCost;
+            } else {
+                this.log(`⚠️ Kamu tidak sanggup membayar biaya perawatan ${this.player.housing.name}. Terpaksa diusir kembali ke kamar sewa murah!`);
+                this.player.housing = { name: "Kamar Sewa Murah", tier: 1, dailyCost: 1 };
+            }
+        }
     },
 
     updateUI() {
+        // Update teks status dasar
         document.getElementById("val-name").innerText = this.player.name;
         document.getElementById("val-age").innerText = this.player.age;
         document.getElementById("val-day").innerText = this.player.day;
         document.getElementById("val-year").innerText = this.player.year;
-        document.getElementById("val-str").innerText = this.player.str;
-        document.getElementById("val-agi").innerText = this.player.agi;
+        document.getElementById("val-str").innerText = this.player.str + (this.player.equipment.weapon?.bonusStr || 0);
+        document.getElementById("val-agi").innerText = this.player.agi + (this.player.equipment.armor?.bonusAgi || 0);
         document.getElementById("val-int").innerText = this.player.int;
         document.getElementById("val-gold").innerText = this.player.gold;
         document.getElementById("val-status").innerText = this.player.status;
         document.getElementById("val-guild").innerText = this.player.guild;
         document.getElementById("val-party").innerText = this.player.party;
+        
+        // Update Entitas Otonom
+        document.getElementById("val-housing").innerText = this.player.housing ? this.player.housing.name : "-";
+        document.getElementById("val-partner").innerText = this.player.partner ? `${this.player.partner.name} (${this.player.partner.status}, Keintiman: ${this.player.partner.affection})` : "Belum Ada";
+        document.getElementById("val-pet").innerText = this.player.pet ? `${this.player.pet.name} (Lv.${this.player.pet.level}, Kenyang: ${this.player.pet.hunger}%)` : "Tidak Ada";
+        
+        // Update Inventory & Equipment UI (Opsional jika elemen HTML-nya ada)
+        let invContainer = document.getElementById("inventory-list");
+        if (invContainer) {
+            invContainer.innerHTML = this.player.inventory.map((item, idx) => 
+                `<div>${item.name} <button onclick="GameEngine.sellItem(${idx})">Jual (${item.value}G)</button></div>`
+            ).join('') || "<i>Inventory Kosong</i>";
+        }
 
         if (!this.player.isAlive) {
             this.stopAuto();
@@ -58,15 +192,16 @@ const GameEngine = {
     nextTurn() {
         if (!this.player.isAlive) return;
 
-        // 1. Tambah Waktu
+        // 1. Tambah Waktu & Jalankan Entitas Otonom
         this.player.day++;
+        this.updateAutonomousEntities();
+
         if (this.player.day > 365) {
             this.player.day = 1;
             this.player.year++;
             this.player.age++;
             this.log(`Tahun berganti. Usia karakter sekarang ${this.player.age} tahun.`);
             
-            // Sistem Kematian karena Usia Tua (Misal: 80 tahun)
             if (this.player.age >= 80 && Math.random() < 0.2) {
                 this.player.isAlive = false;
                 this.log("Karakter meninggal dunia dengan tenang karena usia tua.");
@@ -92,7 +227,6 @@ const GameEngine = {
             for (let ev of availableEvents) {
                 currentWeight += (ev.weight || 1);
                 if (randomNum <= currentWeight) {
-                    // Jika event memiliki pilihan interaktif, JEDA otomatis game-nya
                     if (ev.hasChoices) {
                         this.stopAuto();
                     }
@@ -143,11 +277,9 @@ const GameEngine = {
             let btn = document.createElement("button");
             btn.innerText = ch.text;
             btn.onclick = () => {
-                ch.action(this.player, (msg) => this.log(msg));
+                ch.action(this.player, (msg) => this.log(msg), (choices) => this.showChoices(choices));
                 container.innerHTML = "";
                 this.updateUI();
-                // Otomatis lanjut jalan lagi setelah memilih (opsional, jika ingin dilanjut)
-                // this.startAuto(); 
             };
             container.appendChild(btn);
         });
