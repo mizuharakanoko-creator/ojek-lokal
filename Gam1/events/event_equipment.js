@@ -14,6 +14,11 @@ GameEngine.registerEvent({
                         p.equipment.weapon = "Pedang Besi Tempa";
                         p.str += 3;
                         l("Kamu membeli Pedang Besi! Seranganmu meningkat drastis. (STR +3)");
+                        
+                        // Perbarui UI agar perubahan langsung terlihat di layar
+                        if (typeof GameEngine.updateUI === 'function') {
+                            GameEngine.updateUI();
+                        }
                     } else {
                         l("Uangmu tidak cukup untuk membeli pedang tersebut.");
                     }
@@ -27,6 +32,11 @@ GameEngine.registerEvent({
                         p.equipment.armor = "Armor Kulit Rusa";
                         p.agi += 2;
                         l("Kamu mengenakan Armor Kulit. Gerakanmu lebih terlindungi dan fleksibel! (AGI +2)");
+                        
+                        // Perbarui UI agar perubahan langsung terlihat di layar
+                        if (typeof GameEngine.updateUI === 'function') {
+                            GameEngine.updateUI();
+                        }
                     } else {
                         l("Uangmu tidak cukup.");
                     }
