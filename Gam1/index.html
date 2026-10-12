@@ -10,15 +10,13 @@
         .panel { background: #131b2e; border: 1px solid #1e293b; border-radius: 8px; padding: 12px; }
         h2, h3 { margin: 0 0 10px 0; color: #38bdf8; font-size: 16px; }
         .stats-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
-        button { background: #38bdf8; color: #0b0f19; border: none; padding: 8px 12px; font-weight: bold; border-radius: 4px; cursor: pointer; width: 100%; }
+        button { background: #38bdf8; color: #0b0f19; border: none; padding: 10px 12px; font-weight: bold; border-radius: 4px; cursor: pointer; width: 100%; }
         button:hover { opacity: 0.9; }
         
-        /* Progress Bar Tower */
         .progress-container { background: #1e293b; border-radius: 4px; overflow: hidden; height: 16px; margin-bottom: 8px; position: relative; }
         .progress-bar { background: #22c55e; height: 100%; width: 0%; transition: width 0.3s linear; }
         .progress-text { position: absolute; width: 100%; text-align: center; font-size: 11px; top: 0; font-weight: bold; color: #fff; line-height: 16px; }
 
-        /* Log & Party List */
         .log-box { background: #070a12; border: 1px solid #1e293b; height: 120px; overflow-y: auto; padding: 8px; font-family: monospace; font-size: 12px; display: flex; flex-direction: column-reverse; gap: 4px; }
         .party-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; max-height: 150px; overflow-y: auto; }
         .hero-card { background: #1e293b; padding: 6px; border-radius: 4px; font-size: 12px; border-left: 3px solid #38bdf8; }
@@ -30,7 +28,6 @@
 <body>
 
 <div class="container">
-    <!-- PANEL STATUS GLOBAL -->
     <div class="panel">
         <h2>📊 Status Sistem</h2>
         <div class="stats-row">
@@ -40,7 +37,6 @@
         </div>
     </div>
 
-    <!-- PANEL TOWER EXPLORATION (Modul Tower) -->
     <div class="panel">
         <h2>🗼 Eksplorasi Tower Otomatis</h2>
         <div class="progress-container">
@@ -52,32 +48,125 @@
         </div>
     </div>
 
-    <!-- PANEL PARTY & SUMMON (Modul Party) -->
     <div class="panel">
         <h2>👥 Manajemen Party & Summon</h2>
         <button id="btn-summon">Summon Pahlawan Baru (Cost: 25 Gems)</button>
         <h3 style="margin-top: 10px;">Daftar Hero Aktif:</h3>
         <div id="party-list" class="party-grid">
-            <!-- Diisi otomatis oleh party.js -->
+            <small>Belum ada pahlawan di party. Lakukan Summon!</small>
         </div>
     </div>
 </div>
 
-<!-- INISIALISASI SISTEM MODULE -->
-<script type="module">
-    import { GameCore } from './js/core.js';
-    import { PartySystem } from './js/updates/party.js';
-    import { TowerSystem } from './js/updates/tower.js';
+<script>
+    // --- 1. CORE SYSTEM ---
+    const GameCore = {
+        player: {
+            name: "Master",
+            gold: 100,
+            gems: 50,
+            party: [],
+            towerFloor: 1
+        },
+        init() {
+            this.startLoop();
+        },
+        startLoop() {
+            setInterval(() => {
+                this.player.gold += 2;
+                TowerSystem.processClimb(this.player);
+                this.updateUI();
+            }, 1000);
+        },
+        updateUI() {
+            document.getElementById('stat-gold').innerText = this.player.gold;
+            document.getElementById('stat-floor').innerText = this.player.towerFloor;
+            document.getElementById('stat-gems').innerText = this.player.gems;
+        }
+    };
 
+    // --- 2. PARTY SYSTEM (Gacha) ---
+    const PartySystem = {
+        heroPool: [
+            { id: 1, name: "Eiji", class: "Warrior", rarity: "N", atk: 15 },
+            { id: 2, name: "Helena", class: "Mage", rarity: "R", atk: 30 },
+            { id: 3, name: "Ignis", class: "Assassins", rarity: "SR", atk: 55 },
+            { id: 4, name: "Ragnar", class: "Tank", rarity: "SSR", atk: 90 }
+        ],
+        summonHero() {
+            const cost = 25;
+            if (GameCore.player.gems >= cost) {
+                GameCore.player.gems -= cost;
+                const randomHero = this.heroPool[Math.floor(Math.random() * this.heroPool.length)];
+                GameCore.player.party.push({ ...randomHero, uniqueId: Date.now() });
+                
+                alert(`🎉 Berhasil merekrut pahlawan: [${randomHero.rarity}] ${randomHero.name}!`);
+                this.renderPartyUI();
+                GameCore.updateUI();
+            } else {
+                alert("Gem tidak cukup untuk summon!");
+            }
+        },
+        getTotalPartyAtk() {
+            return GameCore.player.party.reduce((total, hero) => total + hero.atk, 10);
+        },
+        renderPartyUI() {
+            const container = document.getElementById('party-list');
+            if (!container) return;
+            
+            container.innerHTML = "";
+            GameCore.player.party.forEach(hero => {
+                const card = document.createElement('div');
+                card.className = `hero-card rarity-${hero.rarity.toLowerCase()}`;
+                card.innerHTML = `<strong>${hero.name}</strong> (${hero.class})<br><small>ATK: ${hero.atk} | [${hero.rarity}]</small>`;
+                container.appendChild(card);
+            });
+        }
+    };
+
+    // --- 3. TOWER SYSTEM ---
+    const TowerSystem = {
+        progress: 0,
+        processClimb(player) {
+            const partyAtk = PartySystem.getTotalPartyAtk();
+            const climbSpeed = partyAtk * 0.1;
+            this.progress += climbSpeed;
+
+            if (this.progress >= 100) {
+                this.progress = 0;
+                player.towerFloor++;
+                let rewardGold = player.towerFloor * 15;
+                player.gold += rewardGold;
+                
+                if (player.towerFloor % 5 === 0) {
+                    player.gems += 10;
+                    this.addTowerLog(`🏆 Lantai ${player.towerFloor} dibersihkan! Bonus 10 Gems!`);
+                } else {
+                    this.addTowerLog(`⚔️ Naik ke lantai ${player.towerFloor}!`);
+                }
+            }
+            this.updateTowerUI();
+        },
+        addTowerLog(text) {
+            const logBox = document.getElementById('tower-logs');
+            if (!logBox) return;
+            const item = document.createElement('div');
+            item.innerText = `[${new Date().toLocaleTimeString()}] ${text}`;
+            logBox.prepend(item);
+        },
+        updateTowerUI() {
+            const barEl = document.getElementById('tower-progress-bar');
+            const textEl = document.getElementById('tower-progress-text');
+            if (barEl) barEl.style.width = `${Math.floor(this.progress)}%`;
+            if (textEl) textEl.innerText = `${Math.floor(this.progress)}%`;
+        }
+    };
+
+    // --- INISIALISASI EVENT ---
     window.addEventListener('DOMContentLoaded', () => {
-        // 1. Jalankan Core
         GameCore.init();
-
-        // 2. Jalankan Modul Party & Tower secara terpisah
-        PartySystem.init();
-        TowerSystem.init();
-
-        // 3. Hubungkan tombol HTML ke modul yang bersangkutan
+        
+        // Hubungkan tombol summon
         document.getElementById('btn-summon').addEventListener('click', () => {
             PartySystem.summonHero();
         });
