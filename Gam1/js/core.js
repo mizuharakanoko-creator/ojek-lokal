@@ -1,11 +1,14 @@
 // js/core.js
+import { TowerSystem } from './updates/tower.js';
+import { PartySystem } from './updates/party.js';
+
 export const GameCore = {
     player: {
         name: "Master",
         gold: 100,
         gems: 50,
-        party: [],       // Karakter yang aktif
-        towerFloor: 1    // Progress lantai tower
+        party: [],
+        towerFloor: 1
     },
     
     init() {
@@ -15,23 +18,24 @@ export const GameCore = {
 
     startLoop() {
         setInterval(() => {
-            // Progres pasif dasar (Gold otomatis bertambah sedikit tiap detik)
             this.player.gold += 2;
-            
-            // Broadcast event tick ke modul lain (Tower & Party)
-            document.dispatchEvent(new CustomEvent('gameTick', { detail: this.player }));
-            
+            TowerSystem.processClimb(this.player);
             this.updateUI();
         }, 1000);
     },
 
     updateUI() {
-        const goldEl = document.getElementById('stat-gold');
-        const floorEl = document.getElementById('stat-floor');
-        const gemsEl = document.getElementById('stat-gems');
+        document.getElementById('stat-gold').innerText = this.player.gold;
+        document.getElementById('stat-floor').innerText = this.player.towerFloor;
+        document.getElementById('stat-gems').innerText = this.player.gems;
         
-        if (goldEl) goldEl.innerText = this.player.gold;
-        if (floorEl) floorEl.innerText = this.player.towerFloor;
-        if (gemsEl) gemsEl.innerText = this.player.gems;
+        // Update info kesulitan & risiko berdasarkan lantai
+        const difficultyMultiplier = 100 + (this.player.towerFloor - 1) * 25;
+        const riskRate = Math.min(35, 5 + Math.floor(this.player.towerFloor * 1.5));
+        
+        const diffEl = document.getElementById('stat-difficulty');
+        const riskEl = document.getElementById('stat-risk');
+        if (diffEl) diffEl.innerText = `${difficultyMultiplier}%`;
+        if (riskEl) riskEl.innerText = `${riskRate}%`;
     }
 };
