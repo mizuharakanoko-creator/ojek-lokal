@@ -1,60 +1,72 @@
 // js/updates/party.js
 import { GameCore } from '../core.js';
+import { TowerSystem } from './tower.js';
 
 export const PartySystem = {
-    // Database pool karakter (bisa ditambah ratusan karakter di sini tanpa ganggu core)
     heroPool: [
-        { id: 1, name: "Eiji", class: "Warrior", rarity: "N", atk: 15 },
-        { id: 2, name: "Helena", class: "Mage", rarity: "R", atk: 30 },
-        { id: 3, name: "Ignis", class: "Assassins", rarity: "SR", atk: 55 },
-        { id: 4, name: "Ragnar", class: "Tank", rarity: "SSR", atk: 90 }
+        { id: 1, name: "Eiji", class: "Warrior", rarity: "N", atk: 15, defense: 5 },
+        { id: 2, name: "Helena", class: "Mage", rarity: "R", atk: 30, defense: 3 },
+        { id: 3, name: "Ignis", class: "Assassins", rarity: "SR", atk: 55, defense: 4 },
+        { id: 4, name: "Ragnar", class: "Tank", rarity: "SSR", atk: 90, defense: 15 }
     ],
 
     init() {
-        console.log("Modul Party & Gacha Dimuat.");
+        console.log("Modul Party Dimuat.");
         this.renderPartyUI();
     },
 
-    // Sistem Rekrut / Summon Karakter
     summonHero() {
         const cost = 25;
         if (GameCore.player.gems >= cost) {
             GameCore.player.gems -= cost;
+            const template = this.heroPool[Math.floor(Math.random() * this.heroPool.length)];
+            const newHero = { ...template, uniqueId: Date.now() + Math.random() };
+            GameCore.player.party.push(newHero);
             
-            // Random hero dari pool
-            const randomHero = this.heroPool[Math.floor(Math.random() * this.heroPool.length)];
-            
-            // Masukkan duplikat atau buat instance baru ke party
-            GameCore.player.party.push({ ...randomHero, uniqueId: Date.now() });
-            
-            alert(`🎉 Berhasil merekrut pahlawan baru: [${randomHero.rarity}] ${randomHero.name}!`);
+            TowerSystem.addTowerLog(`🎉 Summon Sukses: [${newHero.rarity}] ${newHero.name} bergabung!`, "success-log");
             this.renderPartyUI();
+            GameCore.updateUI();
         } else {
             alert("Gem tidak cukup untuk summon!");
         }
     },
 
-    // Menghitung total attack dari semua party yang aktif
     getTotalPartyAtk() {
-        return GameCore.player.party.reduce((total, hero) => total + hero.atk, 10); // Base 10 dari Master
+        return GameCore.player.party.reduce((total, hero) => total + hero.atk, 10);
     },
 
-    // Render tampilan party ke HTML
+    getTotalPartyDefense() {
+        return GameCore.player.party.reduce((total, hero) => total + hero.defense, 5);
+    },
+
     renderPartyUI() {
         const container = document.getElementById('party-list');
         if (!container) return;
         
         container.innerHTML = "";
         if (GameCore.player.party.length === 0) {
-            container.innerHTML = "<small>Belum ada pahlawan di party. Lakukan Summon!</small>";
+            container.innerHTML = "<small style='color:#f87171;'>Party kosong! Semua hero gugur atau belum direkrut.</small>";
             return;
         }
 
         GameCore.player.party.forEach(hero => {
             const card = document.createElement('div');
             card.className = `hero-card rarity-${hero.rarity.toLowerCase()}`;
-            card.innerHTML = `<strong>${hero.name}</strong> (${hero.class})<br><small>ATK: ${hero.atk} | [${hero.rarity}]</small>`;
+            card.innerHTML = `<strong>${hero.name}</strong> (${hero.class})<br><small>ATK: ${hero.atk} | DEF: ${hero.defense}</small>`;
             container.appendChild(card);
         });
+    },
+
+    // Mekanisme Hero Mati & Terhapus Permanen
+    killRandomHero() {
+        if (GameCore.player.party.length === 0) return;
+
+        const index = Math.floor(Math.random() * GameCore.player.party.length);
+        const fallenHero = GameCore.player.party[index];
+
+        GameCore.player.party.splice(index, 1);
+        
+        TowerSystem.addTowerLog(`💀 TRAGEDI! [${fallenHero.rarity}] ${fallenHero.name} tewas dalam pertempuran dan TERHAPUS dari party!`, "danger-log");
+        this.renderPartyUI();
     }
 };
