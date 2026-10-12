@@ -1,13 +1,13 @@
 // js/core.js
 export const GameCore = {
     player: {
-        name: "Player",
+        name: "Master",
         gold: 100,
         gems: 50,
-        party: [] // Karakter yang direkrut akan masuk sini
+        party: [],       // Karakter yang aktif
+        towerFloor: 1    // Progress lantai tower
     },
     
-    // Fungsi dasar yang berjalan otomatis
     init() {
         console.log("Game Core Berhasil Dimuat.");
         this.startLoop();
@@ -15,10 +15,10 @@ export const GameCore = {
 
     startLoop() {
         setInterval(() => {
-            // Progres dasar (misal: otomatis dapat gold tiap detik)
-            this.player.gold += 5;
+            // Progres pasif dasar (Gold otomatis bertambah sedikit tiap detik)
+            this.player.gold += 2;
             
-            // Trigger event untuk modul tambahan jika ada
+            // Broadcast event tick ke modul lain (Tower & Party)
             document.dispatchEvent(new CustomEvent('gameTick', { detail: this.player }));
             
             this.updateUI();
@@ -27,6 +27,11 @@ export const GameCore = {
 
     updateUI() {
         const goldEl = document.getElementById('stat-gold');
+        const floorEl = document.getElementById('stat-floor');
+        const gemsEl = document.getElementById('stat-gems');
+        
         if (goldEl) goldEl.innerText = this.player.gold;
+        if (floorEl) floorEl.innerText = this.player.towerFloor;
+        if (gemsEl) gemsEl.innerText = this.player.gems;
     }
 };
